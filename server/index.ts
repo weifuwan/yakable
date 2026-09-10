@@ -6,7 +6,14 @@ import { repairPreviewIfNeeded } from './agent/auto-repair.js';
 import { runAgent, type AgentHistoryMessage } from './agent/run-agent.js';
 import { createProviderFromEnv } from './ai/provider-factory.js';
 import { ensureProject, getProjectSnapshot } from './project/project-store.js';
-import { PreviewRuntimeManager } from './runtime/preview-runtime.js';
+import { PreviewRuntimeManager, type PreviewRuntimeSnapshot } from './runtime/preview-runtime.js';
+import {
+  captureStableVersion,
+  getProjectVersionDiff,
+  listProjectVersions,
+  rollbackProjectVersion,
+  type ProjectVersionOrigin,
+} from './version/version-store.js';
 
 const MAX_BODY_BYTES = 64 * 1024;
 const provider = createProviderFromEnv();
@@ -84,6 +91,24 @@ function unique(values: string[]) {
   return [...new Set(values)];
 }
 
+function captureVersionIfReady(
+  projectId: string,
+  runtime: PreviewRuntimeSnapshot,
+  label: string,
+  origin: ProjectVersionOrigin,
+  sourceVersionId?: string,
+) {
+  if (runtime.status !== 'ready') {
+    return undefined;
+  }
+
+  return captureStableVersion(projectId, {
+    label,
+    origin,
+    sourceVersionId,
+  }).version;
+}
+
 const server = createServer(async (request, response) => {
   const url = new URL(request.url ?? '/', 'http://localhost');
 
@@ -92,7 +117,7 @@ const server = createServer(async (request, response) => {
       status: 'ok',
       provider: provider.name,
       model: provider.model,
-      phase: 'iterative-edit-and-repair',
+      phase: 'version-history',
     });
     return;
   }
@@ -116,6 +141,68 @@ const server = createServer(async (request, response) => {
     return;
   }
 
+  const versionDiffMatch = url.pathname.match(
+    /^\/api\/projects\/([A-Za-z0-9_-]{8,80})\/versions\/(v\d+)\/diff$/,
+  );
+  if (request.method === 'GET' && versionDiffMatch) {
+    try {
+      const [, projectId, versionId] = versionDiffMatch;
+      ensureProject(projectId);
+      json(response, 200, getProjectVersionDiff(projectId, versionId));
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'Version diff request failed';
+      json(response, 404, { error: detail });
+    }
+    return;
+  }
+
+  const versionRollbackMatch = url.pathname.match(
+    /^\/api\/projects\/([A-Za-z0-9_-]{8,80})\/versions\/(v\d+)\/rollback$/,
+  );
+  if (request.method === 'POST' && versionRollbackMatch) {
+    try {
+      const [, projectId, versionId] = versionRollbackMatch;
+      ensureProject(projectId);
+      const rollback = rollbackProjectVersion(projectId, versionId);
+      const runtime = await previewRuntime.syncProject(projectId);
+      const version = captureVersionIfReady(
+        projectId,
+        runtime,
+        `Rollback to v${rollback.target.number}`,
+        'rollback',
+        rollback.target.id,
+      );
+
+      json(response, 200, {
+        target: rollback.target,
+        project: getProjectSnapshot(projectId),
+        runtime,
+        changedFiles: rollback.changedFiles,
+        version,
+        versions: listProjectVersions(projectId),
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'Version rollback failed';
+      json(response, 500, { error: detail });
+    }
+    return;
+  }
+
+  const versionsMatch = url.pathname.match(
+    /^\/api\/projects\/([A-Za-z0-9_-]{8,80})\/versions$/,
+  );
+  if (request.method === 'GET' && versionsMatch) {
+    try {
+      const projectId = versionsMatch[1];
+      ensureProject(projectId);
+      json(response, 200, { versions: listProjectVersions(projectId) });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'Version history request failed';
+      json(response, 400, { error: detail });
+    }
+    return;
+  }
+
   const projectMatch = url.pathname.match(/^\/api\/projects\/([A-Za-z0-9_-]{8,80})$/);
   if (request.method === 'GET' && projectMatch) {
     try {
@@ -124,6 +211,7 @@ const server = createServer(async (request, response) => {
       json(response, 200, {
         ...getProjectSnapshot(projectId),
         runtime: previewRuntime.getSnapshot(projectId),
+        versions: listProjectVersions(projectId),
       });
     } catch (error) {
       const detail = error instanceof Error ? error.message : 'Project request failed';
@@ -154,12 +242,20 @@ const server = createServer(async (request, response) => {
         runtime,
         { history },
       );
+      const version = captureVersionIfReady(
+        projectId,
+        repaired.runtime,
+        'Repair preview',
+        'repair',
+      );
 
       json(response, 200, {
         project: getProjectSnapshot(projectId),
         runtime: repaired.runtime,
         repair: repaired.repair,
         changedFiles: repaired.repair.changedFiles,
+        version,
+        versions: listProjectVersions(projectId),
       });
     } catch (error) {
       const detail = error instanceof Error ? error.message : 'Repair request failed';
@@ -203,12 +299,8 @@ const server = createServer(async (request, response) => {
 
       const projectId = parseProjectId(body.projectId);
       const history = parseHistory(body.history);
-      const result = await runAgent(
-        provider,
-        projectId,
-        body.message.trim().slice(0, 8000),
-        history,
-      );
+      const userMessage = body.message.trim().slice(0, 8000);
+      const result = await runAgent(provider, projectId, userMessage, history);
       const initialRuntime = await previewRuntime.syncProject(projectId);
       const repaired = await repairPreviewIfNeeded(
         provider,
@@ -217,16 +309,25 @@ const server = createServer(async (request, response) => {
         initialRuntime,
         { history },
       );
+      const changedFiles = unique([
+        ...result.changedFiles,
+        ...repaired.repair.changedFiles,
+      ]);
+      const version = captureVersionIfReady(
+        projectId,
+        repaired.runtime,
+        userMessage,
+        'agent',
+      );
 
       json(response, 200, {
         ...result,
         project: getProjectSnapshot(projectId),
-        changedFiles: unique([
-          ...result.changedFiles,
-          ...repaired.repair.changedFiles,
-        ]),
+        changedFiles,
         runtime: repaired.runtime,
         repair: repaired.repair,
+        version,
+        versions: listProjectVersions(projectId),
       });
     } catch (error) {
       const detail = error instanceof Error ? error.message : 'Agent request failed';

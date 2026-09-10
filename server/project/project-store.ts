@@ -19,6 +19,11 @@ export interface ProjectSnapshot {
   files: ProjectFileSummary[];
 }
 
+export interface ProjectSourceFile {
+  path: string;
+  content: string;
+}
+
 interface StoredFile {
   content: string;
   updatedAt: number;
@@ -188,8 +193,12 @@ function normalizePath(input: string) {
   return path;
 }
 
+function isWritablePath(path: string) {
+  return WRITABLE_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
+
 function assertWritablePath(path: string) {
-  if (!WRITABLE_PREFIXES.some((prefix) => path.startsWith(prefix))) {
+  if (!isWritablePath(path)) {
     throw new Error('Only src/ and public/ files are writable in the fixed MVP template');
   }
 }
@@ -292,6 +301,61 @@ export function readProjectFile(projectId: string, inputPath: string) {
     content: file.content,
     size: byteLength(file.content),
   };
+}
+
+export function listProjectSourceFiles(projectId: string): ProjectSourceFile[] {
+  const project = requireProject(projectId);
+
+  return [...project.files.entries()]
+    .filter(([path]) => isWritablePath(path))
+    .map(([path, file]) => ({ path, content: file.content }))
+    .sort((a, b) => a.path.localeCompare(b.path));
+}
+
+export function restoreProjectSourceFiles(projectId: string, sourceFiles: ProjectSourceFile[]) {
+  const project = requireProject(projectId);
+  const normalized = sourceFiles.map((file) => ({
+    path: normalizePath(file.path),
+    content: file.content,
+  }));
+  const seen = new Set<string>();
+
+  for (const file of normalized) {
+    assertWritablePath(file.path);
+    if (seen.has(file.path)) {
+      throw new Error(`Duplicate source path: ${file.path}`);
+    }
+    seen.add(file.path);
+
+    if (byteLength(file.content) > MAX_FILE_BYTES) {
+      throw new Error(`File exceeds the ${MAX_FILE_BYTES}-byte limit`);
+    }
+  }
+
+  const lockedFiles = [...project.files.entries()].filter(([path]) => !isWritablePath(path));
+  if (lockedFiles.length + normalized.length > MAX_PROJECT_FILES) {
+    throw new Error(`Project exceeds the ${MAX_PROJECT_FILES}-file limit`);
+  }
+
+  const nextBytes =
+    lockedFiles.reduce((total, [, file]) => total + byteLength(file.content), 0) +
+    normalized.reduce((total, file) => total + byteLength(file.content), 0);
+  if (nextBytes > MAX_PROJECT_BYTES) {
+    throw new Error(`Project exceeds the ${MAX_PROJECT_BYTES}-byte source limit`);
+  }
+
+  const now = Date.now();
+  for (const path of [...project.files.keys()]) {
+    if (isWritablePath(path)) {
+      project.files.delete(path);
+    }
+  }
+  for (const file of normalized) {
+    project.files.set(file.path, { content: file.content, updatedAt: now });
+  }
+  project.updatedAt = now;
+
+  return getProjectSnapshot(projectId);
 }
 
 export function writeProjectFile(projectId: string, inputPath: string, content: string) {

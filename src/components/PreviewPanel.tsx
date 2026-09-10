@@ -14,20 +14,27 @@ import type {
   AgentProjectSnapshot,
   AgentRepairSummary,
   PreviewRuntimeSnapshot,
+  ProjectVersionSummary,
 } from '../lib/agent-api';
 import PreviewMockup from './PreviewMockup';
+import VersionHistoryPanel from './VersionHistoryPanel';
 
 export type PreviewViewport = 'desktop' | 'tablet' | 'mobile';
 
 interface PreviewPanelProps {
+  projectId: string;
   viewport: PreviewViewport;
   onViewportChange: (viewport: PreviewViewport) => void;
   project?: AgentProjectSnapshot;
   runtime?: PreviewRuntimeSnapshot;
   repair?: AgentRepairSummary;
   changedFiles: string[];
+  versions: ProjectVersionSummary[];
+  currentVersionId?: string;
   isRefreshing: boolean;
+  isRollingBack: boolean;
   onRefresh: () => void;
+  onRollback: (version: ProjectVersionSummary) => void;
 }
 
 const viewportWidths: Record<PreviewViewport, string> = {
@@ -75,21 +82,26 @@ function runtimeBadge(
 }
 
 export default function PreviewPanel({
+  projectId,
   viewport,
   onViewportChange,
   project,
   runtime,
   repair,
   changedFiles,
+  versions,
+  currentVersionId,
   isRefreshing,
+  isRollingBack,
   onRefresh,
+  onRollback,
 }: PreviewPanelProps) {
   const badge = runtimeBadge(project, runtime, repair);
   const previewUrl = runtime?.status === 'ready' ? runtime.previewUrl : undefined;
   const livePreview = Boolean(previewUrl);
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col bg-[#f4f4f5]">
+    <section className="relative flex min-h-0 flex-1 flex-col bg-[#f4f4f5]">
       <div className="flex h-12 flex-none items-center justify-between border-b border-zinc-200 bg-white px-3 sm:px-4">
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold text-zinc-800">Preview</span>
@@ -98,6 +110,11 @@ export default function PreviewPanel({
           >
             {badge.label}
           </span>
+          {versions[0] ? (
+            <span className="hidden text-[9px] font-medium text-zinc-400 md:inline">
+              v{versions[0].number}
+            </span>
+          ) : null}
         </div>
 
         <div className="flex items-center gap-1 rounded-lg border border-zinc-200 bg-zinc-50 p-1">
@@ -126,10 +143,17 @@ export default function PreviewPanel({
         </div>
 
         <div className="flex items-center gap-1">
+          <VersionHistoryPanel
+            projectId={projectId}
+            versions={versions}
+            currentVersionId={currentVersionId}
+            isRollingBack={isRollingBack}
+            onRollback={onRollback}
+          />
           <button
             type="button"
             onClick={onRefresh}
-            disabled={!project || isRefreshing}
+            disabled={!project || isRefreshing || isRollingBack}
             title={runtime?.status === 'error' ? 'Repair preview with Agent' : 'Synchronize and reload preview'}
             aria-label={runtime?.status === 'error' ? 'Repair preview with Agent' : 'Synchronize and reload preview'}
             className="flex size-8 items-center justify-center rounded-lg text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:text-zinc-300"
@@ -221,7 +245,7 @@ export default function PreviewPanel({
                   <button
                     type="button"
                     onClick={onRefresh}
-                    disabled={isRefreshing}
+                    disabled={isRefreshing || isRollingBack}
                     className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100 disabled:opacity-50"
                   >
                     {isRefreshing ? (
