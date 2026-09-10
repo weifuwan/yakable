@@ -33,6 +33,16 @@ export interface PreviewRuntimeSnapshot {
   error?: string;
 }
 
+export interface AgentRepairSummary {
+  attempted: boolean;
+  attempts: number;
+  succeeded: boolean;
+  initialError?: string;
+  finalError?: string;
+  errors: string[];
+  changedFiles: string[];
+}
+
 export interface AgentRunResponse {
   message: string;
   provider: string;
@@ -45,6 +55,14 @@ export interface AgentRunResponse {
   project: AgentProjectSnapshot;
   changedFiles: string[];
   runtime: PreviewRuntimeSnapshot;
+  repair: AgentRepairSummary;
+}
+
+export interface RepairRunResponse {
+  project: AgentProjectSnapshot;
+  changedFiles: string[];
+  runtime: PreviewRuntimeSnapshot;
+  repair: AgentRepairSummary;
 }
 
 async function readJson<T>(response: Response): Promise<T> {
@@ -72,7 +90,12 @@ export async function runAgentRequest(
 
   const payload = await readJson<Partial<AgentRunResponse>>(response);
 
-  if (typeof payload.message !== 'string' || !payload.project || !payload.runtime) {
+  if (
+    typeof payload.message !== 'string' ||
+    !payload.project ||
+    !payload.runtime ||
+    !payload.repair
+  ) {
     throw new Error('Agent returned an invalid response');
   }
 
@@ -85,4 +108,19 @@ export async function syncPreviewRuntime(projectId: string) {
   });
 
   return readJson<PreviewRuntimeSnapshot>(response);
+}
+
+export async function repairPreviewRuntime(
+  projectId: string,
+  history: AgentHistoryItem[],
+) {
+  const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}/repair`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ history }),
+  });
+
+  return readJson<RepairRunResponse>(response);
 }
