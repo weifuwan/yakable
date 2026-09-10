@@ -1,26 +1,56 @@
 # Yakable
 
-Yakable is an AI app builder focused on one simple product loop: describe what you want, generate working software, preview it, and keep refining it through conversation.
+Yakable is an AI app builder in progress. The MVP is being built as a sequence of small, reviewable product slices.
 
 ## MVP status
 
-PR 1 establishes the product shell:
+PR 1 established the core product shell:
 
-- React + TypeScript + Vite + Tailwind CSS frontend
+- React + TypeScript + Vite + Tailwind CSS
 - Chat-first build workspace
-- Responsive preview surface with desktop, tablet, and mobile modes
-- Clear boundaries for the upcoming Agent and Sandbox integrations
+- Desktop / tablet / mobile preview modes
+- Static preview boundary for the future Sandbox runtime
 
-The preview is intentionally mocked in PR 1. AI generation, command execution, and sandbox runtime belong to the following MVP pull requests.
+PR 2 adds the first real AI boundary:
 
-## Development
+- Server-side AI Provider abstraction
+- Anthropic Messages API provider with `claude-sonnet-5` as the default model
+- Offline mock provider when no API key is configured
+- Bounded Agent loop with tool calls and tool results
+- Foundation tools for workspace inspection and implementation planning
+- Frontend Chat wired to `/api/agent/run`
+
+File writes, command execution and a real generated-project runtime are intentionally deferred to the next PRs.
+
+## Local development
+
+Install dependencies:
 
 ```bash
 npm install
-npm run dev
 ```
 
-The local development server runs on `http://localhost:5173`.
+Copy the environment template if you want to use Claude:
+
+```bash
+cp .env.example .env
+```
+
+Set `ANTHROPIC_API_KEY` in `.env`. If it is omitted, the API automatically uses a deterministic mock provider so the Agent loop can still be exercised locally.
+
+Run the API in one terminal:
+
+```bash
+npm run dev:api
+```
+
+Run the web app in another terminal:
+
+```bash
+npm run dev:web
+```
+
+Open `http://localhost:5173`.
 
 ## Checks
 
@@ -29,6 +59,8 @@ npm run typecheck
 npm run build
 ```
 
-## Roadmap
+## Security boundary
 
-See [PLAN.md](./PLAN.md) for the high-level product plan.
+Model credentials live only in the Node API process. Never put provider secrets in `VITE_*` variables because Vite exposes those variables to browser code.
+
+See [PLAN.md](./PLAN.md) for the broader product roadmap.

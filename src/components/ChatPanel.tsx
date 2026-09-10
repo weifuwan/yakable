@@ -1,5 +1,6 @@
 import {
   ArrowUp,
+  LoaderCircle,
   Sparkles,
   WandSparkles,
 } from 'lucide-react';
@@ -18,6 +19,7 @@ export interface ChatMessage {
 interface ChatPanelProps {
   messages: ChatMessage[];
   onSend: (message: string) => void;
+  isThinking?: boolean;
 }
 
 const suggestions = [
@@ -25,13 +27,17 @@ const suggestions = [
   'Create a clean analytics dashboard',
 ];
 
-export default function ChatPanel({ messages, onSend }: ChatPanelProps) {
+export default function ChatPanel({
+  messages,
+  onSend,
+  isThinking = false,
+}: ChatPanelProps) {
   const [draft, setDraft] = useState('');
 
   const submit = () => {
     const message = draft.trim();
 
-    if (!message) {
+    if (!message || isThinking) {
       return;
     }
 
@@ -59,7 +65,7 @@ export default function ChatPanel({ messages, onSend }: ChatPanelProps) {
           Build with Yakable
         </div>
         <p className="mt-1 text-xs leading-5 text-zinc-500">
-          Describe the product. The AI agent will use this conversation as its task stream.
+          Describe the product. The server-side Agent will inspect the workspace and plan the task.
         </p>
       </div>
 
@@ -75,17 +81,30 @@ export default function ChatPanel({ messages, onSend }: ChatPanelProps) {
                   <div className="mt-0.5 flex size-7 flex-none items-center justify-center rounded-lg bg-zinc-950 text-white">
                     <Sparkles size={14} strokeWidth={1.9} />
                   </div>
-                  <div className="rounded-2xl rounded-tl-md border border-zinc-200 bg-zinc-50 px-3.5 py-3 text-[13px] leading-5 text-zinc-700">
+                  <div className="whitespace-pre-wrap rounded-2xl rounded-tl-md border border-zinc-200 bg-zinc-50 px-3.5 py-3 text-[13px] leading-5 text-zinc-700">
                     {message.content}
                   </div>
                 </div>
               ) : (
-                <div className="max-w-[86%] rounded-2xl rounded-tr-md bg-zinc-950 px-3.5 py-3 text-[13px] leading-5 text-white">
+                <div className="max-w-[86%] whitespace-pre-wrap rounded-2xl rounded-tr-md bg-zinc-950 px-3.5 py-3 text-[13px] leading-5 text-white">
                   {message.content}
                 </div>
               )}
             </div>
           ))}
+
+          {isThinking ? (
+            <div className="flex justify-start">
+              <div className="flex items-center gap-2.5">
+                <div className="flex size-7 flex-none items-center justify-center rounded-lg bg-zinc-950 text-white">
+                  <LoaderCircle className="animate-spin" size={14} strokeWidth={1.9} />
+                </div>
+                <div className="rounded-2xl rounded-tl-md border border-zinc-200 bg-zinc-50 px-3.5 py-2.5 text-[12px] text-zinc-500">
+                  Agent is planning...
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -95,8 +114,9 @@ export default function ChatPanel({ messages, onSend }: ChatPanelProps) {
             <button
               key={suggestion}
               type="button"
+              disabled={isThinking}
               onClick={() => setDraft(suggestion)}
-              className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-[11px] font-medium text-zinc-600 transition hover:border-zinc-300 hover:bg-zinc-50 hover:text-zinc-900"
+              className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-[11px] font-medium text-zinc-600 transition hover:border-zinc-300 hover:bg-zinc-50 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {suggestion}
             </button>
@@ -109,21 +129,26 @@ export default function ChatPanel({ messages, onSend }: ChatPanelProps) {
         >
           <textarea
             value={draft}
+            disabled={isThinking}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={handleKeyDown}
             rows={3}
             placeholder="Describe what you want to build..."
-            className="block w-full resize-none border-0 bg-transparent px-2 py-1.5 text-[13px] leading-5 text-zinc-900 outline-none placeholder:text-zinc-400"
+            className="block w-full resize-none border-0 bg-transparent px-2 py-1.5 text-[13px] leading-5 text-zinc-900 outline-none placeholder:text-zinc-400 disabled:cursor-not-allowed disabled:text-zinc-400"
           />
           <div className="flex items-center justify-between px-1 pt-1">
             <span className="text-[10px] text-zinc-400">Enter to send · Shift + Enter for newline</span>
             <button
               type="submit"
-              disabled={!draft.trim()}
+              disabled={!draft.trim() || isThinking}
               aria-label="Send prompt"
               className="flex size-8 items-center justify-center rounded-xl bg-zinc-950 text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
             >
-              <ArrowUp size={16} strokeWidth={2} />
+              {isThinking ? (
+                <LoaderCircle className="animate-spin" size={16} strokeWidth={2} />
+              ) : (
+                <ArrowUp size={16} strokeWidth={2} />
+              )}
             </button>
           </div>
         </form>
