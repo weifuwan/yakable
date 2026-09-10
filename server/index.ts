@@ -2,6 +2,7 @@ import 'dotenv/config';
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 
+import { repairPreviewIfNeeded } from './agent/auto-repair.js';
 import { runAgent, type AgentHistoryMessage } from './agent/run-agent.js';
 import { createProviderFromEnv } from './ai/provider-factory.js';
 import { ensureProject, getProjectSnapshot } from './project/project-store.js';
@@ -79,6 +80,10 @@ function parseProjectId(value: unknown) {
   return projectId;
 }
 
+function unique(values: string[]) {
+  return [...new Set(values)];
+}
+
 const server = createServer(async (request, response) => {
   const url = new URL(request.url ?? '/', 'http://localhost');
 
@@ -87,7 +92,7 @@ const server = createServer(async (request, response) => {
       status: 'ok',
       provider: provider.name,
       model: provider.model,
-      phase: 'sandbox-preview',
+      phase: 'iterative-edit-and-repair',
     });
     return;
   }
@@ -127,6 +132,42 @@ const server = createServer(async (request, response) => {
     return;
   }
 
+  const repairMatch = url.pathname.match(
+    /^\/api\/projects\/([A-Za-z0-9_-]{8,80})\/repair$/,
+  );
+  if (request.method === 'POST' && repairMatch) {
+    try {
+      const projectId = repairMatch[1];
+      const body = await readJsonBody(request);
+      const history = isRecord(body) ? parseHistory(body.history) : [];
+
+      ensureProject(projectId);
+      let runtime = previewRuntime.getSnapshot(projectId);
+      if (runtime.status !== 'error') {
+        runtime = await previewRuntime.syncProject(projectId);
+      }
+
+      const repaired = await repairPreviewIfNeeded(
+        provider,
+        previewRuntime,
+        projectId,
+        runtime,
+        { history },
+      );
+
+      json(response, 200, {
+        project: getProjectSnapshot(projectId),
+        runtime: repaired.runtime,
+        repair: repaired.repair,
+        changedFiles: repaired.repair.changedFiles,
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'Repair request failed';
+      json(response, 500, { error: detail });
+    }
+    return;
+  }
+
   const runtimeMatch = url.pathname.match(
     /^\/api\/projects\/([A-Za-z0-9_-]{8,80})\/runtime$/,
   );
@@ -161,17 +202,31 @@ const server = createServer(async (request, response) => {
       }
 
       const projectId = parseProjectId(body.projectId);
+      const history = parseHistory(body.history);
       const result = await runAgent(
         provider,
         projectId,
         body.message.trim().slice(0, 8000),
-        parseHistory(body.history),
+        history,
       );
-      const runtime = await previewRuntime.syncProject(projectId);
+      const initialRuntime = await previewRuntime.syncProject(projectId);
+      const repaired = await repairPreviewIfNeeded(
+        provider,
+        previewRuntime,
+        projectId,
+        initialRuntime,
+        { history },
+      );
 
       json(response, 200, {
         ...result,
-        runtime,
+        project: getProjectSnapshot(projectId),
+        changedFiles: unique([
+          ...result.changedFiles,
+          ...repaired.repair.changedFiles,
+        ]),
+        runtime: repaired.runtime,
+        repair: repaired.repair,
       });
     } catch (error) {
       const detail = error instanceof Error ? error.message : 'Agent request failed';

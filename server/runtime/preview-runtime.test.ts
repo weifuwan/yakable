@@ -9,10 +9,17 @@ import type { ViteDevServer } from 'vite';
 import { ensureProject, writeProjectFile } from '../project/project-store.js';
 import { PreviewRuntimeManager } from './preview-runtime.js';
 
-function fakeViteServer(onInvalidate: () => void, onClose: () => void) {
+function fakeViteServer(
+  onInvalidate: () => void,
+  onClose: () => void,
+  onTransform: (url: string) => Promise<unknown> = async () => ({ code: '' }),
+) {
   return {
     moduleGraph: {
       invalidateAll: onInvalidate,
+    },
+    async transformRequest(url: string) {
+      return onTransform(url);
     },
     middlewares() {
       throw new Error('Preview middleware is not exercised in this unit test');
@@ -23,12 +30,13 @@ function fakeViteServer(onInvalidate: () => void, onClose: () => void) {
   } as unknown as ViteDevServer;
 }
 
-test('syncProject materializes source and reuses the fixed Vite runtime', async () => {
+test('syncProject materializes source, validates modules, and reuses the fixed Vite runtime', async () => {
   const rootDir = await mkdtemp(join(tmpdir(), 'yakable-preview-runtime-'));
   const projectId = 'project_runtime_sync_test';
   let createCount = 0;
   let invalidateCount = 0;
   let closeCount = 0;
+  let transformCount = 0;
 
   const manager = new PreviewRuntimeManager({
     rootDir,
@@ -42,6 +50,10 @@ test('syncProject materializes source and reuses the fixed Vite runtime', async 
         () => {
           closeCount += 1;
         },
+        async () => {
+          transformCount += 1;
+          return { code: '' };
+        },
       );
     },
   });
@@ -53,6 +65,7 @@ test('syncProject materializes source and reuses the fixed Vite runtime', async 
   assert.equal(first.status, 'ready');
   assert.equal(first.revision, 1);
   assert.equal(createCount, 1);
+  assert.ok(transformCount >= 3);
   assert.match(first.previewUrl ?? '', new RegExp(`/preview/${projectId}/`));
   assert.match(
     await readFile(join(rootDir, projectId, 'src/App.tsx'), 'utf8'),
@@ -96,6 +109,45 @@ test('syncProject reports runtime startup errors without losing generated source
     await readFile(join(rootDir, projectId, 'src/App.tsx'), 'utf8'),
     /Describe what you want to build/,
   );
+
+  await manager.disposeAll();
+  await rm(rootDir, { recursive: true, force: true });
+});
+
+test('syncProject turns Vite transform failures into actionable runtime errors', async () => {
+  const rootDir = await mkdtemp(join(tmpdir(), 'yakable-preview-validation-'));
+  const projectId = 'project_runtime_validation_test';
+
+  const manager = new PreviewRuntimeManager({
+    rootDir,
+    createServer: async () =>
+      fakeViteServer(
+        () => undefined,
+        () => undefined,
+        async (url) => {
+          if (url === '/src/App.tsx') {
+            const error = new Error('Unexpected token');
+            Object.assign(error, {
+              id: join(rootDir, projectId, 'src/App.tsx'),
+              loc: { line: 2, column: 10 },
+              frame: '1 | export default function App() {\n2 |   return <main>broken\n  |          ^',
+            });
+            throw error;
+          }
+          return { code: '' };
+        },
+      ),
+  });
+
+  ensureProject(projectId);
+  const snapshot = await manager.syncProject(projectId);
+
+  assert.equal(snapshot.status, 'error');
+  assert.equal(snapshot.revision, 0);
+  assert.match(snapshot.error ?? '', /Unexpected token/);
+  assert.match(snapshot.error ?? '', /Location: 2:10/);
+  assert.match(snapshot.error ?? '', /<project>/);
+  assert.doesNotMatch(snapshot.error ?? '', new RegExp(rootDir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 
   await manager.disposeAll();
   await rm(rootDir, { recursive: true, force: true });

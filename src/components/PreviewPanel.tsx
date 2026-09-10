@@ -6,11 +6,13 @@ import {
   Monitor,
   RefreshCw,
   Smartphone,
+  Sparkles,
   Tablet,
 } from 'lucide-react';
 
 import type {
   AgentProjectSnapshot,
+  AgentRepairSummary,
   PreviewRuntimeSnapshot,
 } from '../lib/agent-api';
 import PreviewMockup from './PreviewMockup';
@@ -22,6 +24,7 @@ interface PreviewPanelProps {
   onViewportChange: (viewport: PreviewViewport) => void;
   project?: AgentProjectSnapshot;
   runtime?: PreviewRuntimeSnapshot;
+  repair?: AgentRepairSummary;
   changedFiles: string[];
   isRefreshing: boolean;
   onRefresh: () => void;
@@ -43,7 +46,15 @@ const viewportOptions: Array<{
   { value: 'mobile', label: 'Mobile', icon: Smartphone },
 ];
 
-function runtimeBadge(project: AgentProjectSnapshot | undefined, runtime: PreviewRuntimeSnapshot | undefined) {
+function runtimeBadge(
+  project: AgentProjectSnapshot | undefined,
+  runtime: PreviewRuntimeSnapshot | undefined,
+  repair: AgentRepairSummary | undefined,
+) {
+  if (runtime?.status === 'ready' && repair?.attempted && repair.succeeded) {
+    return { label: 'Auto-fixed', className: 'bg-violet-50 text-violet-700' };
+  }
+
   if (runtime?.status === 'ready') {
     return { label: 'Live', className: 'bg-emerald-50 text-emerald-700' };
   }
@@ -68,11 +79,12 @@ export default function PreviewPanel({
   onViewportChange,
   project,
   runtime,
+  repair,
   changedFiles,
   isRefreshing,
   onRefresh,
 }: PreviewPanelProps) {
-  const badge = runtimeBadge(project, runtime);
+  const badge = runtimeBadge(project, runtime, repair);
   const previewUrl = runtime?.status === 'ready' ? runtime.previewUrl : undefined;
   const livePreview = Boolean(previewUrl);
 
@@ -118,8 +130,8 @@ export default function PreviewPanel({
             type="button"
             onClick={onRefresh}
             disabled={!project || isRefreshing}
-            title="Synchronize and reload preview"
-            aria-label="Synchronize and reload preview"
+            title={runtime?.status === 'error' ? 'Repair preview with Agent' : 'Synchronize and reload preview'}
+            aria-label={runtime?.status === 'error' ? 'Repair preview with Agent' : 'Synchronize and reload preview'}
             className="flex size-8 items-center justify-center rounded-lg text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:text-zinc-300"
           >
             <RefreshCw
@@ -150,7 +162,18 @@ export default function PreviewPanel({
               <span className="truncate">Changed: {changedFiles.join(', ')}</span>
             </>
           ) : null}
-          {runtime?.status === 'ready' ? (
+          {repair?.attempted ? (
+            <span
+              className={`ml-auto hidden items-center gap-1 sm:inline-flex ${
+                repair.succeeded ? 'text-violet-600' : 'text-rose-600'
+              }`}
+            >
+              <Sparkles size={11} strokeWidth={1.8} />
+              {repair.succeeded
+                ? `Auto-repaired in ${repair.attempts}`
+                : `${repair.attempts} repair ${repair.attempts === 1 ? 'attempt' : 'attempts'}`}
+            </span>
+          ) : runtime?.status === 'ready' ? (
             <span className="ml-auto hidden text-emerald-600 sm:inline">
               Runtime revision {runtime.revision}
             </span>
@@ -187,21 +210,26 @@ export default function PreviewPanel({
               />
             ) : runtime?.status === 'error' ? (
               <div className="grid h-full min-h-[440px] place-items-center bg-zinc-50 px-6">
-                <div className="max-w-md text-center">
+                <div className="max-w-lg text-center">
                   <div className="mx-auto flex size-10 items-center justify-center rounded-xl border border-rose-100 bg-rose-50 text-rose-600">
                     <AlertTriangle size={18} strokeWidth={1.8} />
                   </div>
-                  <h3 className="mt-4 text-sm font-semibold text-zinc-900">Preview runtime failed</h3>
-                  <p className="mt-2 text-xs leading-5 text-zinc-500">
-                    {runtime.error ?? 'The generated source is saved, but the controlled Vite runtime could not start.'}
+                  <h3 className="mt-4 text-sm font-semibold text-zinc-900">Preview validation failed</h3>
+                  <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-zinc-500">
+                    {runtime.error ?? 'The generated source is saved, but the controlled Vite runtime could not validate it.'}
                   </p>
                   <button
                     type="button"
                     onClick={onRefresh}
                     disabled={isRefreshing}
-                    className="mt-4 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100 disabled:opacity-50"
+                    className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100 disabled:opacity-50"
                   >
-                    Retry runtime
+                    {isRefreshing ? (
+                      <LoaderCircle className="animate-spin" size={13} strokeWidth={1.8} />
+                    ) : (
+                      <Sparkles size={13} strokeWidth={1.8} />
+                    )}
+                    {isRefreshing ? 'Repairing...' : 'Repair with Agent'}
                   </button>
                 </div>
               </div>
@@ -209,7 +237,7 @@ export default function PreviewPanel({
               <div className="grid h-full min-h-[440px] place-items-center bg-zinc-50">
                 <div className="flex items-center gap-2 text-xs font-medium text-zinc-500">
                   <LoaderCircle className="animate-spin" size={15} strokeWidth={1.8} />
-                  Preparing live preview...
+                  Validating live preview...
                 </div>
               </div>
             ) : (

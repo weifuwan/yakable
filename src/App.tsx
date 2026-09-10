@@ -4,9 +4,11 @@ import ChatPanel, { type ChatMessage } from './components/ChatPanel';
 import PreviewPanel, { type PreviewViewport } from './components/PreviewPanel';
 import WorkspaceHeader from './components/WorkspaceHeader';
 import {
+  repairPreviewRuntime,
   runAgentRequest,
   syncPreviewRuntime,
   type AgentProjectSnapshot,
+  type AgentRepairSummary,
   type PreviewRuntimeSnapshot,
 } from './lib/agent-api';
 
@@ -15,7 +17,7 @@ const initialMessages: ChatMessage[] = [
     id: 'welcome',
     role: 'assistant',
     content:
-      'Tell me what you want to build. I can generate the React source and run it in Yakable’s controlled live Preview Runtime.',
+      'Tell me what you want to build, then keep refining it. I edit the same project across turns, validate the live Preview, and automatically repair common generated-code failures.',
   },
 ];
 
@@ -36,6 +38,18 @@ function createProjectId() {
   }
 }
 
+function repairNote(repair: AgentRepairSummary) {
+  if (!repair.attempted) {
+    return '';
+  }
+
+  if (repair.succeeded) {
+    return `\n\nPreview verification found a generated-code issue, so I repaired it automatically in ${repair.attempts} ${repair.attempts === 1 ? 'pass' : 'passes'}.`;
+  }
+
+  return `\n\nI tried ${repair.attempts} automatic ${repair.attempts === 1 ? 'repair' : 'repairs'}, but the Preview still reports an error. The source is preserved so we can keep fixing it.`;
+}
+
 export default function App() {
   const [projectId] = useState(createProjectId);
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
@@ -44,7 +58,13 @@ export default function App() {
   const [isRefreshingPreview, setIsRefreshingPreview] = useState(false);
   const [project, setProject] = useState<AgentProjectSnapshot>();
   const [runtime, setRuntime] = useState<PreviewRuntimeSnapshot>();
+  const [repair, setRepair] = useState<AgentRepairSummary>();
   const [changedFiles, setChangedFiles] = useState<string[]>([]);
+
+  const conversationHistory = () =>
+    messages
+      .filter((item) => item.id !== 'welcome')
+      .map(({ role, content }) => ({ role, content }));
 
   const handleSend = async (message: string) => {
     if (isThinking) {
@@ -52,9 +72,7 @@ export default function App() {
     }
 
     const timestamp = Date.now();
-    const history = messages
-      .filter((item) => item.id !== 'welcome')
-      .map(({ role, content }) => ({ role, content }));
+    const history = conversationHistory();
 
     setMessages((current) => [
       ...current,
@@ -66,11 +84,13 @@ export default function App() {
     ]);
     setIsThinking(true);
     setChangedFiles([]);
+    setRepair(undefined);
 
     try {
       const result = await runAgentRequest(projectId, message, history);
       setProject(result.project);
       setRuntime(result.runtime);
+      setRepair(result.repair);
       setChangedFiles(result.changedFiles);
 
       setMessages((current) => [
@@ -78,7 +98,7 @@ export default function App() {
         {
           id: `assistant-${timestamp}`,
           role: 'assistant',
-          content: result.message,
+          content: `${result.message}${repairNote(result.repair)}`,
         },
       ]);
     } catch (error) {
@@ -105,7 +125,30 @@ export default function App() {
     setIsRefreshingPreview(true);
 
     try {
+      if (runtime?.status === 'error') {
+        const result = await repairPreviewRuntime(projectId, conversationHistory());
+        setProject(result.project);
+        setRuntime(result.runtime);
+        setRepair(result.repair);
+        setChangedFiles(result.changedFiles);
+
+        if (result.repair.attempted) {
+          setMessages((current) => [
+            ...current,
+            {
+              id: `assistant-repair-${Date.now()}`,
+              role: 'assistant',
+              content: result.repair.succeeded
+                ? `I ran another focused repair pass and the Preview is live again after ${result.repair.attempts} ${result.repair.attempts === 1 ? 'attempt' : 'attempts'}.`
+                : `I ran ${result.repair.attempts} more repair ${result.repair.attempts === 1 ? 'attempt' : 'attempts'}, but the Preview error is still present.`,
+            },
+          ]);
+        }
+        return;
+      }
+
       setRuntime(await syncPreviewRuntime(projectId));
+      setRepair(undefined);
     } catch (error) {
       const detail = error instanceof Error ? error.message : 'Preview refresh failed.';
       setRuntime((current) => ({
@@ -129,6 +172,7 @@ export default function App() {
           onViewportChange={setViewport}
           project={project}
           runtime={runtime}
+          repair={repair}
           changedFiles={changedFiles}
           isRefreshing={isRefreshingPreview}
           onRefresh={() => void handleRefreshPreview()}

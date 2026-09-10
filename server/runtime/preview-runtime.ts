@@ -12,6 +12,8 @@ import { getProjectSnapshot, readProjectFile } from '../project/project-store.js
 
 const DEFAULT_MAX_ACTIVE_RUNTIMES = 6;
 const DEFAULT_IDLE_TTL_MS = 30 * 60 * 1000;
+const MAX_RUNTIME_ERROR_LENGTH = 12000;
+const VALIDATABLE_SOURCE_RE = /\.(?:[cm]?[jt]sx?|css|json)$/i;
 
 export type PreviewRuntimeStatus = 'starting' | 'ready' | 'error' | 'stopped';
 
@@ -52,6 +54,43 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Preview runtime failed';
 }
 
+function formatRuntimeError(error: unknown, projectRoot: string) {
+  const parts = [errorMessage(error)];
+
+  if (typeof error === 'object' && error !== null) {
+    const detail = error as {
+      id?: unknown;
+      frame?: unknown;
+      loc?: { line?: unknown; column?: unknown } | unknown;
+    };
+
+    if (typeof detail.id === 'string') {
+      parts.push(`File: ${detail.id}`);
+    }
+
+    if (detail.loc && typeof detail.loc === 'object') {
+      const loc = detail.loc as { line?: unknown; column?: unknown };
+      if (typeof loc.line === 'number') {
+        parts.push(
+          `Location: ${loc.line}${
+            typeof loc.column === 'number' ? `:${loc.column}` : ''
+          }`,
+        );
+      }
+    }
+
+    if (typeof detail.frame === 'string' && detail.frame.trim()) {
+      parts.push(detail.frame.trim());
+    }
+  }
+
+  return parts
+    .filter(Boolean)
+    .join('\n')
+    .replaceAll(resolve(projectRoot), '<project>')
+    .slice(0, MAX_RUNTIME_ERROR_LENGTH);
+}
+
 function htmlError(response: ServerResponse, status: number, message: string) {
   response.writeHead(status, {
     'content-type': 'text/html; charset=utf-8',
@@ -63,7 +102,7 @@ function htmlError(response: ServerResponse, status: number, message: string) {
   <body style="margin:0;min-height:100vh;display:grid;place-items:center;font-family:ui-sans-serif,system-ui;background:#fafafa;color:#3f3f46">
     <main style="max-width:560px;padding:32px;text-align:center">
       <strong style="display:block;color:#18181b">Preview unavailable</strong>
-      <p style="font-size:14px;line-height:1.6">${escapeHtml(message)}</p>
+      <p style="font-size:14px;line-height:1.6;white-space:pre-wrap">${escapeHtml(message)}</p>
     </main>
   </body>
 </html>`);
@@ -187,7 +226,10 @@ export class PreviewRuntimeManager {
       }
 
       if (error) {
-        htmlError(response, 500, errorMessage(error));
+        entry.status = 'error';
+        entry.error = formatRuntimeError(error, entry.rootDir);
+        entry.updatedAt = this.now();
+        htmlError(response, 500, entry.error);
         return;
       }
 
@@ -230,13 +272,33 @@ export class PreviewRuntimeManager {
         entry.vite.moduleGraph.invalidateAll();
       }
 
+      await this.validateGeneratedModules(entry);
+
       entry.revision += 1;
       entry.status = 'ready';
       entry.updatedAt = this.now();
     } catch (error) {
       entry.status = 'error';
-      entry.error = errorMessage(error);
+      entry.error = formatRuntimeError(error, entry.rootDir);
       entry.updatedAt = this.now();
+    }
+  }
+
+  private async validateGeneratedModules(entry: RuntimeEntry) {
+    if (!entry.vite) {
+      throw new Error('Preview Vite runtime is unavailable during validation');
+    }
+
+    const sourceFiles = getProjectSnapshot(entry.projectId).files
+      .map((file) => file.path)
+      .filter((path) => path.startsWith('src/') && VALIDATABLE_SOURCE_RE.test(path))
+      .sort();
+
+    for (const path of sourceFiles) {
+      const result = await entry.vite.transformRequest(`/${path}`);
+      if (!result) {
+        throw new Error(`Vite could not validate generated module: ${path}`);
+      }
     }
   }
 
