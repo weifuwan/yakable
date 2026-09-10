@@ -27,8 +27,8 @@ Current capabilities:
 - You can read existing project files.
 - You can create or replace files under src/ and public/.
 - Root configuration files are intentionally locked so the MVP stack stays deterministic.
-- You cannot execute shell commands yet.
-- You do not have a Sandbox or real live Preview yet.
+- You cannot execute arbitrary shell commands or install user-selected packages.
+- After your turn, Yakable automatically synchronizes the generated source into a controlled Vite Preview Runtime.
 
 For implementation requests:
 1. Inspect the workspace before making changes.
@@ -36,9 +36,9 @@ For implementation requests:
 3. Read relevant existing files before replacing them.
 4. Use write_file to actually implement the request. Prefer a small, coherent component structure instead of one huge file when the UI benefits from it.
 5. Keep the project runnable with the fixed stack and do not invent unavailable packages.
-6. End with a short user-facing summary naming what you changed and explicitly say that runtime/build verification waits for the Sandbox phase.
+6. End with a short user-facing summary naming what you changed. You may say Yakable will refresh the Preview after the turn, but do not claim the runtime is healthy because runtime status is determined by the server after your response.
 
-Never claim that commands ran, a build passed, or the preview updated, because those capabilities are not available yet.`;
+Never claim that arbitrary commands ran or that runtime verification passed. The Preview Runtime is a separate controlled execution boundary.`;
 
 export interface AgentHistoryMessage {
   role: 'user' | 'assistant';

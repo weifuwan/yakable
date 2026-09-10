@@ -21,6 +21,18 @@ export interface AgentProjectSnapshot {
   files: ProjectFileSummary[];
 }
 
+export type PreviewRuntimeStatus = 'starting' | 'ready' | 'error' | 'stopped';
+
+export interface PreviewRuntimeSnapshot {
+  projectId: string;
+  status: PreviewRuntimeStatus;
+  revision: number;
+  previewUrl?: string;
+  startedAt?: string;
+  updatedAt?: string;
+  error?: string;
+}
+
 export interface AgentRunResponse {
   message: string;
   provider: string;
@@ -32,6 +44,17 @@ export interface AgentRunResponse {
   }>;
   project: AgentProjectSnapshot;
   changedFiles: string[];
+  runtime: PreviewRuntimeSnapshot;
+}
+
+async function readJson<T>(response: Response): Promise<T> {
+  const payload = (await response.json().catch(() => ({}))) as T & { error?: string };
+
+  if (!response.ok) {
+    throw new Error(payload.error || `Request failed with HTTP ${response.status}`);
+  }
+
+  return payload;
 }
 
 export async function runAgentRequest(
@@ -47,17 +70,19 @@ export async function runAgentRequest(
     body: JSON.stringify({ projectId, message, history }),
   });
 
-  const payload = (await response.json().catch(() => ({}))) as Partial<AgentRunResponse> & {
-    error?: string;
-  };
+  const payload = await readJson<Partial<AgentRunResponse>>(response);
 
-  if (!response.ok) {
-    throw new Error(payload.error || `Agent request failed with HTTP ${response.status}`);
-  }
-
-  if (typeof payload.message !== 'string' || !payload.project) {
+  if (typeof payload.message !== 'string' || !payload.project || !payload.runtime) {
     throw new Error('Agent returned an invalid response');
   }
 
   return payload as AgentRunResponse;
+}
+
+export async function syncPreviewRuntime(projectId: string) {
+  const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}/runtime`, {
+    method: 'POST',
+  });
+
+  return readJson<PreviewRuntimeSnapshot>(response);
 }
