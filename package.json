@@ -1,7 +1,7 @@
 {
   "name": "yakable",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,10 +9,11 @@
     "dev:api": "tsx watch server/index.ts",
     "build": "npm run typecheck && vite build",
     "preview": "vite preview",
+    "test:agent": "tsx --test server/**/*.test.ts",
     "typecheck": "tsc -b --pretty false && tsc -p server/tsconfig.json --noEmit --pretty false"
   },
   "dependencies": {
-    "dotenv": "^16.5.0",
+    "dotenv": "^17.2.2",
     "lucide-react": "^1.43.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"

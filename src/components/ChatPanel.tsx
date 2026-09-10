@@ -65,7 +65,7 @@ export default function ChatPanel({
           Build with Yakable
         </div>
         <p className="mt-1 text-xs leading-5 text-zinc-500">
-          Describe the product. The server-side Agent will inspect the workspace and plan the task.
+          Describe the product. The Agent will inspect the project and generate real source files.
         </p>
       </div>
 
@@ -100,7 +100,7 @@ export default function ChatPanel({
                   <LoaderCircle className="animate-spin" size={14} strokeWidth={1.9} />
                 </div>
                 <div className="rounded-2xl rounded-tl-md border border-zinc-200 bg-zinc-50 px-3.5 py-2.5 text-[12px] text-zinc-500">
-                  Agent is planning...
+                  Agent is building the project...
                 </div>
               </div>
             </div>

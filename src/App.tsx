@@ -3,21 +3,44 @@ import { useState } from 'react';
 import ChatPanel, { type ChatMessage } from './components/ChatPanel';
 import PreviewPanel, { type PreviewViewport } from './components/PreviewPanel';
 import WorkspaceHeader from './components/WorkspaceHeader';
-import { runAgentRequest } from './lib/agent-api';
+import {
+  runAgentRequest,
+  type AgentProjectSnapshot,
+} from './lib/agent-api';
 
 const initialMessages: ChatMessage[] = [
   {
     id: 'welcome',
     role: 'assistant',
     content:
-      'Tell me what you want to build. I can now inspect the Yakable workspace and prepare an implementation plan through the server-side Agent loop.',
+      'Tell me what you want to build. I can now create and edit a real React/Vite/Tailwind project workspace for your request.',
   },
 ];
 
+function createProjectId() {
+  const storageKey = 'yakable.project-id';
+
+  try {
+    const existing = window.sessionStorage.getItem(storageKey);
+    if (existing) {
+      return existing;
+    }
+
+    const id = `project_${crypto.randomUUID().replaceAll('-', '')}`;
+    window.sessionStorage.setItem(storageKey, id);
+    return id;
+  } catch {
+    return `project_${crypto.randomUUID().replaceAll('-', '')}`;
+  }
+}
+
 export default function App() {
+  const [projectId] = useState(createProjectId);
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [viewport, setViewport] = useState<PreviewViewport>('desktop');
   const [isThinking, setIsThinking] = useState(false);
+  const [project, setProject] = useState<AgentProjectSnapshot>();
+  const [changedFiles, setChangedFiles] = useState<string[]>([]);
 
   const handleSend = async (message: string) => {
     if (isThinking) {
@@ -38,9 +61,12 @@ export default function App() {
       },
     ]);
     setIsThinking(true);
+    setChangedFiles([]);
 
     try {
-      const result = await runAgentRequest(message, history);
+      const result = await runAgentRequest(projectId, message, history);
+      setProject(result.project);
+      setChangedFiles(result.changedFiles);
 
       setMessages((current) => [
         ...current,
@@ -71,7 +97,12 @@ export default function App() {
       <WorkspaceHeader />
       <main className="flex min-h-0 flex-1 flex-col xl:flex-row">
         <ChatPanel messages={messages} onSend={handleSend} isThinking={isThinking} />
-        <PreviewPanel viewport={viewport} onViewportChange={setViewport} />
+        <PreviewPanel
+          viewport={viewport}
+          onViewportChange={setViewport}
+          project={project}
+          changedFiles={changedFiles}
+        />
       </main>
     </div>
   );

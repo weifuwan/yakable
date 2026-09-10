@@ -4,28 +4,41 @@ import type {
   ToolResultContentBlock,
   ToolUseContentBlock,
 } from '../ai/types.js';
-import {
-  createFoundationTools,
-  type AgentPlan,
-  type AgentState,
-} from './tools.js';
+import { ensureProject, getProjectSnapshot, type ProjectSnapshot } from '../project/project-store.js';
+import { createProjectTools, type AgentPlan, type AgentState } from './tools.js';
 
-const MAX_AGENT_STEPS = 6;
+const MAX_AGENT_STEPS = 10;
 const MAX_HISTORY_MESSAGES = 20;
 const MAX_MESSAGE_LENGTH = 8000;
 
 const SYSTEM_PROMPT = `You are Yakable's coding agent.
 
-Your job is to turn a user's product request into concrete implementation work.
+Your job is to turn a user's product request into a real generated frontend project.
 
-This repository is currently in the Agent Foundation phase:
-- You can inspect the workspace boundary.
-- You can record an implementation plan.
-- You cannot write project files yet.
-- You cannot run shell commands yet.
-- You do not have a Sandbox yet.
+The generated-project stack is fixed by Yakable:
+- React
+- TypeScript
+- Vite
+- Tailwind CSS
+- Lucide React is available for icons
 
-For implementation requests, inspect the workspace before planning. Record a concise, actionable plan with set_plan. Never claim that code was changed, commands were executed, or a preview was updated when those capabilities are unavailable. End with a short user-facing summary of what is ready and what the next execution boundary is.`;
+Current capabilities:
+- You can inspect and list the generated project.
+- You can read existing project files.
+- You can create or replace files under src/ and public/.
+- Root configuration files are intentionally locked so the MVP stack stays deterministic.
+- You cannot execute shell commands yet.
+- You do not have a Sandbox or real live Preview yet.
+
+For implementation requests:
+1. Inspect the workspace before making changes.
+2. Record a concise plan with set_plan.
+3. Read relevant existing files before replacing them.
+4. Use write_file to actually implement the request. Prefer a small, coherent component structure instead of one huge file when the UI benefits from it.
+5. Keep the project runnable with the fixed stack and do not invent unavailable packages.
+6. End with a short user-facing summary naming what you changed and explicitly say that runtime/build verification waits for the Sandbox phase.
+
+Never claim that commands ran, a build passed, or the preview updated, because those capabilities are not available yet.`;
 
 export interface AgentHistoryMessage {
   role: 'user' | 'assistant';
@@ -43,6 +56,8 @@ export interface AgentRunResult {
   model: string;
   plan?: AgentPlan;
   events: AgentEvent[];
+  project: ProjectSnapshot;
+  changedFiles: string[];
 }
 
 function textMessage(role: AgentHistoryMessage['role'], text: string): ProviderMessage {
@@ -58,12 +73,15 @@ function stringifyToolResult(value: unknown) {
 
 export async function runAgent(
   provider: AIProvider,
+  projectId: string,
   message: string,
   history: AgentHistoryMessage[] = [],
 ): Promise<AgentRunResult> {
-  const tools = createFoundationTools();
+  ensureProject(projectId);
+
+  const tools = createProjectTools();
   const toolMap = new Map(tools.map((tool) => [tool.definition.name, tool]));
-  const state: AgentState = {};
+  const state: AgentState = { projectId, changedFiles: [] };
   const events: AgentEvent[] = [];
   const messages: ProviderMessage[] = [
     ...history.slice(-MAX_HISTORY_MESSAGES).map((item) => textMessage(item.role, item.content)),
@@ -98,6 +116,8 @@ export async function runAgent(
         model: provider.model,
         plan: state.plan,
         events,
+        project: getProjectSnapshot(projectId),
+        changedFiles: state.changedFiles,
       };
     }
 
