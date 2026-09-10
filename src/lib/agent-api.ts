@@ -8,6 +8,19 @@ export interface AgentPlan {
   steps: string[];
 }
 
+export interface ProjectFileSummary {
+  path: string;
+  size: number;
+  updatedAt: string;
+}
+
+export interface AgentProjectSnapshot {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  files: ProjectFileSummary[];
+}
+
 export interface AgentRunResponse {
   message: string;
   provider: string;
@@ -17,9 +30,12 @@ export interface AgentRunResponse {
     tool: string;
     status: 'success' | 'error';
   }>;
+  project: AgentProjectSnapshot;
+  changedFiles: string[];
 }
 
 export async function runAgentRequest(
+  projectId: string,
   message: string,
   history: AgentHistoryItem[],
 ): Promise<AgentRunResponse> {
@@ -28,7 +44,7 @@ export async function runAgentRequest(
     headers: {
       'content-type': 'application/json',
     },
-    body: JSON.stringify({ message, history }),
+    body: JSON.stringify({ projectId, message, history }),
   });
 
   const payload = (await response.json().catch(() => ({}))) as Partial<AgentRunResponse> & {
@@ -39,7 +55,7 @@ export async function runAgentRequest(
     throw new Error(payload.error || `Agent request failed with HTTP ${response.status}`);
   }
 
-  if (typeof payload.message !== 'string') {
+  if (typeof payload.message !== 'string' || !payload.project) {
     throw new Error('Agent returned an invalid response');
   }
 

@@ -1,5 +1,6 @@
 import {
   ExternalLink,
+  FileCode2,
   Monitor,
   RefreshCw,
   Smartphone,
@@ -7,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 
+import type { AgentProjectSnapshot } from '../lib/agent-api';
 import PreviewMockup from './PreviewMockup';
 
 export type PreviewViewport = 'desktop' | 'tablet' | 'mobile';
@@ -14,6 +16,8 @@ export type PreviewViewport = 'desktop' | 'tablet' | 'mobile';
 interface PreviewPanelProps {
   viewport: PreviewViewport;
   onViewportChange: (viewport: PreviewViewport) => void;
+  project?: AgentProjectSnapshot;
+  changedFiles: string[];
 }
 
 const viewportWidths: Record<PreviewViewport, string> = {
@@ -32,16 +36,28 @@ const viewportOptions: Array<{
   { value: 'mobile', label: 'Mobile', icon: Smartphone },
 ];
 
-export default function PreviewPanel({ viewport, onViewportChange }: PreviewPanelProps) {
+export default function PreviewPanel({
+  viewport,
+  onViewportChange,
+  project,
+  changedFiles,
+}: PreviewPanelProps) {
   const [revision, setRevision] = useState(0);
+  const sourceReady = Boolean(project);
 
   return (
     <section className="flex min-h-0 flex-1 flex-col bg-[#f4f4f5]">
       <div className="flex h-12 flex-none items-center justify-between border-b border-zinc-200 bg-white px-3 sm:px-4">
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold text-zinc-800">Preview</span>
-          <span className="hidden rounded-md bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em] text-amber-700 sm:inline-flex">
-            Mock
+          <span
+            className={`hidden rounded-md px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em] sm:inline-flex ${
+              sourceReady
+                ? 'bg-emerald-50 text-emerald-700'
+                : 'bg-amber-50 text-amber-700'
+            }`}
+          >
+            {sourceReady ? 'Source ready' : 'Mock'}
           </span>
         </div>
 
@@ -74,8 +90,8 @@ export default function PreviewPanel({ viewport, onViewportChange }: PreviewPane
           <button
             type="button"
             onClick={() => setRevision((current) => current + 1)}
-            title="Reload preview"
-            aria-label="Reload preview"
+            title="Reload preview shell"
+            aria-label="Reload preview shell"
             className="flex size-8 items-center justify-center rounded-lg text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900"
           >
             <RefreshCw size={14} strokeWidth={1.8} />
@@ -83,7 +99,7 @@ export default function PreviewPanel({ viewport, onViewportChange }: PreviewPane
           <button
             type="button"
             disabled
-            title="External sandbox previews arrive in a later PR"
+            title="External sandbox previews arrive in PR 4"
             aria-label="Open preview in new tab"
             className="flex size-8 items-center justify-center rounded-lg text-zinc-300"
           >
@@ -91,6 +107,20 @@ export default function PreviewPanel({ viewport, onViewportChange }: PreviewPane
           </button>
         </div>
       </div>
+
+      {project ? (
+        <div className="flex h-9 flex-none items-center gap-2 border-b border-zinc-200 bg-white px-4 text-[10px] text-zinc-500">
+          <FileCode2 size={13} strokeWidth={1.8} className="text-zinc-700" />
+          <span className="font-medium text-zinc-700">{project.files.length} project files</span>
+          {changedFiles.length > 0 ? (
+            <>
+              <span className="text-zinc-300">·</span>
+              <span className="truncate">Changed: {changedFiles.join(', ')}</span>
+            </>
+          ) : null}
+          <span className="ml-auto hidden text-zinc-400 sm:inline">Live runtime arrives in PR 4</span>
+        </div>
+      ) : null}
 
       <div className="flex min-h-0 flex-1 overflow-auto p-3 sm:p-5">
         <div

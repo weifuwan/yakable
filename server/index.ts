@@ -4,6 +4,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 
 import { runAgent, type AgentHistoryMessage } from './agent/run-agent.js';
 import { createProviderFromEnv } from './ai/provider-factory.js';
+import { ensureProject, getProjectSnapshot } from './project/project-store.js';
 
 const MAX_BODY_BYTES = 64 * 1024;
 const provider = createProviderFromEnv();
@@ -63,6 +64,19 @@ function parseHistory(value: unknown): AgentHistoryMessage[] {
   });
 }
 
+function parseProjectId(value: unknown) {
+  if (typeof value !== 'string') {
+    throw new Error('projectId is required');
+  }
+
+  const projectId = value.trim();
+  if (!/^[A-Za-z0-9_-]{8,80}$/.test(projectId)) {
+    throw new Error('projectId must be 8-80 URL-safe characters');
+  }
+
+  return projectId;
+}
+
 const server = createServer(async (request, response) => {
   const url = new URL(request.url ?? '/', 'http://localhost');
 
@@ -71,7 +85,21 @@ const server = createServer(async (request, response) => {
       status: 'ok',
       provider: provider.name,
       model: provider.model,
+      phase: 'project-generation',
     });
+    return;
+  }
+
+  const projectMatch = url.pathname.match(/^\/api\/projects\/([A-Za-z0-9_-]{8,80})$/);
+  if (request.method === 'GET' && projectMatch) {
+    try {
+      const projectId = projectMatch[1];
+      ensureProject(projectId);
+      json(response, 200, getProjectSnapshot(projectId));
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'Project request failed';
+      json(response, 400, { error: detail });
+    }
     return;
   }
 
@@ -84,8 +112,10 @@ const server = createServer(async (request, response) => {
         return;
       }
 
+      const projectId = parseProjectId(body.projectId);
       const result = await runAgent(
         provider,
+        projectId,
         body.message.trim().slice(0, 8000),
         parseHistory(body.history),
       );

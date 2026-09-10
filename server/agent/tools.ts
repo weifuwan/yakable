@@ -1,4 +1,9 @@
 import type { JsonObject, ProviderToolDefinition } from '../ai/types.js';
+import {
+  getProjectSnapshot,
+  readProjectFile,
+  writeProjectFile,
+} from '../project/project-store.js';
 
 export interface AgentPlan {
   summary: string;
@@ -6,7 +11,9 @@ export interface AgentPlan {
 }
 
 export interface AgentState {
+  projectId: string;
   plan?: AgentPlan;
+  changedFiles: string[];
 }
 
 export interface AgentTool {
@@ -22,6 +29,14 @@ function readString(value: unknown, field: string) {
   return value.trim();
 }
 
+function readContent(value: unknown) {
+  if (typeof value !== 'string') {
+    throw new Error('content must be a string');
+  }
+
+  return value;
+}
+
 function readSteps(value: unknown) {
   if (!Array.isArray(value) || value.length === 0) {
     throw new Error('steps must be a non-empty array');
@@ -30,36 +45,36 @@ function readSteps(value: unknown) {
   return value.slice(0, 8).map((step, index) => readString(step, `steps[${index}]`));
 }
 
-export function createFoundationTools(): AgentTool[] {
+export function createProjectTools(): AgentTool[] {
   return [
     {
       definition: {
         name: 'inspect_workspace',
         description:
-          'Inspect the current Yakable generated-project boundary before planning implementation work.',
+          'Inspect the generated React/Vite/Tailwind project, its files, and the capabilities available in the current Yakable phase.',
         inputSchema: {
           type: 'object',
           properties: {},
           additionalProperties: false,
         },
       },
-      async execute() {
+      async execute(_input, state) {
         return {
-          phase: 'agent-foundation',
-          projectTemplate: ['React', 'TypeScript', 'Vite', 'Tailwind CSS'],
-          writableProjectFiles: false,
+          phase: 'project-generation',
+          stack: ['React', 'TypeScript', 'Vite', 'Tailwind CSS', 'Lucide React'],
+          writableRoots: ['src/', 'public/'],
           commandExecution: false,
           sandboxProvisioned: false,
           preview: 'static-shell',
-          nextBoundary: 'project generation and writable workspace tools',
+          project: getProjectSnapshot(state.projectId),
+          nextBoundary: 'Sandbox runtime and live preview',
         };
       },
     },
     {
       definition: {
         name: 'set_plan',
-        description:
-          'Record the concrete implementation plan for the current user request. This does not modify files.',
+        description: 'Record a concise implementation plan for the current user request.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -83,6 +98,67 @@ export function createFoundationTools(): AgentTool[] {
 
         state.plan = plan;
         return plan;
+      },
+    },
+    {
+      definition: {
+        name: 'list_files',
+        description: 'List the files currently present in the generated project.',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+          additionalProperties: false,
+        },
+      },
+      async execute(_input, state) {
+        return getProjectSnapshot(state.projectId).files;
+      },
+    },
+    {
+      definition: {
+        name: 'read_file',
+        description:
+          'Read a UTF-8 source file from the generated project before deciding how to edit it.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            path: { type: 'string' },
+          },
+          required: ['path'],
+          additionalProperties: false,
+        },
+      },
+      async execute(input, state) {
+        return readProjectFile(state.projectId, readString(input.path, 'path'));
+      },
+    },
+    {
+      definition: {
+        name: 'write_file',
+        description:
+          'Create or replace a UTF-8 file under src/ or public/ in the generated project. Root configuration is intentionally locked by Yakable.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            path: { type: 'string' },
+            content: { type: 'string' },
+          },
+          required: ['path', 'content'],
+          additionalProperties: false,
+        },
+      },
+      async execute(input, state) {
+        const result = writeProjectFile(
+          state.projectId,
+          readString(input.path, 'path'),
+          readContent(input.content),
+        );
+
+        if (!state.changedFiles.includes(result.path)) {
+          state.changedFiles.push(result.path);
+        }
+
+        return result;
       },
     },
   ];
