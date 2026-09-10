@@ -1,3 +1,5 @@
+import 'dotenv/config';
+
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 
 import { runAgent, type AgentHistoryMessage } from './agent/run-agent.js';
