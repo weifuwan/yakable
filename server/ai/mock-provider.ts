@@ -38,7 +38,7 @@ function createMockApp(request: string) {
 const features = [
   ['Fast by default', 'A focused React, Vite and Tailwind foundation without setup noise.'],
   ['Made to iterate', 'Keep refining the product through the Yakable conversation.'],
-  ['Ready for Preview', 'The next MVP slice will run this source inside an isolated Sandbox.'],
+  ['Live Preview', 'Yakable synchronizes this source into a controlled Vite Preview Runtime.'],
 ];
 
 export default function App() {
@@ -49,7 +49,7 @@ export default function App() {
           Generated with Yakable
         </span>
         <h1 className="mt-7 max-w-4xl text-5xl font-semibold tracking-[-0.055em] sm:text-7xl">
-          Your idea is now a real React project.
+          Your idea is now a running React preview.
         </h1>
         <p className="mt-6 max-w-2xl text-base leading-7 text-zinc-400 sm:text-lg">
           {request}
@@ -59,7 +59,7 @@ export default function App() {
             Start building
           </button>
           <button className="rounded-full border border-white/15 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/5">
-            View source
+            Keep refining
           </button>
         </div>
       </section>
@@ -106,7 +106,7 @@ button {
 
 export class MockProvider implements AIProvider {
   readonly name = 'mock';
-  readonly model = 'yakable-project-generation-mock';
+  readonly model = 'yakable-sandbox-preview-mock';
 
   async generate(input: ProviderGenerateInput): Promise<ProviderResponse> {
     if (!hasToolResult(input.messages, 'inspect_workspace')) {
@@ -138,7 +138,7 @@ export class MockProvider implements AIProvider {
                 'Inspect the fixed React/Vite/Tailwind project scaffold.',
                 'Read the starter application and global styles.',
                 'Replace the starter screen with the requested product UI.',
-                'Leave runtime verification for the Sandbox phase.',
+                'Let Yakable synchronize the source into the controlled Preview Runtime.',
               ],
             },
           },
@@ -200,7 +200,7 @@ export class MockProvider implements AIProvider {
         {
           type: 'text',
           text:
-            'I generated the React project source and replaced src/App.tsx plus src/index.css for your request. The files are now stored in Yakable’s project workspace; runtime/build verification and a real live preview intentionally wait for the Sandbox PR.',
+            'I generated the React project source and replaced src/App.tsx plus src/index.css for your request. Yakable will now synchronize those files into the controlled Preview Runtime so the right-hand Preview can refresh with the real app.',
         },
       ],
       stopReason: 'end_turn',

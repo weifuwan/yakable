@@ -1,14 +1,18 @@
 import {
+  AlertTriangle,
   ExternalLink,
   FileCode2,
+  LoaderCircle,
   Monitor,
   RefreshCw,
   Smartphone,
   Tablet,
 } from 'lucide-react';
-import { useState } from 'react';
 
-import type { AgentProjectSnapshot } from '../lib/agent-api';
+import type {
+  AgentProjectSnapshot,
+  PreviewRuntimeSnapshot,
+} from '../lib/agent-api';
 import PreviewMockup from './PreviewMockup';
 
 export type PreviewViewport = 'desktop' | 'tablet' | 'mobile';
@@ -17,7 +21,10 @@ interface PreviewPanelProps {
   viewport: PreviewViewport;
   onViewportChange: (viewport: PreviewViewport) => void;
   project?: AgentProjectSnapshot;
+  runtime?: PreviewRuntimeSnapshot;
   changedFiles: string[];
+  isRefreshing: boolean;
+  onRefresh: () => void;
 }
 
 const viewportWidths: Record<PreviewViewport, string> = {
@@ -36,14 +43,38 @@ const viewportOptions: Array<{
   { value: 'mobile', label: 'Mobile', icon: Smartphone },
 ];
 
+function runtimeBadge(project: AgentProjectSnapshot | undefined, runtime: PreviewRuntimeSnapshot | undefined) {
+  if (runtime?.status === 'ready') {
+    return { label: 'Live', className: 'bg-emerald-50 text-emerald-700' };
+  }
+
+  if (runtime?.status === 'error') {
+    return { label: 'Runtime error', className: 'bg-rose-50 text-rose-700' };
+  }
+
+  if (runtime?.status === 'starting') {
+    return { label: 'Starting', className: 'bg-sky-50 text-sky-700' };
+  }
+
+  if (project) {
+    return { label: 'Source ready', className: 'bg-amber-50 text-amber-700' };
+  }
+
+  return { label: 'Mock', className: 'bg-zinc-100 text-zinc-600' };
+}
+
 export default function PreviewPanel({
   viewport,
   onViewportChange,
   project,
+  runtime,
   changedFiles,
+  isRefreshing,
+  onRefresh,
 }: PreviewPanelProps) {
-  const [revision, setRevision] = useState(0);
-  const sourceReady = Boolean(project);
+  const badge = runtimeBadge(project, runtime);
+  const previewUrl = runtime?.status === 'ready' ? runtime.previewUrl : undefined;
+  const livePreview = Boolean(previewUrl);
 
   return (
     <section className="flex min-h-0 flex-1 flex-col bg-[#f4f4f5]">
@@ -51,13 +82,9 @@ export default function PreviewPanel({
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold text-zinc-800">Preview</span>
           <span
-            className={`hidden rounded-md px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em] sm:inline-flex ${
-              sourceReady
-                ? 'bg-emerald-50 text-emerald-700'
-                : 'bg-amber-50 text-amber-700'
-            }`}
+            className={`hidden rounded-md px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em] sm:inline-flex ${badge.className}`}
           >
-            {sourceReady ? 'Source ready' : 'Mock'}
+            {badge.label}
           </span>
         </div>
 
@@ -89,17 +116,22 @@ export default function PreviewPanel({
         <div className="flex items-center gap-1">
           <button
             type="button"
-            onClick={() => setRevision((current) => current + 1)}
-            title="Reload preview shell"
-            aria-label="Reload preview shell"
-            className="flex size-8 items-center justify-center rounded-lg text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900"
+            onClick={onRefresh}
+            disabled={!project || isRefreshing}
+            title="Synchronize and reload preview"
+            aria-label="Synchronize and reload preview"
+            className="flex size-8 items-center justify-center rounded-lg text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:text-zinc-300"
           >
-            <RefreshCw size={14} strokeWidth={1.8} />
+            <RefreshCw
+              className={isRefreshing ? 'animate-spin' : undefined}
+              size={14}
+              strokeWidth={1.8}
+            />
           </button>
           <button
             type="button"
             disabled
-            title="External sandbox previews arrive in PR 4"
+            title="A dedicated external preview origin is intentionally deferred"
             aria-label="Open preview in new tab"
             className="flex size-8 items-center justify-center rounded-lg text-zinc-300"
           >
@@ -118,7 +150,11 @@ export default function PreviewPanel({
               <span className="truncate">Changed: {changedFiles.join(', ')}</span>
             </>
           ) : null}
-          <span className="ml-auto hidden text-zinc-400 sm:inline">Live runtime arrives in PR 4</span>
+          {runtime?.status === 'ready' ? (
+            <span className="ml-auto hidden text-emerald-600 sm:inline">
+              Runtime revision {runtime.revision}
+            </span>
+          ) : null}
         </div>
       ) : null}
 
@@ -134,17 +170,56 @@ export default function PreviewPanel({
               <span className="size-2 rounded-full bg-zinc-300" />
             </div>
             <div className="mx-auto flex h-6 max-w-sm flex-1 items-center justify-center rounded-md border border-zinc-200 bg-white px-2 text-[9px] text-zinc-400">
-              preview.yakable.local
+              {livePreview ? `preview/${project?.id}` : 'preview.yakable.local'}
             </div>
             <div className="w-[29px]" />
           </div>
 
-          <div className="yakable-scrollbar h-[calc(100%-2.25rem)] overflow-auto">
-            <PreviewMockup
-              key={revision}
-              compact={viewport === 'tablet'}
-              mobile={viewport === 'mobile'}
-            />
+          <div className="relative h-[calc(100%-2.25rem)] overflow-hidden bg-white">
+            {previewUrl ? (
+              <iframe
+                key={`${project?.id ?? 'preview'}-${runtime?.revision ?? 0}`}
+                title="Yakable generated app preview"
+                src={previewUrl}
+                sandbox="allow-scripts allow-forms allow-modals"
+                referrerPolicy="no-referrer"
+                className="h-full w-full border-0 bg-white"
+              />
+            ) : runtime?.status === 'error' ? (
+              <div className="grid h-full min-h-[440px] place-items-center bg-zinc-50 px-6">
+                <div className="max-w-md text-center">
+                  <div className="mx-auto flex size-10 items-center justify-center rounded-xl border border-rose-100 bg-rose-50 text-rose-600">
+                    <AlertTriangle size={18} strokeWidth={1.8} />
+                  </div>
+                  <h3 className="mt-4 text-sm font-semibold text-zinc-900">Preview runtime failed</h3>
+                  <p className="mt-2 text-xs leading-5 text-zinc-500">
+                    {runtime.error ?? 'The generated source is saved, but the controlled Vite runtime could not start.'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={onRefresh}
+                    disabled={isRefreshing}
+                    className="mt-4 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100 disabled:opacity-50"
+                  >
+                    Retry runtime
+                  </button>
+                </div>
+              </div>
+            ) : project ? (
+              <div className="grid h-full min-h-[440px] place-items-center bg-zinc-50">
+                <div className="flex items-center gap-2 text-xs font-medium text-zinc-500">
+                  <LoaderCircle className="animate-spin" size={15} strokeWidth={1.8} />
+                  Preparing live preview...
+                </div>
+              </div>
+            ) : (
+              <div className="yakable-scrollbar h-full overflow-auto">
+                <PreviewMockup
+                  compact={viewport === 'tablet'}
+                  mobile={viewport === 'mobile'}
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>

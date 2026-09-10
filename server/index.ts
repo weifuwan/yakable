@@ -5,9 +5,11 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { runAgent, type AgentHistoryMessage } from './agent/run-agent.js';
 import { createProviderFromEnv } from './ai/provider-factory.js';
 import { ensureProject, getProjectSnapshot } from './project/project-store.js';
+import { PreviewRuntimeManager } from './runtime/preview-runtime.js';
 
 const MAX_BODY_BYTES = 64 * 1024;
 const provider = createProviderFromEnv();
+const previewRuntime = new PreviewRuntimeManager();
 
 function json(response: ServerResponse, status: number, payload: unknown) {
   response.writeHead(status, {
@@ -85,8 +87,27 @@ const server = createServer(async (request, response) => {
       status: 'ok',
       provider: provider.name,
       model: provider.model,
-      phase: 'project-generation',
+      phase: 'sandbox-preview',
     });
+    return;
+  }
+
+  const previewMatch = url.pathname.match(
+    /^\/preview\/([A-Za-z0-9_-]{8,80})(\/.*)?$/,
+  );
+  if ((request.method === 'GET' || request.method === 'HEAD') && previewMatch) {
+    const projectId = previewMatch[1];
+
+    if (!previewMatch[2]) {
+      response.writeHead(307, {
+        location: `/preview/${projectId}/${url.search}`,
+        'cache-control': 'no-store',
+      });
+      response.end();
+      return;
+    }
+
+    await previewRuntime.handlePreviewRequest(request, response, projectId);
     return;
   }
 
@@ -95,12 +116,39 @@ const server = createServer(async (request, response) => {
     try {
       const projectId = projectMatch[1];
       ensureProject(projectId);
-      json(response, 200, getProjectSnapshot(projectId));
+      json(response, 200, {
+        ...getProjectSnapshot(projectId),
+        runtime: previewRuntime.getSnapshot(projectId),
+      });
     } catch (error) {
       const detail = error instanceof Error ? error.message : 'Project request failed';
       json(response, 400, { error: detail });
     }
     return;
+  }
+
+  const runtimeMatch = url.pathname.match(
+    /^\/api\/projects\/([A-Za-z0-9_-]{8,80})\/runtime$/,
+  );
+  if (runtimeMatch) {
+    try {
+      const projectId = runtimeMatch[1];
+
+      if (request.method === 'GET') {
+        json(response, 200, previewRuntime.getSnapshot(projectId));
+        return;
+      }
+
+      if (request.method === 'POST') {
+        ensureProject(projectId);
+        json(response, 200, await previewRuntime.syncProject(projectId));
+        return;
+      }
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'Runtime request failed';
+      json(response, 400, { error: detail });
+      return;
+    }
   }
 
   if (request.method === 'POST' && url.pathname === '/api/agent/run') {
@@ -119,8 +167,12 @@ const server = createServer(async (request, response) => {
         body.message.trim().slice(0, 8000),
         parseHistory(body.history),
       );
+      const runtime = await previewRuntime.syncProject(projectId);
 
-      json(response, 200, result);
+      json(response, 200, {
+        ...result,
+        runtime,
+      });
     } catch (error) {
       const detail = error instanceof Error ? error.message : 'Agent request failed';
       json(response, 500, { error: detail });
@@ -140,9 +192,21 @@ server.listen(port, '0.0.0.0', () => {
   );
 });
 
-function shutdown() {
+let shuttingDown = false;
+
+async function shutdown() {
+  if (shuttingDown) {
+    return;
+  }
+
+  shuttingDown = true;
+  await previewRuntime.disposeAll();
   server.close(() => process.exit(0));
 }
 
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
+process.on('SIGINT', () => {
+  void shutdown();
+});
+process.on('SIGTERM', () => {
+  void shutdown();
+});

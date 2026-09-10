@@ -1,5 +1,6 @@
 node_modules/
 dist/
+.yakable/
 .DS_Store
 *.local
 *.log

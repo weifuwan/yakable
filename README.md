@@ -1,26 +1,32 @@
 # Yakable
 
-Yakable is an AI app builder focused on the shortest useful loop: describe a product, let a coding agent generate the source, then run and refine it in an isolated preview environment.
+Yakable is an AI app builder focused on the shortest useful loop: describe a product, let a coding agent generate the source, run it in a controlled preview runtime, then keep refining it through chat.
 
 ## MVP progress
 
 - ✅ PR 1 — React workspace shell with Chat + Preview
 - ✅ PR 2 — server-side AI Provider boundary + bounded Agent loop
-- 🚧 PR 3 — generated React/Vite/Tailwind project workspace + file tools
-- ⏭️ PR 4 — Sandbox runtime + real live Preview
+- ✅ PR 3 — generated React/Vite/Tailwind project workspace + file tools
+- 🚧 PR 4 — controlled Preview Runtime + real generated-app iframe
+- ⏭️ PR 5 — multi-turn incremental edits + stronger runtime feedback
 
-## What PR 3 adds
+## What PR 4 adds
 
-The Agent can now do real implementation work against a generated project workspace:
+Yakable can now take the generated project source and run it as a real browser Preview:
 
-- deterministically scaffold React + TypeScript + Vite + Tailwind CSS
-- inspect and list generated project files
-- read existing source files
-- create or replace files under `src/` and `public/`
-- keep root build configuration locked so the MVP stack stays reproducible
-- return project file metadata and changed-file information to the Web workspace
+- materialize each generated project into its own runtime directory
+- start a dedicated Vite middleware runtime for that project
+- reuse Yakable's fixed React/Vite/Tailwind dependencies instead of allowing arbitrary package installation
+- automatically synchronize the runtime after every Agent turn
+- expose the generated app through `/preview/:projectId/`
+- proxy `/preview` through the local Web dev server
+- render the generated app inside a sandboxed iframe
+- apply a Preview-only CSP and restrictive browser sandbox flags
+- distinguish source-generation success from runtime startup failure
+- cap active runtimes and sweep idle runtime directories
+- expose a manual runtime refresh endpoint and UI action
 
-Generated projects are stored in an **in-memory server workspace** for this MVP slice. They are source workspaces, not running containers yet. Project count, source size, file size and path traversal are bounded before Sandbox work begins.
+The Agent still cannot execute arbitrary shell commands and cannot modify the locked root configuration. That keeps the first live-runtime slice reproducible and sharply limits the execution surface.
 
 ## Local development
 
@@ -31,7 +37,9 @@ npm run dev:api        # terminal 1
 npm run dev:web        # terminal 2
 ```
 
-Open `http://localhost:5173` and describe an app. Without `ANTHROPIC_API_KEY`, Yakable uses the deterministic mock provider so the complete inspect → plan → read → write Agent path is still testable.
+Open `http://localhost:5173` and describe an app. Without `ANTHROPIC_API_KEY`, Yakable uses the deterministic mock provider, so the complete inspect → plan → read → write → preview flow is still testable.
+
+Generated runtime files are written under `.yakable/runtime/` by default. Override that path with `YAKABLE_RUNTIME_ROOT` if needed.
 
 ## Checks
 
@@ -41,6 +49,8 @@ npm run test:agent
 npm run build
 ```
 
-## Current boundary
+## Security boundary
 
-PR 3 intentionally does **not** execute generated code, install project dependencies, or claim that the visual Preview reflects the generated source. PR 4 will mount this project workspace into a Sandbox and make the Preview real.
+PR 4 is an **MVP Preview Runtime**, not a production-grade container or microVM sandbox. Generated React source is transformed by a fixed Vite runtime and executed in a browser iframe with sandbox/CSP restrictions; user prompts do not become shell commands and project configuration remains locked.
+
+Before running untrusted multi-tenant workloads on the public internet, the same runtime interface should be backed by a dedicated container/microVM boundary and a separate Preview origin. The Web and Agent contracts in this PR are designed so that upgrade does not require a product rewrite.

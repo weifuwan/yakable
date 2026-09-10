@@ -5,7 +5,9 @@ import PreviewPanel, { type PreviewViewport } from './components/PreviewPanel';
 import WorkspaceHeader from './components/WorkspaceHeader';
 import {
   runAgentRequest,
+  syncPreviewRuntime,
   type AgentProjectSnapshot,
+  type PreviewRuntimeSnapshot,
 } from './lib/agent-api';
 
 const initialMessages: ChatMessage[] = [
@@ -13,7 +15,7 @@ const initialMessages: ChatMessage[] = [
     id: 'welcome',
     role: 'assistant',
     content:
-      'Tell me what you want to build. I can now create and edit a real React/Vite/Tailwind project workspace for your request.',
+      'Tell me what you want to build. I can generate the React source and run it in Yakable’s controlled live Preview Runtime.',
   },
 ];
 
@@ -39,7 +41,9 @@ export default function App() {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [viewport, setViewport] = useState<PreviewViewport>('desktop');
   const [isThinking, setIsThinking] = useState(false);
+  const [isRefreshingPreview, setIsRefreshingPreview] = useState(false);
   const [project, setProject] = useState<AgentProjectSnapshot>();
+  const [runtime, setRuntime] = useState<PreviewRuntimeSnapshot>();
   const [changedFiles, setChangedFiles] = useState<string[]>([]);
 
   const handleSend = async (message: string) => {
@@ -66,6 +70,7 @@ export default function App() {
     try {
       const result = await runAgentRequest(projectId, message, history);
       setProject(result.project);
+      setRuntime(result.runtime);
       setChangedFiles(result.changedFiles);
 
       setMessages((current) => [
@@ -92,6 +97,28 @@ export default function App() {
     }
   };
 
+  const handleRefreshPreview = async () => {
+    if (!project || isRefreshingPreview) {
+      return;
+    }
+
+    setIsRefreshingPreview(true);
+
+    try {
+      setRuntime(await syncPreviewRuntime(projectId));
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'Preview refresh failed.';
+      setRuntime((current) => ({
+        projectId,
+        status: 'error',
+        revision: current?.revision ?? 0,
+        error: detail,
+      }));
+    } finally {
+      setIsRefreshingPreview(false);
+    }
+  };
+
   return (
     <div className="flex h-screen min-h-[640px] flex-col overflow-hidden bg-zinc-100 text-zinc-950">
       <WorkspaceHeader />
@@ -101,7 +128,10 @@ export default function App() {
           viewport={viewport}
           onViewportChange={setViewport}
           project={project}
+          runtime={runtime}
           changedFiles={changedFiles}
+          isRefreshing={isRefreshingPreview}
+          onRefresh={() => void handleRefreshPreview()}
         />
       </main>
     </div>
