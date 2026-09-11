@@ -104,3 +104,7 @@
     padding: 0 !important;
   }
 }
+
+.bg-\[\#f5f6f6\] {
+  background-color: var(--aurora-chrome);
+}
