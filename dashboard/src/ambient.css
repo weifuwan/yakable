@@ -1,126 +1,132 @@
 /*
- * Refined ambient gradient field for the dashboard hero.
+ * Breathing radial gradient for the dashboard hero.
  *
- * The previous treatment used distinct blurred blobs. This version keeps the
- * color contrast much lower and moves one oversized field instead, so the
- * motion reads more like changing ambient light than moving circles.
+ * Instead of moving blurred color blobs, the color ring itself expands and
+ * contracts by animating the radial-gradient stop positions. The center stays
+ * white, so the motion reads like ambient light breathing around the prompt.
  */
+
+:root {
+  --yakable-slate-1: #fcfcfd;
+  --yakable-indigo-3: #edf2fe;
+}
+
+@property --yakable-aurora-white-core {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 49.136%;
+}
+
+@property --yakable-aurora-slate {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 64.7904%;
+}
+
+@property --yakable-aurora-indigo {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 84.272%;
+}
+
+@property --yakable-aurora-white-edge {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 102.84%;
+}
+
+@property --yakable-aurora-white-far {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 122.84%;
+}
+
 main > section:first-of-type {
   isolation: isolate;
   background: #fff;
 }
 
-main > section:first-of-type::before {
-  content: "";
-  position: absolute;
-  z-index: 0;
-  inset: -42% -30%;
-  width: auto;
-  height: auto;
-  aspect-ratio: auto;
-  border-radius: 0;
-  pointer-events: none;
-  opacity: 0.92;
-  filter: blur(52px);
-  background:
-    radial-gradient(
-      ellipse 52% 46% at 20% 28%,
-      rgba(202, 211, 255, 0.25) 0%,
-      rgba(229, 234, 255, 0.15) 30%,
-      rgba(255, 255, 255, 0) 64%
-    ),
-    radial-gradient(
-      ellipse 50% 44% at 78% 24%,
-      rgba(195, 227, 250, 0.20) 0%,
-      rgba(225, 241, 252, 0.12) 32%,
-      rgba(255, 255, 255, 0) 66%
-    ),
-    radial-gradient(
-      ellipse 46% 42% at 57% 69%,
-      rgba(222, 211, 250, 0.16) 0%,
-      rgba(239, 233, 255, 0.10) 34%,
-      rgba(255, 255, 255, 0) 68%
-    ),
-    radial-gradient(
-      ellipse 42% 38% at 88% 62%,
-      rgba(208, 239, 235, 0.11) 0%,
-      rgba(235, 249, 247, 0.07) 34%,
-      rgba(255, 255, 255, 0) 68%
-    );
-  background-blend-mode: screen;
-  will-change: transform;
-  animation: yakable-ambient-field 30s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite alternate;
-}
-
 /*
- * Keep the prompt area visually quiet. The outer field still moves across the
- * hero, while this soft white veil prevents the composer from sitting on a
- * saturated patch of color.
+ * Layer 1: the animated color ring.
+ *
+ * The palette deliberately stays extremely close to white. Only the stop
+ * radii move, which avoids the obvious "blob sliding around" effect.
  */
-main > section:first-of-type::after {
-  content: "";
-  position: absolute;
-  z-index: 1;
-  inset: 0;
-  width: auto;
-  height: auto;
-  aspect-ratio: auto;
-  border-radius: 0;
-  pointer-events: none;
-  opacity: 1;
-  filter: none;
-  background: radial-gradient(
-    ellipse 43% 38% at 50% 48%,
-    rgba(255, 255, 255, 0.94) 0%,
-    rgba(255, 255, 255, 0.84) 30%,
-    rgba(255, 255, 255, 0.48) 52%,
-    rgba(255, 255, 255, 0.12) 70%,
-    rgba(255, 255, 255, 0) 82%
-  );
-  animation: none;
-}
-
-/* Disable the old center blob while keeping the existing bottom fade layer. */
 main > section:first-of-type > div[aria-hidden="true"] {
   z-index: 0;
 }
 
 main > section:first-of-type > div[aria-hidden="true"] > div:first-child {
-  background: transparent !important;
-  background-size: auto !important;
-  animation: none !important;
+  background: radial-gradient(
+    circle at center,
+    #fff 0%,
+    #fff var(--yakable-aurora-white-core),
+    var(--yakable-slate-1) var(--yakable-aurora-slate),
+    var(--yakable-indigo-3) var(--yakable-aurora-indigo),
+    #fff var(--yakable-aurora-white-edge),
+    #fff var(--yakable-aurora-white-far)
+  ) !important;
+  background-size: 100% 100% !important;
   transform: none !important;
+  will-change: background;
+  animation: yakable-aurora-breathe 11s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite alternate;
 }
 
+/*
+ * Layer 2: a white radial feather over the center. This keeps the composer
+ * quiet while the surrounding ring becomes slightly more or less visible.
+ */
+main > section:first-of-type::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at center,
+    #fff 0%,
+    #fff 20%,
+    rgba(255, 255, 255, 0) 100%
+  );
+}
+
+/*
+ * Layer 3: fade the hero into the white Recents area so the background effect
+ * never ends with a visible hard edge.
+ */
 main > section:first-of-type > div[aria-hidden="true"] > div:last-child {
-  z-index: 2;
   background: linear-gradient(
     to bottom,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.18) 38%,
-    rgba(255, 255, 255, 0.72) 72%,
+    rgba(255, 255, 255, 0) 40%,
     #fff 100%
   ) !important;
 }
 
-@keyframes yakable-ambient-field {
+@keyframes yakable-aurora-breathe {
   0% {
-    transform: translate3d(-3.5%, -2.5%, 0) rotate(-1.1deg) scale(1.02);
+    --yakable-aurora-white-core: 49.136%;
+    --yakable-aurora-slate: 64.7904%;
+    --yakable-aurora-indigo: 84.272%;
+    --yakable-aurora-white-edge: 102.84%;
+    --yakable-aurora-white-far: 122.84%;
   }
-  34% {
-    transform: translate3d(2%, 1.5%, 0) rotate(0.5deg) scale(1.055);
-  }
-  67% {
-    transform: translate3d(4.5%, -1%, 0) rotate(1deg) scale(1.03);
-  }
+
   100% {
-    transform: translate3d(-1%, 3.5%, 0) rotate(-0.4deg) scale(1.065);
+    --yakable-aurora-white-core: 74.944%;
+    --yakable-aurora-slate: 102.416%;
+    --yakable-aurora-indigo: 135.888%;
+    --yakable-aurora-white-edge: 167.36%;
+    --yakable-aurora-white-far: 194.832%;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  main > section:first-of-type::before {
+  main > section:first-of-type > div[aria-hidden="true"] > div:first-child {
     animation: none !important;
-    transform: none !important;
+    --yakable-aurora-white-core: 60%;
+    --yakable-aurora-slate: 81%;
+    --yakable-aurora-indigo: 108%;
+    --yakable-aurora-white-edge: 134%;
+    --yakable-aurora-white-far: 158%;
   }
 }
