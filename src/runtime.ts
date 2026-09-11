@@ -82,7 +82,7 @@ export async function resolveGeneratedProject(
   });
 
   if (!isInsideDirectory(root, directory)) {
-    throw new Error('Stage 2 can only run projects inside the generated/ directory.');
+    throw new Error('Yakable can only access projects inside the generated/ directory.');
   }
 
   const info = await stat(directory);

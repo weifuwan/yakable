@@ -53,7 +53,7 @@ test('rejects a project outside the generated root', async () => {
     const outside = await createFixture(outsideRoot);
     await assert.rejects(
       () => resolveGeneratedProject(outside, generatedRoot),
-      /only run projects inside the generated\/ directory/,
+      /only access projects inside the generated\/ directory/,
     );
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
