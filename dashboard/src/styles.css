@@ -1,1 +1,27 @@
 @import "tailwindcss";
+
+@font-face {
+  font-family: "Yakable";
+  src: url("../font/yakable.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@theme {
+  --font-sans: "Yakable", Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+@layer base {
+  :root {
+    font-family: var(--font-sans);
+  }
+
+  body,
+  button,
+  input,
+  textarea,
+  select {
+    font-family: inherit;
+  }
+}
