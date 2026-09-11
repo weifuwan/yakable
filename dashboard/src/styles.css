@@ -85,14 +85,22 @@
 
 @layer components {
   a[aria-label="Yakable home"] {
-    width: 96px;
-    height: 32px;
+    display: block !important;
+    width: 126px;
+    height: 36px;
     flex: none;
-    background: url(../image/logo.png) center / contain no-repeat;
+    overflow: hidden;
+    gap: 0 !important;
+    font-size: 0;
+    background: url(../image/logo.png) left center / contain no-repeat;
   }
 
   a[aria-label="Yakable home"] > span,
   a[aria-label="Yakable home"] > strong {
-    display: none;
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 }
