@@ -82,3 +82,17 @@
     font-family: inherit;
   }
 }
+
+@layer components {
+  a[aria-label="Yakable home"] {
+    width: 96px;
+    height: 32px;
+    flex: none;
+    background: url(../image/logo.png) center / contain no-repeat;
+  }
+
+  a[aria-label="Yakable home"] > span,
+  a[aria-label="Yakable home"] > strong {
+    display: none;
+  }
+}
