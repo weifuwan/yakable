@@ -1,6 +1,6 @@
 {
   "name": "yakable",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -9,8 +9,9 @@
   "scripts": {
     "generate": "tsx src/cli.ts",
     "run:project": "tsx src/run-cli.ts",
+    "edit": "tsx src/edit-cli.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test test/project.test.ts test/deepseek.test.ts test/runtime.test.ts"
+    "test": "node --import tsx --test test/project.test.ts test/deepseek.test.ts test/runtime.test.ts test/edit.test.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.0",

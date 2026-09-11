@@ -13,3 +13,8 @@ export interface GenerationResult {
   outputDirectory: string;
   model: string;
 }
+
+export interface ProjectPatch {
+  summary: string;
+  changes: GeneratedFile[];
+}

@@ -3,8 +3,8 @@
 > One stage, one problem, one verifiable outcome.
 
 1. **Stage 1 — Prompt → Code:** turn one natural-language product request into a complete frontend source tree. ✅
-2. **Stage 2 — Code → Run:** start the generated project in a controlled local Vite runtime and expose a real browser URL. 🚧
-3. **Stage 3 — Prompt → Patch:** let a follow-up prompt modify the existing project instead of regenerating it.
+2. **Stage 2 — Code → Run:** execute the generated project in a controlled runtime and show a real Preview. ✅
+3. **Stage 3 — Prompt → Patch:** let a follow-up prompt modify the existing project instead of regenerating it. 🚧
 4. **Stage 4 — Error → Fix:** feed runtime/build failures back to the model until the project is repaired or a bounded retry limit is reached.
 5. **Stage 5 — Stable Iteration:** make repeated edits preserve unrelated code and remain usable over long conversations.
 6. **Stage 6 — Version → Rollback:** capture stable project versions, inspect diffs, and restore an earlier state safely.

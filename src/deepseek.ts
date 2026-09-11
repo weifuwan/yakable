@@ -1,3 +1,4 @@
+import { STAGE3_SYSTEM_PROMPT } from './edit-prompt.js';
 import { STAGE1_SYSTEM_PROMPT } from './prompt.js';
 
 const DEFAULT_BASE_URL = 'https://api.deepseek.com';
@@ -90,7 +91,11 @@ function isTimeoutError(error: unknown): boolean {
   );
 }
 
-export async function requestProjectCode(userPrompt: string): Promise<DeepSeekGeneration> {
+async function requestStructuredGeneration(
+  systemPrompt: string,
+  userPrompt: string,
+  stageLabel: string,
+): Promise<DeepSeekGeneration> {
   const apiKey = process.env.DEEPSEEK_API_KEY?.trim();
   if (!apiKey) {
     throw new Error('DEEPSEEK_API_KEY is required. Copy .env.example to .env and add your key.');
@@ -109,7 +114,7 @@ export async function requestProjectCode(userPrompt: string): Promise<DeepSeekGe
       body: JSON.stringify({
         model: config.model,
         messages: [
-          { role: 'system', content: STAGE1_SYSTEM_PROMPT },
+          { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
         response_format: { type: 'json_object' },
@@ -123,8 +128,8 @@ export async function requestProjectCode(userPrompt: string): Promise<DeepSeekGe
     if (isTimeoutError(error)) {
       const seconds = Math.round(config.requestTimeoutMs / 1000);
       throw new Error(
-        `DeepSeek request timed out after ${seconds} seconds. ` +
-          'Try again, increase DEEPSEEK_TIMEOUT_MS, or keep DEEPSEEK_THINKING=disabled for Stage 1.',
+        `DeepSeek request timed out after ${seconds} seconds during ${stageLabel}. ` +
+          'Try again, increase DEEPSEEK_TIMEOUT_MS, or keep DEEPSEEK_THINKING=disabled.',
       );
     }
 
@@ -151,4 +156,12 @@ export async function requestProjectCode(userPrompt: string): Promise<DeepSeekGe
   }
 
   return { content, model: config.model };
+}
+
+export function requestProjectCode(userPrompt: string): Promise<DeepSeekGeneration> {
+  return requestStructuredGeneration(STAGE1_SYSTEM_PROMPT, userPrompt, 'Stage 1');
+}
+
+export function requestProjectPatch(editContext: string): Promise<DeepSeekGeneration> {
+  return requestStructuredGeneration(STAGE3_SYSTEM_PROMPT, editContext, 'Stage 3');
 }
