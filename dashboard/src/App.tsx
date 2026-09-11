@@ -574,7 +574,7 @@ function Dashboard({
           <Sidebar/>
         </div>
 
-        <div className="m-2 ml-0 flex min-w-0 flex-1 flex-col">
+        <div className="m-2 ml-0 flex min-w-0 flex-1 flex-col" style={{marginLeft: 8}}>
           <main className="relative flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden rounded-2xl border border-black/[0.09] bg-white shadow-[0_2px_8px_rgba(15,23,42,0.05)]">
             <button
               className={`${iconButtonClass} absolute left-2 top-1.5 z-20 hidden md:inline-flex`}

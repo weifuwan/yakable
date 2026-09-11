@@ -93,7 +93,7 @@
 @layer components {
   a[aria-label="Yakable home"] {
     display: block !important;
-    width: 126px;
+    width: 110px;
     height: 36px;
     flex: none;
     overflow: hidden;
