@@ -181,7 +181,7 @@ function SidebarItem({
   return (
     <button
       className={`relative flex w-full items-center gap-2 rounded-md border-0 px-2 py-1.5 text-left text-sm transition ${
-        active ? 'bg-black/[0.075] font-medium text-[#1e2828]' : 'bg-transparent text-[#334040] hover:bg-black/[0.05]'
+        active ? 'bg-black/[0.075] font-medium text-[#1e2828]' : 'bg-transparent text-[#001617] hover:bg-black/[0.05]'
       }`}
       type="button"
     >
