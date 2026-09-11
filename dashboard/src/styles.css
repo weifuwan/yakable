@@ -81,6 +81,13 @@
   select {
     font-family: inherit;
   }
+
+  *,
+  *::before,
+  *::after {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
 }
 
 @layer components {
