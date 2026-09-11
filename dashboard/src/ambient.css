@@ -1,44 +1,46 @@
 /*
- * Breathing radial gradient for the dashboard hero.
+ * Repeating outward ripple for the dashboard hero.
  *
- * Instead of moving blurred color blobs, the color ring itself expands and
- * contracts by animating the radial-gradient stop positions. The center stays
- * white, so the motion reads like ambient light breathing around the prompt.
+ * Each ripple starts close to the left/right edges of the prompt composer,
+ * expands outward only, then fades before it resets. A second identical layer
+ * is offset by half a cycle so another wave is already travelling outward when
+ * the previous one disappears.
  */
 
 :root {
   --yakable-slate-1: #fcfcfd;
   --yakable-indigo-3: #edf2fe;
+  --yakable-wave-duration: 5.6s;
 }
 
-@property --yakable-aurora-white-core {
+@property --yakable-wave-white-core {
   syntax: "<percentage>";
   inherits: false;
-  initial-value: 49.136%;
+  initial-value: 40%;
 }
 
-@property --yakable-aurora-slate {
+@property --yakable-wave-slate {
   syntax: "<percentage>";
   inherits: false;
-  initial-value: 64.7904%;
+  initial-value: 45%;
 }
 
-@property --yakable-aurora-indigo {
+@property --yakable-wave-indigo {
   syntax: "<percentage>";
   inherits: false;
-  initial-value: 84.272%;
+  initial-value: 52%;
 }
 
-@property --yakable-aurora-white-edge {
+@property --yakable-wave-white-edge {
   syntax: "<percentage>";
   inherits: false;
-  initial-value: 102.84%;
+  initial-value: 63%;
 }
 
-@property --yakable-aurora-white-far {
+@property --yakable-wave-white-far {
   syntax: "<percentage>";
   inherits: false;
-  initial-value: 122.84%;
+  initial-value: 74%;
 }
 
 main > section:first-of-type {
@@ -47,34 +49,66 @@ main > section:first-of-type {
 }
 
 /*
- * Layer 1: the animated color ring.
- *
- * The palette deliberately stays extremely close to white. Only the stop
- * radii move, which avoids the obvious "blob sliding around" effect.
+ * The existing decorative wrapper stays below the prompt content.
  */
 main > section:first-of-type > div[aria-hidden="true"] {
   z-index: 0;
 }
 
+/*
+ * Wave A.
+ *
+ * A centered circle means the first visible colored arc appears around the
+ * composer edges, most noticeably on the left and right, then keeps expanding
+ * toward the hero boundaries.
+ */
 main > section:first-of-type > div[aria-hidden="true"] > div:first-child {
   background: radial-gradient(
-    circle at center,
+    circle at 50% 52%,
     #fff 0%,
-    #fff var(--yakable-aurora-white-core),
-    var(--yakable-slate-1) var(--yakable-aurora-slate),
-    var(--yakable-indigo-3) var(--yakable-aurora-indigo),
-    #fff var(--yakable-aurora-white-edge),
-    #fff var(--yakable-aurora-white-far)
+    #fff var(--yakable-wave-white-core),
+    var(--yakable-slate-1) var(--yakable-wave-slate),
+    var(--yakable-indigo-3) var(--yakable-wave-indigo),
+    #fff var(--yakable-wave-white-edge),
+    #fff var(--yakable-wave-white-far)
   ) !important;
   background-size: 100% 100% !important;
   transform: none !important;
-  will-change: background;
-  animation: yakable-aurora-breathe 11s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite alternate;
+  opacity: 0;
+  will-change: background, opacity;
+  animation: yakable-wave-out var(--yakable-wave-duration)
+    cubic-bezier(0.2, 0.65, 0.25, 1) infinite;
 }
 
 /*
- * Layer 2: a white radial feather over the center. This keeps the composer
- * quiet while the surrounding ring becomes slightly more or less visible.
+ * Wave B, half a cycle behind Wave A. This creates the repeating ripple rather
+ * than a single expand-then-contract "breathing" motion.
+ */
+main > section:first-of-type::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at 50% 52%,
+    #fff 0%,
+    #fff var(--yakable-wave-white-core),
+    var(--yakable-slate-1) var(--yakable-wave-slate),
+    var(--yakable-indigo-3) var(--yakable-wave-indigo),
+    #fff var(--yakable-wave-white-edge),
+    #fff var(--yakable-wave-white-far)
+  );
+  opacity: 0;
+  will-change: background, opacity;
+  animation: yakable-wave-out var(--yakable-wave-duration)
+    cubic-bezier(0.2, 0.65, 0.25, 1) infinite;
+  animation-delay: calc(var(--yakable-wave-duration) / -2);
+}
+
+/*
+ * Keep the inside of the prompt visually quiet while allowing the first ripple
+ * to become visible right around its side edges.
  */
 main > section:first-of-type::after {
   content: "";
@@ -83,50 +117,75 @@ main > section:first-of-type::after {
   z-index: 1;
   pointer-events: none;
   background: radial-gradient(
-    circle at center,
+    circle at 50% 52%,
     #fff 0%,
-    #fff 20%,
-    rgba(255, 255, 255, 0) 100%
+    #fff 28%,
+    rgba(255, 255, 255, 0.82) 35%,
+    rgba(255, 255, 255, 0.28) 44%,
+    rgba(255, 255, 255, 0) 55%
   );
 }
 
-/*
- * Layer 3: fade the hero into the white Recents area so the background effect
- * never ends with a visible hard edge.
- */
+/* Fade the hero cleanly into Recents. */
 main > section:first-of-type > div[aria-hidden="true"] > div:last-child {
   background: linear-gradient(
     to bottom,
-    rgba(255, 255, 255, 0) 40%,
+    rgba(255, 255, 255, 0) 42%,
+    rgba(255, 255, 255, 0.72) 76%,
     #fff 100%
   ) !important;
 }
 
-@keyframes yakable-aurora-breathe {
+/*
+ * Outward-only motion. The wave is invisible while resetting, so the loop does
+ * not visibly snap back toward the composer.
+ */
+@keyframes yakable-wave-out {
   0% {
-    --yakable-aurora-white-core: 49.136%;
-    --yakable-aurora-slate: 64.7904%;
-    --yakable-aurora-indigo: 84.272%;
-    --yakable-aurora-white-edge: 102.84%;
-    --yakable-aurora-white-far: 122.84%;
+    opacity: 0;
+    --yakable-wave-white-core: 40%;
+    --yakable-wave-slate: 45%;
+    --yakable-wave-indigo: 52%;
+    --yakable-wave-white-edge: 63%;
+    --yakable-wave-white-far: 74%;
+  }
+
+  9% {
+    opacity: 0.9;
+  }
+
+  72% {
+    opacity: 0.72;
+    --yakable-wave-white-core: 72%;
+    --yakable-wave-slate: 92%;
+    --yakable-wave-indigo: 116%;
+    --yakable-wave-white-edge: 143%;
+    --yakable-wave-white-far: 166%;
   }
 
   100% {
-    --yakable-aurora-white-core: 74.944%;
-    --yakable-aurora-slate: 102.416%;
-    --yakable-aurora-indigo: 135.888%;
-    --yakable-aurora-white-edge: 167.36%;
-    --yakable-aurora-white-far: 194.832%;
+    opacity: 0;
+    --yakable-wave-white-core: 92%;
+    --yakable-wave-slate: 122%;
+    --yakable-wave-indigo: 154%;
+    --yakable-wave-white-edge: 188%;
+    --yakable-wave-white-far: 218%;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  main > section:first-of-type::before,
   main > section:first-of-type > div[aria-hidden="true"] > div:first-child {
     animation: none !important;
-    --yakable-aurora-white-core: 60%;
-    --yakable-aurora-slate: 81%;
-    --yakable-aurora-indigo: 108%;
-    --yakable-aurora-white-edge: 134%;
-    --yakable-aurora-white-far: 158%;
+    opacity: 0.7;
+    --yakable-wave-white-core: 56%;
+    --yakable-wave-slate: 69%;
+    --yakable-wave-indigo: 84%;
+    --yakable-wave-white-edge: 104%;
+    --yakable-wave-white-far: 122%;
+  }
+
+  main > section:first-of-type::before {
+    display: none;
   }
 }
