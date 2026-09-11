@@ -4,6 +4,19 @@ Yakable is being rebuilt one product problem at a time.
 
 > One stage, one problem, one verifiable outcome.
 
+## Dashboard UI shell
+
+Yakable now includes a Lovable-inspired dashboard shell so the product can start taking shape before the Stage 4 Agent loop.
+
+```bash
+npm install
+npm run dev:web
+```
+
+Open `http://127.0.0.1:5173/`.
+
+The dashboard is intentionally UI-only for now. It includes the sidebar navigation, gradient creation hero, prompt composer, project filters, and project cards. Submitting the composer does not call DeepSeek yet; wiring the web product flow is a separate change.
+
 ## Stage 1 — Prompt → Code ✅
 
 Turn one natural-language product prompt into a complete React + TypeScript + Vite source tree:
@@ -27,11 +40,7 @@ npm run run:project -- generated/<project-id>
 
 Yakable prints a browser URL such as `http://127.0.0.1:5173/`. Generated npm scripts are not executed and dependencies are provided by Yakable's shared runtime.
 
-## Stage 3 — Prompt → Patch 🚧
-
-Stage 3 answers one new question:
-
-> Can a second prompt modify the existing project without regenerating everything?
+## Stage 3 — Prompt → Patch ✅
 
 Edit an existing generated project with:
 
@@ -39,51 +48,13 @@ Edit an existing generated project with:
 npm run edit -- generated/<project-id> "把 Hero 主色改成蓝色，并把标题改成 Yakable"
 ```
 
-The Stage 3 flow is deliberately small:
-
-```text
-follow-up prompt + existing source
-              ↓
-           DeepSeek
-              ↓
-      changed files only
-              ↓
-        Yakable validation
-              ↓
-       overwrite those files
-```
-
-The model receives the current text project source, but `.env*`, `node_modules`, `dist`, `.git`, and `.yakable` content is excluded. It must return complete contents only for files that need to change.
-
-### Stage 3 write boundary
-
-Stage 3 may modify or create:
-
-- `src/**`
-- `public/**`
-- `index.html`
-
-It cannot modify `package.json`, lockfiles, environment files, Vite configuration, or other root configuration. File deletion and new npm dependencies are intentionally deferred.
+The model receives the current text project source and returns only the complete contents of changed files. Stage 3 can modify `src/**`, `public/**`, and `index.html`, while package and root configuration remain locked.
 
 Stage 3 does **not** automatically run the project after editing. To inspect the result, run Stage 2 again:
 
 ```bash
 npm run run:project -- generated/<project-id>
 ```
-
-### Explicitly out of scope
-
-Stage 3 does not add:
-
-- Agent tool calling or a multi-step Agent loop
-- automatic runtime/build repair
-- AI retries after errors
-- file deletion
-- arbitrary npm dependency changes
-- project versions / rollback
-- database / auth / backend
-- deployment
-- an embedded web Preview workspace
 
 Automatic `Patch → Run → Error → Fix` belongs to Stage 4.
 
@@ -102,6 +73,7 @@ DEEPSEEK_THINKING=disabled
 ```bash
 npm run typecheck
 npm test
+npm run build:web
 ```
 
 ## Current flow
@@ -109,6 +81,7 @@ npm test
 ```text
 Prompt → Code ✅
 Code → Run ✅
-Prompt → Patch 🚧
+Prompt → Patch ✅
+Dashboard UI ✅
 Error → Fix ⏭️
 ```
