@@ -15,7 +15,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function validateFilePath(candidate: string): string {
-  if (!candidate || candidate.length > 240 || candidate.includes('\0') || candidate.includes('\\')) {
+  if (
+    !candidate ||
+    candidate.length > 240 ||
+    candidate.includes(String.fromCharCode(0)) ||
+    candidate.includes('\\') ||
+    /[\r\n]/.test(candidate)
+  ) {
     throw new Error(`Invalid generated file path: ${candidate || '<empty>'}`);
   }
 
@@ -121,7 +127,8 @@ export async function writeGeneratedProject(
   const projectId = `${slugifyPrompt(prompt)}-${timestamp}-${randomUUID().slice(0, 8)}`;
   const outputDirectory = path.join(outputRoot, projectId);
 
-  await mkdir(outputDirectory, { recursive: false });
+  await mkdir(outputRoot, { recursive: true });
+  await mkdir(outputDirectory);
 
   for (const file of project.files) {
     const destination = path.join(outputDirectory, ...file.path.split('/'));
