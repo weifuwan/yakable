@@ -4,61 +4,70 @@ Yakable is being rebuilt one product problem at a time.
 
 > One stage, one problem, one verifiable outcome.
 
-## Dashboard UI shell
+## Web product flow
 
-Yakable now includes a Lovable-inspired dashboard shell so the product can start taking shape before the Stage 4 Agent loop.
+The Lovable-inspired dashboard is now wired to the Stage 1–3 backend capabilities.
+
+Run the local API in one terminal:
 
 ```bash
 npm install
+npm run dev:api
+```
+
+Run the dashboard in another terminal:
+
+```bash
 npm run dev:web
 ```
 
 Open `http://127.0.0.1:5173/`.
 
-The dashboard is intentionally UI-only for now. It includes the sidebar navigation, gradient creation hero, prompt composer, project filters, and project cards. Submitting the composer does not call DeepSeek yet; wiring the web product flow is a separate change.
+The web flow is now:
 
-## Stage 1 — Prompt → Code ✅
+```text
+Dashboard Prompt
+      ↓
+Prompt → Code
+      ↓
+Code → Run
+      ↓
+Project Workspace + live iframe Preview
+      ↓
+Follow-up Prompt → Patch
+      ↓
+Preview refresh
+```
 
-Turn one natural-language product prompt into a complete React + TypeScript + Vite source tree:
+The API listens only on `127.0.0.1:8787` by default and the dashboard proxies `/api` to it. Set `YAKABLE_API_PORT` only if you also update the dashboard Vite proxy.
+
+### What works in the browser
+
+- create a new project from the dashboard prompt
+- generate the Stage 1 source tree with DeepSeek
+- start the Stage 2 controlled Vite runtime automatically
+- enter a Lovable-style split workspace with chat on the left and Preview on the right
+- reopen existing local projects from the dashboard
+- send follow-up edit prompts using the Stage 3 patch flow
+- refresh or open the live Preview separately
+
+### Boundary
+
+This is still **not Stage 4**. The browser does not feed build/runtime failures back into DeepSeek and does not run an automatic repair loop. If a patch breaks the generated project, the Preview exposes that failure and repair remains manual for now.
+
+There is also no auth, database, cloud persistence, deployment, or multi-tenant sandbox yet. The Web API and generated runtimes are local development surfaces.
+
+## CLI stages
+
+The original stage commands remain available:
 
 ```bash
-npm install
-cp .env.example .env
-# add DEEPSEEK_API_KEY to .env
 npm run generate -- "Build a clean SaaS landing page"
-```
-
-Generated source is written under `generated/<project-id>/`.
-
-## Stage 2 — Code → Run ✅
-
-Run a generated project in Yakable's controlled local Vite runtime:
-
-```bash
 npm run run:project -- generated/<project-id>
+npm run edit -- generated/<project-id> "把 Hero 主色改成蓝色"
 ```
 
-Yakable prints a browser URL such as `http://127.0.0.1:5173/`. Generated npm scripts are not executed and dependencies are provided by Yakable's shared runtime.
-
-## Stage 3 — Prompt → Patch ✅
-
-Edit an existing generated project with:
-
-```bash
-npm run edit -- generated/<project-id> "把 Hero 主色改成蓝色，并把标题改成 Yakable"
-```
-
-The model receives the current text project source and returns only the complete contents of changed files. Stage 3 can modify `src/**`, `public/**`, and `index.html`, while package and root configuration remain locked.
-
-Stage 3 does **not** automatically run the project after editing. To inspect the result, run Stage 2 again:
-
-```bash
-npm run run:project -- generated/<project-id>
-```
-
-Automatic `Patch → Run → Error → Fix` belongs to Stage 4.
-
-## DeepSeek request controls
+DeepSeek request controls:
 
 ```env
 DEEPSEEK_MODEL=deepseek-v4-pro
@@ -82,6 +91,6 @@ npm run build:web
 Prompt → Code ✅
 Code → Run ✅
 Prompt → Patch ✅
-Dashboard UI ✅
+Dashboard → real product flow ✅
 Error → Fix ⏭️
 ```
