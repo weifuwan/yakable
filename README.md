@@ -55,7 +55,31 @@ npm run generate -- "Build a clean SaaS landing page for a team analytics produc
 
 The command prints the generated directory. Yakable does **not** execute the generated project in Stage 1.
 
-DeepSeek defaults to `deepseek-v4-pro`; override `DEEPSEEK_MODEL` or `DEEPSEEK_BASE_URL` in `.env` when needed.
+DeepSeek defaults to `deepseek-v4-pro`. Stage 1 deliberately disables thinking by default so a full source-tree generation does not spend unnecessary time in high-effort reasoning.
+
+Available request controls:
+
+```env
+DEEPSEEK_MODEL=deepseek-v4-pro
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_TIMEOUT_MS=600000
+DEEPSEEK_MAX_TOKENS=16384
+DEEPSEEK_THINKING=disabled
+```
+
+`DEEPSEEK_TIMEOUT_MS=600000` gives one generation up to 10 minutes. If a request still times out, retry first; only increase the timeout when the model or network consistently needs more time.
+
+### Timeout troubleshooting
+
+If you see a timeout error, verify that `DEEPSEEK_THINKING=disabled` is still set for Stage 1. The CLI now reports a clear timeout message instead of the raw Node.js abort error.
+
+You can temporarily raise the timeout, for example:
+
+```env
+DEEPSEEK_TIMEOUT_MS=900000
+```
+
+Stage 1 remains a single request: changing this value does not add retries, Agent behavior, code execution, or automatic repair.
 
 ## Checks
 
