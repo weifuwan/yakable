@@ -1,6 +1,6 @@
 {
   "name": "yakable",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
   "engines": {
@@ -10,7 +10,9 @@
     "generate": "tsx src/cli.ts",
     "run:project": "tsx src/run-cli.ts",
     "edit": "tsx src/edit-cli.ts",
-    "typecheck": "tsc --noEmit",
+    "dev:web": "vite dashboard --host 127.0.0.1",
+    "build:web": "vite build dashboard",
+    "typecheck": "tsc --noEmit && tsc -p dashboard/tsconfig.json --noEmit",
     "test": "node --import tsx --test test/project.test.ts test/deepseek.test.ts test/runtime.test.ts test/edit.test.ts"
   },
   "dependencies": {
@@ -22,6 +24,8 @@
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0"
   }
