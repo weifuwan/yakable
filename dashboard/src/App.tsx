@@ -12,6 +12,7 @@ import { projectTitle } from "./utils/project";
 
 const dashboardPaths = new Set([
   "/dashboard",
+  "/dashboard/all-files",
   "/dashboard/shared",
   "/dashboard/files",
   "/dashboard/templates",

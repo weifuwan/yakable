@@ -9,6 +9,7 @@ import { DesignSystemsPage } from "./DesignSystems";
 import { FilesPage } from "./Files";
 import { SharedPage } from "./Shared";
 import { TemplatesPage } from "./Templates";
+import { AllFiles } from "./AllFiles";
 
 export function Dashboard({
   projects,
@@ -38,6 +39,7 @@ export function Dashboard({
   }
 
   function renderPage() {
+    if (pathname === "/dashboard/all-files") return <AllFiles />;
     if (pathname === "/dashboard/shared") return <SharedPage />;
     if (pathname === "/dashboard/files") return <FilesPage />;
     if (pathname === "/dashboard/templates") return <TemplatesPage />;

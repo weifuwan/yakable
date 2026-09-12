@@ -158,7 +158,7 @@ export function Sidebar({
         <SidebarItem
           icon="share"
           label="Shared with me"
-          to="/dashboard/shared"
+          to="/dashboard/all-files"
           pathname={pathname}
           onNavigate={onNavigate}
         />
