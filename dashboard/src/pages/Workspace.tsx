@@ -16,11 +16,478 @@ type ChatMessage = {
   content: string;
 };
 
-const messageRoleClasses: Record<ChatMessage["role"], string> = {
-  user: "self-end rounded-br-md bg-[#202020] text-white",
-  assistant: "self-start rounded-bl-md bg-[#f5f5f3] text-[#4d4d49]",
-  error: "self-start bg-rose-50 text-rose-700",
-};
+type EditorIconName =
+  | "menu"
+  | "history"
+  | "sidebar"
+  | "globe"
+  | "code"
+  | "layers"
+  | "monitor"
+  | "share"
+  | "bolt"
+  | "publish"
+  | "chevron"
+  | "copy"
+  | "more"
+  | "thumbUp"
+  | "thumbDown";
+
+const suggestionPrompts = [
+  "Polish this page",
+  "Improve the mobile layout",
+  "Refine the copy",
+  "Add subtle interactions",
+];
+
+const roundIconButtonClass =
+  "grid h-7 w-7 shrink-0 place-items-center rounded-full border-0 bg-transparent text-black/55 transition hover:bg-black/[0.05] hover:text-black";
+
+function EditorIcon({
+  name,
+  size = 16,
+}: {
+  name: EditorIconName;
+  size?: number;
+}) {
+  const common = {
+    width: size,
+    height: size,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.7,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+  };
+
+  const paths: Record<EditorIconName, React.ReactNode> = {
+    menu: (
+      <>
+        <path d="M5 7h14M5 12h14M5 17h14" />
+      </>
+    ),
+    history: (
+      <>
+        <path d="M4.8 8.2A8 8 0 1 1 4 13" />
+        <path d="M4 5v4h4" />
+        <path d="M12 8v4l2.8 1.8" />
+      </>
+    ),
+    sidebar: (
+      <>
+        <rect x="3.5" y="5" width="17" height="14" rx="2" />
+        <path d="M9 5v14" />
+      </>
+    ),
+    globe: (
+      <>
+        <circle cx="12" cy="12" r="8.5" />
+        <path d="M3.8 12h16.4M12 3.5c2 2.3 3 5.1 3 8.5s-1 6.2-3 8.5M12 3.5c-2 2.3-3 5.1-3 8.5s1 6.2 3 8.5" />
+      </>
+    ),
+    code: (
+      <>
+        <path d="m9 7-5 5 5 5M15 7l5 5-5 5M13.5 4l-3 16" />
+      </>
+    ),
+    layers: (
+      <>
+        <path d="m12 4 8 4-8 4-8-4 8-4Z" />
+        <path d="m4 12 8 4 8-4M4 16l8 4 8-4" />
+      </>
+    ),
+    monitor: (
+      <>
+        <rect x="3" y="4" width="18" height="13" rx="2" />
+        <path d="M9 21h6M12 17v4" />
+      </>
+    ),
+    share: (
+      <>
+        <circle cx="8" cy="12" r="2" />
+        <circle cx="17" cy="7" r="2" />
+        <circle cx="17" cy="17" r="2" />
+        <path d="m9.8 11 5.4-3M9.8 13l5.4 3" />
+      </>
+    ),
+    bolt: <path d="m13 2-7 11h6l-1 9 7-12h-6l1-8Z" />,
+    publish: (
+      <>
+        <path d="M12 16V4" />
+        <path d="m8 8 4-4 4 4" />
+        <path d="M5 13v6h14v-6" />
+      </>
+    ),
+    chevron: <path d="m8 10 4 4 4-4" />,
+    copy: (
+      <>
+        <rect x="8" y="8" width="11" height="11" rx="2" />
+        <path d="M16 8V5H5v11h3" />
+      </>
+    ),
+    more: (
+      <>
+        <circle cx="6" cy="12" r="1" fill="currentColor" stroke="none" />
+        <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
+        <circle cx="18" cy="12" r="1" fill="currentColor" stroke="none" />
+      </>
+    ),
+    thumbUp: (
+      <>
+        <path d="M8 10v9H4v-9h4ZM8 17h7.2a2 2 0 0 0 1.9-1.4l1.6-5A2 2 0 0 0 16.8 8H13l.4-2.3A2.3 2.3 0 0 0 11.1 3L8 10" />
+      </>
+    ),
+    thumbDown: (
+      <>
+        <path d="M8 14V5H4v9h4ZM8 7h7.2a2 2 0 0 1 1.9 1.4l1.6 5a2 2 0 0 1-1.9 2.6H13l.4 2.3a2.3 2.3 0 0 1-2.3 2.7L8 14" />
+      </>
+    ),
+  };
+
+  return <svg {...common}>{paths[name]}</svg>;
+}
+
+function ViewSwitcher() {
+  return (
+    <div
+      className="inline-flex h-7 shrink-0 items-center rounded-full bg-black/[0.045] p-0.5"
+      role="tablist"
+      aria-label="Editor view"
+    >
+      <button
+        type="button"
+        role="tab"
+        aria-selected="true"
+        className="inline-flex h-6 items-center gap-1 rounded-full border border-[#bfd0ff] bg-[#eef3ff] px-2 text-xs font-medium text-[#245fe8] shadow-[0_1px_2px_rgba(36,95,232,0.08)]"
+      >
+        <EditorIcon name="globe" size={14} />
+        Preview
+      </button>
+      <button className={roundIconButtonClass} type="button" aria-label="Files">
+        <Icon name="file" size={14} />
+      </button>
+      <button className={roundIconButtonClass} type="button" aria-label="Code">
+        <EditorIcon name="code" size={14} />
+      </button>
+      <button className={roundIconButtonClass} type="button" aria-label="More views">
+        <EditorIcon name="layers" size={14} />
+      </button>
+    </div>
+  );
+}
+
+function PreviewAddressBar({
+  onRefresh,
+  previewUrl,
+}: {
+  onRefresh: () => void;
+  previewUrl: string;
+}) {
+  return (
+    <div className="flex min-w-0 flex-1 items-center justify-center gap-1 max-[1120px]:hidden">
+      <button className={roundIconButtonClass} type="button" aria-label="Desktop view">
+        <EditorIcon name="monitor" size={14} />
+      </button>
+      <div className="flex h-7 min-w-[180px] max-w-[280px] flex-1 items-center rounded-full border border-black/[0.10] bg-white/85 px-1 shadow-[0_1px_2px_rgba(15,23,42,0.035)]">
+        <button
+          className={roundIconButtonClass}
+          type="button"
+          aria-label="Refresh preview"
+          onClick={onRefresh}
+        >
+          <Icon name="refresh" size={13} />
+        </button>
+        <button
+          className="flex min-w-0 flex-1 items-center justify-center gap-1 border-0 bg-transparent px-2 text-xs font-medium text-black/65"
+          type="button"
+        >
+          <span className="truncate">Homepage</span>
+          <EditorIcon name="chevron" size={12} />
+        </button>
+      </div>
+      <a
+        className={`${roundIconButtonClass} no-underline`}
+        href={previewUrl}
+        target="_blank"
+        rel="noreferrer"
+        aria-label="Open preview in new tab"
+      >
+        <Icon name="external" size={14} />
+      </a>
+    </div>
+  );
+}
+
+function EditorHeader({
+  project,
+  onBack,
+  onRefresh,
+  previewUrl,
+}: {
+  project: ActiveProject;
+  onBack: () => void;
+  onRefresh: () => void;
+  previewUrl: string;
+}) {
+  return (
+    <header className="grid h-12 shrink-0 grid-cols-[45%_55%] items-center bg-[#f6f6f4] max-[900px]:grid-cols-[1fr_auto]">
+      <div className="flex min-w-0 items-center justify-between gap-2 px-2">
+        <div className="flex min-w-0 items-center gap-1">
+          <button
+            className={roundIconButtonClass}
+            type="button"
+            aria-label="Back to dashboard"
+            onClick={onBack}
+          >
+            <EditorIcon name="menu" size={15} />
+          </button>
+          <button
+            className="flex min-w-0 items-center gap-1.5 rounded-full border border-transparent bg-transparent px-2 py-1 text-sm font-medium transition hover:border-black/[0.08] hover:bg-black/[0.035]"
+            type="button"
+          >
+            <span className="max-w-[260px] truncate">{project.title}</span>
+            <EditorIcon name="chevron" size={13} />
+          </button>
+        </div>
+
+        <div className="flex items-center gap-1 pr-1">
+          <button className={roundIconButtonClass} type="button" aria-label="History">
+            <EditorIcon name="history" size={15} />
+          </button>
+          <button className={roundIconButtonClass} type="button" aria-label="Toggle chat panel">
+            <EditorIcon name="sidebar" size={15} />
+          </button>
+        </div>
+      </div>
+
+      <div className="flex min-w-0 items-center gap-2 pr-2 max-[900px]:hidden">
+        <ViewSwitcher />
+        <PreviewAddressBar onRefresh={onRefresh} previewUrl={previewUrl} />
+        <div className="ml-auto flex shrink-0 items-center gap-1.5">
+          <button
+            className="inline-flex h-7 items-center gap-1 rounded-full border border-black/[0.12] bg-white px-3 text-xs font-medium text-black/70 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:bg-black/[0.02]"
+            type="button"
+          >
+            <EditorIcon name="share" size={13} />
+            Share
+          </button>
+          <button
+            className="inline-flex h-7 items-center gap-1 rounded-full border border-[#8b5cf6] bg-[#7c3aed] px-3 text-xs font-medium text-white shadow-[0_1px_2px_rgba(124,58,237,0.2)] transition hover:bg-[#7132d4]"
+            type="button"
+          >
+            <EditorIcon name="bolt" size={13} />
+            Upgrade
+          </button>
+          <button
+            className="inline-flex h-7 items-center gap-1 rounded-full border border-[#1d4ed8] bg-[#2563eb] px-3 text-xs font-medium text-white shadow-[0_1px_2px_rgba(37,99,235,0.22)] transition hover:bg-[#1d55d8]"
+            type="button"
+          >
+            <EditorIcon name="publish" size={13} />
+            Publish
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function MessageToolbar({ content }: { content: string }) {
+  return (
+    <div className="mt-1 flex items-center gap-0.5 text-black/45">
+      <button className={roundIconButtonClass} type="button" aria-label="Revert this change">
+        <Icon name="back" size={13} />
+      </button>
+      <button className={roundIconButtonClass} type="button" aria-label="Helpful">
+        <EditorIcon name="thumbUp" size={13} />
+      </button>
+      <button className={roundIconButtonClass} type="button" aria-label="Not helpful">
+        <EditorIcon name="thumbDown" size={13} />
+      </button>
+      <button
+        className={roundIconButtonClass}
+        type="button"
+        aria-label="Copy message"
+        onClick={() => void navigator.clipboard?.writeText(content)}
+      >
+        <EditorIcon name="copy" size={13} />
+      </button>
+      <button className={roundIconButtonClass} type="button" aria-label="More options">
+        <EditorIcon name="more" size={13} />
+      </button>
+    </div>
+  );
+}
+
+function ChatTimeline({
+  messages,
+  busy,
+}: {
+  messages: ChatMessage[];
+  busy: boolean;
+}) {
+  return (
+    <div className="flex min-h-0 flex-1 overflow-y-auto px-5 pb-6 pt-3">
+      <div className="mx-auto flex w-full max-w-[760px] flex-col gap-3">
+        {messages.map((message, index) => {
+          if (message.role === "user") {
+            return (
+              <div key={`user-${index}`} className="flex justify-end py-1">
+                <div className="max-w-[75%] rounded-[22px] rounded-br-md border border-black/[0.08] bg-white px-4 py-3 text-sm leading-6 text-[#30302d] shadow-[0_1px_2px_rgba(15,23,42,0.035)]">
+                  {message.content}
+                </div>
+              </div>
+            );
+          }
+
+          if (message.role === "error") {
+            return (
+              <div
+                key={`error-${index}`}
+                className="max-w-[86%] rounded-2xl bg-rose-50 px-4 py-3 text-sm leading-6 text-rose-700"
+              >
+                {message.content}
+              </div>
+            );
+          }
+
+          return (
+            <div key={`assistant-${index}`} className="py-1 text-sm leading-6 text-[#3f3f3b]">
+              <button
+                className="mb-1 border-0 bg-transparent p-0 text-[11px] text-black/42"
+                type="button"
+              >
+                Thought for 1s
+              </button>
+              <div className="whitespace-pre-wrap">
+                {message.content.split("\n").map((line, lineIndex) => (
+                  <p className="m-0 min-h-6" key={`${line}-${lineIndex}`}>
+                    {line}
+                  </p>
+                ))}
+              </div>
+              <MessageToolbar content={message.content} />
+            </div>
+          );
+        })}
+
+        {busy ? (
+          <div className="flex items-center gap-2 py-2 text-sm text-black/50">
+            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/15 border-t-black/65" />
+            Yakable is updating the project…
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function ChatComposer({
+  prompt,
+  busy,
+  onPromptChange,
+  onSubmit,
+}: {
+  prompt: string;
+  busy: boolean;
+  onPromptChange: (value: string) => void;
+  onSubmit: (event: FormEvent) => void;
+}) {
+  return (
+    <div className="shrink-0 px-3 pb-3">
+      <div className="mx-auto w-full max-w-[760px]">
+        <div className="scrollbar-hide mb-2 flex gap-1.5 overflow-x-auto px-1">
+          {suggestionPrompts.map((suggestion) => (
+            <button
+              key={suggestion}
+              className="h-7 shrink-0 rounded-full border border-black/[0.11] bg-white px-3 text-[11px] font-medium text-black/65 shadow-[0_1px_2px_rgba(15,23,42,0.035)] transition hover:bg-black/[0.025]"
+              type="button"
+              onClick={() => onPromptChange(suggestion)}
+              disabled={busy}
+            >
+              {suggestion}
+            </button>
+          ))}
+        </div>
+
+        <form
+          className="rounded-[22px] border border-black/[0.09] bg-white p-3 shadow-[0_6px_22px_rgba(15,23,42,0.08)]"
+          onSubmit={onSubmit}
+        >
+          <textarea
+            className="min-h-[54px] w-full resize-none border-0 bg-transparent px-1 pb-2 text-sm leading-6 text-[#2e2e2b] outline-none placeholder:text-black/38 disabled:opacity-60"
+            value={prompt}
+            onChange={(event) => onPromptChange(event.target.value)}
+            placeholder="Ask Yakable..."
+            rows={2}
+            disabled={busy}
+          />
+          <div className="flex items-center justify-between gap-2">
+            <button
+              className="grid h-7 w-7 place-items-center rounded-full border border-black/[0.11] bg-white text-black/55 transition hover:bg-black/[0.035]"
+              type="button"
+              aria-label="Add attachment"
+              disabled={busy}
+            >
+              <Icon name="plus" size={15} />
+            </button>
+
+            <div className="flex items-center gap-1">
+              <button
+                className="inline-flex h-7 items-center gap-1 rounded-full border-0 bg-transparent px-2.5 text-xs font-medium text-black/65 transition hover:bg-black/[0.04]"
+                type="button"
+                disabled={busy}
+              >
+                Build <EditorIcon name="chevron" size={12} />
+              </button>
+              <button
+                className={roundIconButtonClass}
+                type="button"
+                aria-label="Voice input"
+                disabled={busy}
+              >
+                <Icon name="mic" size={14} />
+              </button>
+              <button
+                className="grid h-7 w-7 place-items-center rounded-full border-0 bg-[#20201f] text-white transition hover:bg-black disabled:cursor-default disabled:opacity-25"
+                type="submit"
+                aria-label="Send"
+                disabled={!prompt.trim() || busy}
+              >
+                <Icon name="send" size={15} />
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function PreviewInteractionToolbar() {
+  return (
+    <div className="pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center">
+      <div className="pointer-events-auto inline-flex h-10 items-center rounded-full border border-black/[0.13] bg-white/80 p-1 shadow-[0_6px_18px_rgba(15,23,42,0.10)] backdrop-blur-xl">
+        <button className={roundIconButtonClass} type="button" aria-label="Select elements">
+          ↖
+        </button>
+        <button className={roundIconButtonClass} type="button" aria-label="Edit text">
+          <span className="text-sm font-medium">T</span>
+        </button>
+        <button className={roundIconButtonClass} type="button" aria-label="Draw annotation">
+          <span className="text-sm">✎</span>
+        </button>
+        <button className={roundIconButtonClass} type="button" aria-label="Comment">
+          <span className="text-sm">▢</span>
+        </button>
+        <button className={roundIconButtonClass} type="button" aria-label="More preview tools">
+          <EditorIcon name="more" size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export function Workspace({
   project,
@@ -57,7 +524,9 @@ export function Workspace({
         ...current,
         {
           role: "assistant",
-          content: `${result.summary}\nChanged: ${result.changedFiles.join(", ")}`,
+          content: result.changedFiles.length
+            ? `${result.summary}\nChanged: ${result.changedFiles.join(", ")}`
+            : result.summary,
         },
       ]);
     } catch (caught) {
@@ -74,120 +543,32 @@ export function Workspace({
   }
 
   function refreshPreview() {
-    const url = new URL(previewUrl);
+    const url = new URL(previewUrl, window.location.origin);
     url.searchParams.set("clientRefresh", String(Date.now()));
     setPreviewUrl(url.toString());
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-[#f3f3f1] font-sans text-[#1e2828] antialiased">
-      <header className="grid h-[52px] shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-4 border-b border-black/[0.09] bg-[#fafaf8]/95 px-3 backdrop-blur-xl max-[820px]:grid-cols-[auto_1fr_auto]">
-        <button
-          className="inline-flex h-8 items-center gap-1.5 justify-self-start rounded-lg border-0 bg-transparent px-2.5 text-xs text-black/60 transition hover:bg-black/[0.05] hover:text-black"
-          type="button"
-          onClick={onBack}
-        >
-          <Icon name="back" size={17} />
-          <span className="max-[820px]:hidden">Dashboard</span>
-        </button>
+    <div className="flex h-screen flex-col overflow-hidden bg-[#f6f6f4] font-sans text-[#252522] antialiased">
+      <EditorHeader
+        project={project}
+        onBack={onBack}
+        onRefresh={refreshPreview}
+        previewUrl={previewUrl}
+      />
 
-        <div className="flex min-w-0 items-center gap-2 text-[13px] max-[820px]:justify-center">
-          <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-gradient-to-br from-indigo-500 to-violet-600 text-[9px] font-bold text-white">
-            Y
-          </span>
-          <strong className="max-w-80 truncate font-semibold">
-            {project.title}
-          </strong>
-          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700">
-            <i className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            Live
-          </span>
-        </div>
-
-        <div className="flex items-center gap-1 justify-self-end">
-          <button
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border-0 bg-transparent px-2.5 text-xs text-black/60 transition hover:bg-black/[0.05] hover:text-black"
-            type="button"
-            onClick={refreshPreview}
-          >
-            <Icon name="refresh" size={16} />
-            <span className="max-[820px]:hidden">Refresh</span>
-          </button>
-          <a
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs text-black/60 no-underline transition hover:bg-black/[0.05] hover:text-black"
-            href={previewUrl}
-            target="_blank"
-            rel="noreferrer"
-          >
-            <Icon name="external" size={16} />
-            <span className="max-[820px]:hidden">Open</span>
-          </a>
-        </div>
-      </header>
-
-      <div className="grid min-h-0 flex-1 grid-cols-[minmax(320px,390px)_minmax(0,1fr)] gap-2 p-2 max-[820px]:grid-cols-1 max-[820px]:grid-rows-[minmax(260px,42%)_minmax(0,1fr)]">
-        <section className="flex min-h-0 flex-col overflow-hidden rounded-[14px] border border-black/[0.09] bg-white shadow-[0_4px_16px_rgba(0,0,0,0.025)]">
-          <div className="flex h-[46px] shrink-0 items-center justify-between border-b border-black/[0.07] px-4">
-            <span className="text-[13px] font-semibold">Build</span>
-            <small className="text-[10px] text-black/45">
-              {project.model || "DeepSeek"}
-            </small>
-          </div>
-
-          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3.5 py-4">
-            {messages.map((message, index) => (
-              <div
-                key={`${message.role}-${index}`}
-                className={`max-w-[92%] whitespace-pre-wrap rounded-[14px] px-3 py-2.5 text-xs leading-5 ${messageRoleClasses[message.role]}`}
-              >
-                {message.content.split("\n").map((line, lineIndex) => (
-                  <p className="m-0" key={`${line}-${lineIndex}`}>
-                    {line}
-                  </p>
-                ))}
-              </div>
-            ))}
-
-            {busy ? (
-              <div className="flex max-w-[92%] items-center gap-2 self-start rounded-[14px] rounded-bl-md bg-[#f5f5f3] px-3 py-2.5 text-xs text-[#4d4d49]">
-                <span className="h-3 w-3 animate-spin rounded-full border-2 border-black/15 border-t-black/70" />
-                Updating the existing project…
-              </div>
-            ) : null}
-          </div>
-
-          <form
-            className="m-2.5 shrink-0 rounded-2xl border border-black/[0.10] bg-[#fbfbfa] p-2.5 shadow-[0_5px_18px_rgba(0,0,0,0.04)]"
+      <div className="grid min-h-0 flex-1 grid-cols-[45%_55%] max-[900px]:grid-cols-1 max-[900px]:grid-rows-[45%_55%]">
+        <section className="flex min-h-0 flex-col overflow-hidden bg-[#f6f6f4]">
+          <ChatTimeline messages={messages} busy={busy} />
+          <ChatComposer
+            prompt={prompt}
+            busy={busy}
+            onPromptChange={setPrompt}
             onSubmit={submitEdit}
-          >
-            <textarea
-              className="min-h-16 w-full resize-none border-0 bg-transparent text-xs leading-5 text-[#20201e] outline-none placeholder:text-black/35"
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              placeholder="Ask Yakable to change this project…"
-              rows={3}
-              disabled={busy}
-            />
-            <div className="flex items-center justify-between pt-1 text-[10px] text-black/45">
-              <span>Prompt → Patch</span>
-              <button
-                className="grid h-[30px] w-[30px] place-items-center rounded-full border-0 bg-[#171717] text-white disabled:cursor-default disabled:opacity-25"
-                type="submit"
-                disabled={!prompt.trim() || busy}
-              >
-                <Icon name="send" size={17} />
-              </button>
-            </div>
-          </form>
+          />
         </section>
 
-        <section className="flex min-h-0 flex-col overflow-hidden rounded-[14px] border border-black/[0.09] bg-[#ececea] shadow-[0_4px_16px_rgba(0,0,0,0.025)]">
-          <div className="flex h-[38px] shrink-0 items-center gap-2 border-b border-black/[0.08] bg-[#f8f8f6] px-3.5 text-[10px] text-black/45">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            <span className="truncate">
-              {previewUrl.replace(/^https?:\/\//, "").split("?")[0]}
-            </span>
-          </div>
+        <section className="relative mb-2 mr-2 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-black/[0.08] bg-white shadow-[0_3px_14px_rgba(15,23,42,0.07)] max-[900px]:m-2">
           <iframe
             className="min-h-0 w-full flex-1 border-0 bg-white"
             key={previewUrl}
@@ -196,6 +577,7 @@ export function Workspace({
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
             referrerPolicy="no-referrer"
           />
+          <PreviewInteractionToolbar />
         </section>
       </div>
     </div>
