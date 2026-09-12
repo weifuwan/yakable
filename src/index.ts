@@ -6,6 +6,11 @@ export {
   expandPromptSemantics,
   parseSemanticExpansion,
 } from './semantic.js';
+export {
+  buildTasteTranslationRequest,
+  parseTasteTranslation,
+  translatePromptTaste,
+} from './taste.js';
 export type {
   GeneratedFile,
   GeneratedProject,
@@ -16,4 +21,9 @@ export type {
   SemanticDefaultBasis,
   SemanticDefaultKind,
   SemanticExpansion,
+  TasteDecision,
+  TasteDecisionArea,
+  TasteDecisionBasis,
+  TasteIntensity,
+  TasteTranslation,
 } from './types.js';
