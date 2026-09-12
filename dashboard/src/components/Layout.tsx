@@ -1,6 +1,14 @@
+import { useEffect, useState } from "react";
+
+import type { ProjectListItem } from "../api";
+import { projectTitle } from "../utils/project";
 import { Icon, type IconName, controlClass } from "./ui";
 
 type NavigateHandler = (path: string) => void;
+
+function projectPath(projectId: string): string {
+  return `/projects/${encodeURIComponent(projectId)}`;
+}
 
 export function Topbar({ onNavigate }: { onNavigate: NavigateHandler }) {
   return (
@@ -122,12 +130,114 @@ function SidebarItem({
   );
 }
 
+function OwnedProjectsNavigation({
+  projects,
+  pathname,
+  activeProjectId,
+  onNavigate,
+}: {
+  projects: ProjectListItem[];
+  pathname: string;
+  activeProjectId?: string;
+  onNavigate: NavigateHandler;
+}) {
+  const ownedPageActive = pathname === "/dashboard/projects/owned";
+  const [expanded, setExpanded] = useState(
+    ownedPageActive || Boolean(activeProjectId),
+  );
+
+  useEffect(() => {
+    if (ownedPageActive || activeProjectId) {
+      setExpanded(true);
+    }
+  }, [ownedPageActive, activeProjectId]);
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <div
+        className={`flex items-center rounded-md transition ${
+          ownedPageActive || activeProjectId
+            ? "bg-black/[0.055]"
+            : "hover:bg-black/[0.05]"
+        }`}
+      >
+        <a
+          className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-sm text-[#001617] no-underline"
+          href="/dashboard/projects/owned"
+          aria-current={ownedPageActive ? "page" : undefined}
+          onClick={(event) => {
+            event.preventDefault();
+            setExpanded(true);
+            onNavigate("/dashboard/projects/owned");
+          }}
+        >
+          <span className="grid h-[18px] w-[18px] shrink-0 place-items-center text-[#4e5a5a]">
+            <Icon name="user" size={16} />
+          </span>
+          <span className="min-w-0 flex-1 truncate">Owned by me</span>
+        </a>
+        <button
+          className="mr-1 grid h-7 w-7 shrink-0 place-items-center rounded-md border-0 bg-transparent text-black/40 transition hover:bg-black/[0.05] hover:text-black/65"
+          type="button"
+          aria-label={expanded ? "Collapse owned projects" : "Expand owned projects"}
+          aria-expanded={expanded}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          <span
+            className={`transition-transform duration-150 ${expanded ? "rotate-180" : ""}`}
+          >
+            <Icon name="chevronDown" size={13} />
+          </span>
+        </button>
+      </div>
+
+      {expanded ? (
+        <div className="ml-[17px] border-l border-black/[0.10] py-0.5 pl-2">
+          {projects.length ? (
+            projects.map((project) => {
+              const active = project.id === activeProjectId;
+              const to = projectPath(project.id);
+              return (
+                <a
+                  key={project.id}
+                  className={`block truncate rounded-md px-2 py-1.5 text-[13px] no-underline transition ${
+                    active
+                      ? "bg-black/[0.075] font-medium text-[#202727]"
+                      : "text-black/60 hover:bg-black/[0.045] hover:text-black/80"
+                  }`}
+                  href={to}
+                  aria-current={active ? "page" : undefined}
+                  title={projectTitle(project.id)}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    onNavigate(to);
+                  }}
+                >
+                  {projectTitle(project.id)}
+                </a>
+              );
+            })
+          ) : (
+            <span className="block px-2 py-1.5 text-[12px] text-black/35">
+              No projects yet
+            </span>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function Sidebar({
   pathname,
   onNavigate,
+  projects = [],
+  activeProjectId,
 }: {
   pathname: string;
   onNavigate: NavigateHandler;
+  projects?: ProjectListItem[];
+  activeProjectId?: string;
 }) {
   return (
     <aside className="flex h-full w-[245px] shrink-0 flex-col overflow-y-auto overflow-x-hidden bg-[#f5f6f6] px-4 pb-2 pt-4">
@@ -157,7 +267,7 @@ export function Sidebar({
         />
       </nav>
 
-      <div className="mt-4 mb-1 px-2 text-[12px] font-medium text-black/45">
+      <div className="mb-1 mt-4 px-2 text-[12px] font-medium text-black/45">
         Projects
       </div>
 
@@ -169,11 +279,10 @@ export function Sidebar({
           pathname={pathname}
           onNavigate={onNavigate}
         />
-        <SidebarItem
-          icon="user"
-          label="Owned by me"
-          to="/dashboard/projects/owned"
+        <OwnedProjectsNavigation
+          projects={projects}
           pathname={pathname}
+          activeProjectId={activeProjectId}
           onNavigate={onNavigate}
         />
         <SidebarItem
