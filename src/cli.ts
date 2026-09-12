@@ -26,7 +26,7 @@ try {
   );
   console.log(`Taste: ${result.tasteTranslation.designDirection}`);
   console.log(
-    `Taste decisions: ${result.tasteTranslation.decisions.length} · Anti-patterns: ${result.tasteTranslation.antiPatterns.length}`,
+    `Design IR v${result.designIntent.version}: ${result.designIntent.requirements.length} requirements · ${result.designIntent.directives.length} directives · ${result.designIntent.openQuestions.length} open questions`,
   );
   console.log(`Model: ${result.model}`);
   console.log(`Files: ${result.project.files.length}`);
