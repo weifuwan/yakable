@@ -7,12 +7,18 @@ export interface ProjectRoute {
 
 export interface ProjectListItem {
   id: string;
+  name: string;
   updatedAt: string;
+  createdAt?: string;
+  starred: boolean;
+  template: ProjectTemplate;
+  remixedFrom?: string;
 }
 
 export interface CreatedProject {
   project: {
     id: string;
+    name: string;
     summary: string;
     model: string;
     template: ProjectTemplate;
@@ -23,6 +29,8 @@ export interface CreatedProject {
 
 export interface RuntimeProject {
   projectId: string;
+  name: string;
+  starred: boolean;
   previewUrl: string;
   template: ProjectTemplate;
   routes: ProjectRoute[];
@@ -74,4 +82,36 @@ export function editProject(projectId: string, prompt: string): Promise<EditedPr
     method: 'POST',
     body: JSON.stringify({ prompt }),
   });
+}
+
+export async function updateProject(
+  projectId: string,
+  patch: { name?: string; starred?: boolean },
+): Promise<ProjectListItem> {
+  const result = await requestJson<{ project: ProjectListItem }>(
+    `/api/projects/${encodeURIComponent(projectId)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    },
+  );
+  return result.project;
+}
+
+export async function remixProject(projectId: string): Promise<ProjectListItem> {
+  const result = await requestJson<{ project: ProjectListItem }>(
+    `/api/projects/${encodeURIComponent(projectId)}/remix`,
+    {
+      method: 'POST',
+      body: '{}',
+    },
+  );
+  return result.project;
+}
+
+export async function deleteProject(projectId: string): Promise<void> {
+  await requestJson<{ ok: true; projectId: string }>(
+    `/api/projects/${encodeURIComponent(projectId)}`,
+    { method: 'DELETE' },
+  );
 }
