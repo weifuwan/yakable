@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 
 import type { ProjectListItem } from "../api";
-import { projectTitle } from "../utils/project";
+import { projectDisplayName } from "../utils/project";
+import { ProjectActionsMenu } from "./ProjectActionsMenu";
 import { Icon, type IconName, controlClass } from "./ui";
 
 type NavigateHandler = (path: string) => void;
@@ -211,24 +212,34 @@ function OwnedProjectsNavigation({
               projects.map((project) => {
                 const active = project.id === activeProjectId;
                 const to = projectPath(project.id);
+                const label = projectDisplayName(project);
                 return (
-                  <a
+                  <div
                     key={project.id}
-                    className={`block truncate rounded-md px-2 py-1.5 text-[13px] no-underline transition-colors duration-150 ease-out ${
+                    className={`group/project flex min-w-0 items-center rounded-md pr-1 transition-colors duration-150 ease-out ${
                       active
                         ? "bg-black/[0.075] font-medium text-[#202727]"
                         : "text-black/60 hover:bg-black/[0.04] hover:text-black/80"
                     }`}
-                    href={to}
-                    aria-current={active ? "page" : undefined}
-                    title={projectTitle(project.id)}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      onNavigate(to);
-                    }}
                   >
-                    {projectTitle(project.id)}
-                  </a>
+                    <a
+                      className="min-w-0 flex-1 truncate px-2 py-1.5 text-[13px] text-inherit no-underline"
+                      href={to}
+                      aria-current={active ? "page" : undefined}
+                      title={label}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        onNavigate(to);
+                      }}
+                    >
+                      {label}
+                    </a>
+                    <ProjectActionsMenu
+                      project={project}
+                      active={active}
+                      onNavigate={onNavigate}
+                    />
+                  </div>
                 );
               })
             ) : (

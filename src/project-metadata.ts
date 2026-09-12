@@ -15,6 +15,12 @@ function isProjectTemplate(value: unknown): value is ProjectTemplate {
   return value === 'website' || value === 'app';
 }
 
+function normalizeOptionalText(value: unknown, maxLength: number): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.trim();
+  return normalized ? normalized.slice(0, maxLength) : undefined;
+}
+
 function normalizeRoutePath(value: string): string | null {
   const candidate = value.trim();
   if (!candidate.startsWith('/') || candidate.includes('?') || candidate.includes('#')) {
@@ -67,11 +73,22 @@ export function normalizeProjectRoutes(value: unknown): ProjectRoute[] {
 export function createProjectMetadata(
   template: ProjectTemplate,
   routes: ProjectRoute[],
+  details: Partial<Omit<ProjectMetadata, 'version' | 'template' | 'routes'>> = {},
 ): ProjectMetadata {
+  const name = normalizeOptionalText(details.name, 80);
+  const createdAt = normalizeOptionalText(details.createdAt, 40);
+  const updatedAt = normalizeOptionalText(details.updatedAt, 40);
+  const remixedFrom = normalizeOptionalText(details.remixedFrom, 160);
+
   return {
     version: 1,
     template,
     routes: normalizeProjectRoutes(routes),
+    ...(name ? { name } : {}),
+    ...(typeof details.starred === 'boolean' ? { starred: details.starred } : {}),
+    ...(createdAt ? { createdAt } : {}),
+    ...(updatedAt ? { updatedAt } : {}),
+    ...(remixedFrom ? { remixedFrom } : {}),
   };
 }
 
@@ -106,6 +123,13 @@ export async function readProjectMetadata(projectDirectory: string): Promise<Pro
     return createProjectMetadata(
       isProjectTemplate(value.template) ? value.template : 'website',
       normalizeProjectRoutes(value.routes),
+      {
+        name: normalizeOptionalText(value.name, 80),
+        starred: typeof value.starred === 'boolean' ? value.starred : false,
+        createdAt: normalizeOptionalText(value.createdAt, 40),
+        updatedAt: normalizeOptionalText(value.updatedAt, 40),
+        remixedFrom: normalizeOptionalText(value.remixedFrom, 160),
+      },
     );
   } catch {
     return createProjectMetadata('website', DEFAULT_ROUTES);
