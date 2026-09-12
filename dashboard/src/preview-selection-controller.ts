@@ -36,6 +36,11 @@ function getSelectionButton(): HTMLButtonElement | null {
   return document.querySelector<HTMLButtonElement>('button[aria-label="Select elements"]');
 }
 
+function getPreviewToolbarSurface(): HTMLElement | null {
+  const toolbar = document.querySelector<HTMLElement>('[role="toolbar"][aria-label="Preview interactions"]');
+  return toolbar?.closest<HTMLElement>('[data-allow-shadow]') ?? null;
+}
+
 function postToPreview(type: string, payload: Record<string, unknown> = {}) {
   const frame = getPreviewFrame();
   frame?.contentWindow?.postMessage({ source: DASHBOARD_SOURCE, type, ...payload }, '*');
@@ -51,6 +56,14 @@ function applySelectionButtonState() {
   button.setAttribute('aria-pressed', selectionMode ? 'true' : 'false');
   button.style.background = selectionMode ? ACTIVE_BUTTON_BACKGROUND : '';
   button.style.color = selectionMode ? ACTIVE_BUTTON_COLOR : '';
+}
+
+function applyToolbarVisibility() {
+  const toolbarSurface = getPreviewToolbarSurface();
+  if (!toolbarSurface) return;
+  toolbarSurface.style.opacity = selections.length ? '0' : '';
+  toolbarSurface.style.pointerEvents = selections.length ? 'none' : '';
+  toolbarSurface.style.transition = 'opacity 120ms ease-out';
 }
 
 function createSelectionIcon(): HTMLSpanElement {
@@ -143,7 +156,8 @@ function ensurePreviewBadge() {
   }
 
   const label = badge.querySelector<HTMLElement>('[data-yakable-selection-count]');
-  if (label) label.textContent = selectionLabel();
+  const nextLabel = selectionLabel();
+  if (label && label.textContent !== nextLabel) label.textContent = nextLabel;
 }
 
 function ensureComposerBadge() {
@@ -156,7 +170,9 @@ function ensureComposerBadge() {
   if (!selections.length) {
     badge?.remove();
     const originalPlaceholder = textarea.dataset.yakableDefaultPlaceholder;
-    if (originalPlaceholder) textarea.placeholder = originalPlaceholder;
+    if (originalPlaceholder && textarea.placeholder !== originalPlaceholder) {
+      textarea.placeholder = originalPlaceholder;
+    }
     textarea.removeAttribute('data-yakable-selection-composer');
     return;
   }
@@ -165,7 +181,9 @@ function ensureComposerBadge() {
     textarea.dataset.yakableDefaultPlaceholder = textarea.placeholder || 'Ask Yakable...';
   }
   textarea.setAttribute('data-yakable-selection-composer', 'true');
-  textarea.placeholder = 'Ask Yakable to modify the selected elements...';
+  if (textarea.placeholder !== 'Ask Yakable to modify the selected elements...') {
+    textarea.placeholder = 'Ask Yakable to modify the selected elements...';
+  }
 
   if (!badge) {
     badge = document.createElement('div');
@@ -205,11 +223,13 @@ function ensureComposerBadge() {
   }
 
   const label = badge.querySelector<HTMLElement>('[data-yakable-selection-count]');
-  if (label) label.textContent = selectionLabel();
+  const nextLabel = selectionLabel();
+  if (label && label.textContent !== nextLabel) label.textContent = nextLabel;
 }
 
 function renderSelectionUi() {
   applySelectionButtonState();
+  applyToolbarVisibility();
   ensurePreviewBadge();
   ensureComposerBadge();
 }
