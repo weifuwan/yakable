@@ -1,4 +1,4 @@
-import type { ProjectTemplate, PromptIntent } from './types.js';
+import type { ProjectTemplate, PromptIntent, SemanticExpansion } from './types.js';
 
 const APP_INTENT_PATTERN =
   /\b(app|dashboard|admin|crm|erp|portal|workspace|account|auth|login|order|orders|settings)\b|管理系统|后台|控制台|工作台|登录|注册|账户|账号|订单|设置|会员中心|个人中心/i;
@@ -55,12 +55,14 @@ export function buildTemplateGenerationRequest(
   productRequest: string,
   template: ProjectTemplate,
   promptIntent?: PromptIntent,
+  semanticExpansion?: SemanticExpansion,
 ): string {
   const profile = PROJECT_TEMPLATES[template];
   return JSON.stringify(
     {
       productRequest,
       promptIntent,
+      semanticExpansion,
       projectTemplate: template,
       templateGuidance: {
         description: profile.description,

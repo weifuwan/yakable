@@ -12,6 +12,35 @@ export interface PromptIntent {
   missingInformation: string[];
 }
 
+export type SemanticDefaultKind =
+  | 'structure'
+  | 'content'
+  | 'capability'
+  | 'behavior'
+  | 'quality';
+
+export type SemanticDefaultBasis =
+  | 'product-pattern'
+  | 'page-pattern'
+  | 'goal-pattern'
+  | 'universal';
+
+export type SemanticConfidence = 'high' | 'medium';
+
+export interface SemanticDefault {
+  kind: SemanticDefaultKind;
+  value: string;
+  basis: SemanticDefaultBasis;
+  confidence: SemanticConfidence;
+}
+
+export interface SemanticExpansion {
+  version: 1;
+  defaults: SemanticDefault[];
+  assumptions: string[];
+  deferredDecisions: string[];
+}
+
 export interface ProjectRoute {
   path: string;
   title: string;
@@ -45,6 +74,7 @@ export interface GenerationResult {
   outputDirectory: string;
   model: string;
   intent: PromptIntent;
+  semanticExpansion: SemanticExpansion;
 }
 
 export interface ProjectPatch {
