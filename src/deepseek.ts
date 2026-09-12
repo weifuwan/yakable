@@ -2,6 +2,7 @@ import { STAGE3_SYSTEM_PROMPT } from './edit-prompt.js';
 import { INTENT_ANALYSIS_SYSTEM_PROMPT } from './intent-prompt.js';
 import { STAGE1_SYSTEM_PROMPT } from './prompt.js';
 import { SEMANTIC_EXPANSION_SYSTEM_PROMPT } from './semantic-prompt.js';
+import { TASTE_TRANSLATION_SYSTEM_PROMPT } from './taste-prompt.js';
 
 const DEFAULT_BASE_URL = 'https://api.deepseek.com';
 const DEFAULT_MODEL = 'deepseek-v4-pro';
@@ -173,6 +174,14 @@ export function requestSemanticExpansion(userPrompt: string): Promise<DeepSeekGe
     SEMANTIC_EXPANSION_SYSTEM_PROMPT,
     userPrompt,
     'Prompt Intelligence Semantic Expander',
+  );
+}
+
+export function requestTasteTranslation(userPrompt: string): Promise<DeepSeekGeneration> {
+  return requestStructuredGeneration(
+    TASTE_TRANSLATION_SYSTEM_PROMPT,
+    userPrompt,
+    'Prompt Intelligence Taste Translator',
   );
 }
 
