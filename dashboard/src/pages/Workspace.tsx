@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
 import { editProject } from "../api";
 import { Icon } from "../components/ui";
@@ -40,8 +40,16 @@ const suggestionPrompts = [
   "Add subtle interactions",
 ];
 
+const DEFAULT_CHAT_WIDTH = 45.3;
+const MIN_CHAT_WIDTH = 17;
+const MAX_CHAT_WIDTH = 70;
+
 const roundIconButtonClass =
   "grid h-7 w-7 shrink-0 place-items-center rounded-full border-0 bg-transparent text-black/55 transition hover:bg-black/[0.05] hover:text-black";
+
+function clampChatWidth(value: number) {
+  return Math.min(MAX_CHAT_WIDTH, Math.max(MIN_CHAT_WIDTH, value));
+}
 
 function EditorIcon({
   name,
@@ -232,7 +240,7 @@ function EditorHeader({
   previewUrl: string;
 }) {
   return (
-    <header className="grid h-12 shrink-0 grid-cols-[45%_55%] items-center bg-[#f6f6f4] max-[900px]:grid-cols-[1fr_auto]">
+    <header className="grid h-12 shrink-0 [grid-template-columns:var(--editor-chat-width)_minmax(0,1fr)] items-center bg-[#f6f6f4] max-[900px]:grid-cols-[1fr_auto]">
       <div className="flex min-w-0 items-center justify-between gap-2 px-2">
         <div className="flex min-w-0 items-center gap-1">
           <button
@@ -499,6 +507,9 @@ export function Workspace({
   const [previewUrl, setPreviewUrl] = useState(project.previewUrl);
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
+  const [chatWidth, setChatWidth] = useState(DEFAULT_CHAT_WIDTH);
+  const [isResizing, setIsResizing] = useState(false);
+  const panelsRef = useRef<HTMLDivElement>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "assistant",
@@ -507,6 +518,42 @@ export function Workspace({
         "Project is running. Tell Yakable what you want to change.",
     },
   ]);
+
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    function handlePointerMove(event: PointerEvent) {
+      const panels = panelsRef.current;
+      if (!panels) return;
+
+      const rect = panels.getBoundingClientRect();
+      if (!rect.width) return;
+
+      const nextWidth = ((event.clientX - rect.left) / rect.width) * 100;
+      setChatWidth(clampChatWidth(nextWidth));
+    }
+
+    function stopResizing() {
+      setIsResizing(false);
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", stopResizing);
+    window.addEventListener("pointercancel", stopResizing);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", stopResizing);
+      window.removeEventListener("pointercancel", stopResizing);
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+    };
+  }, [isResizing]);
 
   async function submitEdit(event: FormEvent) {
     event.preventDefault();
@@ -548,8 +595,27 @@ export function Workspace({
     setPreviewUrl(url.toString());
   }
 
+  function handleResizeKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      setChatWidth((current) => clampChatWidth(current - 1));
+    } else if (event.key === "ArrowRight") {
+      event.preventDefault();
+      setChatWidth((current) => clampChatWidth(current + 1));
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      setChatWidth(MIN_CHAT_WIDTH);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      setChatWidth(MAX_CHAT_WIDTH);
+    }
+  }
+
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-[#f6f6f4] font-sans text-[#252522] antialiased">
+    <div
+      className="flex h-screen flex-col overflow-hidden bg-[#f6f6f4] font-sans text-[#252522] antialiased"
+      style={{ "--editor-chat-width": `${chatWidth}%` } as React.CSSProperties}
+    >
       <EditorHeader
         project={project}
         onBack={onBack}
@@ -557,7 +623,10 @@ export function Workspace({
         previewUrl={previewUrl}
       />
 
-      <div className="grid min-h-0 flex-1 grid-cols-[45%_55%] max-[900px]:grid-cols-1 max-[900px]:grid-rows-[45%_55%]">
+      <div
+        ref={panelsRef}
+        className="relative grid min-h-0 flex-1 [grid-template-columns:var(--editor-chat-width)_minmax(0,1fr)] max-[900px]:grid-cols-1 max-[900px]:grid-rows-[45%_55%]"
+      >
         <section className="flex min-h-0 flex-col overflow-hidden bg-[#f6f6f4]">
           <ChatTimeline messages={messages} busy={busy} />
           <ChatComposer
@@ -567,6 +636,53 @@ export function Workspace({
             onSubmit={submitEdit}
           />
         </section>
+
+        <div
+          className="group/resize-handle absolute inset-y-0 z-30 flex w-3 -translate-x-1/2 cursor-col-resize touch-none items-center justify-center outline-none max-[900px]:hidden"
+          style={{ left: `${chatWidth}%` }}
+          role="separator"
+          aria-label="Resize chat and preview panels"
+          aria-orientation="vertical"
+          aria-valuemin={MIN_CHAT_WIDTH}
+          aria-valuemax={MAX_CHAT_WIDTH}
+          aria-valuenow={Math.round(chatWidth)}
+          aria-valuetext={`${Math.round(chatWidth)}% chat, ${Math.round(100 - chatWidth)}% preview`}
+          tabIndex={0}
+          onPointerDown={(event) => {
+            if (event.button !== 0) return;
+            event.preventDefault();
+            setIsResizing(true);
+          }}
+          onDoubleClick={() => setChatWidth(DEFAULT_CHAT_WIDTH)}
+          onKeyDown={handleResizeKeyDown}
+        >
+          <span
+            className={`pointer-events-none absolute inset-y-3 left-1/2 w-[7px] -translate-x-1/2 rounded-full transition-[opacity,filter] duration-200 ${
+              isResizing
+                ? "opacity-100"
+                : "opacity-70 group-hover/resize-handle:opacity-100 group-focus-visible/resize-handle:opacity-100"
+            }`}
+            style={{
+              backgroundImage: isResizing
+                ? "linear-gradient(to right, rgba(75,115,255,0.16) 0 3px, rgba(47,111,237,0.92) 3px 4px, rgba(75,115,255,0.16) 4px 7px)"
+                : "linear-gradient(to right, rgba(75,115,255,0.08) 0 3px, rgba(70,76,84,0.68) 3px 4px, rgba(75,115,255,0.08) 4px 7px)",
+              WebkitMaskImage:
+                "linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.15) 5%, rgba(0,0,0,0.5) 11%, black 18%, black 82%, rgba(0,0,0,0.5) 89%, rgba(0,0,0,0.15) 95%, transparent 100%)",
+              maskImage:
+                "linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.15) 5%, rgba(0,0,0,0.5) 11%, black 18%, black 82%, rgba(0,0,0,0.5) 89%, rgba(0,0,0,0.15) 95%, transparent 100%)",
+              filter: isResizing
+                ? "drop-shadow(0 0 5px rgba(75,115,255,0.32))"
+                : "drop-shadow(0 0 3px rgba(75,115,255,0.14))",
+            }}
+          />
+        </div>
+
+        {isResizing ? (
+          <div
+            className="absolute inset-0 z-20 cursor-col-resize"
+            aria-hidden="true"
+          />
+        ) : null}
 
         <section className="relative mb-2 mr-2 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-black/[0.08] bg-white shadow-[0_3px_14px_rgba(15,23,42,0.07)] max-[900px]:m-2">
           <iframe
