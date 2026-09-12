@@ -1,5 +1,17 @@
 export type ProjectTemplate = 'website' | 'app';
 
+export interface PromptIntent {
+  version: 1;
+  productType: string;
+  pageType: string;
+  primaryGoal: string;
+  targetAudience: string | null;
+  styleKeywords: string[];
+  explicitRequirements: string[];
+  hardConstraints: string[];
+  missingInformation: string[];
+}
+
 export interface ProjectRoute {
   path: string;
   title: string;
@@ -32,6 +44,7 @@ export interface GenerationResult {
   project: GeneratedProject;
   outputDirectory: string;
   model: string;
+  intent: PromptIntent;
 }
 
 export interface ProjectPatch {
