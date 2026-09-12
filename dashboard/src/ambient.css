@@ -43,26 +43,16 @@
   initial-value: 74%;
 }
 
-main > section:first-of-type {
+.yakable-dashboard-hero {
   isolation: isolate;
   background: #fff;
 }
 
-/*
- * The existing decorative wrapper stays below the prompt content.
- */
-main > section:first-of-type > div[aria-hidden="true"] {
+.yakable-dashboard-hero > div[aria-hidden="true"] {
   z-index: 0;
 }
 
-/*
- * Wave A.
- *
- * A centered circle means the first visible colored arc appears around the
- * composer edges, most noticeably on the left and right, then keeps expanding
- * toward the hero boundaries.
- */
-main > section:first-of-type > div[aria-hidden="true"] > div:first-child {
+.yakable-dashboard-hero > div[aria-hidden="true"] > div:first-child {
   background: radial-gradient(
     circle at 50% 52%,
     #fff 0%,
@@ -80,11 +70,7 @@ main > section:first-of-type > div[aria-hidden="true"] > div:first-child {
     cubic-bezier(0.2, 0.65, 0.25, 1) infinite;
 }
 
-/*
- * Wave B, half a cycle behind Wave A. This creates the repeating ripple rather
- * than a single expand-then-contract "breathing" motion.
- */
-main > section:first-of-type::before {
+.yakable-dashboard-hero::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -106,11 +92,7 @@ main > section:first-of-type::before {
   animation-delay: calc(var(--yakable-wave-duration) / -2);
 }
 
-/*
- * Keep the inside of the prompt visually quiet while allowing the first ripple
- * to become visible right around its side edges.
- */
-main > section:first-of-type::after {
+.yakable-dashboard-hero::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -126,8 +108,7 @@ main > section:first-of-type::after {
   );
 }
 
-/* Fade the hero cleanly into Recents. */
-main > section:first-of-type > div[aria-hidden="true"] > div:last-child {
+.yakable-dashboard-hero > div[aria-hidden="true"] > div:last-child {
   background: linear-gradient(
     to bottom,
     rgba(255, 255, 255, 0) 42%,
@@ -136,10 +117,6 @@ main > section:first-of-type > div[aria-hidden="true"] > div:last-child {
   ) !important;
 }
 
-/*
- * Outward-only motion. The wave is invisible while resetting, so the loop does
- * not visibly snap back toward the composer.
- */
 @keyframes yakable-wave-out {
   0% {
     opacity: 0;
@@ -174,8 +151,8 @@ main > section:first-of-type > div[aria-hidden="true"] > div:last-child {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  main > section:first-of-type::before,
-  main > section:first-of-type > div[aria-hidden="true"] > div:first-child {
+  .yakable-dashboard-hero::before,
+  .yakable-dashboard-hero > div[aria-hidden="true"] > div:first-child {
     animation: none !important;
     opacity: 0.7;
     --yakable-wave-white-core: 56%;
@@ -185,7 +162,7 @@ main > section:first-of-type > div[aria-hidden="true"] > div:last-child {
     --yakable-wave-white-far: 122%;
   }
 
-  main > section:first-of-type::before {
+  .yakable-dashboard-hero::before {
     display: none;
   }
 }
