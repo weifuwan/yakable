@@ -1,10 +1,18 @@
-import { readdir, stat } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 
 import { editGeneratedProject } from './edit.js';
 import { generateProject } from './generate.js';
+import {
+  deleteManagedProject,
+  listManagedProjects,
+  remixManagedProject,
+  touchManagedProject,
+  updateManagedProject,
+  type ProjectListRecord,
+  type ProjectUpdate,
+} from './project-actions.js';
 import { readProjectMetadata } from './project-metadata.js';
 import { resolveGeneratedProject, startGeneratedProject } from './runtime.js';
 import type { ProjectMetadata, ProjectRoute, ProjectTemplate } from './types.js';
@@ -14,13 +22,11 @@ const DEFAULT_API_PORT = 8787;
 const MAX_JSON_BODY_BYTES = 32_000;
 const PROJECT_ID_PATTERN = /^[a-zA-Z0-9._-]+$/;
 
-export interface WebProjectListItem {
-  id: string;
-  updatedAt: string;
-}
+export type WebProjectListItem = ProjectListRecord;
 
 export interface WebGeneratedProject {
   id: string;
+  name: string;
   summary: string;
   model: string;
   template: ProjectTemplate;
@@ -46,6 +52,9 @@ export interface WebApiServices {
   generate(prompt: string): Promise<WebGeneratedProject>;
   edit(projectId: string, prompt: string): Promise<WebEditedProject>;
   startRuntime(projectId: string): Promise<RuntimeSession>;
+  updateProject?(projectId: string, patch: ProjectUpdate): Promise<WebProjectListItem>;
+  remixProject?(projectId: string): Promise<WebProjectListItem>;
+  deleteProject?(projectId: string): Promise<void>;
 }
 
 export interface YakableApiServer {
@@ -60,6 +69,15 @@ function assertProjectId(value: string): string {
     throw new Error('Invalid generated project id.');
   }
   return decoded;
+}
+
+function projectNameFromId(projectId: string): string {
+  const base = projectId.replace(/-\d{4}-\d{2}-\d{2}T.*$/, '');
+  return (base || projectId)
+    .split('-')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
 }
 
 async function readJsonBody(request: IncomingMessage): Promise<Record<string, unknown>> {
@@ -100,6 +118,19 @@ function readPrompt(body: Record<string, unknown>): string {
   return body.prompt.trim();
 }
 
+function readProjectUpdate(body: Record<string, unknown>): ProjectUpdate {
+  const patch: ProjectUpdate = {};
+  if ('name' in body) {
+    if (typeof body.name !== 'string') throw new Error('Project name must be a string.');
+    patch.name = body.name;
+  }
+  if ('starred' in body) {
+    if (typeof body.starred !== 'boolean') throw new Error('Project starred must be a boolean.');
+    patch.starred = body.starred;
+  }
+  return patch;
+}
+
 function sendJson(response: ServerResponse, status: number, value: unknown): void {
   response.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
@@ -122,6 +153,8 @@ function addRevision(url: string): string {
 function runtimePayload(projectId: string, runtime: RuntimeSession) {
   return {
     projectId,
+    name: runtime.metadata.name ?? projectNameFromId(projectId),
+    starred: runtime.metadata.starred ?? false,
     previewUrl: addRevision(runtime.url),
     template: runtime.metadata.template,
     routes: runtime.metadata.routes,
@@ -133,31 +166,15 @@ export function createDefaultWebApiServices(
 ): WebApiServices {
   return {
     async listProjects() {
-      const entries = await readdir(generatedRoot, { withFileTypes: true }).catch(
-        (error: NodeJS.ErrnoException) => {
-          if (error.code === 'ENOENT') {
-            return [];
-          }
-          throw error;
-        },
-      );
-
-      const projects = await Promise.all(
-        entries
-          .filter((entry) => entry.isDirectory())
-          .map(async (entry) => {
-            const info = await stat(path.join(generatedRoot, entry.name));
-            return { id: entry.name, updatedAt: info.mtime.toISOString() };
-          }),
-      );
-
-      return projects.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+      return listManagedProjects(generatedRoot);
     },
 
     async generate(prompt) {
       const result = await generateProject(prompt);
+      const id = path.basename(result.outputDirectory);
       return {
-        id: path.basename(result.outputDirectory),
+        id,
+        name: projectNameFromId(id),
         summary: result.project.summary,
         model: result.model,
         template: result.project.template,
@@ -167,6 +184,7 @@ export function createDefaultWebApiServices(
 
     async edit(projectId, prompt) {
       const result = await editGeneratedProject(projectId, prompt);
+      await touchManagedProject(projectId, generatedRoot);
       return {
         projectId: result.projectId,
         summary: result.summary,
@@ -188,6 +206,18 @@ export function createDefaultWebApiServices(
         },
       };
     },
+
+    async updateProject(projectId, patch) {
+      return updateManagedProject(projectId, patch, generatedRoot);
+    },
+
+    async remixProject(projectId) {
+      return remixManagedProject(projectId, generatedRoot);
+    },
+
+    async deleteProject(projectId) {
+      await deleteManagedProject(projectId, generatedRoot);
+    },
   };
 }
 
@@ -208,6 +238,13 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
     const runtime = await services.startRuntime(projectId);
     runtimes.set(projectId, runtime);
     return runtime;
+  }
+
+  async function closeRuntime(projectId: string): Promise<void> {
+    const runtime = runtimes.get(projectId);
+    if (!runtime) return;
+    await runtime.close().catch(() => undefined);
+    runtimes.delete(projectId);
   }
 
   const server = createServer(async (request, response) => {
@@ -233,6 +270,34 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
           project,
           previewUrl: addRevision(runtime.url),
         });
+        return;
+      }
+
+      const projectBaseRoute = url.pathname.match(/^\/api\/projects\/([^/]+)$/);
+      if (projectBaseRoute) {
+        const projectId = assertProjectId(projectBaseRoute[1] ?? '');
+
+        if (method === 'PATCH') {
+          if (!services.updateProject) throw new Error('Project updates are not available.');
+          const body = await readJsonBody(request);
+          sendJson(response, 200, { project: await services.updateProject(projectId, readProjectUpdate(body)) });
+          return;
+        }
+
+        if (method === 'DELETE') {
+          if (!services.deleteProject) throw new Error('Project deletion is not available.');
+          await closeRuntime(projectId);
+          await services.deleteProject(projectId);
+          sendJson(response, 200, { ok: true, projectId });
+          return;
+        }
+      }
+
+      const remixRoute = url.pathname.match(/^\/api\/projects\/([^/]+)\/remix$/);
+      if (method === 'POST' && remixRoute) {
+        if (!services.remixProject) throw new Error('Project remix is not available.');
+        const projectId = assertProjectId(remixRoute[1] ?? '');
+        sendJson(response, 201, { project: await services.remixProject(projectId) });
         return;
       }
 
