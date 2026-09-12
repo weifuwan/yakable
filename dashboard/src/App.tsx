@@ -7,7 +7,8 @@ import {
   type ProjectListItem,
 } from "./api";
 import { Dashboard } from "./pages/Dashboard";
-import { Workspace, type ActiveProject } from "./pages/Workspace";
+import type { ActiveProject } from "./pages/Workspace";
+import { WorkspaceShell } from "./pages/WorkspaceShell";
 import { projectTitle } from "./utils/project";
 
 const dashboardPaths = new Set([
@@ -214,16 +215,25 @@ export default function App() {
     navigate(projectPath(projectId));
   }
 
+  function handleWorkspaceNavigate(path: string) {
+    const nextRoute = resolveAppRoute(normalizePath(path));
+    if (
+      nextRoute.kind === "project" &&
+      nextRoute.projectId !== activeProject?.id
+    ) {
+      setActiveProject(null);
+      setProjectError("");
+    }
+    navigate(path);
+  }
+
   if (route.kind === "project") {
     if (activeProject?.id === route.projectId) {
       return (
-        <Workspace
+        <WorkspaceShell
           project={activeProject}
-          onBack={() => {
-            setActiveProject(null);
-            navigate("/dashboard");
-            void reloadProjects();
-          }}
+          projects={projects}
+          onNavigate={handleWorkspaceNavigate}
         />
       );
     }

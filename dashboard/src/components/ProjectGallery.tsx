@@ -113,10 +113,12 @@ export function ProjectGallery({
   projects,
   loading,
   onOpen,
+  title = "Recents",
 }: {
   projects: ProjectListItem[];
   loading: boolean;
   onOpen: (id: string) => void;
+  title?: string;
 }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -152,7 +154,7 @@ export function ProjectGallery({
   return (
     <section className="mx-auto w-full max-w-[1400px] bg-white px-6 pb-10 pt-2 lg:px-9">
       <div className="mb-4 flex items-center justify-between gap-4">
-        <h2 className="m-0 text-base font-medium text-[#202929]">Recents</h2>
+        <h2 className="m-0 text-base font-medium text-[#202929]">{title}</h2>
 
         <div className="flex items-center gap-3">
           <button
