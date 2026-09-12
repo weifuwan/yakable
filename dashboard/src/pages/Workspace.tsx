@@ -1,13 +1,20 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 
-import { editProject } from "../api";
-import { Icon } from "../components/ui";
+import {
+  editProject,
+  type ProjectRoute,
+  type ProjectTemplate,
+} from "../api";
 import { EditorActions } from "../components/EditorActions";
+import { PreviewRoutePicker } from "../components/PreviewRoutePicker";
+import { Icon } from "../components/ui";
 
 export type ActiveProject = {
   id: string;
   title: string;
   previewUrl: string;
+  template: ProjectTemplate;
+  routes: ProjectRoute[];
   summary?: string;
   model?: string;
 };
@@ -44,12 +51,19 @@ const suggestionPrompts = [
 const DEFAULT_CHAT_WIDTH = 45.3;
 const MIN_CHAT_WIDTH = 17;
 const MAX_CHAT_WIDTH = 70;
+const FALLBACK_ROUTES: ProjectRoute[] = [{ path: "/", title: "Home" }];
 
 const roundIconButtonClass =
   "grid h-7 w-7 shrink-0 place-items-center rounded-full border-0 bg-transparent text-black/55 transition hover:bg-black/[0.05] hover:text-black";
 
 function clampChatWidth(value: number) {
   return Math.min(MAX_CHAT_WIDTH, Math.max(MIN_CHAT_WIDTH, value));
+}
+
+function buildPreviewUrl(runtimeUrl: string, routePath: string): string {
+  const url = new URL(runtimeUrl, window.location.origin);
+  url.pathname = routePath || "/";
+  return url.toString();
 }
 
 function EditorIcon({
@@ -224,9 +238,15 @@ function ViewSwitcher() {
 function PreviewAddressBar({
   onRefresh,
   previewUrl,
+  routes,
+  currentRoute,
+  onRouteChange,
 }: {
   onRefresh: () => void;
   previewUrl: string;
+  routes: ProjectRoute[];
+  currentRoute: string;
+  onRouteChange: (path: string) => void;
 }) {
   return (
     <div className="flex min-w-0 flex-1 items-center justify-center gap-1 max-[1120px]:hidden">
@@ -246,13 +266,11 @@ function PreviewAddressBar({
         >
           <Icon name="refresh" size={13} />
         </button>
-        <button
-          className="flex min-w-0 flex-1 items-center justify-center gap-1 border-0 bg-transparent px-2 text-xs font-medium text-black/65"
-          type="button"
-        >
-          <span className="truncate">Homepage</span>
-          <EditorIcon name="chevron" size={12} />
-        </button>
+        <PreviewRoutePicker
+          routes={routes}
+          currentPath={currentRoute}
+          onSelect={onRouteChange}
+        />
       </div>
       <a
         className={`${roundIconButtonClass} no-underline`}
@@ -272,11 +290,17 @@ function EditorHeader({
   onBack,
   onRefresh,
   previewUrl,
+  routes,
+  currentRoute,
+  onRouteChange,
 }: {
   project: ActiveProject;
   onBack: () => void;
   onRefresh: () => void;
   previewUrl: string;
+  routes: ProjectRoute[];
+  currentRoute: string;
+  onRouteChange: (path: string) => void;
 }) {
   return (
     <header className="grid h-12 shrink-0 [grid-template-columns:var(--editor-chat-width)_minmax(0,1fr)] items-center bg-[#f6f6f4] max-[900px]:grid-cols-[1fr_auto]">
@@ -319,7 +343,13 @@ function EditorHeader({
 
       <div className="flex min-w-0 items-center gap-2 pr-2 max-[900px]:hidden">
         <ViewSwitcher />
-        <PreviewAddressBar onRefresh={onRefresh} previewUrl={previewUrl} />
+        <PreviewAddressBar
+          onRefresh={onRefresh}
+          previewUrl={previewUrl}
+          routes={routes}
+          currentRoute={currentRoute}
+          onRouteChange={onRouteChange}
+        />
         <EditorActions />
       </div>
     </header>
@@ -568,12 +598,19 @@ export function Workspace({
   project: ActiveProject;
   onBack: () => void;
 }) {
-  const [previewUrl, setPreviewUrl] = useState(project.previewUrl);
+  const [runtimeUrl, setRuntimeUrl] = useState(project.previewUrl);
+  const [routes, setRoutes] = useState<ProjectRoute[]>(
+    project.routes.length ? project.routes : FALLBACK_ROUTES,
+  );
+  const [currentRoute, setCurrentRoute] = useState(
+    project.routes[0]?.path ?? "/",
+  );
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
   const [chatWidth, setChatWidth] = useState(DEFAULT_CHAT_WIDTH);
   const [isResizing, setIsResizing] = useState(false);
   const panelsRef = useRef<HTMLDivElement>(null);
+  const previewUrl = buildPreviewUrl(runtimeUrl, currentRoute);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "assistant",
@@ -630,7 +667,14 @@ export function Workspace({
 
     try {
       const result = await editProject(project.id, request);
-      setPreviewUrl(result.previewUrl);
+      setRuntimeUrl(result.previewUrl);
+      const nextRoutes = result.routes.length ? result.routes : routes;
+      setRoutes(nextRoutes);
+      setCurrentRoute((current) =>
+        nextRoutes.some((route) => route.path === current)
+          ? current
+          : nextRoutes[0]?.path ?? "/",
+      );
       setMessages((current) => [
         ...current,
         {
@@ -654,9 +698,9 @@ export function Workspace({
   }
 
   function refreshPreview() {
-    const url = new URL(previewUrl, window.location.origin);
+    const url = new URL(runtimeUrl, window.location.origin);
     url.searchParams.set("clientRefresh", String(Date.now()));
-    setPreviewUrl(url.toString());
+    setRuntimeUrl(url.toString());
   }
 
   function handleResizeKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
@@ -685,6 +729,9 @@ export function Workspace({
         onBack={onBack}
         onRefresh={refreshPreview}
         previewUrl={previewUrl}
+        routes={routes}
+        currentRoute={currentRoute}
+        onRouteChange={setCurrentRoute}
       />
 
       <div
