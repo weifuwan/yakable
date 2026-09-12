@@ -183,21 +183,14 @@ export default function App() {
   }
 
   function handleWorkspaceNavigate(path: string) {
-    const nextRoute = resolveAppRoute(normalizePath(path));
-    if (
-      nextRoute.kind === "project" &&
-      nextRoute.projectId !== activeProject?.id
-    ) {
-      setActiveProject(null);
-      setProjectError("");
-    }
+    setProjectError("");
     navigate(path);
   }
 
   if (route.kind === "project") {
     return (
       <WorkspaceShell
-        project={activeProject?.id === route.projectId ? activeProject : null}
+        project={activeProject}
         projectId={route.projectId}
         projects={projects}
         error={projectError}
