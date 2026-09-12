@@ -140,7 +140,8 @@ export async function writeGeneratedProject(
   project: GeneratedProject,
   outputRoot = path.resolve(process.cwd(), 'generated'),
 ): Promise<string> {
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const createdAt = new Date().toISOString();
+  const timestamp = createdAt.replace(/[:.]/g, '-');
   const projectId = `${slugifyPrompt(prompt)}-${timestamp}-${randomUUID().slice(0, 8)}`;
   const outputDirectory = path.join(outputRoot, projectId);
 
@@ -155,7 +156,11 @@ export async function writeGeneratedProject(
 
   await writeProjectMetadata(
     outputDirectory,
-    createProjectMetadata(project.template, project.routes),
+    createProjectMetadata(project.template, project.routes, {
+      starred: false,
+      createdAt,
+      updatedAt: createdAt,
+    }),
   );
 
   return outputDirectory;

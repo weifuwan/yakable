@@ -11,6 +11,8 @@ import type { ActiveProject } from "./pages/Workspace";
 import { WorkspaceShell } from "./pages/WorkspaceShell";
 import { projectTitle } from "./utils/project";
 
+const PROJECTS_CHANGED_EVENT = "yakable:projects-changed";
+
 const dashboardPaths = new Set([
   "/dashboard",
   "/dashboard/all-files",
@@ -78,7 +80,13 @@ export default function App() {
   async function reloadProjects() {
     setLoading(true);
     try {
-      setProjects(await listProjects());
+      const nextProjects = await listProjects();
+      setProjects(nextProjects);
+      setActiveProject((current) => {
+        if (!current) return current;
+        const updated = nextProjects.find((project) => project.id === current.id);
+        return updated ? { ...current, title: updated.name } : current;
+      });
     } finally {
       setLoading(false);
     }
@@ -107,6 +115,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    function handleProjectsChanged() {
+      void reloadProjects().catch((error) => console.error(error));
+    }
+    window.addEventListener(PROJECTS_CHANGED_EVENT, handleProjectsChanged);
+    return () => window.removeEventListener(PROJECTS_CHANGED_EVENT, handleProjectsChanged);
+  }, []);
+
+  useEffect(() => {
     const currentRoute = resolveAppRoute(pathname);
 
     if (currentRoute.kind !== "project") {
@@ -130,7 +146,7 @@ export default function App() {
         if (cancelled) return;
         setActiveProject({
           id: currentRoute.projectId,
-          title: projectTitle(currentRoute.projectId),
+          title: runtime.name || projectTitle(currentRoute.projectId),
           previewUrl: runtime.previewUrl,
           template: runtime.template,
           routes: runtime.routes,
@@ -163,7 +179,7 @@ export default function App() {
     const result = await createProject(prompt);
     const nextProject: ActiveProject = {
       id: result.project.id,
-      title: projectTitle(result.project.id),
+      title: result.project.name || projectTitle(result.project.id),
       previewUrl: result.previewUrl,
       summary: result.project.summary,
       model: result.project.model,

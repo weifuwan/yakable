@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 
 import type { ProjectListItem } from "../api";
-import { editedLabel, projectTitle } from "../utils/project";
+import { editedLabel, projectDisplayName } from "../utils/project";
 import { Icon, controlClass, iconButtonClass } from "./ui";
 
 type ViewMode = "grid" | "list";
@@ -63,6 +63,8 @@ function ProjectCard({
   onOpen: (id: string) => void;
   viewMode: ViewMode;
 }) {
+  const name = projectDisplayName(project);
+
   return (
     <article
       className={`group/card min-w-0 overflow-hidden rounded-xl border border-black/[0.09] bg-white transition hover:border-black/[0.18] ${viewMode === "list" ? "flex min-h-[92px]" : ""}`}
@@ -73,10 +75,16 @@ function ProjectCard({
         }`}
         type="button"
         onClick={() => onOpen(project.id)}
-        aria-label={`Open ${projectTitle(project.id)}`}
+        aria-label={`Open ${name}`}
       >
         <ProjectPreview index={index} />
-        <span className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-lg border border-black/[0.10] bg-white/90 text-black/55 opacity-0 shadow-sm backdrop-blur transition group-hover/card:opacity-100">
+        <span
+          className={`absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-lg border border-black/[0.10] bg-white/90 shadow-sm backdrop-blur transition ${
+            project.starred
+              ? "text-amber-600 opacity-100"
+              : "text-black/55 opacity-0 group-hover/card:opacity-100"
+          }`}
+        >
           <Icon name="star" size={15} />
         </span>
       </button>
@@ -95,7 +103,7 @@ function ProjectCard({
         </span>
         <span className="min-w-0 flex-1">
           <strong className="block truncate text-sm font-medium text-[#222b2b]">
-            {projectTitle(project.id)}
+            {name}
           </strong>
           <small className="block truncate text-[10px] text-black/45">
             Edited {editedLabel(project.updatedAt)}
@@ -137,7 +145,7 @@ export function ProjectGallery({
           : Number.POSITIVE_INFINITY;
 
     const filtered = projects.filter((project) => {
-      const matchesSearch = projectTitle(project.id)
+      const matchesSearch = projectDisplayName(project)
         .toLowerCase()
         .includes(query.trim().toLowerCase());
       const age = now - new Date(project.updatedAt).getTime();
@@ -146,7 +154,7 @@ export function ProjectGallery({
 
     return [...filtered].sort((a, b) =>
       sort === "name"
-        ? projectTitle(a.id).localeCompare(projectTitle(b.id))
+        ? projectDisplayName(a).localeCompare(projectDisplayName(b))
         : new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
     );
   }, [projects, query, filter, sort]);
