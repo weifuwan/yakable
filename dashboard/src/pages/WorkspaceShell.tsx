@@ -138,7 +138,7 @@ export function WorkspaceShell({
     hidePeekTimer.current = window.setTimeout(() => {
       hidePeekTimer.current = null;
       setPeekOpen(false);
-    }, 150);
+    }, 140);
   }
 
   function keepPeekOpen() {
@@ -286,10 +286,10 @@ export function WorkspaceShell({
 
       {sidebarCollapsed ? (
         <div
-          className={`absolute bottom-2 left-2 top-10 z-[80] w-[245px] origin-top-left overflow-hidden rounded-[18px] border border-black/[0.12] bg-[#f5f6f6] shadow-[0_16px_42px_rgba(15,23,42,0.14)] transition-[opacity,transform] duration-150 ease-out ${
+          className={`absolute bottom-2 left-2 top-10 z-[80] w-[245px] overflow-hidden rounded-[18px] border border-black/[0.12] bg-[#f5f6f6] shadow-[0_16px_42px_rgba(15,23,42,0.14)] will-change-transform transition-transform duration-150 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)] ${
             peekOpen
-              ? "pointer-events-auto translate-y-0 scale-100 opacity-100"
-              : "pointer-events-none -translate-y-1 scale-[0.985] opacity-0"
+              ? "pointer-events-auto translate-x-0"
+              : "pointer-events-none -translate-x-[calc(100%+16px)]"
           }`}
           onPointerEnter={keepPeekOpen}
           onPointerLeave={schedulePeekClose}
