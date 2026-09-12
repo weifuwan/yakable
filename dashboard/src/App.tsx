@@ -147,8 +147,21 @@ function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
     ),
     send: (
       <>
-        <path d="M12 19V6" />
-        <path d="m7.5 10.5 4.5-4.5 4.5 4.5" />
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 15 15"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          style={{ width: 15, height: 15, color: "#ffffff" }}
+        >
+          <path
+            d="M7.14645 2.14645C7.34171 1.95118 7.65829 1.95118 7.85355 2.14645L11.8536 6.14645C12.0488 6.34171 12.0488 6.65829 11.8536 6.85355C11.6583 7.04882 11.3417 7.04882 11.1464 6.85355L8 3.70711L8 12.5C8 12.7761 7.77614 13 7.5 13C7.22386 13 7 12.7761 7 12.5L7 3.70711L3.85355 6.85355C3.65829 7.04882 3.34171 7.04882 3.14645 6.85355C2.95118 6.65829 2.95118 6.34171 3.14645 6.14645L7.14645 2.14645Z"
+            fill="currentColor"
+            fill-rule="evenodd"
+            clip-rule="evenodd"
+          ></path>
+        </svg>
       </>
     ),
     sparkle: (
@@ -577,12 +590,30 @@ function Composer({
               <Icon name="mic" size={16} />
             </button>
             <button
-              className="grid h-9 w-9 place-items-center rounded-full border-0 bg-[#273030] text-white shadow-[0_1px_2px_rgba(0,0,0,0.16)] transition hover:bg-[#1c2424] disabled:cursor-default disabled:opacity-30"
+              className="grid h-9 w-9 place-items-center rounded-full border-0 bg-[#001617] text-white shadow-[0_1px_2px_rgba(0,0,0,0.16)]
+               transition hover:bg-[#1c2424] disabled:cursor-default disabled:opacity-30"
               type="submit"
               disabled={!prompt.trim() || busy}
               aria-label="Send"
             >
-              <Icon name="send" size={17} />
+              <span style={{display: "flex", alignItems: "center", gap: 4, opacity: 1}} >
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 15 15"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="stroke-4 [&amp;&gt;path]:stroke-inherit"
+                  style={{height: 16,width: 16}}
+                >
+                  <path
+                    d="M7.14645 2.14645C7.34171 1.95118 7.65829 1.95118 7.85355 2.14645L11.8536 6.14645C12.0488 6.34171 12.0488 6.65829 11.8536 6.85355C11.6583 7.04882 11.3417 7.04882 11.1464 6.85355L8 3.70711L8 12.5C8 12.7761 7.77614 13 7.5 13C7.22386 13 7 12.7761 7 12.5L7 3.70711L3.85355 6.85355C3.65829 7.04882 3.34171 7.04882 3.14645 6.85355C2.95118 6.65829 2.95118 6.34171 3.14645 6.14645L7.14645 2.14645Z"
+                    fill="currentColor"
+                    fill-rule="evenodd"
+                    clip-rule="evenodd"
+                  ></path>
+                </svg>
+              </span>
             </button>
           </div>
         </div>
