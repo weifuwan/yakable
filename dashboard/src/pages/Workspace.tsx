@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 
 import { editProject } from "../api";
 import { Icon } from "../components/ui";
+import { EditorActions } from "../components/EditorActions";
 
 export type ActiveProject = {
   id: string;
@@ -273,29 +274,7 @@ function EditorHeader({
       <div className="flex min-w-0 items-center gap-2 pr-2 max-[900px]:hidden">
         <ViewSwitcher />
         <PreviewAddressBar onRefresh={onRefresh} previewUrl={previewUrl} />
-        <div className="ml-auto flex shrink-0 items-center gap-1.5">
-          <button
-            className="inline-flex h-7 items-center gap-1 rounded-full border border-black/[0.12] bg-white px-3 text-xs font-medium text-black/70 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:bg-black/[0.02]"
-            type="button"
-          >
-            <EditorIcon name="share" size={13} />
-            Share
-          </button>
-          <button
-            className="inline-flex h-7 items-center gap-1 rounded-full border border-[#8b5cf6] bg-[#7c3aed] px-3 text-xs font-medium text-white shadow-[0_1px_2px_rgba(124,58,237,0.2)] transition hover:bg-[#7132d4]"
-            type="button"
-          >
-            <EditorIcon name="bolt" size={13} />
-            Upgrade
-          </button>
-          <button
-            className="inline-flex h-7 items-center gap-1 rounded-full border border-[#1d4ed8] bg-[#2563eb] px-3 text-xs font-medium text-white shadow-[0_1px_2px_rgba(37,99,235,0.22)] transition hover:bg-[#1d55d8]"
-            type="button"
-          >
-            <EditorIcon name="publish" size={13} />
-            Publish
-          </button>
-        </div>
+        <EditorActions />
       </div>
     </header>
   );
