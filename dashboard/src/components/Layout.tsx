@@ -155,10 +155,31 @@ export function Sidebar({
           pathname={pathname}
           onNavigate={onNavigate}
         />
+      </nav>
+
+      <div className="mt-4 mb-1 px-2 text-[12px] font-medium text-black/45">
+        Projects
+      </div>
+
+      <nav className="flex flex-col gap-1" aria-label="Project navigation">
+        <SidebarItem
+          icon="grid"
+          label="All projects"
+          to="/dashboard/projects"
+          pathname={pathname}
+          onNavigate={onNavigate}
+        />
+        <SidebarItem
+          icon="user"
+          label="Owned by me"
+          to="/dashboard/projects/owned"
+          pathname={pathname}
+          onNavigate={onNavigate}
+        />
         <SidebarItem
           icon="share"
           label="Shared with me"
-          to="/dashboard/all-files"
+          to="/dashboard/projects/shared"
           pathname={pathname}
           onNavigate={onNavigate}
         />

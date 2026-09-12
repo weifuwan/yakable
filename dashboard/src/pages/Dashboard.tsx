@@ -38,12 +38,25 @@ export function Dashboard({
     }
   }
 
+  function renderProjectGallery() {
+    return (
+      <ProjectGallery
+        projects={projects}
+        loading={loading}
+        onOpen={(id) => void onOpen(id)}
+      />
+    );
+  }
+
   function renderPage() {
     if (pathname === "/dashboard/all-files") return <AllFiles />;
     if (pathname === "/dashboard/shared") return <SharedPage />;
     if (pathname === "/dashboard/files") return <FilesPage />;
     if (pathname === "/dashboard/templates") return <TemplatesPage />;
     if (pathname === "/dashboard/design-systems") return <DesignSystemsPage />;
+    if (pathname === "/dashboard/projects") return renderProjectGallery();
+    if (pathname === "/dashboard/projects/owned") return renderProjectGallery();
+    if (pathname === "/dashboard/projects/shared") return <SharedPage />;
 
     return (
       <>
@@ -61,11 +74,7 @@ export function Dashboard({
           </div>
         </section>
 
-        <ProjectGallery
-          projects={projects}
-          loading={loading}
-          onOpen={(id) => void onOpen(id)}
-        />
+        {renderProjectGallery()}
       </>
     );
   }
