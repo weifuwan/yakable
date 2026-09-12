@@ -79,9 +79,39 @@ function EditorIcon({
     ),
     history: (
       <>
-        <path d="M4.8 8.2A8 8 0 1 1 4 13" />
-        <path d="M4 5v4h4" />
-        <path d="M12 8v4l2.8 1.8" />
+        <svg
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          xmlns="http://www.w3.org/2000/svg"
+          width="100%"
+          height="100%"
+          className="shrink-0 size-5 text-tertiary-pulse group-hover/nav-icon:text-primary-pulse transition-colors"
+          aria-hidden="true"
+          data-circular-artwork=""
+          data-default-size=""
+          data-button-icon=""
+        >
+          <path
+            d="M12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C11.5146 21.75 11.0365 21.7142 10.5693 21.6455C10.1599 21.585 9.8765 21.2044 9.93652 20.7949C9.9968 20.3851 10.3783 20.1018 10.7881 20.1621C11.1832 20.2202 11.5879 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75C11.5879 3.75 11.1832 3.77977 10.7881 3.83789C10.3783 3.89817 9.9968 3.61488 9.93652 3.20508C9.8765 2.79558 10.1599 2.41498 10.5693 2.35449C11.0365 2.28577 11.5146 2.25 12 2.25Z"
+            fill="currentColor"
+          ></path>
+          <path
+            d="M4.32324 16.7598C4.65575 16.5128 5.12604 16.5816 5.37305 16.9141C5.85694 17.5655 6.43454 18.1431 7.08594 18.627C7.41845 18.874 7.48724 19.3442 7.24023 19.6768C6.99319 20.0091 6.52384 20.078 6.19141 19.8311C5.42224 19.2597 4.74033 18.5778 4.16895 17.8086C3.922 17.4762 3.99092 17.0068 4.32324 16.7598Z"
+            fill="currentColor"
+          ></path>
+          <path
+            d="M12 7.25C12.4142 7.25 12.75 7.58579 12.75 8V11.6895L15.5303 14.4697C15.8232 14.7626 15.8232 15.2374 15.5303 15.5303C15.2374 15.8232 14.7626 15.8232 14.4697 15.5303L11.4697 12.5303C11.3291 12.3896 11.25 12.1989 11.25 12V8C11.25 7.58579 11.5858 7.25 12 7.25Z"
+            fill="currentColor"
+          ></path>
+          <path
+            d="M2.35449 10.5693C2.41498 10.1599 2.79558 9.8765 3.20508 9.93652C3.61488 9.9968 3.89817 10.3783 3.83789 10.7881C3.77977 11.1832 3.75 11.5879 3.75 12C3.75 12.4121 3.77977 12.8168 3.83789 13.2119C3.89817 13.6217 3.61488 14.0032 3.20508 14.0635C2.79558 14.1235 2.41498 13.8401 2.35449 13.4307C2.28577 12.9635 2.25 12.4854 2.25 12C2.25 11.5146 2.28577 11.0365 2.35449 10.5693Z"
+            fill="currentColor"
+          ></path>
+          <path
+            d="M6.19141 4.16895C6.52384 3.922 6.99319 3.99092 7.24023 4.32324C7.48724 4.65575 7.41845 5.12604 7.08594 5.37305C6.43454 5.85694 5.85694 6.43454 5.37305 7.08594C5.12604 7.41845 4.65575 7.48724 4.32324 7.24023C3.99092 6.99319 3.922 6.52384 4.16895 6.19141C4.74033 5.42224 5.42224 4.74033 6.19141 4.16895Z"
+            fill="currentColor"
+          ></path>
+        </svg>
       </>
     ),
     sidebar: (
@@ -180,7 +210,11 @@ function ViewSwitcher() {
       <button className={roundIconButtonClass} type="button" aria-label="Code">
         <EditorIcon name="code" size={14} />
       </button>
-      <button className={roundIconButtonClass} type="button" aria-label="More views">
+      <button
+        className={roundIconButtonClass}
+        type="button"
+        aria-label="More views"
+      >
         <EditorIcon name="layers" size={14} />
       </button>
     </div>
@@ -196,7 +230,11 @@ function PreviewAddressBar({
 }) {
   return (
     <div className="flex min-w-0 flex-1 items-center justify-center gap-1 max-[1120px]:hidden">
-      <button className={roundIconButtonClass} type="button" aria-label="Desktop view">
+      <button
+        className={roundIconButtonClass}
+        type="button"
+        aria-label="Desktop view"
+      >
         <EditorIcon name="monitor" size={14} />
       </button>
       <div className="flex h-7 min-w-[180px] max-w-[280px] flex-1 items-center rounded-full border border-black/[0.10] bg-white/85 px-1 shadow-[0_1px_2px_rgba(15,23,42,0.035)]">
@@ -262,10 +300,18 @@ function EditorHeader({
         </div>
 
         <div className="flex items-center gap-1 pr-1">
-          <button className={roundIconButtonClass} type="button" aria-label="History">
+          <button
+            className={roundIconButtonClass}
+            type="button"
+            aria-label="History"
+          >
             <EditorIcon name="history" size={15} />
           </button>
-          <button className={roundIconButtonClass} type="button" aria-label="Toggle chat panel">
+          <button
+            className={roundIconButtonClass}
+            type="button"
+            aria-label="Toggle chat panel"
+          >
             <EditorIcon name="sidebar" size={15} />
           </button>
         </div>
@@ -283,13 +329,25 @@ function EditorHeader({
 function MessageToolbar({ content }: { content: string }) {
   return (
     <div className="mt-1 flex items-center gap-0.5 text-black/45">
-      <button className={roundIconButtonClass} type="button" aria-label="Revert this change">
+      <button
+        className={roundIconButtonClass}
+        type="button"
+        aria-label="Revert this change"
+      >
         <Icon name="back" size={13} />
       </button>
-      <button className={roundIconButtonClass} type="button" aria-label="Helpful">
+      <button
+        className={roundIconButtonClass}
+        type="button"
+        aria-label="Helpful"
+      >
         <EditorIcon name="thumbUp" size={13} />
       </button>
-      <button className={roundIconButtonClass} type="button" aria-label="Not helpful">
+      <button
+        className={roundIconButtonClass}
+        type="button"
+        aria-label="Not helpful"
+      >
         <EditorIcon name="thumbDown" size={13} />
       </button>
       <button
@@ -300,7 +358,11 @@ function MessageToolbar({ content }: { content: string }) {
       >
         <EditorIcon name="copy" size={13} />
       </button>
-      <button className={roundIconButtonClass} type="button" aria-label="More options">
+      <button
+        className={roundIconButtonClass}
+        type="button"
+        aria-label="More options"
+      >
         <EditorIcon name="more" size={13} />
       </button>
     </div>
@@ -340,7 +402,10 @@ function ChatTimeline({
           }
 
           return (
-            <div key={`assistant-${index}`} className="py-1 text-sm leading-6 text-[#3f3f3b]">
+            <div
+              key={`assistant-${index}`}
+              className="py-1 text-sm leading-6 text-[#3f3f3b]"
+            >
               <button
                 className="mb-1 border-0 bg-transparent p-0 text-[11px] text-black/42"
                 type="button"
@@ -456,19 +521,39 @@ function PreviewInteractionToolbar() {
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center">
       <div className="pointer-events-auto inline-flex h-10 items-center rounded-full border border-black/[0.13] bg-white/80 p-1 shadow-[0_6px_18px_rgba(15,23,42,0.10)] backdrop-blur-xl">
-        <button className={roundIconButtonClass} type="button" aria-label="Select elements">
+        <button
+          className={roundIconButtonClass}
+          type="button"
+          aria-label="Select elements"
+        >
           ↖
         </button>
-        <button className={roundIconButtonClass} type="button" aria-label="Edit text">
+        <button
+          className={roundIconButtonClass}
+          type="button"
+          aria-label="Edit text"
+        >
           <span className="text-sm font-medium">T</span>
         </button>
-        <button className={roundIconButtonClass} type="button" aria-label="Draw annotation">
+        <button
+          className={roundIconButtonClass}
+          type="button"
+          aria-label="Draw annotation"
+        >
           <span className="text-sm">✎</span>
         </button>
-        <button className={roundIconButtonClass} type="button" aria-label="Comment">
+        <button
+          className={roundIconButtonClass}
+          type="button"
+          aria-label="Comment"
+        >
           <span className="text-sm">▢</span>
         </button>
-        <button className={roundIconButtonClass} type="button" aria-label="More preview tools">
+        <button
+          className={roundIconButtonClass}
+          type="button"
+          aria-label="More preview tools"
+        >
           <EditorIcon name="more" size={14} />
         </button>
       </div>
