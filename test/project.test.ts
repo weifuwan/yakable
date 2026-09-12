@@ -8,6 +8,11 @@ import { parseGeneratedProject, slugifyPrompt, writeGeneratedProject } from '../
 
 const validProject = JSON.stringify({
   summary: 'A small generated app',
+  template: 'app',
+  routes: [
+    { path: '/', title: 'Home' },
+    { path: '/account', title: 'Account' },
+  ],
   files: [
     { path: 'package.json', content: '{"scripts":{"dev":"vite"}}' },
     { path: 'index.html', content: '<div id="root"></div>' },
@@ -16,10 +21,27 @@ const validProject = JSON.stringify({
   ],
 });
 
-test('parses a complete generated project', () => {
+test('parses a complete generated project with route metadata', () => {
   const project = parseGeneratedProject(validProject);
   assert.equal(project.files.length, 4);
   assert.equal(project.summary, 'A small generated app');
+  assert.equal(project.template, 'app');
+  assert.deepEqual(project.routes.map((route) => route.path), ['/', '/account']);
+});
+
+test('falls back to a root route for legacy model output', () => {
+  const legacy = JSON.stringify({
+    summary: 'legacy',
+    files: [
+      { path: 'package.json', content: '{}' },
+      { path: 'index.html', content: '' },
+      { path: 'src/main.tsx', content: '' },
+      { path: 'src/App.tsx', content: '' },
+    ],
+  });
+  const project = parseGeneratedProject(legacy);
+  assert.equal(project.template, 'website');
+  assert.deepEqual(project.routes, [{ path: '/', title: 'Home' }]);
 });
 
 test('rejects path traversal from model output', () => {
@@ -51,7 +73,7 @@ test('creates a filesystem-safe prompt slug', () => {
   assert.equal(slugifyPrompt('做一个首页'), 'app');
 });
 
-test('writes a validated project under a newly created output root', async () => {
+test('writes source and .yakable project metadata under a new output root', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'yakable-stage1-'));
   const outputRoot = path.join(tempRoot, 'generated');
 
@@ -59,9 +81,14 @@ test('writes a validated project under a newly created output root', async () =>
     const project = parseGeneratedProject(validProject);
     const outputDirectory = await writeGeneratedProject('Build a demo', project, outputRoot);
     const appSource = await readFile(path.join(outputDirectory, 'src/App.tsx'), 'utf8');
+    const metadata = JSON.parse(
+      await readFile(path.join(outputDirectory, '.yakable/project.json'), 'utf8'),
+    ) as { template: string; routes: Array<{ path: string }> };
 
     assert.match(outputDirectory, /build-a-demo-/);
     assert.match(appSource, /Hello/);
+    assert.equal(metadata.template, 'app');
+    assert.deepEqual(metadata.routes.map((route) => route.path), ['/', '/account']);
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }
