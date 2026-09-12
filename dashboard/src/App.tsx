@@ -161,6 +161,8 @@ export default function App() {
           id: currentRoute.projectId,
           title: projectTitle(currentRoute.projectId),
           previewUrl: runtime.previewUrl,
+          template: runtime.template,
+          routes: runtime.routes,
         });
       })
       .catch((error) => {
@@ -194,6 +196,8 @@ export default function App() {
       previewUrl: result.previewUrl,
       summary: result.project.summary,
       model: result.project.model,
+      template: result.project.template,
+      routes: result.project.routes,
     };
 
     setActiveProject(nextProject);
