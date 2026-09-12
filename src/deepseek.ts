@@ -1,6 +1,7 @@
 import { STAGE3_SYSTEM_PROMPT } from './edit-prompt.js';
 import { INTENT_ANALYSIS_SYSTEM_PROMPT } from './intent-prompt.js';
 import { STAGE1_SYSTEM_PROMPT } from './prompt.js';
+import { SEMANTIC_EXPANSION_SYSTEM_PROMPT } from './semantic-prompt.js';
 
 const DEFAULT_BASE_URL = 'https://api.deepseek.com';
 const DEFAULT_MODEL = 'deepseek-v4-pro';
@@ -164,6 +165,14 @@ export function requestPromptIntent(userPrompt: string): Promise<DeepSeekGenerat
     INTENT_ANALYSIS_SYSTEM_PROMPT,
     userPrompt,
     'Prompt Intelligence Intent Parser',
+  );
+}
+
+export function requestSemanticExpansion(userPrompt: string): Promise<DeepSeekGeneration> {
+  return requestStructuredGeneration(
+    SEMANTIC_EXPANSION_SYSTEM_PROMPT,
+    userPrompt,
+    'Prompt Intelligence Semantic Expander',
   );
 }
 
