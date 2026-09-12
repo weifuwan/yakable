@@ -75,6 +75,20 @@ export const PREVIEW_SELECTION_BRIDGE_SCRIPT = String.raw`(() => {
     return id;
   }
 
+  function sourceMetadataFor(element) {
+    const sourceId = element.getAttribute('data-yakable-source-id') || '';
+    const file = element.getAttribute('data-yakable-source-file') || '';
+    const line = Number.parseInt(element.getAttribute('data-yakable-source-line') || '', 10);
+    const column = Number.parseInt(element.getAttribute('data-yakable-source-column') || '', 10);
+    const metadata = {};
+
+    if (sourceId) metadata.sourceId = sourceId;
+    if (file && Number.isFinite(line) && line > 0 && Number.isFinite(column) && column > 0) {
+      metadata.source = { file, line, column };
+    }
+    return metadata;
+  }
+
   function cssPath(element) {
     const parts = [];
     let current = element;
@@ -104,6 +118,7 @@ export const PREVIEW_SELECTION_BRIDGE_SCRIPT = String.raw`(() => {
     const text = String(rawText || '').replace(/\s+/g, ' ').trim().slice(0, 180);
     return {
       id: getElementId(element),
+      ...sourceMetadataFor(element),
       tagName: element.tagName.toLowerCase(),
       text,
       selector: cssPath(element),
@@ -143,6 +158,9 @@ export const PREVIEW_SELECTION_BRIDGE_SCRIPT = String.raw`(() => {
     placeOverlay(hoverOverlay, element);
     const rect = element.getBoundingClientRect();
     hoverLabel.textContent = element.tagName.toLowerCase();
+    const source = element.getAttribute('data-yakable-source');
+    if (source) hoverLabel.title = source;
+    else hoverLabel.removeAttribute('title');
     hoverLabel.style.display = 'block';
     hoverLabel.style.left = Math.max(4, rect.left) + 'px';
     hoverLabel.style.top = Math.max(4, rect.top - 20) + 'px';
