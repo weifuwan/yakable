@@ -87,10 +87,10 @@ function SidebarItem({
   shortcut?: string;
 }) {
   const active = Boolean(to && pathname === to);
-  const className = `relative flex w-full items-center gap-2 rounded-md border-0 px-2 py-1.5 text-left text-sm no-underline transition ${
+  const className = `relative flex w-full items-center gap-2 rounded-md border-0 px-2 py-1.5 text-left text-sm no-underline transition-colors duration-150 ease-out ${
     active
       ? "bg-black/[0.075] font-medium text-[#1e2828]"
-      : "bg-transparent text-[#001617] hover:bg-black/[0.05]"
+      : "bg-transparent text-[#001617] hover:bg-black/[0.04]"
   }`;
 
   const content = (
@@ -155,14 +155,18 @@ function OwnedProjectsNavigation({
   return (
     <div className="flex flex-col gap-0.5">
       <div
-        className={`flex items-center rounded-md transition ${
-          ownedPageActive || activeProjectId
-            ? "bg-black/[0.055]"
-            : "hover:bg-black/[0.05]"
+        className={`flex items-center rounded-md transition-colors duration-150 ease-out ${
+          ownedPageActive ? "bg-black/[0.055]" : "hover:bg-black/[0.04]"
         }`}
       >
         <a
-          className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-sm text-[#001617] no-underline"
+          className={`flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-sm no-underline transition-colors duration-150 ${
+            ownedPageActive
+              ? "font-medium text-[#1e2828]"
+              : activeProjectId
+                ? "text-black/75"
+                : "text-[#001617]"
+          }`}
           href="/dashboard/projects/owned"
           aria-current={ownedPageActive ? "page" : undefined}
           onClick={(event) => {
@@ -177,53 +181,64 @@ function OwnedProjectsNavigation({
           <span className="min-w-0 flex-1 truncate">Owned by me</span>
         </a>
         <button
-          className="mr-1 grid h-7 w-7 shrink-0 place-items-center rounded-md border-0 bg-transparent text-black/40 transition hover:bg-black/[0.05] hover:text-black/65"
+          className="mr-1 grid h-7 w-7 shrink-0 place-items-center rounded-md border-0 bg-transparent text-black/40 transition-colors duration-150 hover:bg-black/[0.04] hover:text-black/65"
           type="button"
           aria-label={expanded ? "Collapse owned projects" : "Expand owned projects"}
           aria-expanded={expanded}
           onClick={() => setExpanded((value) => !value)}
         >
           <span
-            className={`transition-transform duration-150 ${expanded ? "rotate-180" : ""}`}
+            className={`transition-transform duration-200 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)] ${
+              expanded ? "rotate-0" : "-rotate-90"
+            }`}
           >
             <Icon name="chevronDown" size={13} />
           </span>
         </button>
       </div>
 
-      {expanded ? (
-        <div className="ml-[17px] border-l border-black/[0.10] py-0.5 pl-2">
-          {projects.length ? (
-            projects.map((project) => {
-              const active = project.id === activeProjectId;
-              const to = projectPath(project.id);
-              return (
-                <a
-                  key={project.id}
-                  className={`block truncate rounded-md px-2 py-1.5 text-[13px] no-underline transition ${
-                    active
-                      ? "bg-black/[0.075] font-medium text-[#202727]"
-                      : "text-black/60 hover:bg-black/[0.045] hover:text-black/80"
-                  }`}
-                  href={to}
-                  aria-current={active ? "page" : undefined}
-                  title={projectTitle(project.id)}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    onNavigate(to);
-                  }}
-                >
-                  {projectTitle(project.id)}
-                </a>
-              );
-            })
-          ) : (
-            <span className="block px-2 py-1.5 text-[12px] text-black/35">
-              No projects yet
-            </span>
-          )}
+      <div
+        className={`grid transition-[grid-template-rows,opacity] duration-200 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)] ${
+          expanded
+            ? "grid-rows-[1fr] opacity-100"
+            : "pointer-events-none grid-rows-[0fr] opacity-0"
+        }`}
+        aria-hidden={!expanded}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div className="ml-[17px] border-l border-black/[0.09] py-0.5 pl-2">
+            {projects.length ? (
+              projects.map((project) => {
+                const active = project.id === activeProjectId;
+                const to = projectPath(project.id);
+                return (
+                  <a
+                    key={project.id}
+                    className={`block truncate rounded-md px-2 py-1.5 text-[13px] no-underline transition-colors duration-150 ease-out ${
+                      active
+                        ? "bg-black/[0.075] font-medium text-[#202727]"
+                        : "text-black/60 hover:bg-black/[0.04] hover:text-black/80"
+                    }`}
+                    href={to}
+                    aria-current={active ? "page" : undefined}
+                    title={projectTitle(project.id)}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      onNavigate(to);
+                    }}
+                  >
+                    {projectTitle(project.id)}
+                  </a>
+                );
+              })
+            ) : (
+              <span className="block px-2 py-1.5 text-[12px] text-black/35">
+                No projects yet
+              </span>
+            )}
+          </div>
         </div>
-      ) : null}
+      </div>
     </div>
   );
 }
@@ -240,7 +255,7 @@ export function Sidebar({
   activeProjectId?: string;
 }) {
   return (
-    <aside className="flex h-full w-[245px] shrink-0 flex-col overflow-y-auto overflow-x-hidden bg-[#f5f6f6] px-4 pb-2 pt-4">
+    <aside className="flex h-full w-[245px] shrink-0 flex-col overflow-y-auto overflow-x-hidden overscroll-contain bg-[#f5f6f6] px-4 pb-2 pt-4">
       <button
         className="mb-3 flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-black/[0.12] bg-white px-4 text-sm font-medium shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition hover:border-black/[0.20] hover:bg-black/[0.015]"
         type="button"
