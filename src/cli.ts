@@ -18,7 +18,10 @@ try {
 
   const result = await generateProject(prompt);
 
-  console.log(`\nModel: ${result.model}`);
+  console.log(
+    `Intent: ${result.intent.productType} · ${result.intent.pageType} · ${result.intent.primaryGoal}`,
+  );
+  console.log(`Model: ${result.model}`);
   console.log(`Files: ${result.project.files.length}`);
   console.log(`Output: ${result.outputDirectory}`);
   console.log(`Summary: ${result.project.summary}`);

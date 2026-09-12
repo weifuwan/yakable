@@ -1,4 +1,5 @@
 import { requestProjectCode } from './deepseek.js';
+import { analyzePromptIntent } from './intent.js';
 import { parseGeneratedProject, writeGeneratedProject } from './project.js';
 import { buildTemplateGenerationRequest, selectProjectTemplate } from './template.js';
 import type { GenerationResult } from './types.js';
@@ -13,9 +14,10 @@ export async function generateProject(prompt: string): Promise<GenerationResult>
     throw new Error('Prompt is too long. Stage 1 accepts at most 12,000 characters.');
   }
 
-  const template = selectProjectTemplate(normalizedPrompt);
+  const intent = await analyzePromptIntent(normalizedPrompt);
+  const template = selectProjectTemplate(normalizedPrompt, intent);
   const generation = await requestProjectCode(
-    buildTemplateGenerationRequest(normalizedPrompt, template),
+    buildTemplateGenerationRequest(normalizedPrompt, template, intent),
   );
   const project = parseGeneratedProject(generation.content);
   project.template = template;
@@ -25,5 +27,6 @@ export async function generateProject(prompt: string): Promise<GenerationResult>
     project,
     outputDirectory,
     model: generation.model,
+    intent,
   };
 }
