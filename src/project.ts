@@ -12,7 +12,13 @@ import type { GeneratedFile, GeneratedProject, ProjectTemplate } from './types.j
 const MAX_FILES = 60;
 const MAX_FILE_BYTES = 200_000;
 const MAX_TOTAL_BYTES = 2_000_000;
-const REQUIRED_FILES = ['package.json', 'index.html', 'src/main.tsx', 'src/App.tsx'] as const;
+const REQUIRED_FILES = [
+  'package.json',
+  'index.html',
+  'src/main.tsx',
+  'src/App.tsx',
+  'src/routes.ts',
+] as const;
 const BLOCKED_ROOTS = new Set(['.git', '.yakable', 'generated', 'node_modules']);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
