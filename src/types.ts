@@ -78,6 +78,64 @@ export interface TasteTranslation {
   unresolvedDecisions: string[];
 }
 
+export interface DesignIntentProduct {
+  type: string;
+  surface: string;
+  primaryGoal: string;
+  targetAudience: string | null;
+}
+
+export type DesignIntentRequirementSource =
+  | 'user-explicit'
+  | 'user-constraint'
+  | 'semantic-default'
+  | 'semantic-assumption';
+
+export type DesignIntentRequirementKind =
+  | 'requirement'
+  | 'constraint'
+  | 'assumption'
+  | SemanticDefaultKind;
+
+export type DesignIntentRequirementConfidence = 'explicit' | SemanticConfidence;
+
+export interface DesignIntentRequirement {
+  statement: string;
+  source: DesignIntentRequirementSource;
+  kind: DesignIntentRequirementKind;
+  confidence: DesignIntentRequirementConfidence;
+  basis?: SemanticDefaultBasis;
+}
+
+export interface DesignIntentDirective {
+  area: TasteDecisionArea;
+  directive: string;
+  basis: TasteDecisionBasis;
+  intensity: TasteIntensity;
+  sourceKeywords: string[];
+}
+
+export type DesignIntentOpenQuestionSource =
+  | 'missing-information'
+  | 'semantic-decision'
+  | 'taste-decision';
+
+export interface DesignIntentOpenQuestion {
+  value: string;
+  source: DesignIntentOpenQuestionSource;
+}
+
+export interface DesignIntentIR {
+  version: 1;
+  product: DesignIntentProduct;
+  designDirection: string;
+  styleSignals: string[];
+  requirements: DesignIntentRequirement[];
+  directives: DesignIntentDirective[];
+  antiPatterns: string[];
+  openQuestions: DesignIntentOpenQuestion[];
+}
+
 export interface ProjectRoute {
   path: string;
   title: string;
@@ -113,6 +171,7 @@ export interface GenerationResult {
   intent: PromptIntent;
   semanticExpansion: SemanticExpansion;
   tasteTranslation: TasteTranslation;
+  designIntent: DesignIntentIR;
 }
 
 export interface ProjectPatch {
