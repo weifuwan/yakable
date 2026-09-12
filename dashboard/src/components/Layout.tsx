@@ -1,13 +1,19 @@
 import { Icon, type IconName, controlClass } from "./ui";
 
-export function Topbar() {
+type NavigateHandler = (path: string) => void;
+
+export function Topbar({ onNavigate }: { onNavigate: NavigateHandler }) {
   return (
     <header className="flex h-10 shrink-0 items-center justify-between px-4 pt-1 text-[#1d2525]">
       <div className="flex min-w-0 items-center gap-3">
         <a
           className="flex items-center gap-2 no-underline"
-          href="/"
+          href="/dashboard"
           aria-label="Yakable home"
+          onClick={(event) => {
+            event.preventDefault();
+            onNavigate("/dashboard");
+          }}
         >
           <span className="grid h-6 w-6 place-items-center rounded-md bg-gradient-to-br from-indigo-500 to-violet-600 text-[11px] font-bold text-white shadow-sm">
             Y
@@ -60,23 +66,27 @@ export function Topbar() {
 function SidebarItem({
   icon,
   label,
-  active,
+  pathname,
+  onNavigate,
+  to,
   shortcut,
 }: {
   icon: IconName;
   label: string;
-  active?: boolean;
+  pathname: string;
+  onNavigate: NavigateHandler;
+  to?: string;
   shortcut?: string;
 }) {
-  return (
-    <button
-      className={`relative flex w-full items-center gap-2 rounded-md border-0 px-2 py-1.5 text-left text-sm transition ${
-        active
-          ? "bg-black/[0.075] font-medium text-[#1e2828]"
-          : "bg-transparent text-[#001617] hover:bg-black/[0.05]"
-      }`}
-      type="button"
-    >
+  const active = Boolean(to && pathname === to);
+  const className = `relative flex w-full items-center gap-2 rounded-md border-0 px-2 py-1.5 text-left text-sm no-underline transition ${
+    active
+      ? "bg-black/[0.075] font-medium text-[#1e2828]"
+      : "bg-transparent text-[#001617] hover:bg-black/[0.05]"
+  }`;
+
+  const content = (
+    <>
       <span className="grid h-[18px] w-[18px] shrink-0 place-items-center text-[#4e5a5a]">
         <Icon name={icon} size={16} />
       </span>
@@ -86,11 +96,39 @@ function SidebarItem({
           {shortcut}
         </kbd>
       ) : null}
-    </button>
+    </>
+  );
+
+  if (!to) {
+    return (
+      <button className={className} type="button">
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <a
+      className={className}
+      href={to}
+      aria-current={active ? "page" : undefined}
+      onClick={(event) => {
+        event.preventDefault();
+        onNavigate(to);
+      }}
+    >
+      {content}
+    </a>
   );
 }
 
-export function Sidebar() {
+export function Sidebar({
+  pathname,
+  onNavigate,
+}: {
+  pathname: string;
+  onNavigate: NavigateHandler;
+}) {
   return (
     <aside className="flex h-full w-[245px] shrink-0 flex-col overflow-y-auto overflow-x-hidden bg-[#f5f6f6] px-4 pb-2 pt-4">
       <button
@@ -103,9 +141,27 @@ export function Sidebar() {
       </button>
 
       <nav className="flex flex-col gap-2" aria-label="Main navigation">
-        <SidebarItem icon="search" label="Search" shortcut="Ctrl K" />
-        <SidebarItem icon="home" label="Home" active />
-        <SidebarItem icon="share" label="Shared with me" />
+        <SidebarItem
+          icon="search"
+          label="Search"
+          shortcut="Ctrl K"
+          pathname={pathname}
+          onNavigate={onNavigate}
+        />
+        <SidebarItem
+          icon="home"
+          label="Home"
+          to="/dashboard"
+          pathname={pathname}
+          onNavigate={onNavigate}
+        />
+        <SidebarItem
+          icon="share"
+          label="Shared with me"
+          to="/dashboard/shared"
+          pathname={pathname}
+          onNavigate={onNavigate}
+        />
       </nav>
 
       <div className="my-3 h-px w-full bg-black/[0.09]" />
@@ -126,10 +182,34 @@ export function Sidebar() {
       </div>
 
       <nav className="flex flex-col gap-2" aria-label="Workspace navigation">
-        <SidebarItem icon="file" label="Files" />
-        <SidebarItem icon="users" label="Shared with workspace" />
-        <SidebarItem icon="template" label="Templates" />
-        <SidebarItem icon="palette" label="Design Systems" />
+        <SidebarItem
+          icon="file"
+          label="Files"
+          to="/dashboard/files"
+          pathname={pathname}
+          onNavigate={onNavigate}
+        />
+        <SidebarItem
+          icon="users"
+          label="Shared with workspace"
+          to="/dashboard/shared"
+          pathname={pathname}
+          onNavigate={onNavigate}
+        />
+        <SidebarItem
+          icon="template"
+          label="Templates"
+          to="/dashboard/templates"
+          pathname={pathname}
+          onNavigate={onNavigate}
+        />
+        <SidebarItem
+          icon="palette"
+          label="Design Systems"
+          to="/dashboard/design-systems"
+          pathname={pathname}
+          onNavigate={onNavigate}
+        />
       </nav>
 
       <div className="min-h-6 flex-1" />
@@ -150,8 +230,18 @@ export function Sidebar() {
       <div className="mb-3 h-px w-full bg-black/[0.09]" />
 
       <nav className="flex flex-col gap-2" aria-label="Help navigation">
-        <SidebarItem icon="book" label="Documentation" />
-        <SidebarItem icon="support" label="Get support" />
+        <SidebarItem
+          icon="book"
+          label="Documentation"
+          pathname={pathname}
+          onNavigate={onNavigate}
+        />
+        <SidebarItem
+          icon="support"
+          label="Get support"
+          pathname={pathname}
+          onNavigate={onNavigate}
+        />
       </nav>
     </aside>
   );
