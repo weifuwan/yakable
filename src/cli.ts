@@ -21,6 +21,9 @@ try {
   console.log(
     `Intent: ${result.intent.productType} · ${result.intent.pageType} · ${result.intent.primaryGoal}`,
   );
+  console.log(
+    `Semantic defaults: ${result.semanticExpansion.defaults.length} · Deferred decisions: ${result.semanticExpansion.deferredDecisions.length}`,
+  );
   console.log(`Model: ${result.model}`);
   console.log(`Files: ${result.project.files.length}`);
   console.log(`Output: ${result.outputDirectory}`);
