@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { buildTemplateGenerationRequest, selectProjectTemplate } from '../src/template.js';
-import type { PromptIntent, SemanticExpansion } from '../src/types.js';
+import type { PromptIntent, SemanticExpansion, TasteTranslation } from '../src/types.js';
 
 const dashboardIntent: PromptIntent = {
   version: 1,
@@ -30,6 +30,22 @@ const semanticExpansion: SemanticExpansion = {
   deferredDecisions: ['Whether authentication is required'],
 };
 
+const tasteTranslation: TasteTranslation = {
+  version: 1,
+  designDirection: 'Calm, precise and low-noise analytics workspace',
+  decisions: [
+    {
+      area: 'visual-hierarchy',
+      directive: 'Make the primary analytical task dominant and keep secondary controls visually quiet',
+      basis: 'style-keyword',
+      intensity: 'strong',
+      sourceKeywords: ['简洁'],
+    },
+  ],
+  antiPatterns: ['uniformly emphasizing every dashboard surface'],
+  unresolvedDecisions: [],
+};
+
 test('selects website for presentation-first prompts', () => {
   assert.equal(selectProjectTemplate('Build a SaaS landing page with hero and pricing'), 'website');
 });
@@ -50,11 +66,13 @@ test('builds a structured generation request with prompt intelligence context', 
       'app',
       dashboardIntent,
       semanticExpansion,
+      tasteTranslation,
     ),
   ) as {
     productRequest: string;
     promptIntent: PromptIntent;
     semanticExpansion: SemanticExpansion;
+    tasteTranslation: TasteTranslation;
     projectTemplate: string;
     templateGuidance: { preferredStructure: string[] };
   };
@@ -63,6 +81,8 @@ test('builds a structured generation request with prompt intelligence context', 
   assert.equal(request.promptIntent.pageType, 'dashboard');
   assert.equal(request.semanticExpansion.defaults[0]?.kind, 'behavior');
   assert.equal(request.semanticExpansion.deferredDecisions[0], 'Whether authentication is required');
+  assert.equal(request.tasteTranslation.designDirection, 'Calm, precise and low-noise analytics workspace');
+  assert.equal(request.tasteTranslation.decisions[0]?.area, 'visual-hierarchy');
   assert.equal(request.projectTemplate, 'app');
   assert.ok(request.templateGuidance.preferredStructure.includes('src/routes.ts'));
 });
