@@ -10,26 +10,63 @@ function projectPath(projectId: string): string {
   return `/projects/${encodeURIComponent(projectId)}`;
 }
 
+function SidebarToggleButton({
+  collapsed,
+  onClick,
+  className = "",
+}: {
+  collapsed: boolean;
+  onClick: () => void;
+  className?: string;
+}) {
+  return (
+    <button
+      className={`group relative grid h-7 w-7 shrink-0 place-items-center overflow-hidden rounded-full border-0 bg-[#f6f6f4] text-black/55 transition-colors duration-150 hover:bg-black/[0.05] hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 ${className}`}
+      type="button"
+      aria-label={collapsed ? "Expand project sidebar" : "Collapse project sidebar"}
+      onClick={onClick}
+    >
+      <span className="absolute inset-0 grid place-items-center transition-all duration-150 ease-out group-hover:-translate-x-0.5 group-hover:scale-90 group-hover:opacity-0">
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M5 7h14M5 12h14M5 17h14" />
+        </svg>
+      </span>
+
+      <span className="absolute inset-0 grid translate-x-0.5 scale-90 place-items-center opacity-0 transition-all duration-150 ease-out group-hover:translate-x-0 group-hover:scale-100 group-hover:opacity-100">
+        <Icon name="panel" size={15} />
+      </span>
+    </button>
+  );
+}
+
 function WorkspaceRouteState({
   projectId,
   error,
+  sidebarCollapsed,
   onToggleSidebar,
 }: {
   projectId: string;
   error: string;
+  sidebarCollapsed: boolean;
   onToggleSidebar: () => void;
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#f6f6f4] font-sans text-[#20201e]">
       <div className="flex h-12 shrink-0 items-center gap-2 px-2">
-        <button
-          className="grid h-7 w-7 shrink-0 place-items-center rounded-full border-0 bg-transparent text-black/55 transition hover:bg-black/[0.05] hover:text-black"
-          type="button"
-          aria-label="Toggle project sidebar"
+        <SidebarToggleButton
+          collapsed={sidebarCollapsed}
           onClick={onToggleSidebar}
-        >
-          <Icon name="panel" size={15} />
-        </button>
+        />
         <strong className="truncate text-sm font-medium text-black/75">
           {projectTitle(projectId)}
         </strong>
@@ -104,21 +141,29 @@ export function WorkspaceShell({
 
       <div className="relative min-w-0 flex-1 overflow-hidden">
         {project ? (
-          <div
-            className={`h-full transition-[opacity,filter] duration-150 ${
-              projectReady ? "opacity-100" : "opacity-55"
-            }`}
-          >
-            <Workspace
-              key={project.id}
-              project={project}
-              onBack={toggleSidebar}
+          <>
+            <SidebarToggleButton
+              collapsed={sidebarCollapsed}
+              onClick={toggleSidebar}
+              className="absolute left-2 top-[10px] z-[60]"
             />
-          </div>
+            <div
+              className={`h-full transition-[opacity,filter] duration-150 ${
+                projectReady ? "opacity-100" : "opacity-55"
+              }`}
+            >
+              <Workspace
+                key={project.id}
+                project={project}
+                onBack={toggleSidebar}
+              />
+            </div>
+          </>
         ) : (
           <WorkspaceRouteState
             projectId={projectId}
             error={error}
+            sidebarCollapsed={sidebarCollapsed}
             onToggleSidebar={toggleSidebar}
           />
         )}
