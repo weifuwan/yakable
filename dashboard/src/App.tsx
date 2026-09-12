@@ -17,6 +17,9 @@ const dashboardPaths = new Set([
   "/dashboard/files",
   "/dashboard/templates",
   "/dashboard/design-systems",
+  "/dashboard/projects",
+  "/dashboard/projects/owned",
+  "/dashboard/projects/shared",
 ]);
 
 type AppRoute =
