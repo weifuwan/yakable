@@ -1,4 +1,5 @@
 import { STAGE3_SYSTEM_PROMPT } from './edit-prompt.js';
+import { INTENT_ANALYSIS_SYSTEM_PROMPT } from './intent-prompt.js';
 import { STAGE1_SYSTEM_PROMPT } from './prompt.js';
 
 const DEFAULT_BASE_URL = 'https://api.deepseek.com';
@@ -156,6 +157,14 @@ async function requestStructuredGeneration(
   }
 
   return { content, model: config.model };
+}
+
+export function requestPromptIntent(userPrompt: string): Promise<DeepSeekGeneration> {
+  return requestStructuredGeneration(
+    INTENT_ANALYSIS_SYSTEM_PROMPT,
+    userPrompt,
+    'Prompt Intelligence Intent Parser',
+  );
 }
 
 export function requestProjectCode(userPrompt: string): Promise<DeepSeekGeneration> {
