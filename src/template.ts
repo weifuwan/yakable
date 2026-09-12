@@ -1,9 +1,4 @@
-import type {
-  ProjectTemplate,
-  PromptIntent,
-  SemanticExpansion,
-  TasteTranslation,
-} from './types.js';
+import type { DesignIntentIR, ProjectTemplate } from './types.js';
 
 const APP_INTENT_PATTERN =
   /\b(app|dashboard|admin|crm|erp|portal|workspace|account|auth|login|order|orders|settings)\b|管理系统|后台|控制台|工作台|登录|注册|账户|账号|订单|设置|会员中心|个人中心/i;
@@ -29,22 +24,21 @@ export const PROJECT_TEMPLATES: Record<ProjectTemplate, ProjectTemplateProfile> 
   },
 };
 
-function intentSearchText(intent: PromptIntent): string {
+function designIntentSearchText(designIntent: DesignIntentIR): string {
   return [
-    intent.productType,
-    intent.pageType,
-    intent.primaryGoal,
-    ...intent.explicitRequirements,
-    ...intent.hardConstraints,
+    designIntent.product.type,
+    designIntent.product.surface,
+    designIntent.product.primaryGoal,
+    ...designIntent.requirements.map((requirement) => requirement.statement),
   ].join(' ');
 }
 
 export function selectProjectTemplate(
   prompt: string,
-  intent?: PromptIntent,
+  designIntent?: DesignIntentIR,
 ): ProjectTemplate {
-  if (intent) {
-    const intentText = intentSearchText(intent);
+  if (designIntent) {
+    const intentText = designIntentSearchText(designIntent);
     if (APP_INTENT_PATTERN.test(intentText)) {
       return 'app';
     }
@@ -59,17 +53,13 @@ export function selectProjectTemplate(
 export function buildTemplateGenerationRequest(
   productRequest: string,
   template: ProjectTemplate,
-  promptIntent?: PromptIntent,
-  semanticExpansion?: SemanticExpansion,
-  tasteTranslation?: TasteTranslation,
+  designIntent?: DesignIntentIR,
 ): string {
   const profile = PROJECT_TEMPLATES[template];
   return JSON.stringify(
     {
       productRequest,
-      promptIntent,
-      semanticExpansion,
-      tasteTranslation,
+      designIntent,
       projectTemplate: template,
       templateGuidance: {
         description: profile.description,
