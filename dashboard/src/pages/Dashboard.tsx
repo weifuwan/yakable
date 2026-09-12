@@ -38,12 +38,13 @@ export function Dashboard({
     }
   }
 
-  function renderProjectGallery() {
+  function renderProjectGallery(title = "Recents") {
     return (
       <ProjectGallery
         projects={projects}
         loading={loading}
         onOpen={(id) => void onOpen(id)}
+        title={title}
       />
     );
   }
@@ -54,8 +55,8 @@ export function Dashboard({
     if (pathname === "/dashboard/files") return <FilesPage />;
     if (pathname === "/dashboard/templates") return <TemplatesPage />;
     if (pathname === "/dashboard/design-systems") return <DesignSystemsPage />;
-    if (pathname === "/dashboard/projects") return renderProjectGallery();
-    if (pathname === "/dashboard/projects/owned") return renderProjectGallery();
+    if (pathname === "/dashboard/projects") return renderProjectGallery("All projects");
+    if (pathname === "/dashboard/projects/owned") return renderProjectGallery("Owned by me");
     if (pathname === "/dashboard/projects/shared") return <SharedPage />;
 
     return (
@@ -86,7 +87,11 @@ export function Dashboard({
         <div
           className={`shrink-0 overflow-hidden transition-[width] duration-150 ease-out ${sidebarCollapsed ? "w-0" : "w-[245px]"}`}
         >
-          <Sidebar pathname={pathname} onNavigate={onNavigate} />
+          <Sidebar
+            pathname={pathname}
+            onNavigate={onNavigate}
+            projects={projects}
+          />
         </div>
 
         <div className="m-2 ml-0 flex min-w-0 flex-1 flex-col" style={{ marginLeft: 8 }}>
