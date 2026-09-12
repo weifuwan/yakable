@@ -1,0 +1,208 @@
+export type PreviewSelectionSource = {
+  file: string;
+  line: number;
+  column: number;
+};
+
+export type PreviewSelection = {
+  id: string;
+  sourceId?: string;
+  source?: PreviewSelectionSource;
+  tagName: string;
+  text: string;
+  selector: string;
+  rect?: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  };
+};
+
+type PreviewSelectionMessage = {
+  source: "yakable-preview";
+  type: "yakable:selection-change";
+  selections: unknown;
+};
+
+const DASHBOARD_SOURCE = "yakable-dashboard";
+const PREVIEW_SOURCE = "yakable-preview";
+let latestSelections: PreviewSelection[] = [];
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getPreviewFrame(): HTMLIFrameElement | null {
+  if (typeof document === "undefined") return null;
+  return document.querySelector<HTMLIFrameElement>('iframe[title$=" preview"]');
+}
+
+function normalizeSource(value: unknown): PreviewSelectionSource | undefined {
+  if (!isRecord(value)) return undefined;
+  if (
+    typeof value.file !== "string" ||
+    !Number.isInteger(value.line) ||
+    !Number.isInteger(value.column)
+  ) {
+    return undefined;
+  }
+
+  const file = value.file.trim();
+  const line = Number(value.line);
+  const column = Number(value.column);
+  if (!file || line <= 0 || column <= 0) return undefined;
+  return { file, line, column };
+}
+
+function normalizeSelection(value: unknown): PreviewSelection | null {
+  if (!isRecord(value)) return null;
+  if (
+    typeof value.id !== "string" ||
+    typeof value.tagName !== "string" ||
+    typeof value.text !== "string" ||
+    typeof value.selector !== "string"
+  ) {
+    return null;
+  }
+
+  const source = normalizeSource(value.source);
+  return {
+    id: value.id.slice(0, 120),
+    sourceId:
+      typeof value.sourceId === "string" && value.sourceId.trim()
+        ? value.sourceId.trim().slice(0, 120)
+        : undefined,
+    source,
+    tagName: value.tagName.slice(0, 80),
+    text: value.text.slice(0, 240),
+    selector: value.selector.slice(0, 500),
+  };
+}
+
+function normalizeSelections(value: unknown): PreviewSelection[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .slice(0, 20)
+    .map(normalizeSelection)
+    .filter((selection): selection is PreviewSelection => Boolean(selection));
+}
+
+function handlePreviewMessage(event: MessageEvent<PreviewSelectionMessage>) {
+  const frame = getPreviewFrame();
+  if (!frame?.contentWindow || event.source !== frame.contentWindow) return;
+  const message = event.data;
+  if (
+    !message ||
+    message.source !== PREVIEW_SOURCE ||
+    message.type !== "yakable:selection-change"
+  ) {
+    return;
+  }
+
+  latestSelections = normalizeSelections(message.selections);
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("message", handlePreviewMessage);
+}
+
+export function getCurrentPreviewSelections(): PreviewSelection[] {
+  return latestSelections.map((selection) => ({
+    ...selection,
+    source: selection.source ? { ...selection.source } : undefined,
+  }));
+}
+
+export function clearCurrentPreviewSelections(): void {
+  latestSelections = [];
+  const frame = getPreviewFrame();
+  frame?.contentWindow?.postMessage(
+    { source: DASHBOARD_SOURCE, type: "yakable:clear-selections" },
+    "*",
+  );
+}
+
+type VisualSelectionInstance = {
+  runtimeId: string;
+  text: string;
+  selector: string;
+};
+
+type VisualSelectionTarget = {
+  sourceId?: string;
+  file: string;
+  line: number;
+  column: number;
+  tagName: string;
+  instanceCount: number;
+  instances: VisualSelectionInstance[];
+};
+
+function buildMappedTargets(selections: PreviewSelection[]): VisualSelectionTarget[] {
+  const grouped = new Map<string, VisualSelectionTarget>();
+
+  for (const selection of selections) {
+    if (!selection.source) continue;
+    const { file, line, column } = selection.source;
+    const key = selection.sourceId || `${file}:${line}:${column}:${selection.tagName}`;
+    const current = grouped.get(key);
+    const instance = {
+      runtimeId: selection.id,
+      text: selection.text,
+      selector: selection.selector,
+    };
+
+    if (current) {
+      current.instanceCount += 1;
+      current.instances.push(instance);
+      continue;
+    }
+
+    grouped.set(key, {
+      sourceId: selection.sourceId,
+      file,
+      line,
+      column,
+      tagName: selection.tagName,
+      instanceCount: 1,
+      instances: [instance],
+    });
+  }
+
+  return [...grouped.values()];
+}
+
+export function buildVisualEditPrompt(
+  userRequest: string,
+  selections: PreviewSelection[] = getCurrentPreviewSelections(),
+): string {
+  const request = userRequest.trim();
+  if (!request || selections.length === 0) return request;
+
+  const targets = buildMappedTargets(selections);
+  const unmappedSelections = selections
+    .filter((selection) => !selection.source)
+    .map((selection) => ({
+      runtimeId: selection.id,
+      tagName: selection.tagName,
+      text: selection.text,
+      selector: selection.selector,
+    }));
+
+  const envelope = {
+    userRequest: request,
+    visualSelections: {
+      selectedCount: selections.length,
+      mappedTargetCount: targets.length,
+      targets,
+      unmappedSelections,
+    },
+  };
+
+  return [
+    "[[YAKABLE_VISUAL_EDIT_REQUEST]]",
+    JSON.stringify(envelope),
+    "[[/YAKABLE_VISUAL_EDIT_REQUEST]]",
+  ].join("\n");
+}
