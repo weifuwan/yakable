@@ -1,3 +1,9 @@
+import {
+  buildVisualEditPrompt,
+  clearCurrentPreviewSelections,
+  getCurrentPreviewSelections,
+} from './visual-edit-context';
+
 export type ProjectTemplate = 'website' | 'app';
 
 export interface ProjectRoute {
@@ -77,11 +83,21 @@ export function startProjectRuntime(projectId: string): Promise<RuntimeProject> 
   });
 }
 
-export function editProject(projectId: string, prompt: string): Promise<EditedProject> {
-  return requestJson(`/api/projects/${encodeURIComponent(projectId)}/edit`, {
-    method: 'POST',
-    body: JSON.stringify({ prompt }),
-  });
+export async function editProject(projectId: string, prompt: string): Promise<EditedProject> {
+  const selections = getCurrentPreviewSelections();
+  const visualEditPrompt = buildVisualEditPrompt(prompt, selections);
+  const result = await requestJson<EditedProject>(
+    `/api/projects/${encodeURIComponent(projectId)}/edit`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ prompt: visualEditPrompt }),
+    },
+  );
+
+  if (selections.length) {
+    clearCurrentPreviewSelections();
+  }
+  return result;
 }
 
 export async function updateProject(
