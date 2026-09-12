@@ -9,6 +9,11 @@ export interface ProjectMetadata {
   version: 1;
   template: ProjectTemplate;
   routes: ProjectRoute[];
+  name?: string;
+  starred?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  remixedFrom?: string;
 }
 
 export interface GeneratedFile {
