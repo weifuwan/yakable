@@ -73,7 +73,10 @@ test('starts a real local Vite runtime for a generated project', async () => {
     try {
       const response = await fetch(runtime.url);
       assert.equal(response.status, 200);
-      assert.match(await response.text(), /src\/main\.tsx/);
+      const html = await response.text();
+      assert.match(html, /src\/main\.tsx/);
+      assert.match(html, /data-yakable-preview-bridge/);
+      assert.match(html, /yakable:selection-ready/);
     } finally {
       await runtime.server.close();
     }
