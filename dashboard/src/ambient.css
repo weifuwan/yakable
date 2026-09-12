@@ -189,3 +189,17 @@ main > section:first-of-type > div[aria-hidden="true"] > div:last-child {
     display: none;
   }
 }
+
+/*
+ * The project editor resize affordance stays visually quiet until the user
+ * reaches for it. Keep the larger invisible hit area active, but reveal the
+ * Lovable-style separator only on hover (and while an active drag is in progress).
+ */
+div[role="separator"][aria-label="Resize chat and preview panels"] > span {
+  opacity: 0;
+}
+
+div[role="separator"][aria-label="Resize chat and preview panels"]:hover > span,
+div[role="separator"][aria-label="Resize chat and preview panels"] > span.opacity-100 {
+  opacity: 1;
+}
