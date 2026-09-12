@@ -236,3 +236,33 @@ main > section:first-of-type > div[aria-hidden="true"] > div:last-child {
     animation: none !important;
   }
 }
+
+/* Keep the project chat scrollbar narrow and visually quiet like the editor chrome. */
+[style*="--editor-chat-width"] > div > section:first-child > div:first-child {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(31, 31, 31, 0.34) transparent;
+  scrollbar-gutter: stable;
+  overscroll-behavior-y: contain;
+}
+
+[style*="--editor-chat-width"] > div > section:first-child > div:first-child::-webkit-scrollbar {
+  width: 8px;
+}
+
+[style*="--editor-chat-width"] > div > section:first-child > div:first-child::-webkit-scrollbar-track {
+  background: transparent;
+  margin-block: 8px;
+}
+
+[style*="--editor-chat-width"] > div > section:first-child > div:first-child::-webkit-scrollbar-thumb {
+  min-height: 44px;
+  border: 2px solid transparent;
+  border-radius: 9999px;
+  background: rgba(31, 31, 31, 0.34);
+  background-clip: padding-box;
+}
+
+[style*="--editor-chat-width"] > div > section:first-child > div:first-child:hover::-webkit-scrollbar-thumb {
+  background: rgba(31, 31, 31, 0.54);
+  background-clip: padding-box;
+}
