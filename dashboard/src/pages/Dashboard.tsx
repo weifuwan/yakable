@@ -47,7 +47,7 @@ export function Dashboard({
 
     return (
       <>
-        <section className="yakable-dashboard-hero relative flex min-h-[492px] shrink-0 items-center justify-center overflow-hidden px-5 py-16">
+        <section className="relative flex min-h-[492px] shrink-0 items-center justify-center overflow-hidden px-5 py-16">
           <div className="pointer-events-none absolute inset-0" aria-hidden="true">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,#ffffff_0%,#ffffff_14%,#fafbff_24%,#eef1ff_34%,#ffffff_48%,#ffffff_100%)]" />
             <div className="absolute inset-x-0 bottom-0 h-64 bg-gradient-to-b from-transparent via-white/40 to-white" />
