@@ -24,6 +24,10 @@ try {
   console.log(
     `Semantic defaults: ${result.semanticExpansion.defaults.length} · Deferred decisions: ${result.semanticExpansion.deferredDecisions.length}`,
   );
+  console.log(`Taste: ${result.tasteTranslation.designDirection}`);
+  console.log(
+    `Taste decisions: ${result.tasteTranslation.decisions.length} · Anti-patterns: ${result.tasteTranslation.antiPatterns.length}`,
+  );
   console.log(`Model: ${result.model}`);
   console.log(`Files: ${result.project.files.length}`);
   console.log(`Output: ${result.outputDirectory}`);

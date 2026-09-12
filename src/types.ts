@@ -41,6 +41,43 @@ export interface SemanticExpansion {
   deferredDecisions: string[];
 }
 
+export type TasteDecisionArea =
+  | 'visual-hierarchy'
+  | 'composition'
+  | 'typography'
+  | 'color'
+  | 'spacing-density'
+  | 'surface-treatment'
+  | 'imagery'
+  | 'motion'
+  | 'component-expression';
+
+export type TasteDecisionBasis =
+  | 'style-keyword'
+  | 'product-context'
+  | 'page-context'
+  | 'audience-context'
+  | 'explicit-requirement'
+  | 'hard-constraint';
+
+export type TasteIntensity = 'strong' | 'moderate' | 'subtle';
+
+export interface TasteDecision {
+  area: TasteDecisionArea;
+  directive: string;
+  basis: TasteDecisionBasis;
+  intensity: TasteIntensity;
+  sourceKeywords: string[];
+}
+
+export interface TasteTranslation {
+  version: 1;
+  designDirection: string;
+  decisions: TasteDecision[];
+  antiPatterns: string[];
+  unresolvedDecisions: string[];
+}
+
 export interface ProjectRoute {
   path: string;
   title: string;
@@ -75,6 +112,7 @@ export interface GenerationResult {
   model: string;
   intent: PromptIntent;
   semanticExpansion: SemanticExpansion;
+  tasteTranslation: TasteTranslation;
 }
 
 export interface ProjectPatch {
