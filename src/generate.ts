@@ -1,4 +1,5 @@
 import { requestProjectCode } from './deepseek.js';
+import { buildDesignIntent } from './design-intent.js';
 import { analyzePromptIntent } from './intent.js';
 import { parseGeneratedProject, writeGeneratedProject } from './project.js';
 import { expandPromptSemantics } from './semantic.js';
@@ -23,15 +24,10 @@ export async function generateProject(prompt: string): Promise<GenerationResult>
     intent,
     semanticExpansion,
   );
-  const template = selectProjectTemplate(normalizedPrompt, intent);
+  const designIntent = buildDesignIntent(intent, semanticExpansion, tasteTranslation);
+  const template = selectProjectTemplate(normalizedPrompt, designIntent);
   const generation = await requestProjectCode(
-    buildTemplateGenerationRequest(
-      normalizedPrompt,
-      template,
-      intent,
-      semanticExpansion,
-      tasteTranslation,
-    ),
+    buildTemplateGenerationRequest(normalizedPrompt, template, designIntent),
   );
   const project = parseGeneratedProject(generation.content);
   project.template = template;
@@ -44,5 +40,6 @@ export async function generateProject(prompt: string): Promise<GenerationResult>
     intent,
     semanticExpansion,
     tasteTranslation,
+    designIntent,
   };
 }
