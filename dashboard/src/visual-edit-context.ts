@@ -27,7 +27,10 @@ type PreviewSelectionMessage = {
 
 const DASHBOARD_SOURCE = "yakable-dashboard";
 const PREVIEW_SOURCE = "yakable-preview";
+const MAX_SELECTIONS = 20;
+const MAX_PROMPT_SELECTIONS = 10;
 let latestSelections: PreviewSelection[] = [];
+let selectionFrame: WindowProxy | null = null;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -75,15 +78,15 @@ function normalizeSelection(value: unknown): PreviewSelection | null {
         : undefined,
     source,
     tagName: value.tagName.slice(0, 80),
-    text: value.text.slice(0, 240),
-    selector: value.selector.slice(0, 500),
+    text: value.text.slice(0, 180),
+    selector: value.selector.slice(0, 320),
   };
 }
 
 function normalizeSelections(value: unknown): PreviewSelection[] {
   if (!Array.isArray(value)) return [];
   return value
-    .slice(0, 20)
+    .slice(0, MAX_SELECTIONS)
     .map(normalizeSelection)
     .filter((selection): selection is PreviewSelection => Boolean(selection));
 }
@@ -100,6 +103,7 @@ function handlePreviewMessage(event: MessageEvent<PreviewSelectionMessage>) {
     return;
   }
 
+  selectionFrame = frame.contentWindow;
   latestSelections = normalizeSelections(message.selections);
 }
 
@@ -108,6 +112,8 @@ if (typeof window !== "undefined") {
 }
 
 export function getCurrentPreviewSelections(): PreviewSelection[] {
+  const currentFrame = getPreviewFrame()?.contentWindow ?? null;
+  if (!currentFrame || currentFrame !== selectionFrame) return [];
   return latestSelections.map((selection) => ({
     ...selection,
     source: selection.source ? { ...selection.source } : undefined,
@@ -117,6 +123,7 @@ export function getCurrentPreviewSelections(): PreviewSelection[] {
 export function clearCurrentPreviewSelections(): void {
   latestSelections = [];
   const frame = getPreviewFrame();
+  selectionFrame = frame?.contentWindow ?? null;
   frame?.contentWindow?.postMessage(
     { source: DASHBOARD_SOURCE, type: "yakable:clear-selections" },
     "*",
@@ -180,8 +187,9 @@ export function buildVisualEditPrompt(
   const request = userRequest.trim();
   if (!request || selections.length === 0) return request;
 
-  const targets = buildMappedTargets(selections);
-  const unmappedSelections = selections
+  const contextSelections = selections.slice(0, MAX_PROMPT_SELECTIONS);
+  const targets = buildMappedTargets(contextSelections);
+  const unmappedSelections = contextSelections
     .filter((selection) => !selection.source)
     .map((selection) => ({
       runtimeId: selection.id,
@@ -194,6 +202,8 @@ export function buildVisualEditPrompt(
     userRequest: request,
     visualSelections: {
       selectedCount: selections.length,
+      contextSelectionCount: contextSelections.length,
+      truncated: selections.length > contextSelections.length,
       mappedTargetCount: targets.length,
       targets,
       unmappedSelections,
