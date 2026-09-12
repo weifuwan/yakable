@@ -63,39 +63,6 @@ function normalizePath(pathname: string): string {
   return canonicalPath(resolveAppRoute(pathname));
 }
 
-function ProjectRouteFallback({
-  projectId,
-  error,
-  onBack,
-}: {
-  projectId: string;
-  error: string;
-  onBack: () => void;
-}) {
-  return (
-    <div className="flex h-screen items-center justify-center bg-[#f5f5f3] px-6 font-sans text-[#20201e]">
-      <div className="flex max-w-md flex-col items-center gap-3 text-center">
-        {error ? null : (
-          <span className="h-5 w-5 animate-spin rounded-full border-2 border-black/15 border-t-black/70" />
-        )}
-        <strong className="text-sm font-semibold">
-          {error ? "Unable to open project" : `Opening ${projectTitle(projectId)}…`}
-        </strong>
-        {error ? <p className="m-0 text-xs leading-5 text-rose-700">{error}</p> : null}
-        {error ? (
-          <button
-            className="mt-1 rounded-full border border-black/[0.12] bg-white px-4 py-2 text-xs font-medium transition hover:bg-black/[0.03]"
-            type="button"
-            onClick={onBack}
-          >
-            Back to dashboard
-          </button>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
 export default function App() {
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -228,21 +195,13 @@ export default function App() {
   }
 
   if (route.kind === "project") {
-    if (activeProject?.id === route.projectId) {
-      return (
-        <WorkspaceShell
-          project={activeProject}
-          projects={projects}
-          onNavigate={handleWorkspaceNavigate}
-        />
-      );
-    }
-
     return (
-      <ProjectRouteFallback
+      <WorkspaceShell
+        project={activeProject?.id === route.projectId ? activeProject : null}
         projectId={route.projectId}
+        projects={projects}
         error={projectError}
-        onBack={() => navigate("/dashboard")}
+        onNavigate={handleWorkspaceNavigate}
       />
     );
   }
