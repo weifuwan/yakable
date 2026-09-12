@@ -7,6 +7,10 @@ export function projectTitle(id: string): string {
     .join(" ");
 }
 
+export function projectDisplayName(project: { id: string; name?: string }): string {
+  return project.name?.trim() || projectTitle(project.id);
+}
+
 export function editedLabel(updatedAt: string): string {
   const delta = Date.now() - new Date(updatedAt).getTime();
   const minutes = Math.max(0, Math.floor(delta / 60_000));
