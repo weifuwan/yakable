@@ -5,7 +5,9 @@ import path from 'node:path';
 
 import { editGeneratedProject } from './edit.js';
 import { generateProject } from './generate.js';
+import { readProjectMetadata } from './project-metadata.js';
 import { resolveGeneratedProject, startGeneratedProject } from './runtime.js';
+import type { ProjectMetadata, ProjectRoute, ProjectTemplate } from './types.js';
 
 const DEFAULT_API_HOST = '127.0.0.1';
 const DEFAULT_API_PORT = 8787;
@@ -21,6 +23,8 @@ export interface WebGeneratedProject {
   id: string;
   summary: string;
   model: string;
+  template: ProjectTemplate;
+  routes: ProjectRoute[];
 }
 
 export interface WebEditedProject {
@@ -32,6 +36,7 @@ export interface WebEditedProject {
 
 export interface RuntimeSession {
   url: string;
+  metadata: ProjectMetadata;
   isAlive(): boolean;
   close(): Promise<void>;
 }
@@ -114,6 +119,15 @@ function addRevision(url: string): string {
   return `${url}${separator}revision=${Date.now()}`;
 }
 
+function runtimePayload(projectId: string, runtime: RuntimeSession) {
+  return {
+    projectId,
+    previewUrl: addRevision(runtime.url),
+    template: runtime.metadata.template,
+    routes: runtime.metadata.routes,
+  };
+}
+
 export function createDefaultWebApiServices(
   generatedRoot = path.resolve(process.cwd(), 'generated'),
 ): WebApiServices {
@@ -146,6 +160,8 @@ export function createDefaultWebApiServices(
         id: path.basename(result.outputDirectory),
         summary: result.project.summary,
         model: result.model,
+        template: result.project.template,
+        routes: result.project.routes,
       };
     },
 
@@ -161,9 +177,11 @@ export function createDefaultWebApiServices(
 
     async startRuntime(projectId) {
       const project = await resolveGeneratedProject(projectId, generatedRoot);
+      const metadata = await readProjectMetadata(project.directory);
       const started = await startGeneratedProject(project, { port: 0 });
       return {
         url: started.url,
+        metadata,
         isAlive: () => Boolean(started.server.httpServer?.listening),
         close: async () => {
           await started.server.close();
@@ -225,7 +243,7 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
 
         if (action === 'runtime') {
           const runtime = await ensureRuntime(projectId);
-          sendJson(response, 200, { projectId, previewUrl: addRevision(runtime.url) });
+          sendJson(response, 200, runtimePayload(projectId, runtime));
           return;
         }
 
@@ -234,7 +252,7 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
         const runtime = await ensureRuntime(projectId);
         sendJson(response, 200, {
           ...edit,
-          previewUrl: addRevision(runtime.url),
+          ...runtimePayload(projectId, runtime),
         });
         return;
       }

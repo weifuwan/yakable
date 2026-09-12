@@ -2,16 +2,31 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import type { GeneratedFile, GeneratedProject } from './types.js';
+import {
+  createProjectMetadata,
+  normalizeProjectRoutes,
+  writeProjectMetadata,
+} from './project-metadata.js';
+import type { GeneratedFile, GeneratedProject, ProjectTemplate } from './types.js';
 
 const MAX_FILES = 60;
 const MAX_FILE_BYTES = 200_000;
 const MAX_TOTAL_BYTES = 2_000_000;
-const REQUIRED_FILES = ['package.json', 'index.html', 'src/main.tsx', 'src/App.tsx'] as const;
+const REQUIRED_FILES = [
+  'package.json',
+  'index.html',
+  'src/main.tsx',
+  'src/App.tsx',
+  'src/routes.ts',
+] as const;
 const BLOCKED_ROOTS = new Set(['.git', '.yakable', 'generated', 'node_modules']);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isProjectTemplate(value: unknown): value is ProjectTemplate {
+  return value === 'website' || value === 'app';
 }
 
 function validateFilePath(candidate: string): string {
@@ -103,6 +118,8 @@ export function parseGeneratedProject(rawContent: string): GeneratedProject {
 
   return {
     summary: value.summary.trim() || 'Generated Yakable project',
+    template: isProjectTemplate(value.template) ? value.template : 'website',
+    routes: normalizeProjectRoutes(value.routes),
     files,
   };
 }
@@ -135,6 +152,11 @@ export async function writeGeneratedProject(
     await mkdir(path.dirname(destination), { recursive: true });
     await writeFile(destination, file.content, 'utf8');
   }
+
+  await writeProjectMetadata(
+    outputDirectory,
+    createProjectMetadata(project.template, project.routes),
+  );
 
   return outputDirectory;
 }

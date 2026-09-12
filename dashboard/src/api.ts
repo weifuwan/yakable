@@ -1,3 +1,10 @@
+export type ProjectTemplate = 'website' | 'app';
+
+export interface ProjectRoute {
+  path: string;
+  title: string;
+}
+
 export interface ProjectListItem {
   id: string;
   updatedAt: string;
@@ -8,6 +15,8 @@ export interface CreatedProject {
     id: string;
     summary: string;
     model: string;
+    template: ProjectTemplate;
+    routes: ProjectRoute[];
   };
   previewUrl: string;
 }
@@ -15,6 +24,8 @@ export interface CreatedProject {
 export interface RuntimeProject {
   projectId: string;
   previewUrl: string;
+  template: ProjectTemplate;
+  routes: ProjectRoute[];
 }
 
 export interface EditedProject extends RuntimeProject {
