@@ -3,6 +3,8 @@ import path from 'node:path';
 
 import { createServer, type ViteDevServer } from 'vite';
 
+import { previewSelectionBridgePlugin } from './preview-selection-bridge.js';
+
 const REQUIRED_RUNTIME_FILES = ['package.json', 'index.html', 'src/main.tsx', 'src/App.tsx'] as const;
 const DEFAULT_RUNTIME_PORT = 5173;
 
@@ -110,6 +112,7 @@ export async function startGeneratedProject(
     configFile: false,
     clearScreen: false,
     logLevel: 'info',
+    plugins: [previewSelectionBridgePlugin()],
     esbuild: {
       jsx: 'automatic',
       jsxImportSource: 'react',
