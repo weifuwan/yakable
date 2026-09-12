@@ -18,18 +18,19 @@ const validProject = JSON.stringify({
     { path: 'index.html', content: '<div id="root"></div>' },
     { path: 'src/main.tsx', content: 'import App from "./App";' },
     { path: 'src/App.tsx', content: 'export default function App() { return <main>Hello</main>; }' },
+    { path: 'src/routes.ts', content: 'export const routes = [{ path: "/", title: "Home" }];' },
   ],
 });
 
 test('parses a complete generated project with route metadata', () => {
   const project = parseGeneratedProject(validProject);
-  assert.equal(project.files.length, 4);
+  assert.equal(project.files.length, 5);
   assert.equal(project.summary, 'A small generated app');
   assert.equal(project.template, 'app');
   assert.deepEqual(project.routes.map((route) => route.path), ['/', '/account']);
 });
 
-test('falls back to a root route for legacy model output', () => {
+test('falls back to a root route for legacy metadata fields', () => {
   const legacy = JSON.stringify({
     summary: 'legacy',
     files: [
@@ -37,6 +38,7 @@ test('falls back to a root route for legacy model output', () => {
       { path: 'index.html', content: '' },
       { path: 'src/main.tsx', content: '' },
       { path: 'src/App.tsx', content: '' },
+      { path: 'src/routes.ts', content: 'export const routes = [{ path: "/", title: "Home" }];' },
     ],
   });
   const project = parseGeneratedProject(legacy);
@@ -52,6 +54,7 @@ test('rejects path traversal from model output', () => {
       { path: 'index.html', content: '' },
       { path: 'src/main.tsx', content: '' },
       { path: 'src/App.tsx', content: '' },
+      { path: 'src/routes.ts', content: '' },
       { path: '../outside.txt', content: 'nope' },
     ],
   });
