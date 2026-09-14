@@ -13,6 +13,7 @@
     "add:pack": "tsx src/cli/add-pack.ts",
     "run:project": "tsx src/cli/run.ts",
     "edit": "tsx src/cli/edit.ts",
+    "check:project": "tsx src/cli/check.ts",
     "dev:api": "tsx src/cli/api.ts",
     "dev:web": "vite dashboard --host 127.0.0.1",
     "build:web": "vite build dashboard",
