@@ -17,7 +17,10 @@ import {
   type EditIntentDelta,
   type EditIntentResolution,
 } from '../editing/edit-intent.js';
-import type { FrontendAgentEvent } from '../editing/frontend-agent.js';
+import {
+  createFrontendAgentEvent,
+  type FrontendAgentEvent,
+} from '../editing/frontend-agent.js';
 import {
   repairGeneratedProjectVisual,
   type VisualRepairResult,
@@ -49,6 +52,11 @@ import {
   type PageObservation,
 } from '../runtime/page-observation.js';
 import { resolveGeneratedProject, startGeneratedProject } from '../runtime/runtime.js';
+import {
+  appendAgentRunEvent,
+  completeAgentRun,
+  readAgentRun,
+} from '../storage/agent-run.js';
 import { createBaseProject } from '../templates/base-template.js';
 import type { CheckProjectOutput } from '../tools/check-project.js';
 import type { ToolResult } from '../tools/tool.js';
@@ -82,6 +90,7 @@ export interface WebGeneratedProject {
   model: string;
   template: ProjectTemplate;
   routes: ProjectRoute[];
+  agentRunId?: string;
   session: ProjectSessionState | null;
   conversation: ProjectConversation | null;
 }
@@ -123,7 +132,11 @@ export interface RuntimeSession {
 export interface WebApiServices {
   listProjects(): Promise<WebProjectListItem[]>;
   gateBuildIntent(prompt: string): Promise<BuildIntentDecision>;
-  generate(prompt: string, buildIntent: BuildIntentDecision): Promise<WebGeneratedProject>;
+  generate(
+    prompt: string,
+    buildIntent: BuildIntentDecision,
+    onAgentEvent?: (event: FrontendAgentEvent) => void,
+  ): Promise<WebGeneratedProject>;
   message?(projectId: string, prompt: string): Promise<WebProjectMessageResult>;
   edit(
     projectId: string,
@@ -383,12 +396,17 @@ export function createDefaultWebApiServices(
       return classifyBuildIntent(prompt);
     },
 
-    async generate(prompt, buildIntent) {
+    async generate(prompt, buildIntent, onAgentEvent) {
       if (buildIntent.route !== 'CREATE') {
         return createConversationProject(prompt, buildIntent, generatedRoot);
       }
 
-      const result = await generateProject(prompt, { buildIntent });
+      const result = await generateProject(prompt, {
+        buildIntent,
+        onEvent: onAgentEvent,
+        verifyProject: true,
+        persistAgentRun: true,
+      });
       const id = path.basename(result.outputDirectory);
       return {
         id,
@@ -397,6 +415,7 @@ export function createDefaultWebApiServices(
         model: result.model,
         template: result.project.template,
         routes: result.project.routes,
+        ...(result.agentRunId ? { agentRunId: result.agentRunId } : {}),
         session: await readProjectSession(result.outputDirectory),
         conversation: await readProjectConversation(result.outputDirectory),
       };
@@ -534,6 +553,78 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
     return runtime;
   }
 
+  function emitCreateEvent(
+    project: WebGeneratedProject,
+    event: FrontendAgentEvent,
+    onAgentEvent?: (event: FrontendAgentEvent) => void,
+  ): void {
+    if (project.agentRunId) {
+      try {
+        appendAgentRunEvent(project.agentRunId, event);
+      } catch (error) {
+        console.warn('[Yakable Agent] Create runtime event could not be persisted.', error);
+      }
+    }
+    onAgentEvent?.(event);
+  }
+
+  async function ensureGeneratedRuntime(
+    project: WebGeneratedProject,
+    onAgentEvent?: (event: FrontendAgentEvent) => void,
+  ): Promise<RuntimeSession> {
+    if (!project.agentRunId) return ensureRuntime(project.id);
+
+    emitCreateEvent(
+      project,
+      createFrontendAgentEvent('RUNTIME', 'ACTIVE', 'Starting the generated project runtime'),
+      onAgentEvent,
+    );
+
+    try {
+      const runtime = await ensureRuntime(project.id);
+      emitCreateEvent(
+        project,
+        createFrontendAgentEvent('RUNTIME', 'COMPLETED', 'Generated project runtime is ready'),
+        onAgentEvent,
+      );
+
+      const failed = readAgentRun(project.agentRunId)?.status === 'FAILED';
+      emitCreateEvent(
+        project,
+        createFrontendAgentEvent(
+          'DONE',
+          failed ? 'FAILED' : 'COMPLETED',
+          failed
+            ? 'Create pipeline finished with project health issues'
+            : 'Create pipeline completed successfully',
+        ),
+        onAgentEvent,
+      );
+      completeAgentRun(project.agentRunId, {
+        model: project.model,
+        summary: project.summary,
+      });
+      return runtime;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      emitCreateEvent(
+        project,
+        createFrontendAgentEvent('RUNTIME', 'FAILED', `Runtime failed to start: ${message}`),
+        onAgentEvent,
+      );
+      emitCreateEvent(
+        project,
+        createFrontendAgentEvent('DONE', 'FAILED', 'Create pipeline stopped before runtime was ready'),
+        onAgentEvent,
+      );
+      completeAgentRun(project.agentRunId, {
+        model: project.model,
+        summary: project.summary,
+      });
+      throw error;
+    }
+  }
+
   async function closeRuntime(projectId: string): Promise<void> {
     const runtime = runtimes.get(projectId);
     if (!runtime) return;
@@ -556,12 +647,40 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
         return;
       }
 
+      if (method === 'POST' && url.pathname === '/api/projects/agent-create') {
+        const body = await readJsonBody(request);
+        const prompt = readPrompt(body);
+        startNdjson(response);
+        try {
+          const decision = await services.gateBuildIntent(prompt);
+          const project = await services.generate(prompt, decision, (event) => {
+            writeNdjson(response, { type: 'agent-event', event });
+          });
+          const runtime = await ensureGeneratedRuntime(project, (event) => {
+            writeNdjson(response, { type: 'agent-event', event });
+          });
+          writeNdjson(response, {
+            type: 'result',
+            result: {
+              decision,
+              project,
+              previewUrl: addRevision(runtime.url),
+            },
+          });
+        } catch (error) {
+          const normalized = error instanceof Error ? error : new Error('Unknown create agent failure.');
+          writeNdjson(response, { type: 'error', error: normalized.message });
+        }
+        response.end();
+        return;
+      }
+
       if (method === 'POST' && url.pathname === '/api/projects') {
         const body = await readJsonBody(request);
         const prompt = readPrompt(body);
         const decision = await services.gateBuildIntent(prompt);
         const project = await services.generate(prompt, decision);
-        const runtime = await ensureRuntime(project.id);
+        const runtime = await ensureGeneratedRuntime(project);
         sendJson(response, 201, {
           decision,
           project,
