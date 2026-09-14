@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { buildProjectEditContext } from '../src/editing/edit.js';
 import {
   MAX_EDIT_INTENT_DIRECTIVES,
   MAX_EDIT_INTENT_TARGET_HINTS,
@@ -8,7 +9,7 @@ import {
   fallbackEditIntentDelta,
   parseEditIntentDelta,
 } from '../src/editing/edit-intent.js';
-import type { DesignIntentIR } from '../src/types.js';
+import type { DesignIntentIR, ProjectSessionState } from '../src/types.js';
 
 const designIntent: DesignIntentIR = {
   version: 1,
@@ -159,4 +160,57 @@ test('fallback keeps the human request intact and scopes visual edits to the sel
   assert.equal(delta.directives[0]?.area, 'component-expression');
   assert.equal(delta.directives[0]?.directive, '高级一点');
   assert.deepEqual(delta.targetHints, ['h1: Build faster']);
+});
+
+test('project edit context carries the same Edit Intent Delta alongside original Design Intent', () => {
+  const delta = parseEditIntentDelta(
+    JSON.stringify({
+      version: 1,
+      summary: 'Refine the Hero hierarchy while keeping copy unchanged.',
+      scope: 'section',
+      targetHints: ['Hero'],
+      directives: [
+        {
+          area: 'visual-hierarchy',
+          directive: 'Make the primary message and CTA hierarchy clearer.',
+          basis: 'interpreted',
+        },
+      ],
+      preserve: ['existing copy'],
+    }),
+  );
+  const session: ProjectSessionState = {
+    version: 1,
+    productRequest: 'Build a developer tool landing page',
+    designIntent,
+    createdAt: '2026-09-14T02:00:00.000Z',
+    updatedAt: '2026-09-14T02:00:00.000Z',
+    edits: [],
+  };
+
+  const context = JSON.parse(
+    buildProjectEditContext(
+      {
+        id: 'demo-project',
+        directory: '/tmp/demo-project',
+        files: [
+          {
+            path: 'src/components/Hero.tsx',
+            content: 'export function Hero() { return <h1>Build faster</h1>; }',
+          },
+        ],
+      },
+      '这个 Hero 再高级一点，但是文案不要改',
+      session,
+      delta,
+    ),
+  ) as {
+    followUpRequest: string;
+    editIntent: typeof delta;
+    continuity: { designIntent: DesignIntentIR };
+  };
+
+  assert.equal(context.followUpRequest, '这个 Hero 再高级一点，但是文案不要改');
+  assert.deepEqual(context.editIntent, delta);
+  assert.equal(context.continuity.designIntent.designDirection, designIntent.designDirection);
 });
