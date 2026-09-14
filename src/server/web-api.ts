@@ -2,7 +2,23 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 
+import type { EditContextSelection } from '../editing/context-selection.js';
+import {
+  critiqueDesign,
+  parseDesignCriticResult,
+  type DesignCriticResult,
+  type DesignCriticRun,
+} from '../editing/design-critic.js';
 import { editGeneratedProject } from '../editing/edit.js';
+import {
+  parseEditIntentDelta,
+  type EditIntentDelta,
+  type EditIntentResolution,
+} from '../editing/edit-intent.js';
+import {
+  repairGeneratedProjectVisual,
+  type VisualRepairResult,
+} from '../editing/visual-repair.js';
 import { generateProject } from '../generation/generate.js';
 import { classifyBuildIntent } from '../prompt-intelligence/build-intent.js';
 import {
@@ -19,7 +35,13 @@ import {
   readProjectConversation,
   readProjectSession,
 } from '../projects/project-session.js';
+import {
+  parsePageObservation,
+  type PageObservation,
+} from '../runtime/page-observation.js';
 import { resolveGeneratedProject, startGeneratedProject } from '../runtime/runtime.js';
+import type { CheckProjectOutput } from '../tools/check-project.js';
+import type { ToolResult } from '../tools/tool.js';
 import type {
   BuildIntentDecision,
   ProjectConversation,
@@ -31,8 +53,10 @@ import type {
 
 const DEFAULT_API_HOST = '127.0.0.1';
 const DEFAULT_API_PORT = 8787;
-const MAX_JSON_BODY_BYTES = 32_000;
+const MAX_JSON_BODY_BYTES = 512_000;
 const PROJECT_ID_PATTERN = /^[a-zA-Z0-9._-]+$/;
+const MAX_INITIAL_CHANGED_FILES = 24;
+const MAX_SELECTED_CONTEXT_FILES = 12;
 
 export type WebProjectListItem = ProjectListRecord;
 
@@ -52,8 +76,20 @@ export interface WebEditedProject {
   summary: string;
   model: string;
   changedFiles: string[];
+  editIntent?: EditIntentResolution;
+  contextSelection?: EditContextSelection;
+  projectCheck?: ToolResult<CheckProjectOutput>;
   session: ProjectSessionState | null;
   conversation: ProjectConversation | null;
+}
+
+export interface WebVisualRepairInput {
+  userRequest: string;
+  editIntent: EditIntentDelta;
+  critique: DesignCriticResult;
+  pageObservation: PageObservation;
+  initialChangedFiles: string[];
+  selectedContextFiles: string[];
 }
 
 export interface RuntimeSession {
@@ -69,6 +105,12 @@ export interface WebApiServices {
   generate(prompt: string, buildIntent: BuildIntentDecision): Promise<WebGeneratedProject>;
   edit(projectId: string, prompt: string): Promise<WebEditedProject>;
   startRuntime(projectId: string): Promise<RuntimeSession>;
+  critique?(
+    projectId: string,
+    editIntent: EditIntentDelta,
+    pageObservation: PageObservation,
+  ): Promise<DesignCriticRun>;
+  visualRepair?(projectId: string, input: WebVisualRepairInput): Promise<VisualRepairResult>;
   readSession?(projectId: string): Promise<ProjectSessionState | null>;
   readConversation?(projectId: string): Promise<ProjectConversation | null>;
   updateProject?(projectId: string, patch: ProjectUpdate): Promise<WebProjectListItem>;
@@ -133,6 +175,61 @@ function readPrompt(body: Record<string, unknown>): string {
   return body.prompt.trim();
 }
 
+function readUserRequest(body: Record<string, unknown>): string {
+  if (typeof body.userRequest !== 'string' || !body.userRequest.trim()) {
+    throw new Error('A visual repair userRequest is required.');
+  }
+  return body.userRequest.trim();
+}
+
+function readEditIntent(body: Record<string, unknown>): EditIntentDelta {
+  if (body.editIntent === undefined) {
+    throw new Error('An editIntent is required.');
+  }
+  return parseEditIntentDelta(JSON.stringify(body.editIntent));
+}
+
+function readPageObservation(body: Record<string, unknown>): PageObservation {
+  if (body.pageObservation === undefined) {
+    throw new Error('A pageObservation is required.');
+  }
+  return parsePageObservation(body.pageObservation);
+}
+
+function readCritique(
+  body: Record<string, unknown>,
+  pageObservation: PageObservation,
+): DesignCriticResult {
+  if (body.critique === undefined) {
+    throw new Error('A critique is required.');
+  }
+  return parseDesignCriticResult(JSON.stringify(body.critique), pageObservation);
+}
+
+function readPathArray(
+  body: Record<string, unknown>,
+  field: string,
+  maxItems: number,
+): string[] {
+  const value = body[field];
+  if (!Array.isArray(value) || value.length > maxItems) {
+    throw new Error(`${field} must be an array with at most ${maxItems} paths.`);
+  }
+
+  const paths: string[] = [];
+  for (const item of value) {
+    if (typeof item !== 'string') {
+      throw new Error(`${field} must contain string paths only.`);
+    }
+    const pathValue = item.trim();
+    if (!pathValue || pathValue.length > 240) {
+      throw new Error(`${field} contains an invalid path.`);
+    }
+    if (!paths.includes(pathValue)) paths.push(pathValue);
+  }
+  return paths;
+}
+
 function readProjectUpdate(body: Record<string, unknown>): ProjectUpdate {
   const patch: ProjectUpdate = {};
   if ('name' in body) {
@@ -155,7 +252,7 @@ function sendJson(response: ServerResponse, status: number, value: unknown): voi
 }
 
 function isClientError(error: Error): boolean {
-  return /required|invalid|too large|too long|does not exist|missing|only|must|not valid json/i.test(
+  return /required|invalid|too large|too long|does not exist|missing|only|must|not valid json|outside repair context/i.test(
     error.message,
   );
 }
@@ -217,9 +314,39 @@ export function createDefaultWebApiServices(
         summary: result.summary,
         model: result.model,
         changedFiles: result.changedFiles,
+        editIntent: result.editIntent,
+        contextSelection: result.contextSelection,
+        projectCheck: result.projectCheck,
         session: result.session,
         conversation: await readProjectConversation(result.projectDirectory),
       };
+    },
+
+    async critique(projectId, editIntent, pageObservation) {
+      const project = await resolveGeneratedProject(projectId, generatedRoot);
+      const session = await readProjectSession(project.directory);
+      return critiqueDesign({
+        baselineDesignIntent: session?.designIntent ?? null,
+        editIntent,
+        pageObservation,
+      });
+    },
+
+    async visualRepair(projectId, input) {
+      const project = await resolveGeneratedProject(projectId, generatedRoot);
+      const session = await readProjectSession(project.directory);
+      const result = await repairGeneratedProjectVisual(
+        projectId,
+        {
+          ...input,
+          baselineDesignIntent: session?.designIntent ?? null,
+        },
+        generatedRoot,
+      );
+      if (result.changedFiles.length > 0) {
+        await touchManagedProject(projectId, generatedRoot);
+      }
+      return result;
     },
 
     async startRuntime(projectId) {
@@ -347,7 +474,9 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
         return;
       }
 
-      const projectRoute = url.pathname.match(/^\/api\/projects\/([^/]+)\/(runtime|edit)$/);
+      const projectRoute = url.pathname.match(
+        /^\/api\/projects\/([^/]+)\/(runtime|edit|critique|visual-repair)$/,
+      );
       if (method === 'POST' && projectRoute) {
         const projectId = assertProjectId(projectRoute[1] ?? '');
         const action = projectRoute[2];
@@ -359,11 +488,50 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
         }
 
         const body = await readJsonBody(request);
-        const edit = await services.edit(projectId, readPrompt(body));
+
+        if (action === 'edit') {
+          const edit = await services.edit(projectId, readPrompt(body));
+          const runtime = await ensureRuntime(projectId);
+          sendJson(response, 200, {
+            ...(await runtimePayload(projectId, runtime, services)),
+            ...edit,
+          });
+          return;
+        }
+
+        const pageObservation = readPageObservation(body);
+        const editIntent = readEditIntent(body);
+
+        if (action === 'critique') {
+          if (!services.critique) throw new Error('Design critique is not available.');
+          sendJson(response, 200, {
+            critique: await services.critique(projectId, editIntent, pageObservation),
+          });
+          return;
+        }
+
+        if (!services.visualRepair) throw new Error('Visual repair is not available.');
+        const critique = readCritique(body, pageObservation);
+        const visualRepair = await services.visualRepair(projectId, {
+          userRequest: readUserRequest(body),
+          editIntent,
+          critique,
+          pageObservation,
+          initialChangedFiles: readPathArray(
+            body,
+            'initialChangedFiles',
+            MAX_INITIAL_CHANGED_FILES,
+          ),
+          selectedContextFiles: readPathArray(
+            body,
+            'selectedContextFiles',
+            MAX_SELECTED_CONTEXT_FILES,
+          ),
+        });
         const runtime = await ensureRuntime(projectId);
         sendJson(response, 200, {
           ...(await runtimePayload(projectId, runtime, services)),
-          ...edit,
+          visualRepair,
         });
         return;
       }
