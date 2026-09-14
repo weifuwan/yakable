@@ -2,8 +2,16 @@ import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { requestProjectPatch } from '../model/deepseek.js';
+import {
+  appendProjectEditHistory,
+  readProjectSession,
+} from '../projects/project-session.js';
 import { resolveGeneratedProject, type ResolvedGeneratedProject } from '../runtime/runtime.js';
-import type { GeneratedFile, ProjectPatch } from '../types.js';
+import type {
+  GeneratedFile,
+  ProjectPatch,
+  ProjectSessionState,
+} from '../types.js';
 
 const MAX_CONTEXT_FILES = 60;
 const MAX_CONTEXT_FILE_BYTES = 200_000;
@@ -12,7 +20,10 @@ const MAX_FOLLOW_UP_LENGTH = 8_000;
 const MAX_CHANGE_FILES = 12;
 const MAX_CHANGE_FILE_BYTES = 200_000;
 const MAX_CHANGE_TOTAL_BYTES = 500_000;
+const MAX_HISTORY_CONTEXT = 12;
 const SKIPPED_DIRECTORIES = new Set(['node_modules', 'dist', '.git', '.yakable']);
+const VISUAL_EDIT_START = '[[YAKABLE_VISUAL_EDIT_REQUEST]]';
+const VISUAL_EDIT_END = '[[/YAKABLE_VISUAL_EDIT_REQUEST]]';
 
 export interface ProjectSnapshot extends ResolvedGeneratedProject {
   files: GeneratedFile[];
@@ -24,6 +35,7 @@ export interface EditProjectResult {
   model: string;
   summary: string;
   changedFiles: string[];
+  session: ProjectSessionState | null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -137,6 +149,56 @@ export async function readProjectSnapshot(
   return { ...project, files };
 }
 
+export function extractUserEditRequest(request: string): string {
+  const start = request.indexOf(VISUAL_EDIT_START);
+  const end = request.indexOf(VISUAL_EDIT_END);
+  if (start === -1 || end === -1 || end <= start) {
+    return request.trim();
+  }
+
+  const payload = request
+    .slice(start + VISUAL_EDIT_START.length, end)
+    .trim();
+
+  try {
+    const parsed: unknown = JSON.parse(payload);
+    if (isRecord(parsed) && typeof parsed.userRequest === 'string' && parsed.userRequest.trim()) {
+      return parsed.userRequest.trim();
+    }
+  } catch {
+    // Fall back to the original request so malformed visual metadata never drops user intent.
+  }
+
+  return request.trim();
+}
+
+export function buildProjectEditContext(
+  snapshot: ProjectSnapshot,
+  followUpRequest: string,
+  session: ProjectSessionState | null,
+): string {
+  const recentEdits = session?.edits.slice(-MAX_HISTORY_CONTEXT).map((edit) => ({
+    userRequest: edit.userRequest,
+    assistantSummary: edit.assistantSummary,
+    changedFiles: edit.changedFiles,
+  })) ?? [];
+
+  return JSON.stringify({
+    followUpRequest,
+    continuity: session
+      ? {
+          originalProductRequest: session.productRequest ?? null,
+          designIntent: session.designIntent ?? null,
+          recentEdits,
+        }
+      : null,
+    project: {
+      id: snapshot.id,
+      files: snapshot.files,
+    },
+  });
+}
+
 export function parseProjectPatch(rawContent: string): ProjectPatch {
   let value: unknown;
 
@@ -229,17 +291,23 @@ export async function editGeneratedProject(
 
   const project = await resolveGeneratedProject(projectInput);
   const snapshot = await readProjectSnapshot(project);
-  const editContext = JSON.stringify({
-    followUpRequest: request,
-    project: {
-      id: snapshot.id,
-      files: snapshot.files,
-    },
-  });
+  const session = await readProjectSession(project.directory);
+  const editContext = buildProjectEditContext(snapshot, request, session);
 
   const generation = await requestProjectPatch(editContext);
   const patch = parseProjectPatch(generation.content);
   const changedFiles = await applyProjectPatch(project, patch);
+
+  let nextSession = session;
+  try {
+    nextSession = await appendProjectEditHistory(project.directory, {
+      userRequest: extractUserEditRequest(request),
+      assistantSummary: patch.summary,
+      changedFiles,
+    });
+  } catch (error) {
+    console.warn('[Yakable Edit] Source update succeeded but session history could not be persisted.', error);
+  }
 
   return {
     projectId: project.id,
@@ -247,5 +315,6 @@ export async function editGeneratedProject(
     model: generation.model,
     summary: patch.summary,
     changedFiles,
+    session: nextSession,
   };
 }

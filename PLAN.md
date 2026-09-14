@@ -8,6 +8,7 @@
 - **Project Generation:** turn a product request plus Design Intent into a complete frontend source tree. ✅
 - **Runtime & Preview:** run generated projects in a controlled local Vite runtime and expose a live Preview. ✅
 - **Project Editing:** apply follow-up requests as focused source changes without regenerating the whole project. ✅
+- **Persistent Edit Context:** preserve the original product request, Design Intent, and recent successful manual edits so later user-directed changes keep project continuity across API/runtime sessions. ✅
 - **Visual → Source Editing:** select Preview elements, map them back to JSX source locations, and use that context for targeted edits. ✅
 - **Project Workspace:** reopen, switch, rename, star, remix, and delete generated projects from the dashboard. ✅
 
@@ -20,7 +21,7 @@
 
 ## Later
 
-- **Stable Iteration:** make repeated edits preserve unrelated code and remain reliable over long conversations.
+- **Long-running Iteration Robustness:** improve compaction, conflict handling, and preservation of unrelated code when edit histories become large.
 - **Versioning & Rollback:** capture stable project versions, inspect diffs, and restore earlier states safely.
 - **Full-stack Capabilities:** add database, auth, storage, secrets, and backend functions without exposing unnecessary complexity.
 - **Deployment & Collaboration:** add deployment, GitHub sync, collaboration, model routing, ownership, and production infrastructure as real usage demands them.

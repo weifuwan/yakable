@@ -6,6 +6,7 @@ import {
   type RuntimeSession,
   type WebApiServices,
 } from '../src/server/web-api.js';
+import type { ProjectSessionState } from '../src/types.js';
 
 const metadata = {
   version: 1 as const,
@@ -13,6 +14,23 @@ const metadata = {
   routes: [
     { path: '/', title: 'Home' },
     { path: '/account', title: 'Account' },
+  ],
+};
+
+const session: ProjectSessionState = {
+  version: 1,
+  productRequest: 'Build a dashboard',
+  initialSummary: 'Generated dashboard',
+  createdAt: '2026-09-11T07:00:00.000Z',
+  updatedAt: '2026-09-11T07:05:00.000Z',
+  edits: [
+    {
+      id: 'edit-1',
+      createdAt: '2026-09-11T07:05:00.000Z',
+      userRequest: 'Make the hero blue',
+      assistantSummary: 'Updated hero',
+      changedFiles: ['src/App.tsx'],
+    },
   ],
 };
 
@@ -50,6 +68,7 @@ function fakeServices(): WebApiServices {
         model: 'test-model',
         template: metadata.template,
         routes: metadata.routes,
+        session,
       };
     },
     async edit(projectId, prompt) {
@@ -60,11 +79,15 @@ function fakeServices(): WebApiServices {
         summary: 'Updated hero',
         model: 'test-model',
         changedFiles: ['src/App.tsx'],
+        session,
       };
     },
     async startRuntime() {
       alive = true;
       return runtime;
+    },
+    async readSession() {
+      return session;
     },
     async updateProject(_projectId, patch) {
       if (patch.name) name = patch.name;
@@ -98,12 +121,18 @@ test('web API lists projects and wires Prompt -> Template -> Routes -> Run', asy
     });
     assert.equal(createResponse.status, 201);
     const created = await createResponse.json() as {
-      project: { id: string; template: string; routes: Array<{ path: string }> };
+      project: {
+        id: string;
+        template: string;
+        routes: Array<{ path: string }>;
+        session: ProjectSessionState;
+      };
       previewUrl: string;
     };
     assert.equal(created.project.id, 'generated-project');
     assert.equal(created.project.template, 'app');
     assert.deepEqual(created.project.routes.map((route) => route.path), ['/', '/account']);
+    assert.equal(created.project.session.productRequest, 'Build a dashboard');
     assert.match(created.previewUrl, /revision=/);
 
     const runtimeResponse = await fetch(`${baseUrl}/api/projects/generated-project/runtime`, {
@@ -114,9 +143,11 @@ test('web API lists projects and wires Prompt -> Template -> Routes -> Run', asy
     const runtimeResult = await runtimeResponse.json() as {
       template: string;
       routes: Array<{ path: string }>;
+      session: ProjectSessionState;
     };
     assert.equal(runtimeResult.template, 'app');
     assert.deepEqual(runtimeResult.routes.map((route) => route.path), ['/', '/account']);
+    assert.equal(runtimeResult.session.edits[0]?.userRequest, 'Make the hero blue');
   } finally {
     await api.close();
   }
@@ -143,9 +174,11 @@ test('web API wires follow-up Prompt -> Patch while keeping route metadata', asy
       changedFiles: string[];
       previewUrl: string;
       routes: Array<{ path: string }>;
+      session: ProjectSessionState;
     };
     assert.deepEqual(edited.changedFiles, ['src/App.tsx']);
     assert.deepEqual(edited.routes.map((route) => route.path), ['/', '/account']);
+    assert.equal(edited.session.edits[0]?.assistantSummary, 'Updated hero');
     assert.match(edited.previewUrl, /revision=/);
   } finally {
     await api.close();

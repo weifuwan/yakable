@@ -14,8 +14,14 @@ import {
   type ProjectUpdate,
 } from '../projects/project-actions.js';
 import { readProjectMetadata } from '../projects/project-metadata.js';
+import { readProjectSession } from '../projects/project-session.js';
 import { resolveGeneratedProject, startGeneratedProject } from '../runtime/runtime.js';
-import type { ProjectMetadata, ProjectRoute, ProjectTemplate } from '../types.js';
+import type {
+  ProjectMetadata,
+  ProjectRoute,
+  ProjectSessionState,
+  ProjectTemplate,
+} from '../types.js';
 
 const DEFAULT_API_HOST = '127.0.0.1';
 const DEFAULT_API_PORT = 8787;
@@ -31,6 +37,7 @@ export interface WebGeneratedProject {
   model: string;
   template: ProjectTemplate;
   routes: ProjectRoute[];
+  session: ProjectSessionState | null;
 }
 
 export interface WebEditedProject {
@@ -38,6 +45,7 @@ export interface WebEditedProject {
   summary: string;
   model: string;
   changedFiles: string[];
+  session: ProjectSessionState | null;
 }
 
 export interface RuntimeSession {
@@ -52,6 +60,7 @@ export interface WebApiServices {
   generate(prompt: string): Promise<WebGeneratedProject>;
   edit(projectId: string, prompt: string): Promise<WebEditedProject>;
   startRuntime(projectId: string): Promise<RuntimeSession>;
+  readSession?(projectId: string): Promise<ProjectSessionState | null>;
   updateProject?(projectId: string, patch: ProjectUpdate): Promise<WebProjectListItem>;
   remixProject?(projectId: string): Promise<WebProjectListItem>;
   deleteProject?(projectId: string): Promise<void>;
@@ -150,7 +159,11 @@ function addRevision(url: string): string {
   return `${url}${separator}revision=${Date.now()}`;
 }
 
-function runtimePayload(projectId: string, runtime: RuntimeSession) {
+async function runtimePayload(
+  projectId: string,
+  runtime: RuntimeSession,
+  services: WebApiServices,
+) {
   return {
     projectId,
     name: runtime.metadata.name ?? projectNameFromId(projectId),
@@ -158,6 +171,7 @@ function runtimePayload(projectId: string, runtime: RuntimeSession) {
     previewUrl: addRevision(runtime.url),
     template: runtime.metadata.template,
     routes: runtime.metadata.routes,
+    session: services.readSession ? await services.readSession(projectId) : null,
   };
 }
 
@@ -179,6 +193,7 @@ export function createDefaultWebApiServices(
         model: result.model,
         template: result.project.template,
         routes: result.project.routes,
+        session: await readProjectSession(result.outputDirectory),
       };
     },
 
@@ -190,6 +205,7 @@ export function createDefaultWebApiServices(
         summary: result.summary,
         model: result.model,
         changedFiles: result.changedFiles,
+        session: result.session,
       };
     },
 
@@ -205,6 +221,11 @@ export function createDefaultWebApiServices(
           await started.server.close();
         },
       };
+    },
+
+    async readSession(projectId) {
+      const project = await resolveGeneratedProject(projectId, generatedRoot);
+      return readProjectSession(project.directory);
     },
 
     async updateProject(projectId, patch) {
@@ -308,7 +329,7 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
 
         if (action === 'runtime') {
           const runtime = await ensureRuntime(projectId);
-          sendJson(response, 200, runtimePayload(projectId, runtime));
+          sendJson(response, 200, await runtimePayload(projectId, runtime, services));
           return;
         }
 
@@ -316,8 +337,8 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
         const edit = await services.edit(projectId, readPrompt(body));
         const runtime = await ensureRuntime(projectId);
         sendJson(response, 200, {
+          ...(await runtimePayload(projectId, runtime, services)),
           ...edit,
-          ...runtimePayload(projectId, runtime),
         });
         return;
       }

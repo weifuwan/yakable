@@ -6,10 +6,13 @@ import test from 'node:test';
 
 import {
   applyProjectPatch,
+  buildProjectEditContext,
+  extractUserEditRequest,
   parseProjectPatch,
   readProjectSnapshot,
 } from '../src/editing/edit.js';
 import type { ResolvedGeneratedProject } from '../src/runtime/runtime.js';
+import type { ProjectSessionState } from '../src/types.js';
 
 async function createFixture(root: string): Promise<ResolvedGeneratedProject> {
   const directory = path.join(root, 'demo-project');
@@ -80,6 +83,60 @@ test('reads source context without secrets or build output', async () => {
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }
+});
+
+test('includes original intent and recent accepted edits in follow-up context', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'yakable-edit-continuity-'));
+
+  try {
+    const project = await createFixture(tempRoot);
+    const snapshot = await readProjectSnapshot(project);
+    const session: ProjectSessionState = {
+      version: 1,
+      productRequest: 'Build a restrained developer tool landing page',
+      initialSummary: 'Generated landing page',
+      createdAt: '2026-09-14T02:00:00.000Z',
+      updatedAt: '2026-09-14T02:05:00.000Z',
+      edits: [
+        {
+          id: 'edit-1',
+          createdAt: '2026-09-14T02:05:00.000Z',
+          userRequest: 'Remove all shadows',
+          assistantSummary: 'Removed shadows',
+          changedFiles: ['src/styles.css'],
+        },
+      ],
+    };
+
+    const context = JSON.parse(
+      buildProjectEditContext(snapshot, 'Make the logo larger', session),
+    ) as {
+      followUpRequest: string;
+      continuity: {
+        originalProductRequest: string;
+        recentEdits: Array<{ userRequest: string }>;
+      };
+    };
+
+    assert.equal(context.followUpRequest, 'Make the logo larger');
+    assert.equal(
+      context.continuity.originalProductRequest,
+      'Build a restrained developer tool landing page',
+    );
+    assert.equal(context.continuity.recentEdits[0]?.userRequest, 'Remove all shadows');
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('stores the human request instead of visual selection metadata', () => {
+  const request = `${'[[YAKABLE_VISUAL_EDIT_REQUEST]]'}\n${JSON.stringify({
+    userRequest: 'Make this heading larger',
+    visualSelections: { selectedCount: 1, targets: [] },
+  })}\n${'[[/YAKABLE_VISUAL_EDIT_REQUEST]]'}`;
+
+  assert.equal(extractUserEditRequest(request), 'Make this heading larger');
+  assert.equal(extractUserEditRequest('Tighten the hero spacing'), 'Tighten the hero spacing');
 });
 
 test('applies only returned files and preserves unrelated source', async () => {
