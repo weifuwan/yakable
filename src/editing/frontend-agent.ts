@@ -54,6 +54,22 @@ function normalizeMessage(message: string): string {
   return normalized.slice(0, 500);
 }
 
+export function createFrontendAgentEvent(
+  state: FrontendAgentState,
+  status: FrontendAgentStepStatus,
+  message: string,
+  iteration?: 0 | 1,
+): FrontendAgentEvent {
+  return {
+    version: FRONTEND_AGENT_VERSION,
+    state,
+    status,
+    message: normalizeMessage(message),
+    at: new Date().toISOString(),
+    ...(iteration === undefined ? {} : { iteration }),
+  };
+}
+
 export function assertFrontendAgentTransition(
   previousState: FrontendAgentState | null,
   nextState: FrontendAgentState,
@@ -92,14 +108,7 @@ export function createFrontendAgentRecorder(
       if (state !== currentState && state === 'REPAIR') repairCount += 1;
       currentState = state;
 
-      const event: FrontendAgentEvent = {
-        version: FRONTEND_AGENT_VERSION,
-        state,
-        status,
-        message: normalizeMessage(message),
-        at: new Date().toISOString(),
-        ...(iteration === undefined ? {} : { iteration }),
-      };
+      const event = createFrontendAgentEvent(state, status, message, iteration);
       events.push(event);
       options.onEvent?.(event);
       return event;
