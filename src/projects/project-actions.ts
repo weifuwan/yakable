@@ -3,6 +3,7 @@ import { cp, readdir, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 import { resolveGeneratedProject } from '../runtime/runtime.js';
+import { deleteProjectAgentRuns } from '../storage/agent-run.js';
 import type { ProjectMetadata, ProjectTemplate } from '../types.js';
 import { createProjectMetadata, readProjectMetadata, writeProjectMetadata } from './project-metadata.js';
 import { cloneProjectSession, deleteProjectSession } from './project-session.js';
@@ -151,4 +152,5 @@ export async function deleteManagedProject(
   const project = await resolveGeneratedProject(projectId, generatedRoot);
   await rm(project.directory, { recursive: true, force: false });
   await deleteProjectSession(project.directory);
+  deleteProjectAgentRuns(projectId);
 }
