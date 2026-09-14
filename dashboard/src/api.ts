@@ -11,6 +11,24 @@ export interface ProjectRoute {
   title: string;
 }
 
+export interface ProjectEditHistoryItem {
+  id: string;
+  createdAt: string;
+  userRequest: string;
+  assistantSummary: string;
+  changedFiles: string[];
+}
+
+export interface ProjectSession {
+  version: 1;
+  productRequest?: string;
+  designIntent?: unknown;
+  initialSummary?: string;
+  createdAt: string;
+  updatedAt: string;
+  edits: ProjectEditHistoryItem[];
+}
+
 export interface ProjectListItem {
   id: string;
   name: string;
@@ -29,6 +47,7 @@ export interface CreatedProject {
     model: string;
     template: ProjectTemplate;
     routes: ProjectRoute[];
+    session: ProjectSession | null;
   };
   previewUrl: string;
 }
@@ -40,6 +59,7 @@ export interface RuntimeProject {
   previewUrl: string;
   template: ProjectTemplate;
   routes: ProjectRoute[];
+  session: ProjectSession | null;
 }
 
 export interface EditedProject extends RuntimeProject {
