@@ -25,6 +25,9 @@ try {
   console.log(`\nProject: ${result.projectId}`);
   console.log(`Model: ${result.model}`);
   console.log(`Context source: ${result.contextSelection.source}`);
+  if (result.contextSelection.searchQuery) {
+    console.log(`Search query: ${result.contextSelection.searchQuery}`);
+  }
   console.log(`Context files: ${result.contextSelection.relevantFiles.length}`);
   for (const file of result.contextSelection.relevantFiles) {
     console.log(`- ${file}`);
