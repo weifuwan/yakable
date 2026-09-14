@@ -1,4 +1,12 @@
 import {
+  createFrontendAgentEvent,
+  parseFrontendAgentEvent,
+  publishFrontendAgentEvent,
+  type FrontendAgentEvent,
+  type FrontendAgentState,
+  type FrontendAgentStepStatus,
+} from './frontend-agent';
+import {
   requestPreviewPageObservation,
   type PreviewPageObservation,
 } from './preview-page-observation';
@@ -213,6 +221,7 @@ export interface EditedProject extends RuntimeProject {
   editIntent: EditIntentResolution;
   contextSelection: EditContextSelection;
   projectCheck: ProjectCheckResult;
+  agentTrace?: FrontendAgentEvent[];
   visualFeedback?: VisualFeedbackResult;
 }
 
@@ -220,7 +229,13 @@ interface VisualRepairResponse extends RuntimeProject {
   visualRepair: VisualRepairResult;
 }
 
+type AgentEditStreamRecord =
+  | { type: 'agent-event'; event: unknown }
+  | { type: 'result'; result: EditedProject }
+  | { type: 'error'; error: string };
+
 const PREVIEW_RELOAD_TIMEOUT_MS = 8_000;
+let nextAgentRunId = 1;
 
 async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
   const response = await fetch(input, {
@@ -236,6 +251,97 @@ async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
     throw new Error(payload.error || `Yakable API failed with HTTP ${response.status}.`);
   }
   return payload;
+}
+
+function publishAgentState(
+  runId: string,
+  state: FrontendAgentState,
+  status: FrontendAgentStepStatus,
+  message: string,
+  iteration?: 0 | 1,
+): void {
+  publishFrontendAgentEvent(
+    runId,
+    createFrontendAgentEvent(state, status, message, iteration),
+  );
+}
+
+function createAgentRunId(projectId: string): string {
+  return `${projectId}-${Date.now()}-${nextAgentRunId++}`;
+}
+
+function parseAgentStreamRecord(line: string): AgentEditStreamRecord {
+  let value: unknown;
+  try {
+    value = JSON.parse(line);
+  } catch {
+    throw new Error('Frontend Agent stream returned invalid JSON.');
+  }
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error('Frontend Agent stream returned an invalid record.');
+  }
+  const record = value as Record<string, unknown>;
+  if (record.type === 'agent-event') return { type: 'agent-event', event: record.event };
+  if (record.type === 'result' && record.result && typeof record.result === 'object') {
+    return { type: 'result', result: record.result as EditedProject };
+  }
+  if (record.type === 'error' && typeof record.error === 'string') {
+    return { type: 'error', error: record.error };
+  }
+  throw new Error('Frontend Agent stream returned an unknown record type.');
+}
+
+async function requestAgentEdit(
+  projectId: string,
+  prompt: string,
+  runId: string,
+): Promise<EditedProject> {
+  const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}/agent-edit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt }),
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(payload.error || `Yakable API failed with HTTP ${response.status}.`);
+  }
+  if (!response.body) {
+    throw new Error('Frontend Agent stream is not available in this browser.');
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let result: EditedProject | null = null;
+
+  const consumeLine = (line: string) => {
+    if (!line.trim()) return;
+    const record = parseAgentStreamRecord(line);
+    if (record.type === 'agent-event') {
+      publishFrontendAgentEvent(runId, parseFrontendAgentEvent(record.event));
+      return;
+    }
+    if (record.type === 'error') throw new Error(record.error);
+    result = record.result;
+  };
+
+  while (true) {
+    const chunk = await reader.read();
+    buffer += decoder.decode(chunk.value ?? new Uint8Array(), { stream: !chunk.done });
+    let newline = buffer.indexOf('\n');
+    while (newline !== -1) {
+      const line = buffer.slice(0, newline);
+      buffer = buffer.slice(newline + 1);
+      consumeLine(line);
+      newline = buffer.indexOf('\n');
+    }
+    if (chunk.done) break;
+  }
+
+  if (buffer.trim()) consumeLine(buffer);
+  if (!result) throw new Error('Frontend Agent stream ended without an edit result.');
+  return result;
 }
 
 export async function listProjects(): Promise<ProjectListItem[]> {
@@ -342,8 +448,15 @@ async function runVisualFeedback(
   projectId: string,
   userRequest: string,
   edited: EditedProject,
+  runId: string,
 ): Promise<EditedProject> {
   if (!healthyProjectCheck(edited.projectCheck)) {
+    publishAgentState(
+      runId,
+      'DONE',
+      'FAILED',
+      'Stopped before visual feedback because the edited project is not code-healthy',
+    );
     return {
       ...edited,
       visualFeedback: {
@@ -355,6 +468,8 @@ async function runVisualFeedback(
 
   const frame = currentPreviewFrame();
   if (!frame) {
+    publishAgentState(runId, 'OBSERVE', 'SKIPPED', 'Active Preview frame was not found', 0);
+    publishAgentState(runId, 'DONE', 'SKIPPED', 'Stopped because Preview observation is unavailable');
     return {
       ...edited,
       visualFeedback: {
@@ -370,13 +485,33 @@ async function runVisualFeedback(
   let repair: VisualRepairResult | undefined;
 
   try {
+    publishAgentState(runId, 'OBSERVE', 'ACTIVE', 'Rendering and observing the current Preview', 0);
     await reloadPreviewFrame(frame, current.previewUrl);
     initialObservation = await requestPreviewPageObservation(frame);
+    publishAgentState(
+      runId,
+      'OBSERVE',
+      'COMPLETED',
+      `Observed ${initialObservation.elements.length} visible key element(s)`,
+      0,
+    );
+
+    publishAgentState(runId, 'CRITIQUE', 'ACTIVE', 'Checking the rendered result against design intent', 0);
     initialCritique = (
       await critiqueProjectDesign(projectId, current.editIntent.delta, initialObservation)
     ).critique;
+    publishAgentState(
+      runId,
+      'CRITIQUE',
+      'COMPLETED',
+      initialCritique.result.status === 'PASS'
+        ? 'No concrete observable mismatch was found'
+        : `Found ${initialCritique.result.findings.length} grounded design issue(s)`,
+      0,
+    );
 
     if (initialCritique.result.status === 'PASS') {
+      publishAgentState(runId, 'DONE', 'COMPLETED', 'Frontend edit passed the bounded feedback loop');
       return {
         ...current,
         visualFeedback: {
@@ -387,6 +522,7 @@ async function runVisualFeedback(
       };
     }
 
+    publishAgentState(runId, 'REPAIR', 'ACTIVE', 'Applying one bounded visual repair');
     const repairResponse = await repairProjectVisual(projectId, {
       userRequest,
       editIntent: current.editIntent.delta,
@@ -408,6 +544,15 @@ async function runVisualFeedback(
     };
 
     if (repair.status !== 'REPAIRED' || !repair.projectCheck || !healthyProjectCheck(repair.projectCheck)) {
+      publishAgentState(
+        runId,
+        'REPAIR',
+        'FAILED',
+        repair.rolledBack
+          ? 'Visual repair failed project health checks and was rolled back'
+          : repair.error || 'Visual repair did not produce a healthy project',
+      );
+      publishAgentState(runId, 'DONE', 'FAILED', 'Stopped after the single allowed visual repair');
       return {
         ...current,
         visualFeedback: {
@@ -420,11 +565,39 @@ async function runVisualFeedback(
       };
     }
 
+    publishAgentState(runId, 'REPAIR', 'COMPLETED', 'Applied one code-healthy visual repair');
+    publishAgentState(runId, 'OBSERVE', 'ACTIVE', 'Re-observing the repaired Preview', 1);
     await reloadPreviewFrame(frame, current.previewUrl);
     const finalObservation = await requestPreviewPageObservation(frame);
+    publishAgentState(
+      runId,
+      'OBSERVE',
+      'COMPLETED',
+      `Observed ${finalObservation.elements.length} key element(s) after repair`,
+      1,
+    );
+
+    publishAgentState(runId, 'CRITIQUE', 'ACTIVE', 'Running the final bounded design critique', 1);
     const finalCritique = (
       await critiqueProjectDesign(projectId, current.editIntent.delta, finalObservation)
     ).critique;
+    publishAgentState(
+      runId,
+      'CRITIQUE',
+      'COMPLETED',
+      finalCritique.result.status === 'PASS'
+        ? 'The repaired result passed observable design checks'
+        : `${finalCritique.result.findings.length} grounded issue(s) remain after the single repair`,
+      1,
+    );
+    publishAgentState(
+      runId,
+      'DONE',
+      'COMPLETED',
+      finalCritique.result.status === 'PASS'
+        ? 'Frontend feedback loop completed successfully'
+        : 'Frontend feedback loop stopped at its one-repair boundary',
+    );
 
     return {
       ...current,
@@ -438,6 +611,12 @@ async function runVisualFeedback(
       },
     };
   } catch (error) {
+    publishAgentState(
+      runId,
+      'DONE',
+      'FAILED',
+      `Frontend feedback stopped: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return {
       ...current,
       visualFeedback: {
@@ -456,18 +635,23 @@ export async function editProject(
   prompt: string,
   selections: PreviewSelection[] = getCurrentPreviewSelections(),
 ): Promise<EditedProject> {
+  const runId = createAgentRunId(projectId);
   const visualEditPrompt = buildVisualEditPrompt(prompt, selections);
-  const edited = await requestJson<EditedProject>(
-    `/api/projects/${encodeURIComponent(projectId)}/edit`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ prompt: visualEditPrompt }),
-    },
-  );
 
-  const result = await runVisualFeedback(projectId, prompt, edited);
-  if (selections.length) clearCurrentPreviewSelections();
-  return result;
+  try {
+    const edited = await requestAgentEdit(projectId, visualEditPrompt, runId);
+    return await runVisualFeedback(projectId, prompt, edited, runId);
+  } catch (error) {
+    publishAgentState(
+      runId,
+      'DONE',
+      'FAILED',
+      `Frontend Agent stopped: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    throw error;
+  } finally {
+    if (selections.length) clearCurrentPreviewSelections();
+  }
 }
 
 export async function updateProject(

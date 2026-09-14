@@ -15,6 +15,7 @@ import {
   type EditIntentDelta,
   type EditIntentResolution,
 } from '../editing/edit-intent.js';
+import type { FrontendAgentEvent } from '../editing/frontend-agent.js';
 import {
   repairGeneratedProjectVisual,
   type VisualRepairResult,
@@ -79,6 +80,7 @@ export interface WebEditedProject {
   editIntent?: EditIntentResolution;
   contextSelection?: EditContextSelection;
   projectCheck?: ToolResult<CheckProjectOutput>;
+  agentTrace?: FrontendAgentEvent[];
   session: ProjectSessionState | null;
   conversation: ProjectConversation | null;
 }
@@ -103,7 +105,11 @@ export interface WebApiServices {
   listProjects(): Promise<WebProjectListItem[]>;
   gateBuildIntent(prompt: string): Promise<BuildIntentDecision>;
   generate(prompt: string, buildIntent: BuildIntentDecision): Promise<WebGeneratedProject>;
-  edit(projectId: string, prompt: string): Promise<WebEditedProject>;
+  edit(
+    projectId: string,
+    prompt: string,
+    onAgentEvent?: (event: FrontendAgentEvent) => void,
+  ): Promise<WebEditedProject>;
   startRuntime(projectId: string): Promise<RuntimeSession>;
   critique?(
     projectId: string,
@@ -251,6 +257,19 @@ function sendJson(response: ServerResponse, status: number, value: unknown): voi
   response.end(JSON.stringify(value));
 }
 
+function startNdjson(response: ServerResponse): void {
+  response.writeHead(200, {
+    'Content-Type': 'application/x-ndjson; charset=utf-8',
+    'Cache-Control': 'no-store, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+}
+
+function writeNdjson(response: ServerResponse, value: unknown): void {
+  response.write(`${JSON.stringify(value)}\n`);
+}
+
 function isClientError(error: Error): boolean {
   return /required|invalid|too large|too long|does not exist|missing|only|must|not valid json|outside repair context/i.test(
     error.message,
@@ -306,8 +325,8 @@ export function createDefaultWebApiServices(
       };
     },
 
-    async edit(projectId, prompt) {
-      const result = await editGeneratedProject(projectId, prompt);
+    async edit(projectId, prompt, onAgentEvent) {
+      const result = await editGeneratedProject(projectId, prompt, { onEvent: onAgentEvent });
       await touchManagedProject(projectId, generatedRoot);
       return {
         projectId: result.projectId,
@@ -317,6 +336,7 @@ export function createDefaultWebApiServices(
         editIntent: result.editIntent,
         contextSelection: result.contextSelection,
         projectCheck: result.projectCheck,
+        agentTrace: result.agentTrace,
         session: result.session,
         conversation: await readProjectConversation(result.projectDirectory),
       };
@@ -475,7 +495,7 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
       }
 
       const projectRoute = url.pathname.match(
-        /^\/api\/projects\/([^/]+)\/(runtime|edit|critique|visual-repair)$/,
+        /^\/api\/projects\/([^/]+)\/(runtime|edit|agent-edit|critique|visual-repair)$/,
       );
       if (method === 'POST' && projectRoute) {
         const projectId = assertProjectId(projectRoute[1] ?? '');
@@ -488,6 +508,29 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
         }
 
         const body = await readJsonBody(request);
+
+        if (action === 'agent-edit') {
+          const prompt = readPrompt(body);
+          startNdjson(response);
+          try {
+            const edit = await services.edit(projectId, prompt, (event) => {
+              writeNdjson(response, { type: 'agent-event', event });
+            });
+            const runtime = await ensureRuntime(projectId);
+            writeNdjson(response, {
+              type: 'result',
+              result: {
+                ...(await runtimePayload(projectId, runtime, services)),
+                ...edit,
+              },
+            });
+          } catch (error) {
+            const normalized = error instanceof Error ? error : new Error('Unknown agent edit failure.');
+            writeNdjson(response, { type: 'error', error: normalized.message });
+          }
+          response.end();
+          return;
+        }
 
         if (action === 'edit') {
           const edit = await services.edit(projectId, readPrompt(body));

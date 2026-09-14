@@ -71,6 +71,20 @@ export type {
   EditIntentScope,
 } from './editing/edit-intent.js';
 export {
+  FRONTEND_AGENT_STATES,
+  FRONTEND_AGENT_VERSION,
+  assertFrontendAgentTransition,
+  createFrontendAgentRecorder,
+  runFrontendAgentStage,
+} from './editing/frontend-agent.js';
+export type {
+  FrontendAgentEvent,
+  FrontendAgentProgressOptions,
+  FrontendAgentRecorder,
+  FrontendAgentState,
+  FrontendAgentStepStatus,
+} from './editing/frontend-agent.js';
+export {
   DESIGN_CRITIC_MAX_EVIDENCE_REFS,
   DESIGN_CRITIC_MAX_FINDINGS,
   DESIGN_CRITIC_MAX_REQUEST_CHARS,

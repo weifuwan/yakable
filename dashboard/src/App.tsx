@@ -7,6 +7,7 @@ import {
   type BuildIntentDecision,
   type ProjectListItem,
 } from "./api";
+import { FrontendAgentActivity } from "./components/FrontendAgentActivity";
 import { Dashboard } from "./pages/Dashboard";
 import type { ActiveProject } from "./pages/Workspace";
 import { WorkspaceShell } from "./pages/WorkspaceShell";
@@ -218,13 +219,16 @@ export default function App() {
 
   if (route.kind === "project") {
     return (
-      <WorkspaceShell
-        project={activeProject}
-        projectId={route.projectId}
-        projects={projects}
-        error={projectError}
-        onNavigate={handleWorkspaceNavigate}
-      />
+      <>
+        <WorkspaceShell
+          project={activeProject}
+          projectId={route.projectId}
+          projects={projects}
+          error={projectError}
+          onNavigate={handleWorkspaceNavigate}
+        />
+        <FrontendAgentActivity />
+      </>
     );
   }
 

@@ -13,6 +13,12 @@ import {
   type EditIntentDelta,
   type EditIntentResolution,
 } from './edit-intent.js';
+import {
+  createFrontendAgentRecorder,
+  runFrontendAgentStage,
+  type FrontendAgentEvent,
+  type FrontendAgentProgressOptions,
+} from './frontend-agent.js';
 import { runOneShotRepair, type OneShotRepairResult } from './repair.js';
 import { requestProjectPatch, requestProjectRepair } from '../model/deepseek.js';
 import {
@@ -76,8 +82,11 @@ export interface EditProjectResult {
   contextSelection: EditContextSelection;
   repair: OneShotRepairResult;
   projectCheck: ToolResult<CheckProjectOutput>;
+  agentTrace: FrontendAgentEvent[];
   session: ProjectSessionState | null;
 }
+
+export interface EditGeneratedProjectOptions extends FrontendAgentProgressOptions {}
 
 export interface UserEditContext {
   userRequest: string;
@@ -452,6 +461,7 @@ export async function applyProjectPatch(
 export async function editGeneratedProject(
   projectInput: string,
   followUpRequest: string,
+  options: EditGeneratedProjectOptions = {},
 ): Promise<EditProjectResult> {
   const request = followUpRequest.trim();
   if (!request) throw new Error('A follow-up edit request is required.');
@@ -462,55 +472,114 @@ export async function editGeneratedProject(
   const project = await resolveGeneratedProject(projectInput);
   const userEdit = extractUserEditContext(request);
   const session = await readProjectSession(project.directory);
-  const editIntent = await resolveEditIntentDelta({
-    userRequest: userEdit.userRequest,
-    baselineDesignIntent: session?.designIntent ?? null,
-    visualSelections: userEdit.visualSelections,
-  });
-  const availableFiles = await listProjectContextFiles(project.directory);
-  const initialContextSelection = await selectProjectContextFiles(
-    {
-      ...userEdit,
-      editIntent: editIntent.delta,
+  const agent = createFrontendAgentRecorder(options);
+
+  const prepared = await runFrontendAgentStage(
+    agent,
+    'SELECT_CONTEXT',
+    'Understanding the edit and selecting focused frontend context',
+    'Selected focused frontend context',
+    async () => {
+      const editIntent = await resolveEditIntentDelta({
+        userRequest: userEdit.userRequest,
+        baselineDesignIntent: session?.designIntent ?? null,
+        visualSelections: userEdit.visualSelections,
+      });
+      const availableFiles = await listProjectContextFiles(project.directory);
+      const initialContextSelection = await selectProjectContextFiles(
+        {
+          ...userEdit,
+          editIntent: editIntent.delta,
+        },
+        availableFiles,
+      );
+      const contextSelection = await resolveProjectContextSearch(
+        project.directory,
+        userEdit.userRequest,
+        availableFiles,
+        initialContextSelection,
+      );
+      return { editIntent, availableFiles, contextSelection };
     },
-    availableFiles,
   );
-  const contextSelection = await resolveProjectContextSearch(
-    project.directory,
-    userEdit.userRequest,
-    availableFiles,
-    initialContextSelection,
+
+  const { editIntent, availableFiles, contextSelection } = prepared;
+  const snapshot = await runFrontendAgentStage(
+    agent,
+    'READ',
+    'Reading only the selected project files',
+    `Read ${contextSelection.relevantFiles.length} selected project file(s)`,
+    () => readProjectSnapshot(project, contextSelection.relevantFiles),
   );
-  const snapshot = await readProjectSnapshot(project, contextSelection.relevantFiles);
   const editContext = buildProjectEditContext(snapshot, request, session, editIntent.delta);
 
-  const generation = await requestProjectPatch(editContext);
-  const patch = parseProjectPatch(generation.content);
-  await assertPatchUsesSelectedContext(project, patch, contextSelection.relevantFiles);
-  const initialChangedFiles = await applyProjectPatch(project, patch);
-  const initialProjectCheck = await checkProjectTool.execute(
-    {},
-    { projectDirectory: project.directory },
+  const edited = await runFrontendAgentStage(
+    agent,
+    'EDIT',
+    'Applying the requested frontend change',
+    'Applied the bounded frontend source edit',
+    async () => {
+      const generation = await requestProjectPatch(editContext);
+      const patch = parseProjectPatch(generation.content);
+      await assertPatchUsesSelectedContext(project, patch, contextSelection.relevantFiles);
+      const initialChangedFiles = await applyProjectPatch(project, patch);
+      return { generation, patch, initialChangedFiles };
+    },
   );
 
-  const repair = await runOneShotRepair({
-    projectId: project.id,
-    userRequest: userEdit.userRequest,
-    initialEditSummary: patch.summary,
-    initialChangedFiles,
-    selectedContextFiles: contextSelection.relevantFiles,
-    availableFiles,
-    initialCheck: initialProjectCheck,
-    readFiles: async (paths) => (await readProjectSnapshot(project, paths)).files,
-    requestRepair: requestProjectRepair,
-    parsePatch: parseProjectPatch,
-    applyPatch: (repairPatch) => applyProjectPatch(project, repairPatch),
-    checkProject: () =>
-      checkProjectTool.execute({}, { projectDirectory: project.directory }),
-  });
+  const { generation, patch, initialChangedFiles } = edited;
+  agent.emit('CHECK', 'ACTIVE', 'Checking TypeScript and build health');
+
+  let repair: OneShotRepairResult;
+  try {
+    const initialProjectCheck = await checkProjectTool.execute(
+      {},
+      { projectDirectory: project.directory },
+    );
+
+    repair = await runOneShotRepair({
+      projectId: project.id,
+      userRequest: userEdit.userRequest,
+      initialEditSummary: patch.summary,
+      initialChangedFiles,
+      selectedContextFiles: contextSelection.relevantFiles,
+      availableFiles,
+      initialCheck: initialProjectCheck,
+      readFiles: async (paths) => (await readProjectSnapshot(project, paths)).files,
+      requestRepair: requestProjectRepair,
+      parsePatch: parseProjectPatch,
+      applyPatch: (repairPatch) => applyProjectPatch(project, repairPatch),
+      checkProject: () =>
+        checkProjectTool.execute({}, { projectDirectory: project.directory }),
+    });
+  } catch (error) {
+    agent.emit(
+      'CHECK',
+      'FAILED',
+      `Project health check failed to complete: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    throw error;
+  }
 
   const changedFiles = [...new Set([...initialChangedFiles, ...repair.changedFiles])];
   const projectCheck = repair.finalCheck;
+  if (projectCheck.ok && projectCheck.value.status === 'PASS') {
+    agent.emit(
+      'CHECK',
+      'COMPLETED',
+      repair.attempted
+        ? 'Project is code-healthy after one bounded build repair'
+        : 'Project is code-healthy',
+    );
+  } else {
+    agent.emit(
+      'CHECK',
+      'FAILED',
+      projectCheck.ok
+        ? 'Project health check still reports source errors'
+        : `Project health check could not run: ${projectCheck.error.message}`,
+    );
+  }
 
   let nextSession = session;
   try {
@@ -535,6 +604,7 @@ export async function editGeneratedProject(
     contextSelection,
     repair,
     projectCheck,
+    agentTrace: agent.snapshot(),
     session: nextSession,
   };
 }
