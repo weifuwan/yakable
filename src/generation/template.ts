@@ -5,7 +5,7 @@ import {
 import type { DesignIntentIR, ProjectTemplate } from '../types.js';
 
 const APP_INTENT_PATTERN =
-  /\b(app|dashboard|admin|crm|erp|portal|workspace|account|auth|login|order|orders|settings)\b|管理系统|后台|控制台|工作台|登录|注册|账户|账号|订单|设置|会员中心|个人中心/i;
+  /\b(app|dashboard|admin|crm|erp|portal|workspace|account|auth|login|order|orders|settings|etl|elt)\b|data\s+(sync|integration)|管理系统|后台|控制台|工作台|登录|注册|账户|账号|订单|设置|会员中心|个人中心|数据同步|数据集成|数据平台|同步任务/i;
 const WEBSITE_INTENT_PATTERN =
   /\b(website|landing page|homepage|marketing site|portfolio|brochure site)\b|官网|落地页|着陆页|营销网站|作品集/i;
 
