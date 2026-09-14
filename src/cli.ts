@@ -13,8 +13,8 @@ if (!prompt) {
 }
 
 try {
-  console.log('Yakable Stage 1: Prompt -> Code');
-  console.log('Generating source only; no build or preview will run.');
+  console.log('Yakable: Generate project');
+  console.log('Understanding the request and generating source; no build or preview will run.');
 
   const result = await generateProject(prompt);
 

@@ -17,8 +17,8 @@ if (!projectInput || !followUpRequest) {
 }
 
 try {
-  console.log('Yakable Stage 3: Prompt -> Patch');
-  console.log('Editing the existing source only; Yakable will not run or repair the project.');
+  console.log('Yakable: Edit project');
+  console.log('Editing the existing source only; Yakable will not run or automatically repair the project.');
 
   const result = await editGeneratedProject(projectInput, followUpRequest);
 
@@ -29,7 +29,7 @@ try {
     console.log(`- ${file}`);
   }
   console.log(`Summary: ${result.summary}`);
-  console.log('\nRun Stage 2 separately to inspect the edited project in the browser.');
+  console.log('\nRun `npm run run:project -- generated/<project-id>` separately to inspect the edited project in the browser.');
 } catch (error) {
   console.error(`\nEdit failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   process.exitCode = 1;

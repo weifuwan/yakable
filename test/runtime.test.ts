@@ -17,7 +17,7 @@ async function createFixture(root: string, id = 'demo-project'): Promise<string>
   );
   await writeFile(
     path.join(directory, 'src/main.tsx'),
-    'document.querySelector("#root")!.textContent = "Stage 2 works";',
+    'document.querySelector("#root")!.textContent = "Runtime works";',
     'utf8',
   );
   await writeFile(
@@ -29,7 +29,7 @@ async function createFixture(root: string, id = 'demo-project'): Promise<string>
 }
 
 test('resolves a project id only inside the generated root', async () => {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'yakable-stage2-'));
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'yakable-runtime-'));
   const generatedRoot = path.join(tempRoot, 'generated');
 
   try {
@@ -44,7 +44,7 @@ test('resolves a project id only inside the generated root', async () => {
 });
 
 test('rejects a project outside the generated root', async () => {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'yakable-stage2-outside-'));
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'yakable-runtime-outside-'));
   const generatedRoot = path.join(tempRoot, 'generated');
   const outsideRoot = path.join(tempRoot, 'outside');
 
@@ -61,7 +61,7 @@ test('rejects a project outside the generated root', async () => {
 });
 
 test('starts a real local Vite runtime for a generated project', async () => {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'yakable-stage2-runtime-'));
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'yakable-runtime-preview-'));
   const generatedRoot = path.join(tempRoot, 'generated');
 
   try {

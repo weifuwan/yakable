@@ -47,17 +47,17 @@ function validateEditablePath(candidate: string): string {
     candidate.includes('\\') ||
     /[\r\n]/.test(candidate)
   ) {
-    throw new Error(`Invalid Stage 3 change path: ${candidate || '<empty>'}`);
+    throw new Error(`Invalid project edit path: ${candidate || '<empty>'}`);
   }
 
   if (candidate.startsWith('/') || path.posix.isAbsolute(candidate)) {
-    throw new Error(`Stage 3 change path must be relative: ${candidate}`);
+    throw new Error(`Project edit path must be relative: ${candidate}`);
   }
 
   const normalized = path.posix.normalize(candidate);
   const segments = candidate.split('/');
   if (normalized !== candidate || segments.some((segment) => segment === '..' || segment === '.')) {
-    throw new Error(`Stage 3 change path is not safe: ${candidate}`);
+    throw new Error(`Project edit path is not safe: ${candidate}`);
   }
 
   const writable =
@@ -67,7 +67,7 @@ function validateEditablePath(candidate: string): string {
 
   if (!writable) {
     throw new Error(
-      `Stage 3 can only modify src/**, public/**, or index.html: ${candidate}`,
+      `Project edits can only modify src/**, public/**, or index.html: ${candidate}`,
     );
   }
 
@@ -104,7 +104,7 @@ async function collectProjectFiles(
     }
 
     if (buffer.byteLength > MAX_CONTEXT_FILE_BYTES) {
-      throw new Error(`Project file is too large for Stage 3 context: ${relativePath}`);
+      throw new Error(`Project file is too large for edit context: ${relativePath}`);
     }
 
     files.push({ path: relativePath, content: buffer.toString('utf8') });
@@ -120,7 +120,7 @@ export async function readProjectSnapshot(
 
   if (files.length === 0 || files.length > MAX_CONTEXT_FILES) {
     throw new Error(
-      `Stage 3 project context must contain between 1 and ${MAX_CONTEXT_FILES} text files.`,
+      `Project edit context must contain between 1 and ${MAX_CONTEXT_FILES} text files.`,
     );
   }
 
@@ -130,7 +130,7 @@ export async function readProjectSnapshot(
   );
   if (totalBytes > MAX_CONTEXT_TOTAL_BYTES) {
     throw new Error(
-      `Stage 3 project context is too large (${totalBytes} bytes; max ${MAX_CONTEXT_TOTAL_BYTES}).`,
+      `Project edit context is too large (${totalBytes} bytes; max ${MAX_CONTEXT_TOTAL_BYTES}).`,
     );
   }
 
@@ -143,15 +143,15 @@ export function parseProjectPatch(rawContent: string): ProjectPatch {
   try {
     value = JSON.parse(rawContent);
   } catch {
-    throw new Error('Stage 3 model output was not valid JSON.');
+    throw new Error('Project edit model output was not valid JSON.');
   }
 
   if (!isRecord(value) || typeof value.summary !== 'string' || !Array.isArray(value.changes)) {
-    throw new Error('Stage 3 model output must contain a string summary and a changes array.');
+    throw new Error('Project edit model output must contain a string summary and a changes array.');
   }
 
   if (value.changes.length === 0 || value.changes.length > MAX_CHANGE_FILES) {
-    throw new Error(`Stage 3 must return between 1 and ${MAX_CHANGE_FILES} changed files.`);
+    throw new Error(`Project edit must return between 1 and ${MAX_CHANGE_FILES} changed files.`);
   }
 
   const paths = new Set<string>();
@@ -165,13 +165,13 @@ export function parseProjectPatch(rawContent: string): ProjectPatch {
 
     const safePath = validateEditablePath(change.path);
     if (paths.has(safePath)) {
-      throw new Error(`Stage 3 returned duplicate change path: ${safePath}`);
+      throw new Error(`Project edit returned duplicate change path: ${safePath}`);
     }
     paths.add(safePath);
 
     const bytes = Buffer.byteLength(change.content, 'utf8');
     if (bytes > MAX_CHANGE_FILE_BYTES) {
-      throw new Error(`Stage 3 changed file is too large (${bytes} bytes): ${safePath}`);
+      throw new Error(`Project edit changed file is too large (${bytes} bytes): ${safePath}`);
     }
 
     totalBytes += bytes;
@@ -179,7 +179,7 @@ export function parseProjectPatch(rawContent: string): ProjectPatch {
   }
 
   if (totalBytes > MAX_CHANGE_TOTAL_BYTES) {
-    throw new Error(`Stage 3 changes are too large (${totalBytes} bytes).`);
+    throw new Error(`Project edit changes are too large (${totalBytes} bytes).`);
   }
 
   return {
@@ -209,7 +209,7 @@ export async function applyProjectPatch(
   }
 
   if (changedFiles.length === 0) {
-    throw new Error('Stage 3 returned no effective source changes.');
+    throw new Error('Project edit returned no effective source changes.');
   }
 
   return changedFiles;

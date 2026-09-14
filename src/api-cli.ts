@@ -17,7 +17,6 @@ const url = await api.listen(readPort());
 
 console.log('Yakable Web API');
 console.log(`API ready: ${url}`);
-console.log('The API is local-only and reuses Stage 1–3 services.');
 
 let stopping = false;
 async function stop() {

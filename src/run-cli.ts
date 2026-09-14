@@ -12,7 +12,7 @@ async function main(): Promise<void> {
     throw new Error(usage());
   }
 
-  console.log('Yakable Stage 2: Code -> Run');
+  console.log('Yakable: Run project');
   console.log('Starting a controlled local Vite runtime; generated package scripts will not run.');
   console.log('');
 

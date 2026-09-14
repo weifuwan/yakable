@@ -1,6 +1,6 @@
-import { STAGE3_SYSTEM_PROMPT } from './edit-prompt.js';
+import { PROJECT_EDIT_SYSTEM_PROMPT } from './edit-prompt.js';
 import { INTENT_ANALYSIS_SYSTEM_PROMPT } from './intent-prompt.js';
-import { STAGE1_SYSTEM_PROMPT } from './prompt.js';
+import { PROJECT_GENERATION_SYSTEM_PROMPT } from './prompt.js';
 import { SEMANTIC_EXPANSION_SYSTEM_PROMPT } from './semantic-prompt.js';
 import { TASTE_TRANSLATION_SYSTEM_PROMPT } from './taste-prompt.js';
 
@@ -97,7 +97,7 @@ function isTimeoutError(error: unknown): boolean {
 async function requestStructuredGeneration(
   systemPrompt: string,
   userPrompt: string,
-  stageLabel: string,
+  capabilityLabel: string,
 ): Promise<DeepSeekGeneration> {
   const apiKey = process.env.DEEPSEEK_API_KEY?.trim();
   if (!apiKey) {
@@ -131,7 +131,7 @@ async function requestStructuredGeneration(
     if (isTimeoutError(error)) {
       const seconds = Math.round(config.requestTimeoutMs / 1000);
       throw new Error(
-        `DeepSeek request timed out after ${seconds} seconds during ${stageLabel}. ` +
+        `DeepSeek request timed out after ${seconds} seconds during ${capabilityLabel}. ` +
           'Try again, increase DEEPSEEK_TIMEOUT_MS, or keep DEEPSEEK_THINKING=disabled.',
       );
     }
@@ -186,9 +186,13 @@ export function requestTasteTranslation(userPrompt: string): Promise<DeepSeekGen
 }
 
 export function requestProjectCode(userPrompt: string): Promise<DeepSeekGeneration> {
-  return requestStructuredGeneration(STAGE1_SYSTEM_PROMPT, userPrompt, 'Stage 1');
+  return requestStructuredGeneration(
+    PROJECT_GENERATION_SYSTEM_PROMPT,
+    userPrompt,
+    'Project Generation',
+  );
 }
 
 export function requestProjectPatch(editContext: string): Promise<DeepSeekGeneration> {
-  return requestStructuredGeneration(STAGE3_SYSTEM_PROMPT, editContext, 'Stage 3');
+  return requestStructuredGeneration(PROJECT_EDIT_SYSTEM_PROMPT, editContext, 'Project Edit');
 }

@@ -77,7 +77,7 @@ test('creates a filesystem-safe prompt slug', () => {
 });
 
 test('writes source and .yakable project metadata under a new output root', async () => {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'yakable-stage1-'));
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'yakable-generation-'));
   const outputRoot = path.join(tempRoot, 'generated');
 
   try {
