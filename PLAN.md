@@ -173,13 +173,15 @@ Taste should gradually become a reusable system capability rather than a collect
 
 ## Plan Artifact
 
-Planning should produce structured data internally, not only free-form Markdown.
+Planning produces structured data internally, not only free-form Markdown.
 
-A future Plan Artifact should be able to represent concepts such as:
+Plan Artifact v0 is deliberately small:
 
 ```ts
 interface YakablePlan {
   version: 1;
+  revision: number;
+  status: "DRAFT" | "APPROVED" | "REJECTED";
   goal: string;
 
   context: {
@@ -193,24 +195,29 @@ interface YakablePlan {
     reason: string;
   }>;
 
-  ui?: UIPlan;
-
   implementation: Array<{
     id: string;
     title: string;
     purpose: string;
-    files?: string[];
+    files: string[];
   }>;
 
   validation: string[];
   constraints: string[];
   openQuestions: string[];
+
+  createdAt: string;
+  updatedAt: string;
+  reviewedAt?: string;
+  reviewNote?: string;
 }
 ```
 
-The exact schema should stay small and evolve from real needs. Yakable should avoid inventing a broad layout DSL before it is necessary.
+The current source of truth is `.yakable/plan.json`; `.yakable/plan.md` is a derived human-readable review document. Current `context.relevantFiles` must be grounded in the bounded project snapshot supplied to the planner.
 
-The same Plan Artifact should be renderable as human-readable Markdown for review while remaining machine-readable for Build Mode.
+A planning turn may revise the current artifact by creating the next `DRAFT` revision. Review is explicit: only a draft may transition to `APPROVED` or `REJECTED`. Build may read plan metadata but cannot silently rewrite or approve/reject it.
+
+The exact schema should stay small and evolve from real needs. UI-specific structure belongs to UI Planner rather than being prematurely encoded as a broad layout DSL. Plan history/diff is deferred to the later Re-plan / Plan Diff stage.
 
 ## UI Planner
 
@@ -262,7 +269,9 @@ Plan and Build enforce different capability policies, not merely different promp
 | Inspect Preview | Yes | Yes |
 | Page Observation | Yes | Yes |
 | Design Critic | Yes | Yes |
-| Create / revise Plan Artifact | Next | Read / execute later |
+| Read Plan Artifact | Yes | Yes |
+| Create / revise Plan Artifact | Yes | No |
+| Approve / reject Plan Artifact | Yes | No |
 | Generate source | No | Yes |
 | Edit source | No | Yes |
 | Visual Repair | No | Yes |
@@ -270,9 +279,9 @@ Plan and Build enforce different capability policies, not merely different promp
 | Change dependencies | No | Bounded |
 | External write tools | No | Explicitly gated |
 
-The v0 contract is represented as a versioned `PLAN | BUILD` mode policy with explicit capabilities. Plan exposes only `read-project`, `search-project`, `observe-preview`, and `critique-design`; Build additionally exposes `generate-source`, `edit-source`, and `repair-source`. Existing product flows remain Build by default until the Plan Artifact and Plan UI exist.
+The mode policy now includes plan-specific capabilities. Plan may `read-plan`, `write-plan`, and `review-plan`; Build may only `read-plan`. This preserves the rule that execution can consume approved decisions but cannot silently redefine them.
 
-This separation is the foundation for future Plan orchestration, MCP, and external-tool permission policies.
+This separation is the foundation for UI planning, Build-from-approved-plan, future MCP, and external-tool permission policies.
 
 ## Current Foundation
 
@@ -297,7 +306,8 @@ Yakable already has working foundations for:
 - evidence-grounded Design Critic
 - bounded Visual Repair with rollback
 - explicit Frontend Agent execution states and live progress
-- Plan / Build mode capability policy with a read-only Plan mutation boundary
+- Plan / Build mode capability policy with a read-only Plan source boundary
+- versioned Plan Artifact drafting, Markdown rendering, persistence, and explicit review state
 
 These capabilities are foundations, not the roadmap itself.
 
@@ -326,13 +336,16 @@ Near-term work should focus on the following outcomes, without locking them to p
    - keep Plan read-only with respect to project source
    - preserve Build as the compatibility default until Plan has a real product surface
 
-2. **Plan Artifact + Review** ← NEXT
-   - create a small versioned structured Plan Artifact
-   - render it in a human-readable form
-   - allow revise / approve / reject before Build
+2. **Plan Artifact + Review** ✅
+   - define a small versioned structured Plan Artifact
+   - draft/revise it from bounded read/search project context
+   - persist machine-readable JSON plus derived review Markdown
+   - allow explicit approve / reject transitions before Build
+   - keep plan metadata separate from project source mutation
 
-3. **UI Planner v0**
+3. **UI Planner v0** ← NEXT
    - compile Design Intent into a small page / section / hierarchy / responsive blueprint
+   - attach that blueprint to the Plan Artifact without introducing a broad layout DSL
    - support both CREATE planning and focused EDIT planning
 
 4. **Build From Approved Plan**
