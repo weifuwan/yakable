@@ -41,10 +41,10 @@ const NEXT_STATES: Record<FrontendAgentState, ReadonlySet<FrontendAgentState>> =
   SELECT_CONTEXT: new Set(['READ']),
   READ: new Set(['EDIT']),
   EDIT: new Set(['CHECK']),
-  CHECK: new Set(['OBSERVE', 'DONE']),
+  CHECK: new Set(['OBSERVE']),
   OBSERVE: new Set(['CRITIQUE']),
-  CRITIQUE: new Set(['REPAIR', 'DONE']),
-  REPAIR: new Set(['OBSERVE', 'DONE']),
+  CRITIQUE: new Set(['REPAIR']),
+  REPAIR: new Set(['OBSERVE']),
   DONE: new Set(),
 };
 
@@ -67,6 +67,10 @@ export function assertFrontendAgentTransition(
   }
 
   if (previousState === nextState) return;
+  if (previousState === 'DONE') {
+    throw new Error('Frontend Agent cannot transition after DONE.');
+  }
+  if (nextState === 'DONE') return;
   if (!NEXT_STATES[previousState].has(nextState)) {
     throw new Error(`Invalid Frontend Agent transition: ${previousState} -> ${nextState}.`);
   }
