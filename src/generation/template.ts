@@ -1,7 +1,11 @@
+import {
+  BASE_TEMPLATE_ID,
+  BASE_TEMPLATE_PROJECT_OWNED_PATHS,
+} from '../templates/base-template.js';
 import type { DesignIntentIR, ProjectTemplate } from '../types.js';
 
 const APP_INTENT_PATTERN =
-  /\b(app|dashboard|admin|crm|erp|portal|workspace|account|auth|login|order|orders|settings)\b|管理系统|后台|控制台|工作台|登录|注册|账户|账号|订单|设置|会员中心|个人中心/i;
+  /\b(app|dashboard|admin|crm|erp|portal|workspace|account|auth|login|order|orders|settings|etl|elt)\b|data\s+(sync|integration)|管理系统|后台|控制台|工作台|登录|注册|账户|账号|订单|设置|会员中心|个人中心|数据同步|数据集成|数据平台|同步任务/i;
 const WEBSITE_INTENT_PATTERN =
   /\b(website|landing page|homepage|marketing site|portfolio|brochure site)\b|官网|落地页|着陆页|营销网站|作品集/i;
 
@@ -15,12 +19,25 @@ export const PROJECT_TEMPLATES: Record<ProjectTemplate, ProjectTemplateProfile> 
   website: {
     id: 'website',
     description: 'A presentation-first website or landing page with a small route surface.',
-    preferredStructure: ['src/components/', 'src/data/', 'src/App.tsx', 'src/routes.ts'],
+    preferredStructure: [
+      'src/components/product/',
+      'src/data/',
+      'src/pages/',
+      'src/App.tsx',
+      'src/routes.ts',
+    ],
   },
   app: {
     id: 'app',
     description: 'A multi-screen product application with explicit pages and route-aware navigation.',
-    preferredStructure: ['src/components/', 'src/pages/', 'src/routes.ts', 'src/App.tsx'],
+    preferredStructure: [
+      'src/pages/',
+      'src/components/product/',
+      'src/features/',
+      'src/data/',
+      'src/routes.ts',
+      'src/App.tsx',
+    ],
   },
 };
 
@@ -61,6 +78,11 @@ export function buildTemplateGenerationRequest(
       productRequest,
       designIntent,
       projectTemplate: template,
+      baseTemplate: {
+        id: BASE_TEMPLATE_ID,
+        stack: 'React + TypeScript + Vite + Tailwind CSS v4',
+        projectOwnedPaths: [...BASE_TEMPLATE_PROJECT_OWNED_PATHS],
+      },
       templateGuidance: {
         description: profile.description,
         preferredStructure: profile.preferredStructure,
