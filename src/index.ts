@@ -50,6 +50,7 @@ export {
   translatePromptTaste,
 } from './prompt-intelligence/taste.js';
 export {
+  MAX_CONTEXT_SEARCH_QUERY_LENGTH,
   MAX_EDIT_CONTEXT_FILES,
   MAX_PROJECT_CONTEXT_CANDIDATES,
   buildProjectContextSelectionRequest,
@@ -64,6 +65,10 @@ export type {
   EditContextSelectionSource,
 } from './editing/context-selection.js';
 export {
+  rankProjectSearchFiles,
+  resolveProjectContextSearch,
+} from './editing/context-search.js';
+export {
   READ_PROJECT_FILE_MAX_BYTES,
   readProjectFileTool,
 } from './tools/read-project-file.js';
@@ -71,6 +76,17 @@ export type {
   ReadProjectFileInput,
   ReadProjectFileOutput,
 } from './tools/read-project-file.js';
+export {
+  SEARCH_PROJECT_MAX_FILES,
+  SEARCH_PROJECT_MAX_QUERY_LENGTH,
+  SEARCH_PROJECT_MAX_RESULTS,
+  searchProjectTool,
+} from './tools/search-project.js';
+export type {
+  SearchProjectInput,
+  SearchProjectMatch,
+  SearchProjectOutput,
+} from './tools/search-project.js';
 export { ToolRegistry } from './tools/tool.js';
 export type {
   RegisteredTool,
