@@ -1,22 +1,52 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
-  FRONTEND_AGENT_STATES,
   subscribeFrontendAgentProgress,
   type FrontendAgentEvent,
   type FrontendAgentState,
 } from '../frontend-agent';
 
 const LABELS: Record<FrontendAgentState, string> = {
+  ROUTE: 'Route',
+  UNDERSTAND: 'Understand',
+  DESIGN: 'Design',
+  TEMPLATE: 'Template',
+  GENERATE: 'Generate',
+  WRITE: 'Write',
   SELECT_CONTEXT: 'Context',
   READ: 'Read',
   EDIT: 'Edit',
   CHECK: 'Check',
+  RUNTIME: 'Runtime',
   OBSERVE: 'Observe',
   CRITIQUE: 'Critique',
   REPAIR: 'Repair',
   DONE: 'Done',
 };
+
+const CREATE_PIPELINE: FrontendAgentState[] = [
+  'ROUTE',
+  'UNDERSTAND',
+  'DESIGN',
+  'TEMPLATE',
+  'GENERATE',
+  'WRITE',
+  'CHECK',
+  'REPAIR',
+  'RUNTIME',
+  'DONE',
+];
+
+const EDIT_PIPELINE: FrontendAgentState[] = [
+  'SELECT_CONTEXT',
+  'READ',
+  'EDIT',
+  'CHECK',
+  'OBSERVE',
+  'CRITIQUE',
+  'REPAIR',
+  'DONE',
+];
 
 function latestByState(events: FrontendAgentEvent[]): Map<FrontendAgentState, FrontendAgentEvent> {
   const result = new Map<FrontendAgentState, FrontendAgentEvent>();
@@ -60,7 +90,7 @@ export function FrontendAgentActivity() {
         setRunId(detail.runId);
         setEvents([detail.event]);
       } else {
-        setEvents((currentEvents) => [...currentEvents, detail.event].slice(-40));
+        setEvents((currentEvents) => [...currentEvents, detail.event].slice(-60));
       }
 
       if (detail.event.state === 'DONE') {
@@ -79,10 +109,14 @@ export function FrontendAgentActivity() {
 
   const latest = events.at(-1);
   const byState = useMemo(() => latestByState(events), [events]);
+  const pipeline = useMemo(
+    () => (events.some((event) => event.state === 'ROUTE') ? CREATE_PIPELINE : EDIT_PIPELINE),
+    [events],
+  );
   if (!visible || !runId || !latest) return null;
 
   return (
-    <aside className="pointer-events-none fixed bottom-4 right-4 z-[100] w-[330px] rounded-2xl border border-black/[0.08] bg-white/95 p-3.5 backdrop-blur-md">
+    <aside className="pointer-events-none fixed bottom-4 right-4 z-[100] w-[360px] rounded-2xl border border-black/[0.08] bg-white/95 p-3.5 backdrop-blur-md">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-black/45">
@@ -95,8 +129,8 @@ export function FrontendAgentActivity() {
         </span>
       </div>
 
-      <div className="mt-3 grid grid-cols-4 gap-1.5">
-        {FRONTEND_AGENT_STATES.map((state) => {
+      <div className="mt-3 grid grid-cols-5 gap-1.5">
+        {pipeline.map((state) => {
           const event = byState.get(state);
           return (
             <div
