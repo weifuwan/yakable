@@ -183,6 +183,7 @@ export interface GenerationResult {
   semanticExpansion: SemanticExpansion;
   tasteTranslation: TasteTranslation;
   designIntent: DesignIntentIR;
+  agentRunId?: string;
 }
 
 export interface ProjectPatch {
