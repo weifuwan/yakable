@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  MAX_CONTEXT_SEARCH_QUERY_LENGTH,
   buildProjectContextSelectionRequest,
   fallbackEditContextFiles,
   parseProjectContextSelection,
@@ -43,6 +44,7 @@ test('parses a small model-selected context and rejects unavailable files', () =
     JSON.stringify({
       version: 1,
       relevantFiles: ['src/components/Hero.tsx', 'src/styles/theme.css'],
+      searchQuery: null,
       reason: 'Hero structure and shared styling are relevant.',
     }),
     availableFiles,
@@ -52,6 +54,7 @@ test('parses a small model-selected context and rejects unavailable files', () =
     'src/components/Hero.tsx',
     'src/styles/theme.css',
   ]);
+  assert.equal(selection.searchQuery, null);
 
   assert.throws(
     () =>
@@ -59,11 +62,55 @@ test('parses a small model-selected context and rejects unavailable files', () =
         JSON.stringify({
           version: 1,
           relevantFiles: ['src/components/Invented.tsx'],
+          searchQuery: null,
           reason: 'invented',
         }),
         availableFiles,
       ),
     /unavailable file/,
+  );
+});
+
+test('allows one bounded literal search request when paths are ambiguous', () => {
+  const selection = parseProjectContextSelection(
+    JSON.stringify({
+      version: 1,
+      relevantFiles: [],
+      searchQuery: 'Start free',
+      reason: 'The visible CTA copy can locate the source.',
+    }),
+    availableFiles,
+  );
+
+  assert.deepEqual(selection.relevantFiles, []);
+  assert.equal(selection.searchQuery, 'Start free');
+
+  assert.throws(
+    () =>
+      parseProjectContextSelection(
+        JSON.stringify({
+          version: 1,
+          relevantFiles: [],
+          searchQuery: null,
+          reason: 'nothing selected',
+        }),
+        availableFiles,
+      ),
+    /must return relevantFiles or one searchQuery/,
+  );
+
+  assert.throws(
+    () =>
+      parseProjectContextSelection(
+        JSON.stringify({
+          version: 1,
+          relevantFiles: [],
+          searchQuery: 'x'.repeat(MAX_CONTEXT_SEARCH_QUERY_LENGTH + 1),
+          reason: 'too long',
+        }),
+        availableFiles,
+      ),
+    /searchQuery must contain/,
   );
 });
 
@@ -101,6 +148,7 @@ test('uses mapped Visual Edit source files directly', async () => {
   );
 
   assert.equal(selection.source, 'visual');
+  assert.equal(selection.searchQuery, null);
   assert.deepEqual(selection.relevantFiles, ['src/components/Hero.tsx']);
 });
 
