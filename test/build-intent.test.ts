@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import {
+  buildProjectChatMessages,
+  parseProjectChatReply,
+} from '../src/conversation/project-chat.js';
 import { generateProject } from '../src/generation/generate.js';
 import {
   BuildIntentGateError,
@@ -98,7 +102,7 @@ test('project message router accepts CHAT / CLARIFY / BUILD / EDIT decisions', (
           version: 1,
           route,
           confidence: 'high',
-          message: route === 'CHAT' ? 'Sure.' : 'Ready.',
+          message: `${route} routing note`,
         }),
       ).route,
       route,
@@ -106,11 +110,49 @@ test('project message router accepts CHAT / CLARIFY / BUILD / EDIT decisions', (
   }
 });
 
-test('project message fast path keeps acknowledgements out of Frontend Agent edits', () => {
+test('project message fast path keeps conversational turns out of Frontend Agent edits', () => {
   assert.equal(detectObviousProjectMessageIntent({ userInput: 'good' })?.route, 'CHAT');
   assert.equal(detectObviousProjectMessageIntent({ userInput: 'thanks!' })?.route, 'CHAT');
   assert.equal(detectObviousProjectMessageIntent({ userInput: '不错' })?.route, 'CHAT');
+  assert.equal(detectObviousProjectMessageIntent({ userInput: 'who are you?' })?.route, 'CHAT');
   assert.equal(detectObviousProjectMessageIntent({ userInput: '把按钮改成红色' }), null);
+});
+
+test('project chat agent keeps recent turns as real multi-turn messages', () => {
+  const messages = buildProjectChatMessages({
+    mode: 'CHAT',
+    userInput: 'why',
+    hasGeneratedUi: true,
+    recentConversation: [
+      { role: 'user', content: 'who are you' },
+      {
+        role: 'assistant',
+        content: "I'm your Yakable project assistant, here to help with this SaaS website project.",
+      },
+    ],
+  });
+
+  assert.deepEqual(
+    messages.slice(-3),
+    [
+      { role: 'user', content: 'who are you' },
+      {
+        role: 'assistant',
+        content: "I'm your Yakable project assistant, here to help with this SaaS website project.",
+      },
+      { role: 'user', content: 'why' },
+    ],
+  );
+  assert.match(messages[0]?.content ?? '', /continuity/i);
+  assert.match(messages[1]?.content ?? '', /"conversationMode": "CHAT"/);
+});
+
+test('project chat agent parses assistant replies independently from router notes', () => {
+  assert.equal(
+    parseProjectChatReply('{"message":"Because this workspace stays tied to the current project."}'),
+    'Because this workspace stays tied to the current project.',
+  );
+  assert.throws(() => parseProjectChatReply('{"message":""}'), /invalid message/);
 });
 
 test('project generation rejects a precomputed non-CREATE decision before downstream generation', async () => {
