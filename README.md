@@ -38,6 +38,8 @@ Run + live Preview
       ↓
 Follow-up Prompt → Edit
       ↓
+Persist accepted edit context
+      ↓
 Preview refresh
 ```
 
@@ -52,10 +54,13 @@ The API listens on `127.0.0.1:8787` by default and the dashboard proxies `/api` 
 - enter a Lovable-style split workspace with chat on the left and Preview on the right
 - reopen existing local projects from the dashboard
 - send follow-up edit prompts against the existing project
+- keep the original product request, Design Intent, and recent successful edits as persisted context for later edits
 - select Preview elements and target edits back to mapped JSX source locations
 - refresh or open the live Preview separately
 
 ### Current boundary
+
+Manual edit continuity is persisted under each project's `.yakable/session.json`. The editor uses the original request, Design Intent, recent successful edits, and current source tree as bounded context for the next user-directed change. Legacy projects without a session file remain editable and begin recording history on their next successful edit.
 
 Automatic build/runtime error repair is not implemented yet. If an edit breaks the generated project, the Preview exposes that failure and repair remains manual for now.
 
@@ -97,6 +102,7 @@ Design Intent ✅
 Generate Project ✅
 Run + Preview ✅
 Targeted Project Edit ✅
+Persistent Edit Context ✅
 Visual → Source Edit ✅
 Automatic Error Repair ⏭️
 ```
