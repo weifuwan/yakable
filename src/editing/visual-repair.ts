@@ -280,8 +280,9 @@ export async function runVisualRepairOnce(
 export async function repairGeneratedProjectVisual(
   projectInput: string,
   input: VisualRepairProjectInput,
+  generatedRoot?: string,
 ): Promise<VisualRepairResult> {
-  const project = await resolveGeneratedProject(projectInput);
+  const project = await resolveGeneratedProject(projectInput, generatedRoot);
   const availableFiles = await listProjectContextFiles(project.directory);
 
   return runVisualRepairOnce({
