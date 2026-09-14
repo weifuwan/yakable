@@ -1,3 +1,9 @@
+export {
+  BuildIntentGateError,
+  classifyBuildIntent,
+  detectObviousBuildIntent,
+  parseBuildIntentDecision,
+} from './prompt-intelligence/build-intent.js';
 export { buildDesignIntent } from './prompt-intelligence/design-intent.js';
 export { generateProject } from './generation/generate.js';
 export { analyzePromptIntent, parsePromptIntent } from './prompt-intelligence/intent.js';
@@ -44,6 +50,9 @@ export {
   translatePromptTaste,
 } from './prompt-intelligence/taste.js';
 export type {
+  BuildIntentConfidence,
+  BuildIntentDecision,
+  BuildIntentRoute,
   DesignIntentDirective,
   DesignIntentIR,
   DesignIntentOpenQuestion,
