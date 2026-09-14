@@ -49,6 +49,22 @@ export {
   parseTasteTranslation,
   translatePromptTaste,
 } from './prompt-intelligence/taste.js';
+export {
+  READ_PROJECT_FILE_MAX_BYTES,
+  readProjectFileTool,
+} from './tools/read-project-file.js';
+export type {
+  ReadProjectFileInput,
+  ReadProjectFileOutput,
+} from './tools/read-project-file.js';
+export { ToolRegistry } from './tools/tool.js';
+export type {
+  RegisteredTool,
+  Tool,
+  ToolContext,
+  ToolError,
+  ToolResult,
+} from './tools/tool.js';
 export type {
   BuildIntentConfidence,
   BuildIntentDecision,

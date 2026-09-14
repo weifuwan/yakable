@@ -12,6 +12,7 @@ src/
 ├── runtime/              # run projects and instrument Preview
 ├── projects/             # project files, metadata, sessions, and lifecycle actions
 ├── templates/            # deterministic Base + optional capability packs; no model selection
+├── tools/                # small executable capabilities with structured results
 ├── storage/              # SQLite connection and schema
 ├── server/               # local Web API that connects product surfaces to capabilities
 ├── index.ts              # public exports
@@ -22,10 +23,11 @@ src/
 
 - **prompt-intelligence** first answers whether dashboard input is CREATE, CHAT, or CLARIFY. Only CREATE continues into product intent, semantic defaults, taste translation, and Design Intent.
 - **generation** answers: how do we turn that normalized intent into a complete frontend source tree? It also refuses a precomputed non-CREATE Build Intent decision, so callers cannot bypass the gate accidentally.
-- **editing** answers: how do we apply one requested change to an existing generated project without rewriting unrelated code?
+- **editing** answers: how do we apply one requested change to an existing generated project without rewriting unrelated code? Project snapshot reads now pass through the same `read_project_file` capability that future context selection can call.
 - **runtime** answers: how do we safely run the generated project and map Preview elements back to source?
 - **projects** owns generated-project parsing, `.yakable/project.json`, project listing, rename/star/remix/delete, and the project conversation/session repository.
 - **templates** owns deterministic frontend foundations and optional Capability Packs. Base fixes the environment contract; packs may add only Yakable-owned UI primitives plus explicitly declared npm dependencies. This layer does not choose packs with a model.
+- **tools** defines the minimal `Tool`, `ToolResult`, `ToolContext`, and `ToolRegistry` contracts. The first tool, `read_project_file`, reads one safe UTF-8 project file while blocking secrets, build output, traversal, binary files, and oversized files. Tools are invoked by Yakable code only for now; there is no model tool-calling or MCP adapter yet.
 - **storage** owns the local SQLite connection and schema only. It does not know Prompt Intelligence, editing, or UI behavior.
 - **model** owns provider-specific transport. Prompt Intelligence, generation, and editing should not know DeepSeek HTTP details.
 - **server** wires these capabilities into the local API. It should orchestrate them rather than reimplement their logic.

@@ -106,6 +106,24 @@ SQLite                       generated/<project-id>/
 
 Set `YAKABLE_DB_PATH` to override the database location. SQLite is the only conversation/session store.
 
+### Minimal tool foundation
+
+Yakable now has a deliberately small internal tool boundary under `src/tools/`:
+
+```text
+Tool<Input, Output>
+      ↓
+ToolResult<Output>
+      ↓
+ToolRegistry
+      ↓
+read_project_file
+```
+
+`read_project_file` reads one safe UTF-8 file from the current generated frontend project. It rejects path traversal, secret `.env*` files, blocked build/internal directories, binary files, files outside the project root, and files over the existing 200 KB edit-context limit.
+
+Project Editing uses this tool for its existing snapshot reads, but the model does not choose or call tools yet. There is no MCP adapter, project search tool, autonomous loop, or automatic repair in this capability.
+
 Automatic build/runtime error repair is not implemented yet. If an edit breaks the generated project, the Preview exposes that failure and repair remains manual for now.
 
 There is still no auth, cloud persistence, deployment, or multi-tenant sandbox yet. The Web API, SQLite database, and generated runtimes are local development surfaces.
@@ -233,5 +251,7 @@ Persistent Conversation (SQLite) ✅
 Visual → Source Edit ✅
 Yakable Base Template ✅
 Capability Packs ✅
+Minimal Tool Contract ✅
+Project Context Selection ⏭️
 Automatic Error Repair ⏭️
 ```
