@@ -71,6 +71,26 @@ export type {
   EditIntentScope,
 } from './editing/edit-intent.js';
 export {
+  DESIGN_CRITIC_MAX_EVIDENCE_REFS,
+  DESIGN_CRITIC_MAX_FINDINGS,
+  DESIGN_CRITIC_MAX_REQUEST_CHARS,
+  DESIGN_CRITIC_MAX_UNVERIFIED_AREAS,
+  DESIGN_CRITIC_VERSION,
+  buildDesignCriticRequest,
+  critiqueDesign,
+  mergeDeterministicRuntimeFindings,
+  parseDesignCriticResult,
+} from './editing/design-critic.js';
+export type {
+  DesignCriticArea,
+  DesignCriticFinding,
+  DesignCriticInput,
+  DesignCriticResult,
+  DesignCriticRun,
+  DesignCriticSeverity,
+  DesignCriticStatus,
+} from './editing/design-critic.js';
+export {
   MAX_CONTEXT_SEARCH_QUERY_LENGTH,
   MAX_EDIT_CONTEXT_FILES,
   MAX_PROJECT_CONTEXT_CANDIDATES,
