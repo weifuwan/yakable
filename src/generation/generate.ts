@@ -1,4 +1,18 @@
-import { requestProjectCode } from '../model/deepseek.js';
+import path from 'node:path';
+
+import {
+  applyProjectPatch,
+  listProjectContextFiles,
+  parseProjectPatch,
+  readProjectSnapshot,
+} from '../editing/edit.js';
+import {
+  createFrontendAgentRecorder,
+  runFrontendAgentStage,
+  type FrontendAgentProgressOptions,
+} from '../editing/frontend-agent.js';
+import { runOneShotRepair } from '../editing/repair.js';
+import { requestProjectCode, requestProjectRepair } from '../model/deepseek.js';
 import { assertModeCapability, type YakableMode } from '../modes/mode-contract.js';
 import {
   BuildIntentGateError,
@@ -13,6 +27,8 @@ import {
   writeGeneratedProjectFromBase,
 } from '../projects/project.js';
 import { initializeProjectSession } from '../projects/project-session.js';
+import { appendAgentRunEvent, createAgentRun } from '../storage/agent-run.js';
+import { checkProjectTool } from '../tools/check-project.js';
 import type {
   BuildIntentDecision,
   GeneratedProject,
@@ -36,9 +52,11 @@ export class ProjectGenerationError extends Error {
   }
 }
 
-export interface GenerateProjectOptions {
+export interface GenerateProjectOptions extends FrontendAgentProgressOptions {
   buildIntent?: BuildIntentDecision;
   mode?: YakableMode;
+  verifyProject?: boolean;
+  persistAgentRun?: boolean;
 }
 
 function errorMessage(error: unknown): string {
@@ -104,52 +122,196 @@ export async function generateProject(
   const mode = options.mode ?? 'BUILD';
   assertModeCapability(mode, 'generate-source');
 
-  const buildIntent = options.buildIntent ?? await classifyBuildIntent(normalizedPrompt);
+  let agentRunId: string | undefined;
+  const agent = createFrontendAgentRecorder({
+    onEvent(event) {
+      if (agentRunId) {
+        try {
+          appendAgentRunEvent(agentRunId, event);
+        } catch (error) {
+          console.warn('[Yakable Agent] Create event could not be persisted.', error);
+        }
+      }
+      options.onEvent?.(event);
+    },
+  });
+
+  const buildIntent = await runFrontendAgentStage(
+    agent,
+    'ROUTE',
+    'Classifying the request for Build mode',
+    (decision) => `Routed the request to ${decision.route} with ${decision.confidence} confidence`,
+    async () => options.buildIntent ?? classifyBuildIntent(normalizedPrompt),
+  );
   if (buildIntent.route !== 'CREATE') {
     throw new BuildIntentGateError(buildIntent);
   }
 
-  const intent = await analyzePromptIntent(normalizedPrompt);
-  const semanticExpansion = await expandPromptSemantics(normalizedPrompt, intent);
-  const tasteTranslation = await translatePromptTaste(
-    normalizedPrompt,
-    intent,
-    semanticExpansion,
+  const intent = await runFrontendAgentStage(
+    agent,
+    'UNDERSTAND',
+    'Understanding the requested product and page structure',
+    (result) => `Understood ${result.productType} as a ${result.pageType} experience`,
+    () => analyzePromptIntent(normalizedPrompt),
   );
-  const designIntent = buildDesignIntent(intent, semanticExpansion, tasteTranslation);
-  const template = selectProjectTemplate(normalizedPrompt, designIntent);
+
+  const semanticExpansion = await runFrontendAgentStage(
+    agent,
+    'UNDERSTAND',
+    'Expanding conservative product defaults from the request',
+    (result) => `Resolved ${result.defaults.length} product default(s) and ${result.assumptions.length} assumption(s)`,
+    () => expandPromptSemantics(normalizedPrompt, intent),
+  );
+
+  const design = await runFrontendAgentStage(
+    agent,
+    'DESIGN',
+    'Translating the request into an executable design direction',
+    (result) => `Design direction ready: ${result.tasteTranslation.designDirection}`,
+    async () => {
+      const tasteTranslation = await translatePromptTaste(
+        normalizedPrompt,
+        intent,
+        semanticExpansion,
+      );
+      const designIntent = buildDesignIntent(intent, semanticExpansion, tasteTranslation);
+      return { tasteTranslation, designIntent };
+    },
+  );
+  const { tasteTranslation, designIntent } = design;
+
+  const template = await runFrontendAgentStage(
+    agent,
+    'TEMPLATE',
+    'Selecting the Yakable project template',
+    (selected) => `Selected the ${selected} template`,
+    async () => selectProjectTemplate(normalizedPrompt, designIntent),
+  );
   const generationRequest = buildTemplateGenerationRequest(
     normalizedPrompt,
     template,
     designIntent,
   );
 
-  let generation = await requestProjectCode(generationRequest);
-  let project: GeneratedProject;
+  const generated = await runFrontendAgentStage(
+    agent,
+    'GENERATE',
+    'Generating the project-owned frontend layer',
+    (result) => `Generated ${result.project.files.length} project-owned file(s)`,
+    async () => {
+      let generation = await requestProjectCode(generationRequest);
+      let project: GeneratedProject;
 
-  try {
-    project = parseProjectGeneration(generation.content, template);
-  } catch (firstFailure) {
-    try {
-      generation = await requestProjectCode(
-        buildProjectGenerationRecoveryRequest(generationRequest, firstFailure),
-      );
-      project = parseProjectGeneration(generation.content, template);
-    } catch (recoveryFailure) {
-      throw new ProjectGenerationError(
-        'Yakable could not produce a valid project after one automatic recovery attempt. Please retry the request; the API process remains available.',
-        PROJECT_GENERATION_MAX_ATTEMPTS,
-        recoveryFailure,
-      );
-    }
-  }
+      try {
+        project = parseProjectGeneration(generation.content, template);
+      } catch (firstFailure) {
+        try {
+          generation = await requestProjectCode(
+            buildProjectGenerationRecoveryRequest(generationRequest, firstFailure),
+          );
+          project = parseProjectGeneration(generation.content, template);
+        } catch (recoveryFailure) {
+          throw new ProjectGenerationError(
+            'Yakable could not produce a valid project after one automatic recovery attempt. Please retry the request; the API process remains available.',
+            PROJECT_GENERATION_MAX_ATTEMPTS,
+            recoveryFailure,
+          );
+        }
+      }
 
-  const outputDirectory = await writeGeneratedProjectFromBase(normalizedPrompt, project);
+      return { generation, project };
+    },
+  );
+  const { generation, project } = generated;
+
+  const outputDirectory = await runFrontendAgentStage(
+    agent,
+    'WRITE',
+    'Applying the generated product layer to Yakable Base',
+    'Created the project from Yakable Base and applied the generated overlay',
+    () => writeGeneratedProjectFromBase(normalizedPrompt, project),
+  );
+
   await initializeProjectSession(outputDirectory, {
     productRequest: normalizedPrompt,
     designIntent,
     initialSummary: project.summary,
   });
+
+  if (options.persistAgentRun) {
+    const run = createAgentRun({
+      projectId: path.basename(outputDirectory),
+      kind: 'CREATE',
+      prompt: normalizedPrompt,
+    });
+    agentRunId = run.id;
+    for (const event of agent.snapshot()) {
+      appendAgentRunEvent(run.id, event);
+    }
+  }
+
+  if (options.verifyProject) {
+    const resolvedProject = {
+      id: path.basename(outputDirectory),
+      directory: outputDirectory,
+    };
+    agent.emit('CHECK', 'ACTIVE', 'Checking TypeScript and production build health');
+    const initialCheck = await checkProjectTool.execute(
+      {},
+      { projectDirectory: outputDirectory },
+    );
+
+    if (initialCheck.ok && initialCheck.value.status === 'PASS') {
+      agent.emit('CHECK', 'COMPLETED', 'TypeScript and production build checks passed');
+    } else if (!initialCheck.ok) {
+      agent.emit(
+        'CHECK',
+        'FAILED',
+        `Project health check could not run: ${initialCheck.error.message}`,
+      );
+    } else {
+      agent.emit('REPAIR', 'ACTIVE', 'Applying one bounded build repair');
+      const availableFiles = await listProjectContextFiles(outputDirectory);
+      const initialChangedFiles = project.files.map((file) => file.path);
+      const repair = await runOneShotRepair({
+        projectId: resolvedProject.id,
+        userRequest: normalizedPrompt,
+        initialEditSummary: project.summary,
+        initialChangedFiles,
+        selectedContextFiles: initialChangedFiles,
+        availableFiles,
+        initialCheck,
+        readFiles: async (paths) => (await readProjectSnapshot(resolvedProject, paths)).files,
+        requestRepair: requestProjectRepair,
+        parsePatch: parseProjectPatch,
+        applyPatch: (patch) => applyProjectPatch(resolvedProject, patch),
+        checkProject: () =>
+          checkProjectTool.execute({}, { projectDirectory: outputDirectory }),
+      });
+
+      if (repair.status === 'REPAIRED') {
+        agent.emit('REPAIR', 'COMPLETED', 'Applied one code-healthy build repair');
+      } else {
+        agent.emit(
+          'REPAIR',
+          'FAILED',
+          repair.error || 'The bounded build repair did not produce a healthy project',
+        );
+      }
+
+      if (repair.finalCheck.ok && repair.finalCheck.value.status === 'PASS') {
+        agent.emit('CHECK', 'COMPLETED', 'Project is code-healthy after the bounded repair');
+      } else {
+        agent.emit(
+          'CHECK',
+          'FAILED',
+          repair.finalCheck.ok
+            ? 'Project health check still reports source errors after repair'
+            : `Project health check could not complete after repair: ${repair.finalCheck.error.message}`,
+        );
+      }
+    }
+  }
 
   return {
     project,
@@ -160,5 +322,6 @@ export async function generateProject(
     semanticExpansion,
     tasteTranslation,
     designIntent,
+    ...(agentRunId ? { agentRunId } : {}),
   };
 }
