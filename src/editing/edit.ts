@@ -26,6 +26,11 @@ import {
   readProjectSession,
 } from '../projects/project-session.js';
 import { resolveGeneratedProject, type ResolvedGeneratedProject } from '../runtime/runtime.js';
+import {
+  appendAgentRunEvent,
+  completeAgentRun,
+  createAgentRun,
+} from '../storage/agent-run.js';
 import { checkProjectTool, type CheckProjectOutput } from '../tools/check-project.js';
 import { readProjectFileTool } from '../tools/read-project-file.js';
 import type { ToolResult } from '../tools/tool.js';
@@ -82,6 +87,7 @@ export interface EditProjectResult {
   contextSelection: EditContextSelection;
   repair: OneShotRepairResult;
   projectCheck: ToolResult<CheckProjectOutput>;
+  agentRunId: string;
   agentTrace: FrontendAgentEvent[];
   session: ProjectSessionState | null;
 }
@@ -472,7 +478,21 @@ export async function editGeneratedProject(
   const project = await resolveGeneratedProject(projectInput);
   const userEdit = extractUserEditContext(request);
   const session = await readProjectSession(project.directory);
-  const agent = createFrontendAgentRecorder(options);
+  const agentRun = createAgentRun({
+    projectId: project.id,
+    kind: 'EDIT',
+    prompt: userEdit.userRequest,
+  });
+  const agent = createFrontendAgentRecorder({
+    onEvent(event) {
+      try {
+        appendAgentRunEvent(agentRun.id, event);
+      } catch (error) {
+        console.warn('[Yakable Agent] Agent event could not be persisted.', error);
+      }
+      options.onEvent?.(event);
+    },
+  });
 
   const prepared = await runFrontendAgentStage(
     agent,
@@ -594,6 +614,11 @@ export async function editGeneratedProject(
     console.warn('[Yakable Edit] Source update succeeded but conversation history could not be persisted.', error);
   }
 
+  completeAgentRun(agentRun.id, {
+    model: generation.model,
+    summary: patch.summary,
+  });
+
   return {
     projectId: project.id,
     projectDirectory: project.directory,
@@ -604,6 +629,7 @@ export async function editGeneratedProject(
     contextSelection,
     repair,
     projectCheck,
+    agentRunId: agentRun.id,
     agentTrace: agent.snapshot(),
     session: nextSession,
   };
