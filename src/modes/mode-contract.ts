@@ -10,6 +10,7 @@ export const YAKABLE_MODE_CAPABILITIES = [
   'read-plan',
   'write-plan',
   'review-plan',
+  'plan-ui',
   'generate-source',
   'edit-source',
   'repair-source',
@@ -25,6 +26,7 @@ const PLAN_CAPABILITIES = new Set<YakableModeCapability>([
   'read-plan',
   'write-plan',
   'review-plan',
+  'plan-ui',
 ]);
 
 const BUILD_CAPABILITIES = new Set<YakableModeCapability>([
