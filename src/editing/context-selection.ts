@@ -5,13 +5,15 @@ import type { ProjectVisualSelection } from '../types.js';
 
 export const MAX_EDIT_CONTEXT_FILES = 12;
 export const MAX_PROJECT_CONTEXT_CANDIDATES = 500;
+export const MAX_CONTEXT_SEARCH_QUERY_LENGTH = 80;
 const FALLBACK_CONTEXT_FILES = 8;
 
-export type EditContextSelectionSource = 'visual' | 'model' | 'fallback';
+export type EditContextSelectionSource = 'visual' | 'model' | 'search' | 'fallback';
 
 export interface EditContextSelection {
   version: 1;
   relevantFiles: string[];
+  searchQuery: string | null;
   reason: string;
   source: EditContextSelectionSource;
 }
@@ -86,10 +88,27 @@ export function parseProjectContextSelection(
     if (!files.includes(file)) files.push(file);
   }
 
-  if (files.length === 0 || files.length > MAX_EDIT_CONTEXT_FILES) {
+  if (files.length > MAX_EDIT_CONTEXT_FILES) {
     throw new Error(
-      `Project context selector must return between 1 and ${MAX_EDIT_CONTEXT_FILES} files.`,
+      `Project context selector may return at most ${MAX_EDIT_CONTEXT_FILES} files.`,
     );
+  }
+
+  let searchQuery: string | null = null;
+  if (value.searchQuery !== null && value.searchQuery !== undefined) {
+    if (typeof value.searchQuery !== 'string') {
+      throw new Error('Project context selector searchQuery must be a string or null.');
+    }
+    searchQuery = value.searchQuery.trim();
+    if (!searchQuery || searchQuery.length > MAX_CONTEXT_SEARCH_QUERY_LENGTH) {
+      throw new Error(
+        `Project context selector searchQuery must contain 1-${MAX_CONTEXT_SEARCH_QUERY_LENGTH} characters.`,
+      );
+    }
+  }
+
+  if (files.length === 0 && !searchQuery) {
+    throw new Error('Project context selector must return relevantFiles or one searchQuery.');
   }
 
   const reason = typeof value.reason === 'string' ? value.reason.trim().slice(0, 400) : '';
@@ -97,6 +116,7 @@ export function parseProjectContextSelection(
   return {
     version: 1,
     relevantFiles: files,
+    searchQuery,
     reason: reason || 'Selected the smallest relevant project context.',
   };
 }
@@ -190,6 +210,7 @@ export async function selectProjectContextFiles(
     return {
       version: 1,
       relevantFiles: visualFiles,
+      searchQuery: null,
       reason: 'Used source-mapped Visual Edit targets as the edit context.',
       source: 'visual',
     };
@@ -208,6 +229,7 @@ export async function selectProjectContextFiles(
     return {
       version: 1,
       relevantFiles: fallbackEditContextFiles(input.userRequest, files),
+      searchQuery: null,
       reason: `Context selector fallback used after model selection failed: ${reason}`.slice(0, 400),
       source: 'fallback',
     };
