@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -109,8 +109,8 @@ test('persists generation context and successful edits in SQLite', async () => {
   });
 });
 
-test('supports legacy projects that do not have a session yet', async () => {
-  await withProject('yakable-sqlite-legacy-empty-', async (projectDirectory) => {
+test('starts SQLite history on the first successful edit when a project has no session', async () => {
+  await withProject('yakable-sqlite-empty-', async (projectDirectory) => {
     assert.equal(await readProjectSession(projectDirectory), null);
 
     const updated = await appendProjectEditHistory(projectDirectory, {
@@ -123,42 +123,5 @@ test('supports legacy projects that do not have a session yet', async () => {
     assert.equal(updated.productRequest, undefined);
     assert.equal(updated.designIntent, undefined);
     assert.equal(updated.edits[0]?.userRequest, 'Make the hero tighter');
-  });
-});
-
-test('migrates legacy .yakable/session.json into SQLite on first read', async () => {
-  await withProject('yakable-sqlite-migration-', async (projectDirectory) => {
-    await mkdir(path.join(projectDirectory, '.yakable'), { recursive: true });
-    await writeFile(
-      path.join(projectDirectory, '.yakable', 'session.json'),
-      JSON.stringify({
-        version: 1,
-        productRequest: 'Build a migrated project',
-        initialSummary: 'Initial legacy summary',
-        createdAt: '2026-09-13T10:00:00.000Z',
-        updatedAt: '2026-09-13T10:05:00.000Z',
-        edits: [
-          {
-            id: 'legacy-edit',
-            createdAt: '2026-09-13T10:05:00.000Z',
-            userRequest: 'Tighten spacing',
-            assistantSummary: 'Spacing tightened',
-            changedFiles: ['src/App.tsx'],
-          },
-        ],
-      }),
-      'utf8',
-    );
-
-    const migrated = await readProjectSession(projectDirectory);
-    assert.equal(migrated?.productRequest, 'Build a migrated project');
-    assert.equal(migrated?.edits[0]?.id, 'legacy-edit');
-
-    await rm(path.join(projectDirectory, '.yakable'), { recursive: true, force: true });
-    closeYakableDatabases();
-
-    const fromDatabase = await readProjectSession(projectDirectory);
-    assert.equal(fromDatabase?.initialSummary, 'Initial legacy summary');
-    assert.equal(fromDatabase?.edits[0]?.assistantSummary, 'Spacing tightened');
   });
 });

@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { getYakableDatabase } from '../storage/database.js';
@@ -12,8 +11,6 @@ import type {
   ProjectVisualSelection,
 } from '../types.js';
 
-const SESSION_DIRECTORY = '.yakable';
-const SESSION_FILENAME = 'session.json';
 const MAX_EDIT_HISTORY = 40;
 const MAX_REQUEST_LENGTH = 8_000;
 const MAX_SUMMARY_LENGTH = 2_000;
@@ -21,7 +18,6 @@ const MAX_CHANGED_FILES = 12;
 const MAX_VISUAL_SELECTIONS = 20;
 
 interface SessionRow {
-  project_id: string;
   product_request: string | null;
   design_intent_json: string | null;
   initial_summary: string | null;
@@ -46,10 +42,6 @@ interface SelectionRow {
   tag_name: string;
   text: string;
   selector: string;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function projectIdForDirectory(projectDirectory: string): string {
@@ -79,21 +71,17 @@ function normalizeChangedFiles(value: unknown): string[] {
   return files;
 }
 
-function normalizeVisualSelection(value: unknown): ProjectVisualSelection | null {
-  if (!isRecord(value)) return null;
-
+function normalizeVisualSelection(value: ProjectVisualSelection): ProjectVisualSelection | null {
   const tagName = normalizeText(value.tagName, 80);
-  const text = typeof value.text === 'string' ? value.text.trim().slice(0, 180) : '';
-  const selector = typeof value.selector === 'string' ? value.selector.trim().slice(0, 320) : '';
   if (!tagName) return null;
 
   const sourceId = normalizeText(value.sourceId, 120);
   const file = normalizeText(value.file, 240);
-  const line = typeof value.line === 'number' && Number.isInteger(value.line) && value.line > 0
-    ? value.line
-    : undefined;
-  const column = typeof value.column === 'number' && Number.isInteger(value.column) && value.column > 0
-    ? value.column
+  const text = typeof value.text === 'string' ? value.text.trim().slice(0, 180) : '';
+  const selector = typeof value.selector === 'string' ? value.selector.trim().slice(0, 320) : '';
+  const line = Number.isInteger(value.line) && Number(value.line) > 0 ? Number(value.line) : undefined;
+  const column = Number.isInteger(value.column) && Number(value.column) > 0
+    ? Number(value.column)
     : undefined;
 
   return {
@@ -107,7 +95,7 @@ function normalizeVisualSelection(value: unknown): ProjectVisualSelection | null
   };
 }
 
-function normalizeVisualSelections(value: unknown): ProjectVisualSelection[] {
+function normalizeVisualSelections(value: ProjectVisualSelection[] | undefined): ProjectVisualSelection[] {
   if (!Array.isArray(value)) return [];
   return value
     .slice(0, MAX_VISUAL_SELECTIONS)
@@ -115,77 +103,42 @@ function normalizeVisualSelections(value: unknown): ProjectVisualSelection[] {
     .filter((selection): selection is ProjectVisualSelection => Boolean(selection));
 }
 
-function normalizeEdit(value: unknown): ProjectEditHistoryItem | null {
-  if (!isRecord(value)) return null;
-
-  const userRequest = normalizeText(value.userRequest, MAX_REQUEST_LENGTH);
-  const assistantSummary = normalizeText(value.assistantSummary, MAX_SUMMARY_LENGTH);
+function normalizeEdit(edit: ProjectEditHistoryItem): ProjectEditHistoryItem | null {
+  const userRequest = normalizeText(edit.userRequest, MAX_REQUEST_LENGTH);
+  const assistantSummary = normalizeText(edit.assistantSummary, MAX_SUMMARY_LENGTH);
   if (!userRequest || !assistantSummary) return null;
 
-  const model = normalizeText(value.model, 200);
-  const visualSelections = normalizeVisualSelections(value.visualSelections);
+  const model = normalizeText(edit.model, 200);
+  const visualSelections = normalizeVisualSelections(edit.visualSelections);
   return {
-    id: normalizeText(value.id, 80) ?? randomUUID(),
-    createdAt: normalizeText(value.createdAt, 40) ?? new Date().toISOString(),
+    id: normalizeText(edit.id, 80) ?? randomUUID(),
+    createdAt: normalizeText(edit.createdAt, 40) ?? new Date().toISOString(),
     userRequest,
     assistantSummary,
-    changedFiles: normalizeChangedFiles(value.changedFiles),
+    changedFiles: normalizeChangedFiles(edit.changedFiles),
     ...(model ? { model } : {}),
     ...(visualSelections.length ? { visualSelections } : {}),
   };
 }
 
-function normalizeDesignIntent(value: unknown): DesignIntentIR | undefined {
-  if (!isRecord(value) || value.version !== 1) return undefined;
-  return value as unknown as DesignIntentIR;
-}
-
-function normalizeSession(value: unknown): ProjectSessionState | null {
-  if (!isRecord(value) || value.version !== 1) return null;
-
+function normalizeSession(session: ProjectSessionState): ProjectSessionState {
   const now = new Date().toISOString();
-  const edits = Array.isArray(value.edits)
-    ? value.edits
-        .map(normalizeEdit)
-        .filter((edit): edit is ProjectEditHistoryItem => Boolean(edit))
-        .slice(-MAX_EDIT_HISTORY)
-    : [];
-
-  const productRequest = normalizeText(value.productRequest, 12_000);
-  const initialSummary = normalizeText(value.initialSummary, MAX_SUMMARY_LENGTH);
-  const designIntent = normalizeDesignIntent(value.designIntent);
+  const productRequest = normalizeText(session.productRequest, 12_000);
+  const initialSummary = normalizeText(session.initialSummary, MAX_SUMMARY_LENGTH);
+  const edits = session.edits
+    .map(normalizeEdit)
+    .filter((edit): edit is ProjectEditHistoryItem => Boolean(edit))
+    .slice(-MAX_EDIT_HISTORY);
 
   return {
     version: 1,
     ...(productRequest ? { productRequest } : {}),
-    ...(designIntent ? { designIntent } : {}),
+    ...(session.designIntent?.version === 1 ? { designIntent: session.designIntent } : {}),
     ...(initialSummary ? { initialSummary } : {}),
-    createdAt: normalizeText(value.createdAt, 40) ?? now,
-    updatedAt: normalizeText(value.updatedAt, 40) ?? now,
+    createdAt: normalizeText(session.createdAt, 40) ?? now,
+    updatedAt: normalizeText(session.updatedAt, 40) ?? now,
     edits,
   };
-}
-
-function legacySessionPath(projectDirectory: string): string {
-  return path.join(projectDirectory, SESSION_DIRECTORY, SESSION_FILENAME);
-}
-
-async function readLegacyProjectSession(
-  projectDirectory: string,
-): Promise<ProjectSessionState | null> {
-  const raw = await readFile(legacySessionPath(projectDirectory), 'utf8').catch(
-    (error: NodeJS.ErrnoException) => {
-      if (error.code === 'ENOENT') return '';
-      throw error;
-    },
-  );
-
-  if (!raw) return null;
-  try {
-    return normalizeSession(JSON.parse(raw));
-  } catch {
-    return null;
-  }
 }
 
 function parseJsonArray(value: string): unknown[] {
@@ -194,6 +147,16 @@ function parseJsonArray(value: string): unknown[] {
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
+  }
+}
+
+function parseDesignIntent(value: string | null): DesignIntentIR | undefined {
+  if (!value) return undefined;
+  try {
+    const parsed = JSON.parse(value) as DesignIntentIR;
+    return parsed?.version === 1 ? parsed : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -220,20 +183,11 @@ function readSelectionsForEdit(editId: string): ProjectVisualSelection[] {
 function sessionFromDatabase(projectId: string): ProjectSessionState | null {
   const database = getYakableDatabase();
   const row = database.prepare(`
-    SELECT project_id, product_request, design_intent_json, initial_summary, created_at, updated_at
+    SELECT product_request, design_intent_json, initial_summary, created_at, updated_at
     FROM project_sessions
     WHERE project_id = ?
   `).get(projectId) as unknown as SessionRow | undefined;
   if (!row) return null;
-
-  let designIntent: DesignIntentIR | undefined;
-  if (row.design_intent_json) {
-    try {
-      designIntent = normalizeDesignIntent(JSON.parse(row.design_intent_json));
-    } catch {
-      designIntent = undefined;
-    }
-  }
 
   const editRows = database.prepare(`
     SELECT id, created_at, user_request, assistant_summary, changed_files_json, model
@@ -255,6 +209,7 @@ function sessionFromDatabase(projectId: string): ProjectSessionState | null {
     };
   });
 
+  const designIntent = parseDesignIntent(row.design_intent_json);
   return {
     version: 1,
     ...(row.product_request ? { productRequest: row.product_request } : {}),
@@ -288,6 +243,7 @@ function insertEdit(projectId: string, edit: ProjectEditHistoryItem): void {
       edit_id, ordinal, source_id, file, line, column, tag_name, text, selector
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
+
   for (const [index, selection] of selections.entries()) {
     statement.run(
       edit.id,
@@ -308,10 +264,9 @@ export async function writeProjectSession(
   session: ProjectSessionState,
 ): Promise<void> {
   const normalized = normalizeSession(session);
-  if (!normalized) throw new Error('Project session is invalid.');
-
   const projectId = projectIdForDirectory(projectDirectory);
   const database = getYakableDatabase();
+
   database.exec('BEGIN IMMEDIATE');
   try {
     database.prepare(`
@@ -361,6 +316,7 @@ export async function initializeProjectSession(
     updatedAt: createdAt,
     edits: [],
   };
+
   await writeProjectSession(projectDirectory, session);
   return session;
 }
@@ -368,15 +324,7 @@ export async function initializeProjectSession(
 export async function readProjectSession(
   projectDirectory: string,
 ): Promise<ProjectSessionState | null> {
-  const projectId = projectIdForDirectory(projectDirectory);
-  const existing = sessionFromDatabase(projectId);
-  if (existing) return existing;
-
-  const legacy = await readLegacyProjectSession(projectDirectory);
-  if (!legacy) return null;
-
-  await writeProjectSession(projectDirectory, legacy);
-  return sessionFromDatabase(projectId);
+  return sessionFromDatabase(projectIdForDirectory(projectDirectory));
 }
 
 export async function appendProjectEditHistory(
@@ -392,7 +340,7 @@ export async function appendProjectEditHistory(
 ): Promise<ProjectSessionState> {
   const createdAt = input.createdAt ?? new Date().toISOString();
   const projectId = projectIdForDirectory(projectDirectory);
-  const current = await readProjectSession(projectDirectory);
+  const current = sessionFromDatabase(projectId);
   const database = getYakableDatabase();
 
   const userRequest = input.userRequest.trim().slice(0, MAX_REQUEST_LENGTH);
@@ -401,16 +349,16 @@ export async function appendProjectEditHistory(
     throw new Error('Project edit history requires a request and summary.');
   }
 
+  const model = normalizeText(input.model, 200);
+  const visualSelections = normalizeVisualSelections(input.visualSelections);
   const edit: ProjectEditHistoryItem = {
     id: randomUUID(),
     createdAt,
     userRequest,
     assistantSummary,
     changedFiles: normalizeChangedFiles(input.changedFiles),
-    ...(normalizeText(input.model, 200) ? { model: normalizeText(input.model, 200) } : {}),
-    ...(normalizeVisualSelections(input.visualSelections).length
-      ? { visualSelections: normalizeVisualSelections(input.visualSelections) }
-      : {}),
+    ...(model ? { model } : {}),
+    ...(visualSelections.length ? { visualSelections } : {}),
   };
 
   database.exec('BEGIN IMMEDIATE');
@@ -451,7 +399,7 @@ export async function readProjectConversation(
   projectDirectory: string,
 ): Promise<ProjectConversation | null> {
   const projectId = projectIdForDirectory(projectDirectory);
-  const session = await readProjectSession(projectDirectory);
+  const session = sessionFromDatabase(projectId);
   if (!session) return null;
 
   const messages: ProjectConversationMessage[] = [];
@@ -503,7 +451,7 @@ export async function cloneProjectSession(
   destinationDirectory: string,
   updatedAt = new Date().toISOString(),
 ): Promise<ProjectSessionState | null> {
-  const source = await readProjectSession(sourceDirectory);
+  const source = sessionFromDatabase(projectIdForDirectory(sourceDirectory));
   if (!source) return null;
 
   const cloned: ProjectSessionState = {

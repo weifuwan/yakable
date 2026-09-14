@@ -73,7 +73,7 @@ SQLite                       generated/<project-id>/
 └── Visual Edit targets      └── project source files
 ```
 
-Set `YAKABLE_DB_PATH` to override the database location. Existing projects that still have `.yakable/session.json` are imported into SQLite automatically the first time Yakable reads them.
+Set `YAKABLE_DB_PATH` to override the database location. SQLite is the only conversation/session store.
 
 Automatic build/runtime error repair is not implemented yet. If an edit breaks the generated project, the Preview exposes that failure and repair remains manual for now.
 
