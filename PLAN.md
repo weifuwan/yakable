@@ -175,7 +175,7 @@ Taste should gradually become a reusable system capability rather than a collect
 
 Planning produces structured data internally, not only free-form Markdown.
 
-Plan Artifact v0 remains deliberately small and now attaches the dedicated UI Planner blueprint when UI planning is applicable:
+Plan Artifact v0 remains deliberately small and attaches the dedicated UI Planner blueprint when UI planning is applicable:
 
 ```ts
 interface YakablePlan {
@@ -274,6 +274,43 @@ It intentionally does not encode exact pixels, Tailwind classes, color values, f
 
 When revising a Plan Artifact, the previous UI blueprint is continuity context. A non-UI planning revision preserves the current blueprint instead of silently discarding it.
 
+## Build From Approved Plan
+
+An approved plan is now an execution contract, not just review prose.
+
+Before source mutation, Build compiles the current Plan Artifact into a bounded immutable snapshot containing:
+
+- approved revision and approval timestamp
+- a short fingerprint of the reviewed artifact
+- goal and product context
+- explicit decisions
+- UI blueprint when present
+- implementation steps
+- validation expectations
+- constraints
+
+Build refuses non-approved plans, plans without review metadata, plans with unresolved blocking `openQuestions`, or plans without implementation steps.
+
+Existing source paths from the approved plan become context hints, but Build still reads only current files selected inside the normal bounded context limit. The compiled contract is passed separately from derived Edit Intent so the model cannot treat a later interpretation as permission to rewrite the reviewed plan.
+
+Approved-plan editing has two model outcomes:
+
+```text
+APPLIED
+└── deviations: []
+    └── bounded source changes
+
+BLOCKED
+└── concrete deviations[]
+    └── no source mutation
+```
+
+If faithful execution would require a materially different UI/product direction, unread existing source, forbidden configuration/dependency changes, or another violation of the execution boundary, Yakable stops and surfaces the deviation instead of silently substituting a new plan.
+
+The fixed project health check still runs after source mutation. Its one-shot build repair receives the same approved execution contract and may repair code health only; it cannot redesign the reviewed plan.
+
+This v0 path is available through `npm run build:plan -- generated/<project-id>`. Workspace Plan/Build controls and browser-side plan-aware visual verification remain separate product work.
+
 ## Execution Model
 
 Yakable prefers **bounded deterministic execution** over unrestricted autonomy.
@@ -310,6 +347,7 @@ Plan and Build enforce different capability policies, not merely different promp
 | Create / revise Plan Artifact | Yes | No |
 | Approve / reject Plan Artifact | Yes | No |
 | Create / revise UI blueprint | Yes | No |
+| Execute approved Plan Artifact | No | Yes |
 | Generate source | No | Yes |
 | Edit source | No | Yes |
 | Visual Repair | No | Yes |
@@ -317,9 +355,9 @@ Plan and Build enforce different capability policies, not merely different promp
 | Change dependencies | No | Bounded |
 | External write tools | No | Explicitly gated |
 
-The mode policy includes plan-specific capabilities. Plan may `read-plan`, `write-plan`, `review-plan`, and `plan-ui`; Build may only `read-plan`. This preserves the rule that execution can consume approved decisions but cannot silently redefine them.
+The mode policy includes plan-specific capabilities. Plan may `read-plan`, `write-plan`, `review-plan`, and `plan-ui`; Build may only read the artifact and execute source capabilities. This preserves the rule that execution can consume approved decisions but cannot silently redefine them.
 
-This separation is the foundation for Build-from-approved-plan, future MCP, and external-tool permission policies.
+This separation is the foundation for explicit Re-plan / Plan Diff, future MCP, and external-tool permission policies.
 
 ## Current Foundation
 
@@ -347,6 +385,7 @@ Yakable already has working foundations for:
 - Plan / Build mode capability policy with a read-only Plan source boundary
 - versioned Plan Artifact drafting, Markdown rendering, persistence, and explicit review state
 - UI Planner v0 with a bounded semantic UI blueprint attached to the Plan Artifact
+- Build From Approved Plan with immutable execution snapshots, plan-aware source editing, explicit BLOCKED deviations, and plan-preserving build repair
 
 These capabilities are foundations, not the roadmap itself.
 
@@ -388,14 +427,17 @@ Near-term work should focus on the following outcomes, without locking them to p
    - keep UI planning Plan-only and avoid a broad layout DSL
    - preserve the previous blueprint across non-UI plan revisions
 
-4. **Build From Approved Plan** ← NEXT
-   - pass the approved Plan Artifact into generation or Frontend Agent execution
-   - preserve approved decisions and UI blueprint during Build
-   - surface deviations instead of silently replanning
+4. **Build From Approved Plan** ✅
+   - compile the approved Plan Artifact into one immutable execution snapshot
+   - execute it through the bounded Frontend Agent edit/check path
+   - preserve reviewed decisions, UI blueprint, constraints, and deliberate omissions during source generation
+   - stop before mutation and surface explicit deviations when faithful execution is blocked
+   - keep one-shot build repair plan-aware
 
-5. **Re-plan / Plan Diff**
+5. **Re-plan / Plan Diff** ← NEXT
    - allow a changed user request or new evidence to revise the plan explicitly
    - make plan changes visible before execution
+   - keep prior approved decisions traceable instead of replacing them invisibly
 
 ## Next Stages
 
