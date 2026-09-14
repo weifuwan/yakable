@@ -6,7 +6,9 @@ Yakable is being rebuilt one product problem at a time.
 
 ## Web product flow
 
-The Lovable-inspired dashboard is wired to Yakable's prompt intelligence, project generation, runtime, preview, and editing capabilities.
+The Lovable-inspired dashboard is wired to Yakable's prompt intelligence, project generation, runtime, preview, editing, and local SQLite persistence capabilities.
+
+Yakable now requires Node.js 22.13 or newer because it uses Node's built-in SQLite module without an experimental runtime flag.
 
 Run the local API in one terminal:
 
@@ -38,7 +40,7 @@ Run + live Preview
       ↓
 Follow-up Prompt → Edit
       ↓
-Persist accepted edit context
+Persist conversation + edit context in SQLite
       ↓
 Preview refresh
 ```
@@ -53,18 +55,29 @@ The API listens on `127.0.0.1:8787` by default and the dashboard proxies `/api` 
 - start the controlled Vite runtime automatically
 - enter a Lovable-style split workspace with chat on the left and Preview on the right
 - reopen existing local projects from the dashboard
+- restore the project's persisted conversation after closing or reloading the browser
 - send follow-up edit prompts against the existing project
 - keep the original product request, Design Intent, and recent successful edits as persisted context for later edits
+- persist Visual Edit source targets with the user message that used them
 - select Preview elements and target edits back to mapped JSX source locations
 - refresh or open the live Preview separately
 
-### Current boundary
+### Local persistence
 
-Manual edit continuity is persisted under each project's `.yakable/session.json`. The editor uses the original request, Design Intent, recent successful edits, and current source tree as bounded context for the next user-directed change. Legacy projects without a session file remain editable and begin recording history on their next successful edit.
+Conversation and edit history are stored in SQLite at `data/yakable.db` by default. Generated source code remains under `generated/<project-id>/`.
+
+```text
+SQLite                       generated/<project-id>/
+├── project session          ├── src/
+├── conversation history    ├── public/
+└── Visual Edit targets      └── project source files
+```
+
+Set `YAKABLE_DB_PATH` to override the database location. Existing projects that still have `.yakable/session.json` are imported into SQLite automatically the first time Yakable reads them.
 
 Automatic build/runtime error repair is not implemented yet. If an edit breaks the generated project, the Preview exposes that failure and repair remains manual for now.
 
-There is also no auth, database, cloud persistence, deployment, or multi-tenant sandbox yet. The Web API and generated runtimes are local development surfaces.
+There is still no auth, cloud persistence, deployment, or multi-tenant sandbox yet. The Web API, SQLite database, and generated runtimes are local development surfaces.
 
 ## CLI commands
 
@@ -103,6 +116,7 @@ Generate Project ✅
 Run + Preview ✅
 Targeted Project Edit ✅
 Persistent Edit Context ✅
+Persistent Conversation (SQLite) ✅
 Visual → Source Edit ✅
 Automatic Error Repair ⏭️
 ```

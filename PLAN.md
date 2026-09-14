@@ -9,6 +9,7 @@
 - **Runtime & Preview:** run generated projects in a controlled local Vite runtime and expose a live Preview. ✅
 - **Project Editing:** apply follow-up requests as focused source changes without regenerating the whole project. ✅
 - **Persistent Edit Context:** preserve the original product request, Design Intent, and recent successful manual edits so later user-directed changes keep project continuity across API/runtime sessions. ✅
+- **Persistent Conversation:** store project conversation turns, timestamps, changed files, and Visual Edit targets in local SQLite so the workspace can restore them after reload. ✅
 - **Visual → Source Editing:** select Preview elements, map them back to JSX source locations, and use that context for targeted edits. ✅
 - **Project Workspace:** reopen, switch, rename, star, remix, and delete generated projects from the dashboard. ✅
 
@@ -23,5 +24,5 @@
 
 - **Long-running Iteration Robustness:** improve compaction, conflict handling, and preservation of unrelated code when edit histories become large.
 - **Versioning & Rollback:** capture stable project versions, inspect diffs, and restore earlier states safely.
-- **Full-stack Capabilities:** add database, auth, storage, secrets, and backend functions without exposing unnecessary complexity.
+- **Full-stack Capabilities:** add product-facing database, auth, storage, secrets, and backend functions without exposing unnecessary complexity.
 - **Deployment & Collaboration:** add deployment, GitHub sync, collaboration, model routing, ownership, and production infrastructure as real usage demands them.

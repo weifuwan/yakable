@@ -5,7 +5,6 @@ import {
   listProjects,
   startProjectRuntime,
   type ProjectListItem,
-  type ProjectSession,
 } from "./api";
 import { Dashboard } from "./pages/Dashboard";
 import type { ActiveProject } from "./pages/Workspace";
@@ -64,21 +63,6 @@ function canonicalPath(route: AppRoute): string {
 
 function normalizePath(pathname: string): string {
   return canonicalPath(resolveAppRoute(pathname));
-}
-
-function sessionResumeSummary(session: ProjectSession | null): string | undefined {
-  if (!session) return undefined;
-
-  const recentEdits = session.edits.slice(-5);
-  if (!recentEdits.length) {
-    return session.initialSummary || "Project context restored.";
-  }
-
-  const lines = [session.initialSummary || "Project context restored.", "", "Recent edits:"];
-  for (const edit of recentEdits) {
-    lines.push(`- ${edit.userRequest} → ${edit.assistantSummary}`);
-  }
-  return lines.join("\n");
 }
 
 export default function App() {
@@ -166,7 +150,8 @@ export default function App() {
           previewUrl: runtime.previewUrl,
           template: runtime.template,
           routes: runtime.routes,
-          summary: sessionResumeSummary(runtime.session),
+          summary: runtime.session?.initialSummary,
+          conversation: runtime.conversation,
         });
       })
       .catch((error) => {
@@ -202,6 +187,7 @@ export default function App() {
       model: result.project.model,
       template: result.project.template,
       routes: result.project.routes,
+      conversation: result.project.conversation,
     };
 
     setActiveProject(nextProject);

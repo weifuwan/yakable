@@ -179,12 +179,41 @@ export interface ProjectPatch {
   changes: GeneratedFile[];
 }
 
+export interface ProjectVisualSelection {
+  sourceId?: string;
+  file?: string;
+  line?: number;
+  column?: number;
+  tagName: string;
+  text: string;
+  selector: string;
+}
+
 export interface ProjectEditHistoryItem {
   id: string;
   createdAt: string;
   userRequest: string;
   assistantSummary: string;
   changedFiles: string[];
+  model?: string;
+  visualSelections?: ProjectVisualSelection[];
+}
+
+export interface ProjectConversationMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: string;
+  model?: string;
+  changedFiles?: string[];
+  visualSelections?: ProjectVisualSelection[];
+}
+
+export interface ProjectConversation {
+  projectId: string;
+  createdAt: string;
+  updatedAt: string;
+  messages: ProjectConversationMessage[];
 }
 
 export interface ProjectSessionState {

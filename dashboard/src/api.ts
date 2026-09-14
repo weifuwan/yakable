@@ -1,5 +1,4 @@
 import {
-  announceUserEditMessageSubmitted,
   buildVisualEditPrompt,
   clearCurrentPreviewSelections,
   getCurrentPreviewSelections,
@@ -13,12 +12,24 @@ export interface ProjectRoute {
   title: string;
 }
 
+export interface PersistedVisualSelection {
+  sourceId?: string;
+  file?: string;
+  line?: number;
+  column?: number;
+  tagName: string;
+  text: string;
+  selector: string;
+}
+
 export interface ProjectEditHistoryItem {
   id: string;
   createdAt: string;
   userRequest: string;
   assistantSummary: string;
   changedFiles: string[];
+  model?: string;
+  visualSelections?: PersistedVisualSelection[];
 }
 
 export interface ProjectSession {
@@ -29,6 +40,23 @@ export interface ProjectSession {
   createdAt: string;
   updatedAt: string;
   edits: ProjectEditHistoryItem[];
+}
+
+export interface ProjectConversationMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: string;
+  model?: string;
+  changedFiles?: string[];
+  visualSelections?: PersistedVisualSelection[];
+}
+
+export interface ProjectConversation {
+  projectId: string;
+  createdAt: string;
+  updatedAt: string;
+  messages: ProjectConversationMessage[];
 }
 
 export interface ProjectListItem {
@@ -50,6 +78,7 @@ export interface CreatedProject {
     template: ProjectTemplate;
     routes: ProjectRoute[];
     session: ProjectSession | null;
+    conversation: ProjectConversation | null;
   };
   previewUrl: string;
 }
@@ -62,6 +91,7 @@ export interface RuntimeProject {
   template: ProjectTemplate;
   routes: ProjectRoute[];
   session: ProjectSession | null;
+  conversation: ProjectConversation | null;
 }
 
 export interface EditedProject extends RuntimeProject {
@@ -110,7 +140,6 @@ export async function editProject(
   prompt: string,
   selections: PreviewSelection[] = getCurrentPreviewSelections(),
 ): Promise<EditedProject> {
-  announceUserEditMessageSubmitted(prompt, selections);
   const visualEditPrompt = buildVisualEditPrompt(prompt, selections);
   const result = await requestJson<EditedProject>(
     `/api/projects/${encodeURIComponent(projectId)}/edit`,
@@ -120,9 +149,7 @@ export async function editProject(
     },
   );
 
-  if (selections.length) {
-    clearCurrentPreviewSelections();
-  }
+  if (selections.length) clearCurrentPreviewSelections();
   return result;
 }
 

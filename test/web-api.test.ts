@@ -6,7 +6,7 @@ import {
   type RuntimeSession,
   type WebApiServices,
 } from '../src/server/web-api.js';
-import type { ProjectSessionState } from '../src/types.js';
+import type { ProjectConversation, ProjectSessionState } from '../src/types.js';
 
 const metadata = {
   version: 1 as const,
@@ -29,6 +29,39 @@ const session: ProjectSessionState = {
       createdAt: '2026-09-11T07:05:00.000Z',
       userRequest: 'Make the hero blue',
       assistantSummary: 'Updated hero',
+      changedFiles: ['src/App.tsx'],
+    },
+  ],
+};
+
+const conversation: ProjectConversation = {
+  projectId: 'generated-project',
+  createdAt: session.createdAt,
+  updatedAt: session.updatedAt,
+  messages: [
+    {
+      id: 'initial-user',
+      role: 'user',
+      content: 'Build a dashboard',
+      createdAt: session.createdAt,
+    },
+    {
+      id: 'initial-assistant',
+      role: 'assistant',
+      content: 'Generated dashboard',
+      createdAt: session.createdAt,
+    },
+    {
+      id: 'edit-user',
+      role: 'user',
+      content: 'Make the hero blue',
+      createdAt: session.updatedAt,
+    },
+    {
+      id: 'edit-assistant',
+      role: 'assistant',
+      content: 'Updated hero',
+      createdAt: session.updatedAt,
       changedFiles: ['src/App.tsx'],
     },
   ],
@@ -69,6 +102,7 @@ function fakeServices(): WebApiServices {
         template: metadata.template,
         routes: metadata.routes,
         session,
+        conversation,
       };
     },
     async edit(projectId, prompt) {
@@ -80,6 +114,7 @@ function fakeServices(): WebApiServices {
         model: 'test-model',
         changedFiles: ['src/App.tsx'],
         session,
+        conversation,
       };
     },
     async startRuntime() {
@@ -88,6 +123,9 @@ function fakeServices(): WebApiServices {
     },
     async readSession() {
       return session;
+    },
+    async readConversation() {
+      return conversation;
     },
     async updateProject(_projectId, patch) {
       if (patch.name) name = patch.name;
@@ -126,6 +164,7 @@ test('web API lists projects and wires Prompt -> Template -> Routes -> Run', asy
         template: string;
         routes: Array<{ path: string }>;
         session: ProjectSessionState;
+        conversation: ProjectConversation;
       };
       previewUrl: string;
     };
@@ -133,6 +172,7 @@ test('web API lists projects and wires Prompt -> Template -> Routes -> Run', asy
     assert.equal(created.project.template, 'app');
     assert.deepEqual(created.project.routes.map((route) => route.path), ['/', '/account']);
     assert.equal(created.project.session.productRequest, 'Build a dashboard');
+    assert.equal(created.project.conversation.messages[0]?.role, 'user');
     assert.match(created.previewUrl, /revision=/);
 
     const runtimeResponse = await fetch(`${baseUrl}/api/projects/generated-project/runtime`, {
@@ -144,10 +184,12 @@ test('web API lists projects and wires Prompt -> Template -> Routes -> Run', asy
       template: string;
       routes: Array<{ path: string }>;
       session: ProjectSessionState;
+      conversation: ProjectConversation;
     };
     assert.equal(runtimeResult.template, 'app');
     assert.deepEqual(runtimeResult.routes.map((route) => route.path), ['/', '/account']);
     assert.equal(runtimeResult.session.edits[0]?.userRequest, 'Make the hero blue');
+    assert.equal(runtimeResult.conversation.messages[2]?.content, 'Make the hero blue');
   } finally {
     await api.close();
   }
@@ -175,10 +217,12 @@ test('web API wires follow-up Prompt -> Patch while keeping route metadata', asy
       previewUrl: string;
       routes: Array<{ path: string }>;
       session: ProjectSessionState;
+      conversation: ProjectConversation;
     };
     assert.deepEqual(edited.changedFiles, ['src/App.tsx']);
     assert.deepEqual(edited.routes.map((route) => route.path), ['/', '/account']);
     assert.equal(edited.session.edits[0]?.assistantSummary, 'Updated hero');
+    assert.equal(edited.conversation.messages.at(-1)?.content, 'Updated hero');
     assert.match(edited.previewUrl, /revision=/);
   } finally {
     await api.close();

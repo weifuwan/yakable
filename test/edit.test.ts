@@ -7,6 +7,7 @@ import test from 'node:test';
 import {
   applyProjectPatch,
   buildProjectEditContext,
+  extractUserEditContext,
   extractUserEditRequest,
   parseProjectPatch,
   readProjectSnapshot,
@@ -129,12 +130,44 @@ test('includes original intent and recent accepted edits in follow-up context', 
   }
 });
 
-test('stores the human request instead of visual selection metadata', () => {
+test('extracts the human request and source-mapped visual targets for persistence', () => {
   const request = `${'[[YAKABLE_VISUAL_EDIT_REQUEST]]'}\n${JSON.stringify({
     userRequest: 'Make this heading larger',
-    visualSelections: { selectedCount: 1, targets: [] },
+    visualSelections: {
+      selectedCount: 1,
+      targets: [
+        {
+          sourceId: 'yak_heading',
+          file: 'src/components/Hero.tsx',
+          line: 37,
+          column: 5,
+          tagName: 'h1',
+          instances: [
+            {
+              runtimeId: 'runtime-1',
+              text: 'Build something great',
+              selector: 'main > section > h1',
+            },
+          ],
+        },
+      ],
+      unmappedSelections: [],
+    },
   })}\n${'[[/YAKABLE_VISUAL_EDIT_REQUEST]]'}`;
 
+  const extracted = extractUserEditContext(request);
+  assert.equal(extracted.userRequest, 'Make this heading larger');
+  assert.deepEqual(extracted.visualSelections, [
+    {
+      sourceId: 'yak_heading',
+      file: 'src/components/Hero.tsx',
+      line: 37,
+      column: 5,
+      tagName: 'h1',
+      text: 'Build something great',
+      selector: 'main > section > h1',
+    },
+  ]);
   assert.equal(extractUserEditRequest(request), 'Make this heading larger');
   assert.equal(extractUserEditRequest('Tighten the hero spacing'), 'Tighten the hero spacing');
 });
