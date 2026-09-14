@@ -21,14 +21,14 @@
 - **Project Check Tool:** after each source edit, run bounded TypeScript and Vite build checks and return structured PASS/FAIL diagnostics without modifying the project. ✅
 - **One-shot Repair:** when the post-edit check reports FAIL, build a bounded repair context, allow exactly one targeted repair patch, run one final project check, then stop whether it passes or fails. ✅
 - **Page Observation v0:** let the live Preview return one bounded source-mapped snapshot containing route, viewport/document dimensions, visible key elements, and captured runtime errors, without screenshotting, model judgment, or source mutation. ✅
+- **Edit Intent Delta v0:** normalize a follow-up edit request against the persisted Design Intent into a bounded `summary + scope + targetHints + directives + preserve` contract, then give the same delta to Context Selection and Project Edit. Normalization failures use a deterministic fallback instead of blocking the edit. ✅
 
 ## Next
 
-- **Edit Intent Delta v0:** normalize a follow-up edit request into a small explicit frontend-change contract that preserves the original Design Intent and can be reused by Context Selection, editing, and future critique.
+- **Design Critic v0:** inspect Page Observation against Design Intent and the current Edit Intent Delta, returning bounded structured PASS/FAIL findings without modifying source.
 
 ## Later
 
-- **Design Critic v0:** inspect Page Observation against Design Intent and the current edit intent, returning bounded structured PASS/FAIL findings without modifying source.
 - **Visual Repair v0:** when Design Critic reports FAIL, allow one bounded visual repair, re-check project health, observe once more, critique once more, then stop.
 - **Frontend Agent v0:** expose the bounded frontend workflow as explicit states such as SELECT_CONTEXT → READ → EDIT → CHECK → OBSERVE → CRITIQUE → REPAIR → DONE before considering broad model-selected tool calling.
 - **UI Planner v0:** compile Design Intent into a small explicit page/section/hierarchy/responsive plan before code generation, without introducing a broad layout DSL.
