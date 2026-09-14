@@ -1,5 +1,15 @@
 export type ProjectTemplate = 'website' | 'app';
 
+export type BuildIntentRoute = 'CREATE' | 'CHAT' | 'CLARIFY';
+export type BuildIntentConfidence = 'high' | 'medium';
+
+export interface BuildIntentDecision {
+  version: 1;
+  route: BuildIntentRoute;
+  confidence: BuildIntentConfidence;
+  message: string;
+}
+
 export interface PromptIntent {
   version: 1;
   productType: string;
@@ -168,6 +178,7 @@ export interface GenerationResult {
   project: GeneratedProject;
   outputDirectory: string;
   model: string;
+  buildIntent: BuildIntentDecision;
   intent: PromptIntent;
   semanticExpansion: SemanticExpansion;
   tasteTranslation: TasteTranslation;
