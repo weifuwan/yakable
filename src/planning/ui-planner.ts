@@ -13,6 +13,8 @@ export const UI_PLAN_MAX_SECONDARY_HIERARCHY = 6;
 export const UI_PLAN_MAX_SECTION_CONTENT = 8;
 export const UI_PLAN_MAX_RESPONSIVE_ITEMS = 10;
 export const UI_PLAN_MAX_OMISSIONS = 10;
+export const UI_PLANNER_MAX_CONTEXT_FILES = 12;
+export const UI_PLANNER_MAX_USER_REQUEST = 8_000;
 export const UI_PLANNER_MAX_REQUEST_CHARS = 900_000;
 const UI_PLAN_MAX_SHORT_TEXT = 240;
 const UI_PLAN_MAX_TEXT = 900;
@@ -253,9 +255,39 @@ export function parseUiPlannerResult(rawContent: string): UiPlannerResult {
   };
 }
 
+function validateRequestContext(input: UiPlannerInput): string {
+  const request = input.userRequest.trim();
+  if (!request) throw new Error('UI Planner requires a user request.');
+  if (request.length > UI_PLANNER_MAX_USER_REQUEST) {
+    throw new Error(
+      `UI Planner user request is too long (max ${UI_PLANNER_MAX_USER_REQUEST} characters).`,
+    );
+  }
+  if (input.files.length === 0 || input.files.length > UI_PLANNER_MAX_CONTEXT_FILES) {
+    throw new Error(
+      `UI Planner requires 1-${UI_PLANNER_MAX_CONTEXT_FILES} bounded context files.`,
+    );
+  }
+
+  const selected = new Set(input.contextSelection.relevantFiles);
+  const seen = new Set<string>();
+  for (const file of input.files) {
+    const filePath = file.path.trim();
+    if (!filePath || seen.has(filePath)) {
+      throw new Error('UI Planner context files must have unique non-empty paths.');
+    }
+    if (!selected.has(filePath)) {
+      throw new Error(`UI Planner received a file outside selected context: ${filePath}.`);
+    }
+    seen.add(filePath);
+  }
+  return request;
+}
+
 export function buildUiPlannerRequest(input: UiPlannerInput): string {
+  const userRequest = validateRequestContext(input);
   const request = JSON.stringify({
-    userRequest: input.userRequest.trim(),
+    userRequest,
     productRequest: input.productRequest ?? null,
     designIntent: input.designIntent,
     currentUiPlan: input.currentUiPlan,
@@ -266,7 +298,6 @@ export function buildUiPlannerRequest(input: UiPlannerInput): string {
     },
   });
 
-  if (!input.userRequest.trim()) throw new Error('UI Planner requires a user request.');
   if (request.length > UI_PLANNER_MAX_REQUEST_CHARS) {
     throw new Error(
       `UI Planner request is too large (max ${UI_PLANNER_MAX_REQUEST_CHARS} characters).`,
