@@ -7,6 +7,7 @@ import {
   selectProjectContextFiles,
   type EditContextSelection,
 } from './context-selection.js';
+import { resolveProjectContextSearch } from './context-search.js';
 import { requestProjectPatch } from '../model/deepseek.js';
 import {
   appendProjectEditHistory,
@@ -449,7 +450,13 @@ export async function editGeneratedProject(
   const userEdit = extractUserEditContext(request);
   const session = await readProjectSession(project.directory);
   const availableFiles = await listProjectContextFiles(project.directory);
-  const contextSelection = await selectProjectContextFiles(userEdit, availableFiles);
+  const initialContextSelection = await selectProjectContextFiles(userEdit, availableFiles);
+  const contextSelection = await resolveProjectContextSearch(
+    project.directory,
+    userEdit.userRequest,
+    availableFiles,
+    initialContextSelection,
+  );
   const snapshot = await readProjectSnapshot(project, contextSelection.relevantFiles);
   const editContext = buildProjectEditContext(snapshot, request, session);
 

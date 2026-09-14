@@ -17,10 +17,10 @@
 - **Capability Packs:** explicitly install optional UI capabilities on top of Base, with pack-owned files, deterministic dependency merging, conflict protection, idempotent installs, and persisted capability state. ✅
 - **Minimal Tool Contract:** expose structured Tool / ToolResult / ToolRegistry primitives and route project text reads through a safe `read_project_file` tool, without model tool-calling or MCP. ✅
 - **Project Context Selection:** list safe text-file paths first, select at most 12 relevant files from the request or Visual Edit mapping, then read only those files for Project Edit. Existing files outside selected context cannot be modified. ✅
+- **Project Search Tool:** when file paths alone are ambiguous, allow Context Selection to request exactly one bounded literal `search_project` query, merge matched files into context, then continue through `read_project_file`. ✅
 
 ## Next
 
-- **Project Search Tool:** add one bounded search capability for edits whose source file is not already known from Visual Edit metadata or path-level context selection.
 - **Project Check Tool:** run a deterministic TypeScript/build health check after an edit and return structured pass/fail observations without repairing anything yet.
 - **One-shot Repair:** on a failed project check, allow exactly one targeted repair attempt and check again.
 

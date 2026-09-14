@@ -47,6 +47,8 @@ Follow-up Prompt
       ↓
 Project Context Selection
       ↓
+optional one-shot search_project
+      ↓
 Read selected files → Edit
       ↓
 Persist conversation + edit context in SQLite
@@ -69,6 +71,7 @@ The API listens on `127.0.0.1:8787` by default and the dashboard proxies `/api` 
 - restore the project's persisted conversation after closing or reloading the browser
 - send follow-up edit prompts against the existing project
 - choose a bounded relevant file set before reading edit context instead of sending the whole project snapshot
+- perform at most one bounded literal project-text search when file paths alone are ambiguous
 - keep the original product request, Design Intent, and recent successful edits as persisted context for later edits
 - persist Visual Edit source targets with the user message that used them
 - select Preview elements and target edits back to mapped JSX source locations
@@ -121,11 +124,13 @@ Tool<Input, Output>
 ToolResult<Output>
       ↓
 ToolRegistry
-      ↓
-read_project_file
+      ├── read_project_file
+      └── search_project
 ```
 
 `read_project_file` reads one safe UTF-8 file from the current generated frontend project. It rejects path traversal, secret `.env*` files, blocked build/internal directories, binary files, files outside the project root, and files over the existing 200 KB edit-context limit.
+
+`search_project` performs a bounded case-insensitive literal search across caller-supplied readable project paths. It accepts at most 500 candidate files, returns at most 20 source matches, and exposes only path/line/column/snippet results instead of returning whole project files as search output.
 
 There is still no MCP adapter or model-directed generic Tool loop. Tools remain bounded Yakable capabilities.
 
@@ -140,26 +145,36 @@ List safe text-file paths only
       ↓
 Context Selector
       ↓
-1..12 relevant existing paths
+path names sufficient? ── yes ──→ selected files
+      │
+      no
       ↓
-read_project_file for those paths
+one literal searchQuery
+      ↓
+search_project
+      ↓
+merge matched files
+      ↓
+read_project_file
       ↓
 Project Edit
 ```
 
-For normal text edits, the Context Selector receives the human request plus the project file-path list only; it does not receive source contents. Its output is validated against the real candidate list and capped at 12 files. If context selection fails, Yakable falls back to a small deterministic filename/style-oriented selection instead of loading the full project.
+For normal text edits, the Context Selector receives the human request plus the project file-path list only; it does not receive source contents. It may choose up to 12 files directly or request exactly one short literal `searchQuery` when path names are not enough to locate the requested UI. There is no repeated search loop.
 
-When Visual Edit already maps a selected DOM element to JSX source, those mapped files become the context directly and the extra model-selection call is skipped.
+Search runs only across the same safe text-file candidate set used by Context Selection. Match files are ranked by match count and merged into the final context, still capped at 12 files. If a requested search finds nothing and no direct file was selected, Yakable falls back to the small deterministic filename/style-oriented selection from Project Context Selection instead of loading the whole project.
 
-The edit model is also prevented from modifying an existing project file that was not included in the selected context. New writable text files remain allowed when genuinely required.
+When Visual Edit already maps a selected DOM element to JSX source, those mapped files become the context directly and both the extra model-selection search decision and project search are skipped.
+
+The edit model is also prevented from modifying an existing project file that was not included in the final selected context. New writable text files remain allowed when genuinely required.
 
 Run a manual edit to see the boundary directly:
 
 ```bash
-npm run edit -- generated/<project-id> "把 Hero 主色改成蓝色"
+npm run edit -- generated/<project-id> "把 Pricing 按钮改得更突出"
 ```
 
-The CLI prints the context source (`visual`, `model`, or `fallback`) and the exact files read before the edit.
+The CLI prints the context source (`visual`, `model`, `search`, or `fallback`), the search query when one was used, and the exact files read before the edit.
 
 Automatic build/runtime error repair is not implemented yet. If an edit breaks the generated project, the Preview exposes that failure and repair remains manual for now.
 
@@ -290,6 +305,7 @@ Yakable Base Template ✅
 Capability Packs ✅
 Minimal Tool Contract ✅
 Project Context Selection ✅
-Project Search Tool ⏭️
+Project Search Tool ✅
+Project Check Tool ⏭️
 Automatic Error Repair ⏭️
 ```
