@@ -97,6 +97,12 @@ function assertBaseOverlayFiles(files: GeneratedFile[], template: ProjectTemplat
       );
     }
 
+    if (file.path.endsWith('.css') && file.path !== 'src/styles/theme.css') {
+      throw new Error(
+        `Generated product styling must use Tailwind utilities; only src/styles/theme.css may contain project-owned CSS: ${file.path}`,
+      );
+    }
+
     if (
       file.path.startsWith('src/components/product/') &&
       /(?:^|\/)\w*Page\.tsx$/i.test(file.path)
