@@ -295,8 +295,10 @@ export function fallbackEditIntentDelta(
 export async function resolveEditIntentDelta(
   input: EditIntentDeltaInput,
 ): Promise<EditIntentResolution> {
+  const request = buildEditIntentDeltaRequest(input);
+
   try {
-    const generation = await requestEditIntentDelta(buildEditIntentDeltaRequest(input));
+    const generation = await requestEditIntentDelta(request);
     return {
       delta: parseEditIntentDelta(generation.content),
       source: 'model',
