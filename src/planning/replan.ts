@@ -70,10 +70,10 @@ async function atomicWrite(target: string, content: string): Promise<void> {
   await rename(temporary, target);
 }
 
-export async function archivePlanRevision(
+async function archivePlanRevision(
   projectDirectory: string,
   plan: PlanArtifact,
-  mode: YakableMode = 'PLAN',
+  mode: YakableMode,
 ): Promise<void> {
   assertModeCapability(mode, 'write-plan');
   const normalized = parsePlanArtifact(JSON.stringify(plan));
@@ -83,10 +83,10 @@ export async function archivePlanRevision(
   await atomicWrite(paths.markdownPath, renderPlanArtifactMarkdown(normalized));
 }
 
-export async function readArchivedPlanRevision(
+async function readArchivedPlanRevision(
   projectDirectory: string,
   revision: number,
-  mode: YakableMode = 'PLAN',
+  mode: YakableMode,
 ): Promise<PlanArtifact | null> {
   assertModeCapability(mode, 'read-plan');
   const { jsonPath } = historyPaths(projectDirectory, revision);
