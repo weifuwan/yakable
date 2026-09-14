@@ -50,6 +50,27 @@ export {
   translatePromptTaste,
 } from './prompt-intelligence/taste.js';
 export {
+  EDIT_INTENT_VERSION,
+  MAX_EDIT_INTENT_DIRECTIVES,
+  MAX_EDIT_INTENT_PRESERVE,
+  MAX_EDIT_INTENT_PROMPT_LENGTH,
+  MAX_EDIT_INTENT_TARGET_HINTS,
+  buildEditIntentDeltaRequest,
+  fallbackEditIntentDelta,
+  parseEditIntentDelta,
+  resolveEditIntentDelta,
+} from './editing/edit-intent.js';
+export type {
+  EditIntentArea,
+  EditIntentDelta,
+  EditIntentDeltaInput,
+  EditIntentDirective,
+  EditIntentDirectiveBasis,
+  EditIntentResolution,
+  EditIntentResolutionSource,
+  EditIntentScope,
+} from './editing/edit-intent.js';
+export {
   MAX_CONTEXT_SEARCH_QUERY_LENGTH,
   MAX_EDIT_CONTEXT_FILES,
   MAX_PROJECT_CONTEXT_CANDIDATES,

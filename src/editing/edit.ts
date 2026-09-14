@@ -8,6 +8,11 @@ import {
   type EditContextSelection,
 } from './context-selection.js';
 import { resolveProjectContextSearch } from './context-search.js';
+import {
+  resolveEditIntentDelta,
+  type EditIntentDelta,
+  type EditIntentResolution,
+} from './edit-intent.js';
 import { runOneShotRepair, type OneShotRepairResult } from './repair.js';
 import { requestProjectPatch, requestProjectRepair } from '../model/deepseek.js';
 import {
@@ -67,6 +72,7 @@ export interface EditProjectResult {
   model: string;
   summary: string;
   changedFiles: string[];
+  editIntent: EditIntentResolution;
   contextSelection: EditContextSelection;
   repair: OneShotRepairResult;
   projectCheck: ToolResult<CheckProjectOutput>;
@@ -322,6 +328,7 @@ export function buildProjectEditContext(
   snapshot: ProjectSnapshot,
   followUpRequest: string,
   session: ProjectSessionState | null,
+  editIntent: EditIntentDelta | null = null,
 ): string {
   const recentEdits = session?.edits.slice(-MAX_HISTORY_CONTEXT).map((edit) => ({
     userRequest: edit.userRequest,
@@ -331,6 +338,7 @@ export function buildProjectEditContext(
 
   return JSON.stringify({
     followUpRequest,
+    editIntent,
     continuity: session
       ? {
           originalProductRequest: session.productRequest ?? null,
@@ -454,8 +462,19 @@ export async function editGeneratedProject(
   const project = await resolveGeneratedProject(projectInput);
   const userEdit = extractUserEditContext(request);
   const session = await readProjectSession(project.directory);
+  const editIntent = await resolveEditIntentDelta({
+    userRequest: userEdit.userRequest,
+    baselineDesignIntent: session?.designIntent ?? null,
+    visualSelections: userEdit.visualSelections,
+  });
   const availableFiles = await listProjectContextFiles(project.directory);
-  const initialContextSelection = await selectProjectContextFiles(userEdit, availableFiles);
+  const initialContextSelection = await selectProjectContextFiles(
+    {
+      ...userEdit,
+      editIntent: editIntent.delta,
+    },
+    availableFiles,
+  );
   const contextSelection = await resolveProjectContextSearch(
     project.directory,
     userEdit.userRequest,
@@ -463,7 +482,7 @@ export async function editGeneratedProject(
     initialContextSelection,
   );
   const snapshot = await readProjectSnapshot(project, contextSelection.relevantFiles);
-  const editContext = buildProjectEditContext(snapshot, request, session);
+  const editContext = buildProjectEditContext(snapshot, request, session, editIntent.delta);
 
   const generation = await requestProjectPatch(editContext);
   const patch = parseProjectPatch(generation.content);
@@ -512,6 +531,7 @@ export async function editGeneratedProject(
     model: generation.model,
     summary: patch.summary,
     changedFiles,
+    editIntent,
     contextSelection,
     repair,
     projectCheck,

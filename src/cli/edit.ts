@@ -18,12 +18,21 @@ if (!projectInput || !followUpRequest) {
 
 try {
   console.log('Yakable: Edit project');
-  console.log('Selecting focused context, editing, checking health, and allowing at most one targeted repair.');
+  console.log('Normalizing edit intent, selecting focused context, editing, checking health, and allowing at most one targeted repair.');
 
   const result = await editGeneratedProject(projectInput, followUpRequest);
 
   console.log(`\nProject: ${result.projectId}`);
   console.log(`Model: ${result.model}`);
+  console.log(`Edit intent source: ${result.editIntent.source}`);
+  console.log(`Edit intent scope: ${result.editIntent.delta.scope}`);
+  console.log(`Edit intent: ${result.editIntent.delta.summary}`);
+  for (const directive of result.editIntent.delta.directives) {
+    console.log(`- ${directive.area} (${directive.basis}): ${directive.directive}`);
+  }
+  if (result.editIntent.delta.preserve.length) {
+    console.log(`Preserve: ${result.editIntent.delta.preserve.join('; ')}`);
+  }
   console.log(`Context source: ${result.contextSelection.source}`);
   if (result.contextSelection.searchQuery) {
     console.log(`Search query: ${result.contextSelection.searchQuery}`);
