@@ -25,6 +25,10 @@ import {
 import { generateProject } from '../generation/generate.js';
 import { classifyBuildIntent } from '../prompt-intelligence/build-intent.js';
 import {
+  classifyProjectMessageIntent,
+  type ProjectMessageDecision,
+} from '../prompt-intelligence/project-message.js';
+import {
   deleteManagedProject,
   listManagedProjects,
   remixManagedProject,
@@ -35,6 +39,7 @@ import {
 } from '../projects/project-actions.js';
 import { readProjectMetadata } from '../projects/project-metadata.js';
 import {
+  appendProjectEditHistory,
   readProjectConversation,
   readProjectSession,
   writeProjectSession,
@@ -94,6 +99,11 @@ export interface WebEditedProject {
   conversation: ProjectConversation | null;
 }
 
+export interface WebProjectMessageResult {
+  decision: ProjectMessageDecision;
+  conversation: ProjectConversation | null;
+}
+
 export interface WebVisualRepairInput {
   userRequest: string;
   editIntent: EditIntentDelta;
@@ -114,6 +124,7 @@ export interface WebApiServices {
   listProjects(): Promise<WebProjectListItem[]>;
   gateBuildIntent(prompt: string): Promise<BuildIntentDecision>;
   generate(prompt: string, buildIntent: BuildIntentDecision): Promise<WebGeneratedProject>;
+  message?(projectId: string, prompt: string): Promise<WebProjectMessageResult>;
   edit(
     projectId: string,
     prompt: string,
@@ -391,6 +402,39 @@ export function createDefaultWebApiServices(
       };
     },
 
+    async message(projectId, prompt) {
+      const project = await resolveGeneratedProject(projectId, generatedRoot);
+      const session = await readProjectSession(project.directory);
+      const conversation = await readProjectConversation(project.directory);
+      const hasGeneratedUi = Boolean(
+        session?.designIntent || session?.edits.some((edit) => edit.changedFiles.length > 0),
+      );
+      const decision = await classifyProjectMessageIntent({
+        userInput: prompt,
+        hasGeneratedUi,
+        recentConversation:
+          conversation?.messages.slice(-10).map((message) => ({
+            role: message.role,
+            content: message.content,
+          })) ?? [],
+      });
+
+      if (decision.route === 'CHAT' || decision.route === 'CLARIFY') {
+        await appendProjectEditHistory(project.directory, {
+          userRequest: prompt,
+          assistantSummary: decision.message,
+          changedFiles: [],
+          model: 'project-message-router',
+        });
+        await touchManagedProject(projectId, generatedRoot);
+      }
+
+      return {
+        decision,
+        conversation: await readProjectConversation(project.directory),
+      };
+    },
+
     async edit(projectId, prompt, onAgentEvent) {
       const result = await editGeneratedProject(projectId, prompt, { onEvent: onAgentEvent });
       await touchManagedProject(projectId, generatedRoot);
@@ -555,7 +599,7 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
       }
 
       const projectRoute = url.pathname.match(
-        /^\/api\/projects\/([^/]+)\/(runtime|edit|agent-edit|critique|visual-repair)$/,
+        /^\/api\/projects\/([^/]+)\/(runtime|message|edit|agent-edit|critique|visual-repair)$/,
       );
       if (method === 'POST' && projectRoute) {
         const projectId = assertProjectId(projectRoute[1] ?? '');
@@ -568,6 +612,12 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
         }
 
         const body = await readJsonBody(request);
+
+        if (action === 'message') {
+          if (!services.message) throw new Error('Project message routing is not available.');
+          sendJson(response, 200, await services.message(projectId, readPrompt(body)));
+          return;
+        }
 
         if (action === 'agent-edit') {
           const prompt = readPrompt(body);
