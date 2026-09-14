@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { resolveGeneratedProject, startGeneratedProject } from '../src/runtime.js';
+import { resolveGeneratedProject, startGeneratedProject } from '../src/runtime/runtime.js';
 
 async function createFixture(root: string, id = 'demo-project'): Promise<string> {
   const directory = path.join(root, id);

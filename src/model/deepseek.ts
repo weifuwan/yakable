@@ -1,8 +1,8 @@
-import { PROJECT_EDIT_SYSTEM_PROMPT } from './edit-prompt.js';
-import { INTENT_ANALYSIS_SYSTEM_PROMPT } from './intent-prompt.js';
-import { PROJECT_GENERATION_SYSTEM_PROMPT } from './prompt.js';
-import { SEMANTIC_EXPANSION_SYSTEM_PROMPT } from './semantic-prompt.js';
-import { TASTE_TRANSLATION_SYSTEM_PROMPT } from './taste-prompt.js';
+import { PROJECT_EDIT_SYSTEM_PROMPT } from '../editing/edit-prompt.js';
+import { PROJECT_GENERATION_SYSTEM_PROMPT } from '../generation/prompt.js';
+import { INTENT_ANALYSIS_SYSTEM_PROMPT } from '../prompt-intelligence/intent-prompt.js';
+import { SEMANTIC_EXPANSION_SYSTEM_PROMPT } from '../prompt-intelligence/semantic-prompt.js';
+import { TASTE_TRANSLATION_SYSTEM_PROMPT } from '../prompt-intelligence/taste-prompt.js';
 
 const DEFAULT_BASE_URL = 'https://api.deepseek.com';
 const DEFAULT_MODEL = 'deepseek-v4-pro';

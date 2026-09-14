@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { parsePromptIntent } from '../src/intent.js';
+import { parsePromptIntent } from '../src/prompt-intelligence/intent.js';
 
 test('parses a structured prompt intent without adding design decisions', () => {
   const intent = parsePromptIntent(

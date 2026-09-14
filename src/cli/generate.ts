@@ -1,6 +1,6 @@
 import 'dotenv/config';
 
-import { generateProject } from './generate.js';
+import { generateProject } from '../generation/generate.js';
 
 function usage(): never {
   console.error('Usage: npm run generate -- "Build a simple SaaS landing page"');

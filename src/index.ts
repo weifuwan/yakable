@@ -1,17 +1,21 @@
-export { buildDesignIntent } from './design-intent.js';
-export { generateProject } from './generate.js';
-export { analyzePromptIntent, parsePromptIntent } from './intent.js';
-export { parseGeneratedProject, slugifyPrompt, writeGeneratedProject } from './project.js';
+export { buildDesignIntent } from './prompt-intelligence/design-intent.js';
+export { generateProject } from './generation/generate.js';
+export { analyzePromptIntent, parsePromptIntent } from './prompt-intelligence/intent.js';
+export {
+  parseGeneratedProject,
+  slugifyPrompt,
+  writeGeneratedProject,
+} from './projects/project.js';
 export {
   buildSemanticExpansionRequest,
   expandPromptSemantics,
   parseSemanticExpansion,
-} from './semantic.js';
+} from './prompt-intelligence/semantic.js';
 export {
   buildTasteTranslationRequest,
   parseTasteTranslation,
   translatePromptTaste,
-} from './taste.js';
+} from './prompt-intelligence/taste.js';
 export type {
   DesignIntentDirective,
   DesignIntentIR,

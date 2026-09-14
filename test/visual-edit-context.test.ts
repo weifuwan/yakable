@@ -43,7 +43,7 @@ function parseEnvelope(prompt: string) {
   };
 }
 
-test('keeps normal Stage 3 prompts unchanged without visual selections', () => {
+test('keeps normal project edit prompts unchanged without visual selections', () => {
   assert.equal(buildVisualEditPrompt('Make the hero smaller', []), 'Make the hero smaller');
 });
 

@@ -1,4 +1,4 @@
-import { requestSemanticExpansion } from './deepseek.js';
+import { requestSemanticExpansion } from '../model/deepseek.js';
 import type {
   PromptIntent,
   SemanticDefault,
@@ -6,7 +6,7 @@ import type {
   SemanticDefaultKind,
   SemanticExpansion,
   SemanticConfidence,
-} from './types.js';
+} from '../types.js';
 
 const MAX_PROMPT_LENGTH = 12_000;
 const MAX_DEFAULTS = 16;

@@ -2,9 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { cp, readdir, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 
+import { resolveGeneratedProject } from '../runtime/runtime.js';
+import type { ProjectMetadata, ProjectTemplate } from '../types.js';
 import { createProjectMetadata, readProjectMetadata, writeProjectMetadata } from './project-metadata.js';
-import { resolveGeneratedProject } from './runtime.js';
-import type { ProjectMetadata, ProjectTemplate } from './types.js';
 
 export interface ProjectListRecord {
   id: string;

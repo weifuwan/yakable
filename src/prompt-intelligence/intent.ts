@@ -1,5 +1,5 @@
-import { requestPromptIntent } from './deepseek.js';
-import type { PromptIntent } from './types.js';
+import { requestPromptIntent } from '../model/deepseek.js';
+import type { PromptIntent } from '../types.js';
 
 const MAX_PROMPT_LENGTH = 12_000;
 const MAX_INTENT_ITEMS = 24;

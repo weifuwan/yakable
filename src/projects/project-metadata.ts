@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import type { ProjectMetadata, ProjectRoute, ProjectTemplate } from './types.js';
+import type { ProjectMetadata, ProjectRoute, ProjectTemplate } from '../types.js';
 
 const METADATA_DIRECTORY = '.yakable';
 const METADATA_FILENAME = 'project.json';

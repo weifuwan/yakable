@@ -1,6 +1,6 @@
 import 'dotenv/config';
 
-import { editGeneratedProject } from './edit.js';
+import { editGeneratedProject } from '../editing/edit.js';
 
 function usage(): never {
   console.error(

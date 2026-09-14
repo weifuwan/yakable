@@ -5,7 +5,7 @@ import {
   createYakableApiServer,
   type RuntimeSession,
   type WebApiServices,
-} from '../src/web-api.js';
+} from '../src/server/web-api.js';
 
 const metadata = {
   version: 1 as const,
