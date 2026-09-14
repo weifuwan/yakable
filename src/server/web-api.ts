@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { writeFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
@@ -35,12 +37,14 @@ import { readProjectMetadata } from '../projects/project-metadata.js';
 import {
   readProjectConversation,
   readProjectSession,
+  writeProjectSession,
 } from '../projects/project-session.js';
 import {
   parsePageObservation,
   type PageObservation,
 } from '../runtime/page-observation.js';
 import { resolveGeneratedProject, startGeneratedProject } from '../runtime/runtime.js';
+import { createBaseProject } from '../templates/base-template.js';
 import type { CheckProjectOutput } from '../tools/check-project.js';
 import type { ToolResult } from '../tools/tool.js';
 import type {
@@ -58,6 +62,11 @@ const MAX_JSON_BODY_BYTES = 512_000;
 const PROJECT_ID_PATTERN = /^[a-zA-Z0-9._-]+$/;
 const MAX_INITIAL_CHANGED_FILES = 24;
 const MAX_SELECTED_CONTEXT_FILES = 12;
+const CONVERSATION_PROJECT_NAME_MAX = 56;
+const EMPTY_CONVERSATION_APP = `export default function App() {
+  return <main className="min-h-screen bg-white" aria-label="Empty project preview" />;
+}
+`;
 
 export type WebProjectListItem = ProjectListRecord;
 
@@ -145,6 +154,59 @@ function projectNameFromId(projectId: string): string {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+}
+
+function conversationProjectName(prompt: string): string {
+  const normalized = prompt.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= CONVERSATION_PROJECT_NAME_MAX) return normalized;
+  return `${normalized.slice(0, CONVERSATION_PROJECT_NAME_MAX - 1)}…`;
+}
+
+function conversationProjectId(prompt: string, createdAt: string): string {
+  const slug = prompt
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 32) || 'conversation';
+  const timestamp = createdAt.replace(/[:.]/g, '-');
+  return `${slug}-${timestamp}-${randomUUID().slice(0, 8)}`;
+}
+
+async function createConversationProject(
+  prompt: string,
+  decision: BuildIntentDecision,
+  generatedRoot: string,
+): Promise<WebGeneratedProject> {
+  const createdAt = new Date().toISOString();
+  const name = conversationProjectName(prompt);
+  const created = await createBaseProject(conversationProjectId(prompt, createdAt), {
+    outputRoot: generatedRoot,
+    displayName: name,
+  });
+
+  await writeFile(path.join(created.directory, 'src', 'App.tsx'), EMPTY_CONVERSATION_APP, 'utf8');
+
+  await writeProjectSession(created.directory, {
+    version: 1,
+    productRequest: prompt,
+    initialSummary: decision.message,
+    createdAt,
+    updatedAt: createdAt,
+    edits: [],
+  });
+
+  const metadata = await readProjectMetadata(created.directory);
+  return {
+    id: created.id,
+    name: metadata.name ?? name,
+    summary: decision.message,
+    model: 'build-intent',
+    template: metadata.template,
+    routes: metadata.routes,
+    session: await readProjectSession(created.directory),
+    conversation: await readProjectConversation(created.directory),
+  };
 }
 
 async function readJsonBody(request: IncomingMessage): Promise<Record<string, unknown>> {
@@ -311,6 +373,10 @@ export function createDefaultWebApiServices(
     },
 
     async generate(prompt, buildIntent) {
+      if (buildIntent.route !== 'CREATE') {
+        return createConversationProject(prompt, buildIntent, generatedRoot);
+      }
+
       const result = await generateProject(prompt, { buildIntent });
       const id = path.basename(result.outputDirectory);
       return {
@@ -450,12 +516,6 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
         const body = await readJsonBody(request);
         const prompt = readPrompt(body);
         const decision = await services.gateBuildIntent(prompt);
-
-        if (decision.route !== 'CREATE') {
-          sendJson(response, 200, { decision });
-          return;
-        }
-
         const project = await services.generate(prompt, decision);
         const runtime = await ensureRuntime(project.id);
         sendJson(response, 201, {

@@ -355,7 +355,7 @@ export function Composer({
       setPrompt("");
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "Project generation failed.",
+        caught instanceof Error ? caught.message : "Project creation failed.",
       );
     }
   }
@@ -413,37 +413,46 @@ export function Composer({
               <Icon name="mic" size={16} />
             </button>
             <button
-              className="grid h-9 w-9 place-items-center rounded-full border-0 bg-[#001617] text-white shadow-[0_1px_2px_rgba(0,0,0,0.16)]
-               transition hover:bg-[#1c2424] disabled:cursor-default disabled:opacity-30"
+              className={`grid h-9 w-9 place-items-center rounded-full border-0 bg-[#001617] text-white shadow-[0_1px_2px_rgba(0,0,0,0.16)] transition hover:bg-[#1c2424] disabled:cursor-default ${
+                busy ? "opacity-100" : "disabled:opacity-30"
+              }`}
               type="submit"
               disabled={!prompt.trim() || busy}
-              aria-label="Send"
+              aria-label={busy ? "Creating project" : "Send"}
+              aria-busy={busy}
             >
-              <span
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4,
-                  opacity: 1,
-                }}
-              >
-                <svg
-                  width="15"
-                  height="15"
-                  viewBox="0 0 15 15"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="stroke-4 [&amp;&gt;path]:stroke-inherit"
-                  style={{ height: 16, width: 16 }}
+              {busy ? (
+                <span
+                  className="h-4 w-4 animate-spin rounded-full border-2 border-white/35 border-t-white"
+                  aria-hidden="true"
+                />
+              ) : (
+                <span
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                    opacity: 1,
+                  }}
                 >
-                  <path
-                    d="M7.14645 2.14645C7.34171 1.95118 7.65829 1.95118 7.85355 2.14645L11.8536 6.14645C12.0488 6.34171 12.0488 6.65829 11.8536 6.85355C11.6583 7.04882 11.3417 7.04882 11.1464 6.85355L8 3.70711L8 12.5C8 12.7761 7.77614 13 7.5 13C7.22386 13 7 12.7761 7 12.5L7 3.70711L3.85355 6.85355C3.65829 7.04882 3.34171 7.04882 3.14645 6.85355C2.95118 6.65829 2.95118 6.34171 3.14645 6.14645L7.14645 2.14645Z"
-                    fill="currentColor"
-                    fill-rule="evenodd"
-                    clip-rule="evenodd"
-                  ></path>
-                </svg>
-              </span>
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 15 15"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="stroke-4 [&amp;&gt;path]:stroke-inherit"
+                    style={{ height: 16, width: 16 }}
+                  >
+                    <path
+                      d="M7.14645 2.14645C7.34171 1.95118 7.65829 1.95118 7.85355 2.14645L11.8536 6.14645C12.0488 6.34171 12.0488 6.65829 11.8536 6.85355C11.6583 7.04882 11.3417 7.04882 11.1464 6.85355L8 3.70711L8 12.5C8 12.7761 7.77614 13 7.5 13C7.22386 13 7 12.7761 7 12.5L7 3.70711L3.85355 6.85355C3.65829 7.04882 3.34171 7.04882 3.14645 6.85355C2.95118 6.65829 2.95118 6.34171 3.14645 6.14645L7.14645 2.14645Z"
+                      fill="currentColor"
+                      fillRule="evenodd"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </span>
+              )}
             </button>
           </div>
         </div>
@@ -466,13 +475,6 @@ export function Composer({
           </button>
         ))}
       </div>
-
-      {busy ? (
-        <div className="absolute left-1/2 top-[calc(100%+12px)] z-20 flex max-w-[92%] -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-full bg-white/90 px-3 py-2 text-[11px] text-black/60 shadow-lg backdrop-blur-xl">
-          <span className="h-3 w-3 animate-spin rounded-full border-2 border-black/15 border-t-black/70" />
-          DeepSeek is generating code and starting the runtime…
-        </div>
-      ) : null}
 
       {error ? (
         <div className="absolute left-1/2 top-[calc(100%+12px)] z-20 max-w-[92%] -translate-x-1/2 rounded-full bg-rose-50 px-3 py-2 text-[11px] text-rose-700 shadow-lg">

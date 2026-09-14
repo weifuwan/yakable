@@ -66,7 +66,7 @@ test('rejects invalid Build Intent decisions', () => {
   );
 });
 
-test('obvious greetings do not create projects', () => {
+test('obvious greetings do not start frontend generation', () => {
   assert.equal(detectObviousBuildIntent('Hello')?.route, 'CHAT');
   assert.equal(detectObviousBuildIntent('hello!')?.route, 'CHAT');
   assert.equal(detectObviousBuildIntent('你好')?.route, 'CHAT');
