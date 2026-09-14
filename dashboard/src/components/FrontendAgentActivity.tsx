@@ -44,6 +44,7 @@ export function FrontendAgentActivity() {
   const [runId, setRunId] = useState('');
   const [events, setEvents] = useState<FrontendAgentEvent[]>([]);
   const [visible, setVisible] = useState(false);
+  const runIdRef = useRef('');
   const hideTimer = useRef<number | null>(null);
 
   useEffect(() => {
@@ -54,14 +55,13 @@ export function FrontendAgentActivity() {
       }
 
       setVisible(true);
-      setRunId((current) => {
-        if (current !== detail.runId) {
-          setEvents([detail.event]);
-          return detail.runId;
-        }
+      if (runIdRef.current !== detail.runId) {
+        runIdRef.current = detail.runId;
+        setRunId(detail.runId);
+        setEvents([detail.event]);
+      } else {
         setEvents((currentEvents) => [...currentEvents, detail.event].slice(-40));
-        return current;
-      });
+      }
 
       if (detail.event.state === 'DONE') {
         hideTimer.current = window.setTimeout(() => {
