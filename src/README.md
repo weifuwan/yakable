@@ -6,6 +6,7 @@
 src/
 ├── cli/                  # command-line entry points
 ├── model/                # model-provider adapters
+├── modes/                # Plan / Build capability policy and mode-aware execution boundaries
 ├── prompt-intelligence/  # gate build intent, then understand and normalize build requests
 ├── generation/           # turn normalized intent into a generated project
 ├── editing/              # bounded frontend agent states, edit, critique, and repair capabilities
@@ -21,8 +22,9 @@ src/
 
 ## Capability boundaries
 
+- **modes** owns the first-class `PLAN | BUILD` contract. Plan exposes only read/search/observe/critique capabilities. Build adds source generation, source editing, and source repair. Mode checks are explicit capability checks, not prompt instructions. Public mode-aware mutation helpers assert the policy before delegating to existing bounded editing/repair capabilities. Existing product flows remain BUILD by default in v0 for backward compatibility; Plan UI and Plan Artifact orchestration come later.
 - **prompt-intelligence** first answers whether dashboard input is CREATE, CHAT, or CLARIFY. Only CREATE continues into product intent, semantic defaults, taste translation, and Design Intent.
-- **generation** answers: how do we turn that normalized intent into a complete frontend source tree? It also refuses a precomputed non-CREATE Build Intent decision, so callers cannot bypass the gate accidentally.
+- **generation** answers: how do we turn that normalized intent into a complete frontend source tree? It refuses a precomputed non-CREATE Build Intent decision, and source generation now also requires Build capability when a caller explicitly enters PLAN or BUILD mode.
 - **editing** keeps frontend reasoning deliberately bounded. Frontend Agent v0 makes the existing workflow explicit as `SELECT_CONTEXT → READ → EDIT → CHECK → OBSERVE → CRITIQUE → REPAIR → DONE`; it is a deterministic state machine, not generic model-selected Tool calling. Edit Intent Delta still normalizes the current human request against the persisted original Design Intent. Context Selection still chooses at most 12 paths and Project Edit may modify only files it has read. The fixed project health check may run one build repair. After a healthy edit, the browser owns `OBSERVE` because the live DOM exists inside the Preview iframe. Design Critic provides evidence-grounded PASS/FAIL output. A FAIL may enter `REPAIR` exactly once, using only bounded source context derived from critic evidence, the just-changed files, and the original selected context. A healthy visual repair is observed and critiqued once more; the next state is always `DONE` even if issues remain.
 - **runtime** answers: how do we safely run the generated project, map Preview elements back to source, and expose one bounded page-observation snapshot? Page Observation v0 is request/response only: it reports route, viewport/document dimensions, up to 80 visible key elements with DOM/source metadata, and up to 12 captured runtime errors. It does not take screenshots or dump full computed styles.
 - **projects** owns generated-project parsing, `.yakable/project.json`, project listing, rename/star/remix/delete, and the project conversation/session repository.
@@ -34,6 +36,28 @@ src/
 - **cli** contains thin executable entry points only. `npm run edit` prints the backend-owned Frontend Agent states live; browser-only observation and critique still require the Workspace Preview.
 
 `types.ts` stays at the root because its contracts are shared by several capabilities. `index.ts` stays at the root as the package-facing export boundary.
+
+## Plan / Build Mode v0 contract
+
+The mode contract is intentionally small and permission-oriented:
+
+```text
+PLAN
+├── read-project
+├── search-project
+├── observe-preview
+└── critique-design
+
+BUILD
+├── everything in PLAN
+├── generate-source
+├── edit-source
+└── repair-source
+```
+
+`PLAN` is therefore read-only with respect to project source by construction at the mode-aware execution boundary. `BUILD` preserves the current bounded mutation path. The default remains `BUILD` in v0 so existing API/CLI/dashboard behavior does not change before the Plan Artifact and Plan UI exist.
+
+The contract does not yet introduce a Plan workspace, approval UI, or Plan Artifact persistence. Those belong to the next planning stage rather than being simulated by a mode toggle with no planning product behind it.
 
 ## Frontend Agent v0 contract
 
