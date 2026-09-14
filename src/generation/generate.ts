@@ -12,11 +12,78 @@ import {
   writeGeneratedProjectFromBase,
 } from '../projects/project.js';
 import { initializeProjectSession } from '../projects/project-session.js';
-import type { BuildIntentDecision, GenerationResult } from '../types.js';
+import type {
+  BuildIntentDecision,
+  GeneratedProject,
+  GenerationResult,
+  ProjectTemplate,
+} from '../types.js';
+import { normalizeModelJsonObject } from './model-output.js';
 import { buildTemplateGenerationRequest, selectProjectTemplate } from './template.js';
+
+const PROJECT_GENERATION_MAX_ATTEMPTS = 2;
+
+export class ProjectGenerationError extends Error {
+  readonly code = 'PROJECT_GENERATION_FAILED';
+  readonly retryable = true;
+  readonly attempts: number;
+
+  constructor(message: string, attempts: number, cause?: unknown) {
+    super(message, cause === undefined ? undefined : { cause });
+    this.name = 'ProjectGenerationError';
+    this.attempts = attempts;
+  }
+}
 
 export interface GenerateProjectOptions {
   buildIntent?: BuildIntentDecision;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Unknown generated-project validation failure.';
+}
+
+function parseProjectGeneration(content: string, template: ProjectTemplate): GeneratedProject {
+  return parseGeneratedProject(normalizeModelJsonObject(content), {
+    mode: 'base-overlay',
+    expectedTemplate: template,
+  });
+}
+
+export function buildProjectGenerationRecoveryRequest(
+  generationRequest: string,
+  failure: unknown,
+): string {
+  let request: Record<string, unknown>;
+  try {
+    const parsed: unknown = JSON.parse(generationRequest);
+    request =
+      typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+        ? { ...(parsed as Record<string, unknown>) }
+        : { originalRequest: generationRequest };
+  } catch {
+    request = { originalRequest: generationRequest };
+  }
+
+  return JSON.stringify(
+    {
+      ...request,
+      generationRecovery: {
+        attempt: 2,
+        previousFailure: errorMessage(failure).slice(0, 600),
+        instructions: [
+          'Regenerate the project-owned overlay from scratch instead of explaining the failure.',
+          'Return exactly one complete JSON object and nothing else.',
+          'Do not wrap the JSON object in Markdown code fences or add prose before or after it.',
+          'Keep the first implementation compact: prefer 4-10 project-owned files and never exceed 12 files.',
+          'Keep file contents concise enough to finish the response; do not truncate code or JSON strings.',
+          'Follow the Yakable Base ownership contract, page placement rules, and Tailwind-only styling rules.',
+        ],
+      },
+    },
+    null,
+    2,
+  );
 }
 
 export async function generateProject(
@@ -46,13 +113,32 @@ export async function generateProject(
   );
   const designIntent = buildDesignIntent(intent, semanticExpansion, tasteTranslation);
   const template = selectProjectTemplate(normalizedPrompt, designIntent);
-  const generation = await requestProjectCode(
-    buildTemplateGenerationRequest(normalizedPrompt, template, designIntent),
+  const generationRequest = buildTemplateGenerationRequest(
+    normalizedPrompt,
+    template,
+    designIntent,
   );
-  const project = parseGeneratedProject(generation.content, {
-    mode: 'base-overlay',
-    expectedTemplate: template,
-  });
+
+  let generation = await requestProjectCode(generationRequest);
+  let project: GeneratedProject;
+
+  try {
+    project = parseProjectGeneration(generation.content, template);
+  } catch (firstFailure) {
+    try {
+      generation = await requestProjectCode(
+        buildProjectGenerationRecoveryRequest(generationRequest, firstFailure),
+      );
+      project = parseProjectGeneration(generation.content, template);
+    } catch (recoveryFailure) {
+      throw new ProjectGenerationError(
+        'Yakable could not produce a valid project after one automatic recovery attempt. Please retry the request; the API process remains available.',
+        PROJECT_GENERATION_MAX_ATTEMPTS,
+        recoveryFailure,
+      );
+    }
+  }
+
   const outputDirectory = await writeGeneratedProjectFromBase(normalizedPrompt, project);
   await initializeProjectSession(outputDirectory, {
     productRequest: normalizedPrompt,

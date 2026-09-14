@@ -29,15 +29,23 @@ export function Dashboard({
   const [creating, setCreating] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [buildIntentFeedback, setBuildIntentFeedback] = useState<BuildIntentDecision | null>(null);
+  const [createError, setCreateError] = useState("");
 
   async function create(prompt: string) {
     setCreating(true);
     setBuildIntentFeedback(null);
+    setCreateError("");
     try {
       const decision = await onCreate(prompt);
       if (decision.route !== "CREATE") {
         setBuildIntentFeedback(decision);
       }
+    } catch (error) {
+      setCreateError(
+        error instanceof Error
+          ? error.message
+          : "Yakable could not finish this generation. Please try again.",
+      );
     } finally {
       setCreating(false);
     }
@@ -77,7 +85,22 @@ export function Dashboard({
               Let&apos;s build something.
             </h1>
             <Composer onCreate={create} busy={creating} />
-            {buildIntentFeedback ? (
+            {createError ? (
+              <div
+                className="mt-3 w-full rounded-xl border border-red-200 bg-red-50/90 px-4 py-3 text-left"
+                role="alert"
+              >
+                <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-red-700/70">
+                  Generation paused
+                </div>
+                <p className="m-0 text-sm leading-6 text-red-800/80">
+                  {createError}
+                </p>
+                <p className="mb-0 mt-1 text-xs leading-5 text-red-700/60">
+                  Your Yakable session is still available. You can submit the prompt again without restarting the app.
+                </p>
+              </div>
+            ) : buildIntentFeedback ? (
               <div
                 className="mt-3 w-full rounded-xl border border-black/[0.08] bg-white/85 px-4 py-3 text-left shadow-[0_1px_4px_rgba(15,23,42,0.04)]"
                 role="status"
