@@ -47,7 +47,7 @@ export function FrontendAgentActivity() {
   const hideTimer = useRef<number | null>(null);
 
   useEffect(() => {
-    return subscribeFrontendAgentProgress((detail) => {
+    const unsubscribe = subscribeFrontendAgentProgress((detail) => {
       if (hideTimer.current !== null) {
         window.clearTimeout(hideTimer.current);
         hideTimer.current = null;
@@ -64,9 +64,17 @@ export function FrontendAgentActivity() {
       });
 
       if (detail.event.state === 'DONE') {
-        hideTimer.current = window.setTimeout(() => setVisible(false), 4500);
+        hideTimer.current = window.setTimeout(() => {
+          setVisible(false);
+          hideTimer.current = null;
+        }, 4500);
       }
     });
+
+    return () => {
+      unsubscribe();
+      if (hideTimer.current !== null) window.clearTimeout(hideTimer.current);
+    };
   }, []);
 
   const latest = events.at(-1);
