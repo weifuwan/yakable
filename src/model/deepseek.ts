@@ -1,3 +1,4 @@
+import { EDIT_INTENT_DELTA_SYSTEM_PROMPT } from '../editing/edit-intent-prompt.js';
 import { PROJECT_CONTEXT_SELECTION_SYSTEM_PROMPT } from '../editing/context-selection-prompt.js';
 import { PROJECT_EDIT_SYSTEM_PROMPT } from '../editing/edit-prompt.js';
 import { PROJECT_REPAIR_SYSTEM_PROMPT } from '../editing/repair-prompt.js';
@@ -201,6 +202,14 @@ export function requestProjectCode(userPrompt: string): Promise<DeepSeekGenerati
     PROJECT_GENERATION_SYSTEM_PROMPT,
     userPrompt,
     'Project Generation',
+  );
+}
+
+export function requestEditIntentDelta(userPrompt: string): Promise<DeepSeekGeneration> {
+  return requestStructuredGeneration(
+    EDIT_INTENT_DELTA_SYSTEM_PROMPT,
+    userPrompt,
+    'Edit Intent Delta',
   );
 }
 
