@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import type { ProjectListItem } from "../api";
+import type { BuildIntentDecision, ProjectListItem } from "../api";
 import { Composer } from "../components/Composer";
 import { Sidebar, Topbar } from "../components/Layout";
 import { ProjectGallery } from "../components/ProjectGallery";
@@ -22,17 +22,22 @@ export function Dashboard({
   projects: ProjectListItem[];
   loading: boolean;
   pathname: string;
-  onCreate: (prompt: string) => Promise<void>;
+  onCreate: (prompt: string) => Promise<BuildIntentDecision>;
   onOpen: (id: string) => Promise<void>;
   onNavigate: (path: string) => void;
 }) {
   const [creating, setCreating] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [buildIntentFeedback, setBuildIntentFeedback] = useState<BuildIntentDecision | null>(null);
 
   async function create(prompt: string) {
     setCreating(true);
+    setBuildIntentFeedback(null);
     try {
-      await onCreate(prompt);
+      const decision = await onCreate(prompt);
+      if (decision.route !== "CREATE") {
+        setBuildIntentFeedback(decision);
+      }
     } finally {
       setCreating(false);
     }
@@ -72,6 +77,19 @@ export function Dashboard({
               Let&apos;s build something.
             </h1>
             <Composer onCreate={create} busy={creating} />
+            {buildIntentFeedback ? (
+              <div
+                className="mt-3 w-full rounded-xl border border-black/[0.08] bg-white/85 px-4 py-3 text-left shadow-[0_1px_4px_rgba(15,23,42,0.04)]"
+                role="status"
+              >
+                <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-black/40">
+                  {buildIntentFeedback.route === "CLARIFY" ? "Need a little more detail" : "No project created"}
+                </div>
+                <p className="m-0 text-sm leading-6 text-black/65">
+                  {buildIntentFeedback.message}
+                </p>
+              </div>
+            ) : null}
           </div>
         </section>
 
