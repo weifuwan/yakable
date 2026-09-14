@@ -118,13 +118,17 @@ test('parses Base overlays using only project-owned paths', () => {
   assert.ok(project.files.every((file) => file.path !== 'package.json'));
 });
 
-test('rejects infrastructure writes and misplaced page components in Base overlays', () => {
+test('rejects infrastructure writes, component CSS, and misplaced pages in Base overlays', () => {
+  const parsedBase = JSON.parse(baseOverlayProject) as {
+    summary: string;
+    template: string;
+    routes: unknown[];
+    files: Array<{ path: string; content: string }>;
+  };
+
   const infrastructureWrite = JSON.stringify({
-    ...JSON.parse(baseOverlayProject),
-    files: [
-      ...JSON.parse(baseOverlayProject).files,
-      { path: 'package.json', content: '{}' },
-    ],
+    ...parsedBase,
+    files: [...parsedBase.files, { path: 'package.json', content: '{}' }],
   });
   assert.throws(
     () =>
@@ -135,10 +139,29 @@ test('rejects infrastructure writes and misplaced page components in Base overla
     /project-owned files/,
   );
 
-  const misplacedPage = JSON.stringify({
-    ...JSON.parse(baseOverlayProject),
+  const componentCss = JSON.stringify({
+    ...parsedBase,
     files: [
-      ...JSON.parse(baseOverlayProject).files,
+      ...parsedBase.files,
+      {
+        path: 'src/components/product/IconButton.css',
+        content: '.button { display: inline-flex; }',
+      },
+    ],
+  });
+  assert.throws(
+    () =>
+      parseGeneratedProject(componentCss, {
+        mode: 'base-overlay',
+        expectedTemplate: 'app',
+      }),
+    /must use Tailwind utilities/,
+  );
+
+  const misplacedPage = JSON.stringify({
+    ...parsedBase,
+    files: [
+      ...parsedBase.files,
       {
         path: 'src/components/product/JobsPage.tsx',
         content: 'export function JobsPage() { return null; }',
