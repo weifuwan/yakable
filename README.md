@@ -43,7 +43,11 @@ Generate Project
       ↓
 Run + live Preview
       ↓
-Follow-up Prompt → Edit
+Follow-up Prompt
+      ↓
+Project Context Selection
+      ↓
+Read selected files → Edit
       ↓
 Persist conversation + edit context in SQLite
       ↓
@@ -64,6 +68,7 @@ The API listens on `127.0.0.1:8787` by default and the dashboard proxies `/api` 
 - reopen existing local projects from the dashboard
 - restore the project's persisted conversation after closing or reloading the browser
 - send follow-up edit prompts against the existing project
+- choose a bounded relevant file set before reading edit context instead of sending the whole project snapshot
 - keep the original product request, Design Intent, and recent successful edits as persisted context for later edits
 - persist Visual Edit source targets with the user message that used them
 - select Preview elements and target edits back to mapped JSX source locations
@@ -108,7 +113,7 @@ Set `YAKABLE_DB_PATH` to override the database location. SQLite is the only conv
 
 ### Minimal tool foundation
 
-Yakable now has a deliberately small internal tool boundary under `src/tools/`:
+Yakable has a deliberately small internal tool boundary under `src/tools/`:
 
 ```text
 Tool<Input, Output>
@@ -122,7 +127,39 @@ read_project_file
 
 `read_project_file` reads one safe UTF-8 file from the current generated frontend project. It rejects path traversal, secret `.env*` files, blocked build/internal directories, binary files, files outside the project root, and files over the existing 200 KB edit-context limit.
 
-Project Editing uses this tool for its existing snapshot reads, but the model does not choose or call tools yet. There is no MCP adapter, project search tool, autonomous loop, or automatic repair in this capability.
+There is still no MCP adapter or model-directed generic Tool loop. Tools remain bounded Yakable capabilities.
+
+### Project Context Selection
+
+Project Editing no longer reads the whole project before asking the model to make a change.
+
+```text
+Follow-up request
+      ↓
+List safe text-file paths only
+      ↓
+Context Selector
+      ↓
+1..12 relevant existing paths
+      ↓
+read_project_file for those paths
+      ↓
+Project Edit
+```
+
+For normal text edits, the Context Selector receives the human request plus the project file-path list only; it does not receive source contents. Its output is validated against the real candidate list and capped at 12 files. If context selection fails, Yakable falls back to a small deterministic filename/style-oriented selection instead of loading the full project.
+
+When Visual Edit already maps a selected DOM element to JSX source, those mapped files become the context directly and the extra model-selection call is skipped.
+
+The edit model is also prevented from modifying an existing project file that was not included in the selected context. New writable text files remain allowed when genuinely required.
+
+Run a manual edit to see the boundary directly:
+
+```bash
+npm run edit -- generated/<project-id> "把 Hero 主色改成蓝色"
+```
+
+The CLI prints the context source (`visual`, `model`, or `fallback`) and the exact files read before the edit.
 
 Automatic build/runtime error repair is not implemented yet. If an edit breaks the generated project, the Preview exposes that failure and repair remains manual for now.
 
@@ -252,6 +289,7 @@ Visual → Source Edit ✅
 Yakable Base Template ✅
 Capability Packs ✅
 Minimal Tool Contract ✅
-Project Context Selection ⏭️
+Project Context Selection ✅
+Project Search Tool ⏭️
 Automatic Error Repair ⏭️
 ```
