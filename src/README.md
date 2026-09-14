@@ -7,7 +7,7 @@ src/
 ├── cli/                  # command-line entry points
 ├── model/                # model-provider adapters
 ├── modes/                # Plan / Build capability policy and mode-aware execution boundaries
-├── planning/             # Plan Artifact, UI Planner, approval, and approved-plan execution contract
+├── planning/             # Plan Artifact, UI Planner, Re-plan/Diff, and approved-plan execution
 ├── prompt-intelligence/  # gate build intent, then understand and normalize build requests
 ├── generation/           # turn normalized intent into a generated project
 ├── editing/              # bounded frontend agent states, edit, critique, and repair capabilities
@@ -23,8 +23,8 @@ src/
 
 ## Capability boundaries
 
-- **modes** owns the first-class `PLAN | BUILD` contract. Plan may read/search/observe/critique, author/review Plan metadata, and run UI Planner. It still cannot generate, edit, or repair project source. Build may read an approved plan and mutate source through the bounded execution path, but it cannot silently rewrite, review, or re-plan it.
-- **planning** owns the Plan Artifact, UI Planner, and the approved-plan execution contract. A planning turn selects and reads bounded current project context once, runs UI Planner against that same evidence, then gives the semantic UI blueprint to the Plan Artifact planner. After explicit approval, Build compiles the reviewed artifact into an immutable execution snapshot and runs it through the bounded frontend edit/check path. Planning metadata stays under `.yakable`; source mutation still happens only in Build.
+- **modes** owns the first-class `PLAN | BUILD` contract. Plan may read/search/observe/critique, author/review Plan metadata, run UI Planner, and compare Plan revisions. It still cannot generate, edit, repair, or execute project source. Build may read and execute an approved plan through the bounded source path, but it cannot silently rewrite, review, re-plan, or diff planning state.
+- **planning** owns the Plan Artifact, UI Planner, Re-plan / Plan Diff, and the approved-plan execution contract. A planning turn reads bounded current project context, UI Planner produces the semantic blueprint, and the Plan Artifact remains the reviewable source of truth. Re-plan archives the exact superseded revision before creating the next draft and computes a deterministic structural diff. After explicit approval, Build compiles the reviewed artifact into an immutable execution snapshot and runs it through the bounded frontend edit/check path.
 - **prompt-intelligence** first answers whether dashboard input is CREATE, CHAT, or CLARIFY. Only CREATE continues into product intent, semantic defaults, taste translation, and Design Intent.
 - **generation** answers: how do we turn normalized intent into a complete frontend source tree? It refuses a precomputed non-CREATE Build Intent decision, and source generation requires Build capability when a caller explicitly enters PLAN or BUILD mode.
 - **editing** keeps frontend reasoning deliberately bounded. Frontend Agent v0 makes the existing workflow explicit as `SELECT_CONTEXT → READ → EDIT → CHECK → OBSERVE → CRITIQUE → REPAIR → DONE`; it is a deterministic state machine, not generic model-selected Tool calling. Context Selection still chooses at most 12 paths and Project Edit may modify only files it has read. The fixed project health check may run one build repair. Approved-plan execution reuses these bounded primitives but supplies a separate reviewed execution contract and refuses silent deviation before source mutation.
@@ -33,9 +33,9 @@ src/
 - **templates** owns deterministic frontend foundations and optional Capability Packs. Base fixes the environment contract; packs may add only Yakable-owned UI primitives plus explicitly declared npm dependencies.
 - **tools** defines the minimal `Tool`, `ToolResult`, `ToolContext`, and `ToolRegistry` contracts. `read_project_file`, `search_project`, and `check_project` stay bounded and never accept arbitrary shell commands.
 - **storage** owns the local SQLite connection and schema only. It does not know planning, Prompt Intelligence, editing, or UI behavior.
-- **model** owns provider-specific transport for intent analysis, generation, Plan Artifact drafting, UI Planner, Edit Intent normalization, Design Critic, focused editing, context selection, build repair, and Visual Repair. Capability modules should not know DeepSeek HTTP details.
+- **model** owns provider-specific transport for intent analysis, generation, Plan Artifact drafting, UI Planner, Edit Intent normalization, Design Critic, focused editing, context selection, build repair, and Visual Repair. Plan Diff is deterministic and does not use a model.
 - **server** exposes the existing JSON actions plus a narrow `agent-edit` NDJSON stream. Browser-only observation remains in the dashboard because the live DOM exists inside the Preview iframe.
-- **cli** contains thin executable entry points. `npm run plan` drafts/revises/reviews Plan Artifacts without source mutation; `npm run build:plan` executes the current approved revision through the bounded Build path; `npm run edit` remains the direct follow-up edit path.
+- **cli** contains thin executable entry points. `npm run plan` drafts/re-plans/reviews/diffs Plan Artifacts without source mutation; `npm run build:plan` executes the current approved revision through the bounded Build path; `npm run edit` remains the direct follow-up edit path.
 
 `types.ts` stays at the root because its contracts are shared by several capabilities. `index.ts` stays at the root as the package-facing export boundary.
 
@@ -52,7 +52,8 @@ PLAN
 ├── read-plan
 ├── write-plan
 ├── review-plan
-└── plan-ui
+├── plan-ui
+└── diff-plan
 
 BUILD
 ├── read-project
@@ -60,12 +61,13 @@ BUILD
 ├── observe-preview
 ├── critique-design
 ├── read-plan
+├── execute-plan
 ├── generate-source
 ├── edit-source
 └── repair-source
 ```
 
-`PLAN` is read-only with respect to project source by construction. Writing `.yakable/plan.json` / `.yakable/plan.md` is planning metadata, not source mutation. `BUILD` can consume plan metadata but cannot silently revise, approve/reject, or re-plan it.
+`PLAN` is read-only with respect to project source by construction. Writing Plan metadata and revision history under `.yakable` is planning state, not source mutation. `BUILD` can consume and execute reviewed plan metadata but cannot silently revise, approve/reject, re-plan, or diff it.
 
 ## Plan Artifact v0 contract
 
@@ -96,11 +98,15 @@ Persistence lives beside generated-project metadata:
 generated/<project-id>/.yakable/
 ├── project.json
 ├── capabilities.json
-├── plan.json          # source of truth for the current plan revision
-└── plan.md            # derived human-readable review document, including UI blueprint
+├── plan.json                    # source of truth for the current revision
+├── plan.md                      # derived human-readable current review document
+└── plans/                       # superseded Re-plan baselines
+    ├── revision-000001.json
+    ├── revision-000001.md
+    └── ...
 ```
 
-A new draft increments the revision and resets review state. Review is explicit: only `DRAFT` may transition to `APPROVED` or `REJECTED`. Plan history/diff is intentionally deferred to the later Re-plan / Plan Diff stage.
+A new draft increments the revision and resets review state. Review is explicit: only `DRAFT` may transition to `APPROVED` or `REJECTED`. The explicit Re-plan path archives the superseded revision before replacing `plan.json`.
 
 ## UI Planner v0 contract
 
@@ -173,6 +179,42 @@ npm run build:plan -- generated/<project-id>
 
 Workspace Plan/Build controls and browser-side plan-aware visual verification are intentionally separate product work.
 
+## Re-plan / Plan Diff v0
+
+Re-plan is a first-class Plan operation rather than an implicit prompt convention:
+
+```text
+current revision rN
+   ↓
+archive rN under .yakable/plans
+   ↓
+read fresh bounded project evidence
+   ↓
+UI Planner + Plan Artifact
+   ↓
+new DRAFT rN+1
+   ↓
+deterministic structural diff
+   ↓
+review / approve
+```
+
+The diff does not ask a model what changed. It compares material plan fields deterministically: goal, context, decisions, UI shell/hierarchy/sections, implementation steps, validation, constraints, and open questions. Review metadata and timestamps are intentionally excluded from material plan comparison.
+
+Diff status is one of `INITIAL`, `CHANGED`, `UNCHANGED`, or `BASELINE_MISSING`. Entries are bounded and use explicit `ADDED`, `REMOVED`, or `CHANGED` records with compact before/after values.
+
+Starting a Re-plan replaces the current artifact with a new `DRAFT`. Because Build-from-approved-plan only executes the current `APPROVED` revision, requirements cannot change while an older approval continues to execute silently.
+
+CLI examples:
+
+```bash
+npm run plan -- generated/<project-id> replan "Make failed tasks the primary hierarchy"
+npm run plan -- generated/<project-id> diff
+npm run plan -- generated/<project-id> diff 2 4
+```
+
+`revise` remains an alias for `replan`. Review output also includes the current revision diff when available.
+
 ## Frontend Agent v0 contract
 
 ```text
@@ -209,8 +251,9 @@ SQLite (`data/yakable.db`)          generated/<project-id>/
 ├── conversation/edit history      ├── .yakable/capabilities.json
 └── Visual Edit source targets     ├── .yakable/plan.json
                                     ├── .yakable/plan.md
+                                    ├── .yakable/plans/
                                     ├── src/
                                     └── public/
 ```
 
-SQLite remains the source of truth for conversation/edit history. Generated project metadata, capability state, and the current Plan Artifact stay with the generated project. Frontend Agent progress remains ephemeral.
+SQLite remains the source of truth for conversation/edit history. Generated project metadata, capability state, the current Plan Artifact, and superseded plan baselines stay with the generated project. Frontend Agent progress remains ephemeral.

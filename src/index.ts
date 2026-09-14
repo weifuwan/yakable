@@ -104,6 +104,37 @@ export type {
   ReviewProjectPlanOptions,
 } from './planning/plan-artifact.js';
 export {
+  PLAN_DIFF_AREAS,
+  PLAN_DIFF_CHANGE_KINDS,
+  PLAN_DIFF_MAX_ENTRIES,
+  PLAN_DIFF_MAX_VALUE_LENGTH,
+  PLAN_DIFF_STATUSES,
+  PLAN_DIFF_VERSION,
+  diffPlanArtifacts,
+  renderPlanDiffMarkdown,
+} from './planning/plan-diff.js';
+export type {
+  PlanDiff,
+  PlanDiffArea,
+  PlanDiffChangeKind,
+  PlanDiffEntry,
+  PlanDiffStatus,
+  PlanDiffSummary,
+} from './planning/plan-diff.js';
+export {
+  PLAN_HISTORY_DIRECTORY,
+  archivePlanRevision,
+  readArchivedPlanRevision,
+  readProjectPlanDiff,
+  readProjectPlanRevision,
+  replanProjectPlan,
+} from './planning/replan.js';
+export type {
+  ReadProjectPlanDiffOptions,
+  ReplanProjectOptions,
+  ReplanProjectResult,
+} from './planning/replan.js';
+export {
   APPROVED_PLAN_EXECUTION_VERSION,
   APPROVED_PLAN_MAX_CONTEXT_HINTS,
   APPROVED_PLAN_MAX_DEVIATIONS,

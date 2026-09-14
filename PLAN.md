@@ -219,7 +219,7 @@ The current source of truth is `.yakable/plan.json`; `.yakable/plan.md` is a der
 
 A planning turn may revise the current artifact by creating the next `DRAFT` revision. Review is explicit: only a draft may transition to `APPROVED` or `REJECTED`. Build may read plan metadata but cannot silently rewrite, review, or re-plan it.
 
-The exact schema should stay small and evolve from real needs. Plan history/diff is deferred to the later Re-plan / Plan Diff stage.
+Superseded revisions are preserved under `.yakable/plans/` by the explicit Re-plan path so reviewed decisions remain traceable after the current plan advances.
 
 ## UI Planner
 
@@ -311,6 +311,59 @@ The fixed project health check still runs after source mutation. Its one-shot bu
 
 This v0 path is available through `npm run build:plan -- generated/<project-id>`. Workspace Plan/Build controls and browser-side plan-aware visual verification remain separate product work.
 
+## Re-plan / Plan Diff
+
+Re-plan is explicit instead of silently replacing an approved decision set during Build.
+
+```text
+Current Plan rN
+      ↓
+archive exact superseded revision
+      ↓
+read current bounded project evidence again
+      ↓
+UI Planner + Plan Artifact revision
+      ↓
+new DRAFT rN+1
+      ↓
+deterministic Plan Diff
+      ↓
+review / approve before Build
+```
+
+The current revision remains `.yakable/plan.json`. Superseded revisions are archived as JSON plus derived Markdown under:
+
+```text
+.yakable/plans/
+├── revision-000001.json
+├── revision-000001.md
+├── revision-000002.json
+└── revision-000002.md
+```
+
+Plan Diff is deterministic rather than model-generated. It compares material planning fields such as goal, context, decisions, UI shell/hierarchy/sections, implementation steps, validation, constraints, and open questions. Review metadata and timestamps are not treated as product-plan changes.
+
+Diff status is explicit:
+
+```text
+INITIAL           first revision
+CHANGED           one or more material fields changed
+UNCHANGED         new revision is materially equivalent
+BASELINE_MISSING  an older migrated baseline is unavailable
+```
+
+Starting a Re-plan produces a new `DRAFT`, so the existing Build-from-approved-plan path will refuse execution until that new revision is reviewed and approved. This prevents an older approval from being silently reused after requirements changed.
+
+The v0 CLI surface is:
+
+```bash
+npm run plan -- generated/<project-id> replan "Change the dashboard hierarchy"
+npm run plan -- generated/<project-id> diff
+npm run plan -- generated/<project-id> diff 2 4
+```
+
+`revise` remains an alias for `replan`. Approve/reject output also includes the latest visible Plan Diff when available.
+
 ## Execution Model
 
 Yakable prefers **bounded deterministic execution** over unrestricted autonomy.
@@ -347,6 +400,7 @@ Plan and Build enforce different capability policies, not merely different promp
 | Create / revise Plan Artifact | Yes | No |
 | Approve / reject Plan Artifact | Yes | No |
 | Create / revise UI blueprint | Yes | No |
+| Diff Plan revisions | Yes | No |
 | Execute approved Plan Artifact | No | Yes |
 | Generate source | No | Yes |
 | Edit source | No | Yes |
@@ -355,9 +409,9 @@ Plan and Build enforce different capability policies, not merely different promp
 | Change dependencies | No | Bounded |
 | External write tools | No | Explicitly gated |
 
-The mode policy includes plan-specific capabilities. Plan may `read-plan`, `write-plan`, `review-plan`, and `plan-ui`; Build may only read the artifact and execute source capabilities. This preserves the rule that execution can consume approved decisions but cannot silently redefine them.
+The mode policy includes plan-specific capabilities. Plan may `read-plan`, `write-plan`, `review-plan`, `plan-ui`, and `diff-plan`; Build may only read the artifact and execute source capabilities. This preserves the rule that execution can consume approved decisions but cannot silently redefine or compare/revise planning state.
 
-This separation is the foundation for explicit Re-plan / Plan Diff, future MCP, and external-tool permission policies.
+This separation is the foundation for future Taste Intelligence, MCP, and external-tool permission policies.
 
 ## Current Foundation
 
@@ -386,6 +440,7 @@ Yakable already has working foundations for:
 - versioned Plan Artifact drafting, Markdown rendering, persistence, and explicit review state
 - UI Planner v0 with a bounded semantic UI blueprint attached to the Plan Artifact
 - Build From Approved Plan with immutable execution snapshots, plan-aware source editing, explicit BLOCKED deviations, and plan-preserving build repair
+- Re-plan / Plan Diff v0 with archived superseded revisions and deterministic structural revision comparison
 
 These capabilities are foundations, not the roadmap itself.
 
@@ -396,63 +451,71 @@ Stage A — Understand          ✅
 Stage B — Build               ✅
 Stage C — Observe             ✅
 Stage D — Evaluate & Repair   ✅
-Stage E — Plan                ← CURRENT
-Stage F — Taste Intelligence
+Stage E — Plan                ✅
+Stage F — Taste Intelligence  ← CURRENT
 Stage G — Extensible Tools
 Stage H — Production
 ```
 
-## Current Focus — Stage E: Plan
+## Completed Stage E — Plan
 
 Goal: **separate decision-making from source mutation and make frontend decisions reviewable before execution.**
-
-Near-term work should focus on the following outcomes, without locking them to permanent PR numbers:
 
 1. **Plan / Build Mode Contract** ✅
    - make the two modes first-class concepts
    - enforce a capability policy instead of relying on prompt instructions
    - keep Plan read-only with respect to project source
-   - preserve Build as the compatibility default until Plan has a real product surface
 
 2. **Plan Artifact + Review** ✅
    - define a small versioned structured Plan Artifact
-   - draft/revise it from bounded read/search project context
+   - draft it from bounded read/search project context
    - persist machine-readable JSON plus derived review Markdown
    - allow explicit approve / reject transitions before Build
-   - keep plan metadata separate from project source mutation
 
 3. **UI Planner v0** ✅
    - compile Design Intent and bounded project evidence into a small semantic UI blueprint
-   - attach page type, shell, hierarchy, sections, responsive guidance, and deliberate omissions to the Plan Artifact
-   - keep UI planning Plan-only and avoid a broad layout DSL
-   - preserve the previous blueprint across non-UI plan revisions
+   - attach page type, shell, hierarchy, sections, responsive guidance, and deliberate omissions
+   - preserve previous UI decisions across non-UI revisions
 
 4. **Build From Approved Plan** ✅
-   - compile the approved Plan Artifact into one immutable execution snapshot
-   - execute it through the bounded Frontend Agent edit/check path
-   - preserve reviewed decisions, UI blueprint, constraints, and deliberate omissions during source generation
-   - stop before mutation and surface explicit deviations when faithful execution is blocked
-   - keep one-shot build repair plan-aware
+   - compile an approved artifact into one immutable execution snapshot
+   - execute through the bounded Frontend Agent edit/check path
+   - preserve reviewed decisions and stop on explicit deviations instead of silently re-planning
 
-5. **Re-plan / Plan Diff** ← NEXT
-   - allow a changed user request or new evidence to revise the plan explicitly
-   - make plan changes visible before execution
-   - keep prior approved decisions traceable instead of replacing them invisibly
+5. **Re-plan / Plan Diff v0** ✅
+   - archive the superseded revision before creating the next draft
+   - reread current bounded project evidence during Re-plan
+   - make material revision changes deterministic and visible before approval / Build
+   - keep older approved decisions traceable instead of replacing them invisibly
+
+## Current Focus — Stage F: Taste Intelligence
+
+Goal: **make frontend taste reusable, retrievable, and testable instead of leaving it embedded in one-off prompt interpretation.**
+
+Near-term work should focus on outcomes rather than permanent PR numbering:
+
+1. **Taste Library + Retrieval** ← NEXT
+   - define a small frontend taste knowledge unit
+   - retrieve only relevant taste / pattern examples for the current product and UI context
+   - keep retrieval evidence visible to planning rather than turning it into hidden style magic
+
+2. **Design Direction Suggestions**
+   - generate a few distinct, bounded design directions when the user has not specified one
+   - let the user select or revise a direction before Build when the decision materially affects the interface
+
+3. **Component / Pattern Knowledge**
+   - reuse proven frontend composition patterns without hard-coding complete page templates
+   - connect pattern knowledge to UI Planner section choices and deliberate omissions
+
+4. **Design-System-aware Planning**
+   - let Plan/UI Planner understand existing tokens, primitives, and component constraints
+   - prefer the project's own design language over generic generated styling
+
+5. **Critic Calibration + Better Visual Evidence**
+   - improve what Yakable can reliably verify after rendering
+   - add richer visual evidence only where it materially improves grounded critique
 
 ## Next Stages
-
-### Stage F — Taste Intelligence
-
-Goal: make frontend taste reusable, retrievable, and testable.
-
-Potential areas:
-
-- Taste Library and retrieval
-- design-direction suggestions
-- component and pattern knowledge
-- design-system-aware planning
-- richer visual evidence when technically justified
-- better critic dimensions and calibration
 
 ### Stage G — Extensible Tools
 
