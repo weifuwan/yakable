@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   buildProjectChatMessages,
+  generateProjectChatReply,
   parseProjectChatReply,
 } from '../src/conversation/project-chat.js';
 import { generateProject } from '../src/generation/generate.js';
@@ -147,12 +148,58 @@ test('project chat agent keeps recent turns as real multi-turn messages', () => 
   assert.match(messages[1]?.content ?? '', /"conversationMode": "CHAT"/);
 });
 
-test('project chat agent parses assistant replies independently from router notes', () => {
+test('project chat agent accepts plain-text assistant replies', () => {
   assert.equal(
-    parseProjectChatReply('{"message":"Because this workspace stays tied to the current project."}'),
+    parseProjectChatReply('  Because this workspace stays tied to the current project.  '),
     'Because this workspace stays tied to the current project.',
   );
-  assert.throws(() => parseProjectChatReply('{"message":""}'), /invalid message/);
+  assert.throws(() => parseProjectChatReply('   '), /empty response/);
+});
+
+test('project chat agent omits JSON mode and retries one empty completion', async () => {
+  const originalFetch = globalThis.fetch;
+  const previousApiKey = process.env.DEEPSEEK_API_KEY;
+  const requestBodies: Array<Record<string, unknown>> = [];
+  let attempts = 0;
+
+  process.env.DEEPSEEK_API_KEY = 'test-project-chat-key';
+  globalThis.fetch = (async (_input: string | URL | Request, init?: RequestInit) => {
+    attempts += 1;
+    requestBodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+    return new Response(
+      JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: attempts === 1 ? '   ' : 'Because I keep this conversation tied to your current project.',
+            },
+          },
+        ],
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }) as typeof fetch;
+
+  try {
+    const reply = await generateProjectChatReply({
+      mode: 'CHAT',
+      userInput: 'why',
+      hasGeneratedUi: true,
+      recentConversation: [
+        { role: 'user', content: 'who are you' },
+        { role: 'assistant', content: "I'm Yakable, your AI interface builder." },
+      ],
+    });
+
+    assert.equal(attempts, 2);
+    assert.equal(reply.message, 'Because I keep this conversation tied to your current project.');
+    assert.equal('response_format' in (requestBodies[0] ?? {}), false);
+    assert.equal('response_format' in (requestBodies[1] ?? {}), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (previousApiKey === undefined) delete process.env.DEEPSEEK_API_KEY;
+    else process.env.DEEPSEEK_API_KEY = previousApiKey;
+  }
 });
 
 test('project generation rejects a precomputed non-CREATE decision before downstream generation', async () => {
