@@ -19,11 +19,19 @@ export type PreviewSelection = {
   };
 };
 
+export type UserEditMessageSubmittedDetail = {
+  prompt: string;
+  createdAt: string;
+  selections: PreviewSelection[];
+};
+
 type PreviewSelectionMessage = {
   source: "yakable-preview";
   type: "yakable:selection-change";
   selections: unknown;
 };
+
+export const USER_EDIT_MESSAGE_SUBMITTED_EVENT = "yakable:user-edit-message-submitted";
 
 const DASHBOARD_SOURCE = "yakable-dashboard";
 const PREVIEW_SOURCE = "yakable-preview";
@@ -91,6 +99,14 @@ function normalizeSelections(value: unknown): PreviewSelection[] {
     .filter((selection): selection is PreviewSelection => Boolean(selection));
 }
 
+function cloneSelections(value: PreviewSelection[]): PreviewSelection[] {
+  return value.map((selection) => ({
+    ...selection,
+    source: selection.source ? { ...selection.source } : undefined,
+    rect: selection.rect ? { ...selection.rect } : undefined,
+  }));
+}
+
 function handlePreviewMessage(event: MessageEvent<PreviewSelectionMessage>) {
   const frame = getPreviewFrame();
   if (!frame?.contentWindow || event.source !== frame.contentWindow) return;
@@ -114,10 +130,28 @@ if (typeof window !== "undefined") {
 export function getCurrentPreviewSelections(): PreviewSelection[] {
   const currentFrame = getPreviewFrame()?.contentWindow ?? null;
   if (!currentFrame || currentFrame !== selectionFrame) return [];
-  return latestSelections.map((selection) => ({
-    ...selection,
-    source: selection.source ? { ...selection.source } : undefined,
-  }));
+  return cloneSelections(latestSelections);
+}
+
+export function announceUserEditMessageSubmitted(
+  prompt: string,
+  selections: PreviewSelection[],
+): UserEditMessageSubmittedDetail {
+  const detail: UserEditMessageSubmittedDetail = {
+    prompt: prompt.trim(),
+    createdAt: new Date().toISOString(),
+    selections: cloneSelections(selections),
+  };
+
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent<UserEditMessageSubmittedDetail>(USER_EDIT_MESSAGE_SUBMITTED_EVENT, {
+        detail,
+      }),
+    );
+  }
+
+  return detail;
 }
 
 export function clearCurrentPreviewSelections(): void {
