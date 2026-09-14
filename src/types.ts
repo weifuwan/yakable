@@ -178,3 +178,21 @@ export interface ProjectPatch {
   summary: string;
   changes: GeneratedFile[];
 }
+
+export interface ProjectEditHistoryItem {
+  id: string;
+  createdAt: string;
+  userRequest: string;
+  assistantSummary: string;
+  changedFiles: string[];
+}
+
+export interface ProjectSessionState {
+  version: 1;
+  productRequest?: string;
+  designIntent?: DesignIntentIR;
+  initialSummary?: string;
+  createdAt: string;
+  updatedAt: string;
+  edits: ProjectEditHistoryItem[];
+}
