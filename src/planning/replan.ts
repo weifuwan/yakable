@@ -70,7 +70,7 @@ async function atomicWrite(target: string, content: string): Promise<void> {
   await rename(temporary, target);
 }
 
-async function archivePlanRevision(
+async function archivePlanRevisionInDirectory(
   projectDirectory: string,
   plan: PlanArtifact,
   mode: YakableMode,
@@ -83,7 +83,7 @@ async function archivePlanRevision(
   await atomicWrite(paths.markdownPath, renderPlanArtifactMarkdown(normalized));
 }
 
-async function readArchivedPlanRevision(
+async function readArchivedPlanRevisionInDirectory(
   projectDirectory: string,
   revision: number,
   mode: YakableMode,
@@ -97,6 +97,28 @@ async function readArchivedPlanRevision(
   return content === null ? null : parsePlanArtifact(content);
 }
 
+export async function archivePlanRevision(
+  projectInput: string,
+  plan: PlanArtifact,
+  options: ReplanProjectOptions = {},
+): Promise<void> {
+  const mode = options.mode ?? 'PLAN';
+  assertModeCapability(mode, 'write-plan');
+  const project = await resolveGeneratedProject(projectInput, options.generatedRoot);
+  return archivePlanRevisionInDirectory(project.directory, plan, mode);
+}
+
+export async function readArchivedPlanRevision(
+  projectInput: string,
+  revision: number,
+  options: ReplanProjectOptions = {},
+): Promise<PlanArtifact | null> {
+  const mode = options.mode ?? 'PLAN';
+  assertModeCapability(mode, 'read-plan');
+  const project = await resolveGeneratedProject(projectInput, options.generatedRoot);
+  return readArchivedPlanRevisionInDirectory(project.directory, revision, mode);
+}
+
 export async function readProjectPlanRevision(
   projectInput: string,
   revision: number,
@@ -108,7 +130,7 @@ export async function readProjectPlanRevision(
   const project = await resolveGeneratedProject(projectInput, options.generatedRoot);
   const current = await readPlanArtifactFromDirectory(project.directory, mode);
   if (current?.revision === targetRevision) return current;
-  return readArchivedPlanRevision(project.directory, targetRevision, mode);
+  return readArchivedPlanRevisionInDirectory(project.directory, targetRevision, mode);
 }
 
 export async function replanProjectPlan(
@@ -128,7 +150,7 @@ export async function replanProjectPlan(
   }
 
   // Preserve the exact superseded revision before draftProjectPlan replaces plan.json.
-  await archivePlanRevision(project.directory, previousPlan, mode);
+  await archivePlanRevisionInDirectory(project.directory, previousPlan, mode);
 
   const next = await draftProjectPlan(projectInput, userRequest, {
     mode,
@@ -165,7 +187,7 @@ export async function readProjectPlanDiff(
     : validateRevision(options.toRevision, 'toRevision');
   const toPlan = toRevision === current.revision
     ? current
-    : await readArchivedPlanRevision(project.directory, toRevision, mode);
+    : await readArchivedPlanRevisionInDirectory(project.directory, toRevision, mode);
   if (!toPlan) {
     throw new Error(`Plan revision ${toRevision} is not available.`);
   }
@@ -178,7 +200,7 @@ export async function readProjectPlanDiff(
     ? null
     : fromRevision === current.revision
       ? current
-      : await readArchivedPlanRevision(project.directory, fromRevision, mode);
+      : await readArchivedPlanRevisionInDirectory(project.directory, fromRevision, mode);
 
   if (fromRevision !== null && !fromPlan) {
     const diff = diffPlanArtifacts(null, toPlan);
