@@ -181,12 +181,9 @@ export default function App() {
 
   async function handleCreate(prompt: string): Promise<BuildIntentDecision> {
     const result = await createProject(prompt);
-    if (result.decision.route !== "CREATE") {
-      return result.decision;
-    }
 
     if (!result.project || !result.previewUrl) {
-      throw new Error("Build Intent Gate allowed creation, but no project was returned.");
+      throw new Error("Yakable created the conversation but did not return a project runtime.");
     }
 
     const nextProject: ActiveProject = {
