@@ -1,3 +1,4 @@
+import { generateProjectChatReply } from '../conversation/project-chat.js';
 import { resolveDeepSeekRequestConfig } from '../model/deepseek.js';
 import type { ProjectConversationMessage } from '../types.js';
 import { PROJECT_MESSAGE_INTENT_SYSTEM_PROMPT } from './project-message-prompt.js';
@@ -35,10 +36,6 @@ const MAX_RECENT_MESSAGE_LENGTH = 1_500;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function usesChinese(value: string): boolean {
-  return /[\u3400-\u9fff]/u.test(value);
 }
 
 function readRoute(value: unknown): ProjectMessageRoute {
@@ -80,6 +77,15 @@ export function parseProjectMessageDecision(raw: string): ProjectMessageDecision
   };
 }
 
+function fastChatDecision(message: string): ProjectMessageDecision {
+  return {
+    version: 1,
+    route: 'CHAT',
+    confidence: 'high',
+    message,
+  };
+}
+
 export function detectObviousProjectMessageIntent(
   input: Pick<ProjectMessageIntentInput, 'userInput'>,
 ): ProjectMessageDecision | null {
@@ -111,26 +117,24 @@ export function detectObviousProjectMessageIntent(
   ]);
 
   if (acknowledgements.has(compact)) {
-    return {
-      version: 1,
-      route: 'CHAT',
-      confidence: 'high',
-      message: usesChinese(normalized)
-        ? '好的。接下来想继续聊，还是开始调整页面？'
-        : 'Got it. What would you like to do next?',
-    };
+    return fastChatDecision('Acknowledgement; no UI change requested.');
   }
 
   const greetings = new Set(['hi', 'hello', 'hey', '你好', '您好', '嗨', '哈喽']);
   if (greetings.has(compact)) {
-    return {
-      version: 1,
-      route: 'CHAT',
-      confidence: 'high',
-      message: usesChinese(normalized)
-        ? '你好，我在。你可以继续聊，也可以直接告诉我想做或修改什么页面。'
-        : 'Hi, I’m here. We can keep chatting, or you can tell me what you want to build or change.',
-    };
+    return fastChatDecision('Greeting; no UI change requested.');
+  }
+
+  const identityQuestions = new Set([
+    'who are you',
+    'what are you',
+    '你是谁',
+    '你是誰',
+    '你是什么',
+    '你是什麼',
+  ]);
+  if (identityQuestions.has(compact)) {
+    return fastChatDecision('Identity question; no UI change requested.');
   }
 
   return null;
@@ -216,7 +220,20 @@ export async function classifyProjectMessageIntent(
   input: ProjectMessageIntentInput,
 ): Promise<ProjectMessageDecision> {
   const normalized = normalizedInput(input);
-  const obvious = detectObviousProjectMessageIntent(normalized);
-  if (obvious) return obvious;
-  return requestProjectMessageDecision(normalized);
+  const routed = detectObviousProjectMessageIntent(normalized) ?? await requestProjectMessageDecision(normalized);
+
+  if (routed.route === 'CHAT' || routed.route === 'CLARIFY') {
+    const reply = await generateProjectChatReply({
+      mode: routed.route,
+      userInput: normalized.userInput,
+      hasGeneratedUi: normalized.hasGeneratedUi,
+      recentConversation: normalized.recentConversation,
+    });
+    return {
+      ...routed,
+      message: reply.message,
+    };
+  }
+
+  return routed;
 }
