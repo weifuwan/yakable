@@ -18,7 +18,7 @@ if (!projectInput || !followUpRequest) {
 
 try {
   console.log('Yakable: Edit project');
-  console.log('Selecting focused project context, editing, then checking project health without automatic repair.');
+  console.log('Selecting focused context, editing, checking health, and allowing at most one targeted repair.');
 
   const result = await editGeneratedProject(projectInput, followUpRequest);
 
@@ -37,6 +37,23 @@ try {
     console.log(`- ${file}`);
   }
   console.log(`Summary: ${result.summary}`);
+
+  console.log(`One-shot repair: ${result.repair.status}`);
+  if (result.repair.attempted) {
+    if (result.repair.model) console.log(`- Repair model: ${result.repair.model}`);
+    console.log(`- Repair context files: ${result.repair.contextFiles.length}`);
+    for (const file of result.repair.contextFiles) {
+      console.log(`  - ${file}`);
+    }
+    console.log(`- Repair changed files: ${result.repair.changedFiles.length}`);
+    for (const file of result.repair.changedFiles) {
+      console.log(`  - ${file}`);
+    }
+    if (result.repair.summary) console.log(`- Repair summary: ${result.repair.summary}`);
+    if (result.repair.error) console.log(`- Repair error: ${result.repair.error}`);
+  } else if (result.repair.error) {
+    console.log(`- ${result.repair.error}`);
+  }
 
   if (result.projectCheck.ok) {
     console.log(`Project check: ${result.projectCheck.value.status}`);

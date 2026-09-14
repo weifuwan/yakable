@@ -8,7 +8,8 @@ import {
   type EditContextSelection,
 } from './context-selection.js';
 import { resolveProjectContextSearch } from './context-search.js';
-import { requestProjectPatch } from '../model/deepseek.js';
+import { runOneShotRepair, type OneShotRepairResult } from './repair.js';
+import { requestProjectPatch, requestProjectRepair } from '../model/deepseek.js';
 import {
   appendProjectEditHistory,
   readProjectSession,
@@ -67,6 +68,7 @@ export interface EditProjectResult {
   summary: string;
   changedFiles: string[];
   contextSelection: EditContextSelection;
+  repair: OneShotRepairResult;
   projectCheck: ToolResult<CheckProjectOutput>;
   session: ProjectSessionState | null;
 }
@@ -466,8 +468,30 @@ export async function editGeneratedProject(
   const generation = await requestProjectPatch(editContext);
   const patch = parseProjectPatch(generation.content);
   await assertPatchUsesSelectedContext(project, patch, contextSelection.relevantFiles);
-  const changedFiles = await applyProjectPatch(project, patch);
-  const projectCheck = await checkProjectTool.execute({}, { projectDirectory: project.directory });
+  const initialChangedFiles = await applyProjectPatch(project, patch);
+  const initialProjectCheck = await checkProjectTool.execute(
+    {},
+    { projectDirectory: project.directory },
+  );
+
+  const repair = await runOneShotRepair({
+    projectId: project.id,
+    userRequest: userEdit.userRequest,
+    initialEditSummary: patch.summary,
+    initialChangedFiles,
+    selectedContextFiles: contextSelection.relevantFiles,
+    availableFiles,
+    initialCheck: initialProjectCheck,
+    readFiles: async (paths) => (await readProjectSnapshot(project, paths)).files,
+    requestRepair: requestProjectRepair,
+    parsePatch: parseProjectPatch,
+    applyPatch: (repairPatch) => applyProjectPatch(project, repairPatch),
+    checkProject: () =>
+      checkProjectTool.execute({}, { projectDirectory: project.directory }),
+  });
+
+  const changedFiles = [...new Set([...initialChangedFiles, ...repair.changedFiles])];
+  const projectCheck = repair.finalCheck;
 
   let nextSession = session;
   try {
@@ -489,6 +513,7 @@ export async function editGeneratedProject(
     summary: patch.summary,
     changedFiles,
     contextSelection,
+    repair,
     projectCheck,
     session: nextSession,
   };

@@ -51,7 +51,9 @@ optional one-shot search_project
       ↓
 Read selected files → Edit
       ↓
-check_project observation
+check_project
+  ├── PASS → done
+  └── FAIL → One-shot Repair → check_project once
       ↓
 Persist conversation + edit context in SQLite
       ↓
@@ -74,6 +76,8 @@ The API listens on `127.0.0.1:8787` by default and the dashboard proxies `/api` 
 - send follow-up edit prompts against the existing project
 - choose a bounded relevant file set before reading edit context instead of sending the whole project snapshot
 - perform at most one bounded literal project-text search when file paths alone are ambiguous
+- run a deterministic TypeScript/Vite health check after edits
+- allow exactly one targeted repair attempt only when that health check reports FAIL
 - keep the original product request, Design Intent, and recent successful edits as persisted context for later edits
 - persist Visual Edit source targets with the user message that used them
 - select Preview elements and target edits back to mapped JSX source locations
@@ -135,7 +139,7 @@ ToolRegistry
 
 `search_project` performs a bounded case-insensitive literal search across caller-supplied readable project paths. It accepts at most 500 candidate files, returns at most 20 source matches, and exposes only path/line/column/snippet results instead of returning whole project files as search output.
 
-`check_project` runs Yakable's fixed TypeScript and Vite build health checks. It does not accept shell commands or arbitrary scripts, returns structured PASS/FAIL diagnostics, writes Vite output only to a temporary directory, and never modifies or repairs source code.
+`check_project` runs Yakable's fixed TypeScript and Vite build health checks. It does not accept shell commands or arbitrary scripts, returns structured PASS/FAIL diagnostics, writes Vite output only to a temporary directory, and never modifies source code itself.
 
 There is still no MCP adapter or model-directed generic Tool loop. Tools remain bounded Yakable capabilities.
 
@@ -179,9 +183,9 @@ Run a manual edit to see the boundary directly:
 npm run edit -- generated/<project-id> "把 Pricing 按钮改得更突出"
 ```
 
-The CLI prints the context source (`visual`, `model`, `search`, or `fallback`), the search query when one was used, the exact files read before the edit, and the post-edit project health result.
+The CLI prints the context source (`visual`, `model`, `search`, or `fallback`), the search query when one was used, the exact files read before the edit, the one-shot repair outcome, and the final project health result.
 
-### Project Health Check
+### Project Health Check & One-shot Repair
 
 Every successful source patch is followed by one deterministic observation:
 
@@ -189,25 +193,37 @@ Every successful source patch is followed by one deterministic observation:
 Source Edit
     ↓
 TypeScript --noEmit
-    ├── FAIL → structured diagnostics, stop checking
-    └── PASS
-          ↓
-       Vite build
-          ↓
-       PASS / FAIL
+    ├── FAIL ───────────────┐
+    └── PASS                │
+          ↓                 │
+       Vite build           │
+          ↓                 │
+       PASS / FAIL           │
+                            │
+FAIL only                    │
+    ↓                       │
+Bounded Repair Context ◀────┘
+    ↓
+Repair Model exactly once
+    ↓
+Repair Patch
+    ↓
+check_project exactly once
+    ↓
+stop on PASS or FAIL
 ```
 
-A project check does not call the model, does not roll back the source patch, and does not attempt repair. Command failures are reported as project `FAIL`; failure to start the checker itself is a separate Tool error.
+A healthy initial check does not call the Repair Model at all. A checker Tool error also skips repair because Yakable does not have a trustworthy failure observation to repair.
 
-The check reuses Yakable's installed TypeScript/Vite toolchain, so generated projects do not need their own `node_modules` just to be checked. Vite build output is written to a temporary directory and removed after the observation.
+When repair is needed, the repair context is deliberately small: files changed by the initial edit are prioritized, then files named by structured diagnostics, then the original selected edit context, with a hard maximum of 12 files. The Repair Model can modify only those files and cannot create new files, change package/dependency configuration, broaden product scope, or redesign unrelated UI.
 
-You can test this capability without making an AI edit:
+After the one repair patch, Yakable runs one final project check and stops. A second failure is reported as `FAILED`; there is no recursive repair, retry-until-green loop, rollback, or hidden additional model call.
+
+You can still test the checker independently without making an AI edit:
 
 ```bash
 npm run check:project -- generated/<project-id>
 ```
-
-Automatic build/runtime error repair is not implemented yet. A failed check remains an observation for the user; repair is still manual.
 
 There is still no auth, cloud persistence, deployment, or multi-tenant sandbox yet. The Web API, SQLite database, and generated runtimes are local development surfaces.
 
@@ -339,5 +355,6 @@ Minimal Tool Contract ✅
 Project Context Selection ✅
 Project Search Tool ✅
 Project Check Tool ✅
-One-shot Repair ⏭️
+One-shot Repair ✅
+UI Planner v0 ⏭️
 ```

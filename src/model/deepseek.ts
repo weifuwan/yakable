@@ -1,5 +1,6 @@
 import { PROJECT_CONTEXT_SELECTION_SYSTEM_PROMPT } from '../editing/context-selection-prompt.js';
 import { PROJECT_EDIT_SYSTEM_PROMPT } from '../editing/edit-prompt.js';
+import { PROJECT_REPAIR_SYSTEM_PROMPT } from '../editing/repair-prompt.js';
 import { PROJECT_GENERATION_SYSTEM_PROMPT } from '../generation/prompt.js';
 import { BUILD_INTENT_SYSTEM_PROMPT } from '../prompt-intelligence/build-intent-prompt.js';
 import { INTENT_ANALYSIS_SYSTEM_PROMPT } from '../prompt-intelligence/intent-prompt.js';
@@ -213,4 +214,12 @@ export function requestProjectContextSelection(userPrompt: string): Promise<Deep
 
 export function requestProjectPatch(editContext: string): Promise<DeepSeekGeneration> {
   return requestStructuredGeneration(PROJECT_EDIT_SYSTEM_PROMPT, editContext, 'Project Edit');
+}
+
+export function requestProjectRepair(repairContext: string): Promise<DeepSeekGeneration> {
+  return requestStructuredGeneration(
+    PROJECT_REPAIR_SYSTEM_PROMPT,
+    repairContext,
+    'One-shot Project Repair',
+  );
 }

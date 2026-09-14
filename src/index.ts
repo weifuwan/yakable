@@ -69,6 +69,19 @@ export {
   resolveProjectContextSearch,
 } from './editing/context-search.js';
 export {
+  MAX_REPAIR_CONTEXT_FILES,
+  assertRepairPatchUsesContext,
+  buildOneShotRepairRequest,
+  runOneShotRepair,
+  selectOneShotRepairContextFiles,
+} from './editing/repair.js';
+export type {
+  OneShotRepairResult,
+  OneShotRepairStatus,
+  RepairGeneration,
+  RunOneShotRepairInput,
+} from './editing/repair.js';
+export {
   CHECK_PROJECT_MAX_DIAGNOSTICS,
   CHECK_PROJECT_MAX_OUTPUT_BYTES,
   CHECK_PROJECT_TIMEOUT_MS,
