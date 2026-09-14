@@ -1,4 +1,8 @@
 import type { EditContextSelection } from '../editing/context-selection.js';
+import {
+  assertModeCapability,
+  type YakableMode,
+} from '../modes/mode-contract.js';
 import { requestUiPlan } from '../model/deepseek.js';
 import type { DesignIntentIR, GeneratedFile } from '../types.js';
 
@@ -85,6 +89,7 @@ export type UiPlannerResult =
     };
 
 export interface UiPlannerInput {
+  mode?: YakableMode;
   projectId: string;
   userRequest: string;
   productRequest?: string;
@@ -271,6 +276,8 @@ export function buildUiPlannerRequest(input: UiPlannerInput): string {
 }
 
 export async function planInterface(input: UiPlannerInput): Promise<UiPlannerRun> {
+  const mode = input.mode ?? 'PLAN';
+  assertModeCapability(mode, 'plan-ui');
   const generation = await requestUiPlan(buildUiPlannerRequest(input));
   return {
     model: generation.model,
