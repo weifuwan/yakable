@@ -1,6 +1,7 @@
 import { readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 
+import tailwindcss from '@tailwindcss/vite';
 import { createServer, type ViteDevServer } from 'vite';
 
 import { previewSelectionBridgePlugin } from './preview-selection-bridge.js';
@@ -114,9 +115,15 @@ export async function startGeneratedProject(
     clearScreen: false,
     logLevel: 'info',
     plugins: [
+      tailwindcss(),
       previewSourceMetadataPlugin(project.directory),
       previewSelectionBridgePlugin(),
     ],
+    resolve: {
+      alias: {
+        '@': path.join(project.directory, 'src'),
+      },
+    },
     esbuild: {
       jsx: 'automatic',
       jsxImportSource: 'react',

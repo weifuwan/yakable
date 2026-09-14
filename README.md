@@ -79,11 +79,46 @@ Automatic build/runtime error repair is not implemented yet. If an edit breaks t
 
 There is still no auth, cloud persistence, deployment, or multi-tenant sandbox yet. The Web API, SQLite database, and generated runtimes are local development surfaces.
 
-## CLI commands
+## Yakable Base Template — Stage 2.1
 
-The same core capabilities are available directly from the CLI:
+`templates/base/` is a neutral React + Vite + Tailwind foundation that can be copied without invoking a model. It establishes the environment before Yakable adds optional capability packs or AI-driven product code.
+
+Create one directly:
 
 ```bash
+npm run create:base -- base-demo
+npm run run:project -- generated/base-demo
+```
+
+The copied project is also standalone:
+
+```bash
+cd generated/base-demo
+npm install
+npm run dev
+```
+
+The template contract lives in `yakable.template.json`:
+
+```text
+Yakable-owned                    Project-owned
+├── package / Vite / TS config   ├── index.html + public/**
+├── runtime entry                ├── src/styles/theme.css
+├── Tailwind/reset contract      ├── src/App.tsx + src/routes.ts
+├── utilities                    ├── src/pages/**
+└── src/components/ui/**         ├── src/components/product/**
+                                 ├── src/features/**
+                                 └── src/data/**
+```
+
+Stage 2.1 intentionally does **not** add capability packs, design patterns, retrieval, template selection, or AI integration.
+
+## CLI commands
+
+The core capabilities are available directly from the CLI:
+
+```bash
+npm run create:base -- base-demo
 npm run generate -- "Build a clean SaaS landing page"
 npm run run:project -- generated/<project-id>
 npm run edit -- generated/<project-id> "把 Hero 主色改成蓝色"
@@ -118,5 +153,6 @@ Targeted Project Edit ✅
 Persistent Edit Context ✅
 Persistent Conversation (SQLite) ✅
 Visual → Source Edit ✅
+Yakable Base Template ✅
 Automatic Error Repair ⏭️
 ```
