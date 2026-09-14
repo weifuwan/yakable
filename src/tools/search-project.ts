@@ -79,12 +79,12 @@ function normalizeInput(input: unknown): ToolResult<SearchProjectOutput> | Searc
 }
 
 function buildSnippet(line: string, matchColumn: number, queryLength: number): string {
-  const normalized = line.replace(/\s+/g, ' ').trim();
-  if (normalized.length <= 220) return normalized;
+  if (line.length <= 220) return line.replace(/\s+/g, ' ').trim();
 
   const start = Math.max(0, matchColumn - 80);
-  const end = Math.min(normalized.length, matchColumn + queryLength + 120);
-  return `${start > 0 ? '…' : ''}${normalized.slice(start, end)}${end < normalized.length ? '…' : ''}`;
+  const end = Math.min(line.length, matchColumn + queryLength + 120);
+  const segment = line.slice(start, end).replace(/\s+/g, ' ').trim();
+  return `${start > 0 ? '…' : ''}${segment}${end < line.length ? '…' : ''}`;
 }
 
 export const searchProjectTool: Tool<unknown, SearchProjectOutput> = {
