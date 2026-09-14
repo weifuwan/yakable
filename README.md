@@ -51,6 +51,8 @@ optional one-shot search_project
       ↓
 Read selected files → Edit
       ↓
+check_project observation
+      ↓
 Persist conversation + edit context in SQLite
       ↓
 Preview refresh
@@ -125,12 +127,15 @@ ToolResult<Output>
       ↓
 ToolRegistry
       ├── read_project_file
-      └── search_project
+      ├── search_project
+      └── check_project
 ```
 
 `read_project_file` reads one safe UTF-8 file from the current generated frontend project. It rejects path traversal, secret `.env*` files, blocked build/internal directories, binary files, files outside the project root, and files over the existing 200 KB edit-context limit.
 
 `search_project` performs a bounded case-insensitive literal search across caller-supplied readable project paths. It accepts at most 500 candidate files, returns at most 20 source matches, and exposes only path/line/column/snippet results instead of returning whole project files as search output.
+
+`check_project` runs Yakable's fixed TypeScript and Vite build health checks. It does not accept shell commands or arbitrary scripts, returns structured PASS/FAIL diagnostics, writes Vite output only to a temporary directory, and never modifies or repairs source code.
 
 There is still no MCP adapter or model-directed generic Tool loop. Tools remain bounded Yakable capabilities.
 
@@ -174,9 +179,35 @@ Run a manual edit to see the boundary directly:
 npm run edit -- generated/<project-id> "把 Pricing 按钮改得更突出"
 ```
 
-The CLI prints the context source (`visual`, `model`, `search`, or `fallback`), the search query when one was used, and the exact files read before the edit.
+The CLI prints the context source (`visual`, `model`, `search`, or `fallback`), the search query when one was used, the exact files read before the edit, and the post-edit project health result.
 
-Automatic build/runtime error repair is not implemented yet. If an edit breaks the generated project, the Preview exposes that failure and repair remains manual for now.
+### Project Health Check
+
+Every successful source patch is followed by one deterministic observation:
+
+```text
+Source Edit
+    ↓
+TypeScript --noEmit
+    ├── FAIL → structured diagnostics, stop checking
+    └── PASS
+          ↓
+       Vite build
+          ↓
+       PASS / FAIL
+```
+
+A project check does not call the model, does not roll back the source patch, and does not attempt repair. Command failures are reported as project `FAIL`; failure to start the checker itself is a separate Tool error.
+
+The check reuses Yakable's installed TypeScript/Vite toolchain, so generated projects do not need their own `node_modules` just to be checked. Vite build output is written to a temporary directory and removed after the observation.
+
+You can test this capability without making an AI edit:
+
+```bash
+npm run check:project -- generated/<project-id>
+```
+
+Automatic build/runtime error repair is not implemented yet. A failed check remains an observation for the user; repair is still manual.
 
 There is still no auth, cloud persistence, deployment, or multi-tenant sandbox yet. The Web API, SQLite database, and generated runtimes are local development surfaces.
 
@@ -267,6 +298,7 @@ npm run add:pack -- base-demo chart date command
 npm run generate -- "Build a clean SaaS landing page"
 npm run run:project -- generated/<project-id>
 npm run edit -- generated/<project-id> "把 Hero 主色改成蓝色"
+npm run check:project -- generated/<project-id>
 ```
 
 `npm run generate` also respects Build Intent Gate, so a CHAT or CLARIFY input exits without writing a project.
@@ -306,6 +338,6 @@ Capability Packs ✅
 Minimal Tool Contract ✅
 Project Context Selection ✅
 Project Search Tool ✅
-Project Check Tool ⏭️
-Automatic Error Repair ⏭️
+Project Check Tool ✅
+One-shot Repair ⏭️
 ```
