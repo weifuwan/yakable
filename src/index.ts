@@ -50,6 +50,20 @@ export {
   translatePromptTaste,
 } from './prompt-intelligence/taste.js';
 export {
+  MAX_EDIT_CONTEXT_FILES,
+  MAX_PROJECT_CONTEXT_CANDIDATES,
+  buildProjectContextSelectionRequest,
+  fallbackEditContextFiles,
+  parseProjectContextSelection,
+  selectMappedVisualContextFiles,
+  selectProjectContextFiles,
+} from './editing/context-selection.js';
+export type {
+  EditContextSelection,
+  EditContextSelectionInput,
+  EditContextSelectionSource,
+} from './editing/context-selection.js';
+export {
   READ_PROJECT_FILE_MAX_BYTES,
   readProjectFileTool,
 } from './tools/read-project-file.js';
