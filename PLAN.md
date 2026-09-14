@@ -23,14 +23,14 @@
 - **Page Observation v0:** let the live Preview return one bounded source-mapped snapshot containing route, viewport/document dimensions, visible key elements, and captured runtime errors, without screenshotting, model judgment, or source mutation. ✅
 - **Edit Intent Delta v0:** normalize a follow-up edit request against the persisted Design Intent into a bounded `summary + scope + targetHints + directives + preserve` contract, then give the same delta to Context Selection and Project Edit. Normalization failures use a deterministic fallback instead of blocking the edit. ✅
 - **Design Critic v0:** inspect one bounded Page Observation against the original Design Intent and current Edit Intent Delta, returning evidence-grounded PASS/FAIL findings plus explicit unverified areas without modifying source. Runtime errors are deterministic failures. ✅
+- **Visual Repair v0:** after a healthy frontend edit, automatically observe the current Preview, critique it once, allow at most one bounded source-mapped visual repair on FAIL, run the fixed project health check, then re-observe and critique exactly once before stopping. Failed visual repairs roll their own source changes back. ✅
 
 ## Next
 
-- **Visual Repair v0:** when Design Critic reports FAIL, allow one bounded visual repair, re-check project health, observe once more, critique once more, then stop.
+- **Frontend Agent v0:** expose the bounded frontend workflow as explicit states such as SELECT_CONTEXT → READ → EDIT → CHECK → OBSERVE → CRITIQUE → REPAIR → DONE, with visible progress and deterministic transition rules before considering broad model-selected tool calling.
 
 ## Later
 
-- **Frontend Agent v0:** expose the bounded frontend workflow as explicit states such as SELECT_CONTEXT → READ → EDIT → CHECK → OBSERVE → CRITIQUE → REPAIR → DONE before considering broad model-selected tool calling.
 - **UI Planner v0:** compile Design Intent into a small explicit page/section/hierarchy/responsive plan before code generation, without introducing a broad layout DSL.
 - **Taste Library & Retrieval:** retrieve focused frontend patterns and examples only when they are relevant to the current design decision.
 - **MCP Adapter:** expose external MCP tools through the same internal Tool contract after local tool execution is stable.
