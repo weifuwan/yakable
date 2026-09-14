@@ -126,6 +126,23 @@ export type {
   ToolError,
   ToolResult,
 } from './tools/tool.js';
+export {
+  PAGE_OBSERVATION_MAX_ELEMENTS,
+  PAGE_OBSERVATION_MAX_ERROR_LENGTH,
+  PAGE_OBSERVATION_MAX_RUNTIME_ERRORS,
+  PAGE_OBSERVATION_MAX_SELECTOR_LENGTH,
+  PAGE_OBSERVATION_MAX_TEXT_LENGTH,
+  PAGE_OBSERVATION_VERSION,
+  parsePageObservation,
+} from './runtime/page-observation.js';
+export type {
+  PageObservation,
+  PageObservationElement,
+  PageObservationRect,
+  PageObservationRuntimeError,
+  PageObservationRuntimeErrorKind,
+  PageObservationSource,
+} from './runtime/page-observation.js';
 export type {
   BuildIntentConfidence,
   BuildIntentDecision,
