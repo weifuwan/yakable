@@ -50,6 +50,26 @@ export {
   translatePromptTaste,
 } from './prompt-intelligence/taste.js';
 export {
+  YAKABLE_MODES,
+  YAKABLE_MODE_CAPABILITIES,
+  ModeCapabilityError,
+  assertModeCapability,
+  capabilitiesForMode,
+  createYakableModeContext,
+  modeAllowsCapability,
+  parseYakableMode,
+} from './modes/mode-contract.js';
+export type {
+  YakableMode,
+  YakableModeCapability,
+  YakableModeContext,
+} from './modes/mode-contract.js';
+export {
+  editGeneratedProjectInMode,
+  repairGeneratedProjectVisualInMode,
+  runModeCapability,
+} from './modes/mode-execution.js';
+export {
   EDIT_INTENT_VERSION,
   MAX_EDIT_INTENT_DIRECTIVES,
   MAX_EDIT_INTENT_PRESERVE,
