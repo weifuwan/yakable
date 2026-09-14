@@ -150,6 +150,7 @@ export default function App() {
           previewUrl: runtime.previewUrl,
           template: runtime.template,
           routes: runtime.routes,
+          session: runtime.session,
         });
       })
       .catch((error) => {
@@ -185,6 +186,7 @@ export default function App() {
       model: result.project.model,
       template: result.project.template,
       routes: result.project.routes,
+      session: result.project.session,
     };
 
     setActiveProject(nextProject);
