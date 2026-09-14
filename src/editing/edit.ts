@@ -11,6 +11,7 @@ import type {
   GeneratedFile,
   ProjectPatch,
   ProjectSessionState,
+  ProjectVisualSelection,
 } from '../types.js';
 
 const MAX_CONTEXT_FILES = 60;
@@ -21,6 +22,7 @@ const MAX_CHANGE_FILES = 12;
 const MAX_CHANGE_FILE_BYTES = 200_000;
 const MAX_CHANGE_TOTAL_BYTES = 500_000;
 const MAX_HISTORY_CONTEXT = 12;
+const MAX_VISUAL_SELECTIONS = 20;
 const SKIPPED_DIRECTORIES = new Set(['node_modules', 'dist', '.git', '.yakable']);
 const VISUAL_EDIT_START = '[[YAKABLE_VISUAL_EDIT_REQUEST]]';
 const VISUAL_EDIT_END = '[[/YAKABLE_VISUAL_EDIT_REQUEST]]';
@@ -36,6 +38,11 @@ export interface EditProjectResult {
   summary: string;
   changedFiles: string[];
   session: ProjectSessionState | null;
+}
+
+export interface UserEditContext {
+  userRequest: string;
+  visualSelections: ProjectVisualSelection[];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -149,27 +156,103 @@ export async function readProjectSnapshot(
   return { ...project, files };
 }
 
-export function extractUserEditRequest(request: string): string {
+function optionalString(value: unknown, maxLength: number): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.trim();
+  return normalized ? normalized.slice(0, maxLength) : undefined;
+}
+
+function positiveInteger(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : undefined;
+}
+
+function visualSelectionsFromEnvelope(value: unknown): ProjectVisualSelection[] {
+  if (!isRecord(value)) return [];
+  const selections: ProjectVisualSelection[] = [];
+
+  const targets = Array.isArray(value.targets) ? value.targets : [];
+  for (const target of targets) {
+    if (!isRecord(target)) continue;
+    const file = optionalString(target.file, 240);
+    const line = positiveInteger(target.line);
+    const column = positiveInteger(target.column);
+    const tagName = optionalString(target.tagName, 80);
+    const sourceId = optionalString(target.sourceId, 120);
+    if (!tagName) continue;
+
+    const instances = Array.isArray(target.instances) ? target.instances : [];
+    if (instances.length === 0) {
+      selections.push({
+        ...(sourceId ? { sourceId } : {}),
+        ...(file ? { file } : {}),
+        ...(line ? { line } : {}),
+        ...(column ? { column } : {}),
+        tagName,
+        text: '',
+        selector: '',
+      });
+    }
+
+    for (const instance of instances) {
+      if (!isRecord(instance)) continue;
+      selections.push({
+        ...(sourceId ? { sourceId } : {}),
+        ...(file ? { file } : {}),
+        ...(line ? { line } : {}),
+        ...(column ? { column } : {}),
+        tagName,
+        text: typeof instance.text === 'string' ? instance.text.trim().slice(0, 180) : '',
+        selector:
+          typeof instance.selector === 'string' ? instance.selector.trim().slice(0, 320) : '',
+      });
+      if (selections.length >= MAX_VISUAL_SELECTIONS) return selections;
+    }
+
+    if (selections.length >= MAX_VISUAL_SELECTIONS) return selections;
+  }
+
+  const unmapped = Array.isArray(value.unmappedSelections) ? value.unmappedSelections : [];
+  for (const item of unmapped) {
+    if (!isRecord(item)) continue;
+    const tagName = optionalString(item.tagName, 80);
+    if (!tagName) continue;
+    selections.push({
+      tagName,
+      text: typeof item.text === 'string' ? item.text.trim().slice(0, 180) : '',
+      selector: typeof item.selector === 'string' ? item.selector.trim().slice(0, 320) : '',
+    });
+    if (selections.length >= MAX_VISUAL_SELECTIONS) break;
+  }
+
+  return selections;
+}
+
+export function extractUserEditContext(request: string): UserEditContext {
   const start = request.indexOf(VISUAL_EDIT_START);
   const end = request.indexOf(VISUAL_EDIT_END);
   if (start === -1 || end === -1 || end <= start) {
-    return request.trim();
+    return { userRequest: request.trim(), visualSelections: [] };
   }
 
-  const payload = request
-    .slice(start + VISUAL_EDIT_START.length, end)
-    .trim();
-
+  const payload = request.slice(start + VISUAL_EDIT_START.length, end).trim();
   try {
     const parsed: unknown = JSON.parse(payload);
-    if (isRecord(parsed) && typeof parsed.userRequest === 'string' && parsed.userRequest.trim()) {
-      return parsed.userRequest.trim();
-    }
+    if (!isRecord(parsed)) throw new Error('Visual edit payload must be an object.');
+    const userRequest =
+      typeof parsed.userRequest === 'string' && parsed.userRequest.trim()
+        ? parsed.userRequest.trim()
+        : request.trim();
+    return {
+      userRequest,
+      visualSelections: visualSelectionsFromEnvelope(parsed.visualSelections),
+    };
   } catch {
-    // Fall back to the original request so malformed visual metadata never drops user intent.
+    return { userRequest: request.trim(), visualSelections: [] };
   }
+}
 
-  return request.trim();
+export function extractUserEditRequest(request: string): string {
+  return extractUserEditContext(request).userRequest;
 }
 
 export function buildProjectEditContext(
@@ -261,9 +344,7 @@ export async function applyProjectPatch(
     const destination = path.join(project.directory, ...safePath.split('/'));
     const existing = await readFile(destination, 'utf8').catch(() => null);
 
-    if (existing === change.content) {
-      continue;
-    }
+    if (existing === change.content) continue;
 
     await mkdir(path.dirname(destination), { recursive: true });
     await writeFile(destination, change.content, 'utf8');
@@ -282,9 +363,7 @@ export async function editGeneratedProject(
   followUpRequest: string,
 ): Promise<EditProjectResult> {
   const request = followUpRequest.trim();
-  if (!request) {
-    throw new Error('A follow-up edit request is required.');
-  }
+  if (!request) throw new Error('A follow-up edit request is required.');
   if (request.length > MAX_FOLLOW_UP_LENGTH) {
     throw new Error(`Follow-up edit request is too long (max ${MAX_FOLLOW_UP_LENGTH} characters).`);
   }
@@ -297,16 +376,19 @@ export async function editGeneratedProject(
   const generation = await requestProjectPatch(editContext);
   const patch = parseProjectPatch(generation.content);
   const changedFiles = await applyProjectPatch(project, patch);
+  const userEdit = extractUserEditContext(request);
 
   let nextSession = session;
   try {
     nextSession = await appendProjectEditHistory(project.directory, {
-      userRequest: extractUserEditRequest(request),
+      userRequest: userEdit.userRequest,
       assistantSummary: patch.summary,
       changedFiles,
+      model: generation.model,
+      visualSelections: userEdit.visualSelections,
     });
   } catch (error) {
-    console.warn('[Yakable Edit] Source update succeeded but session history could not be persisted.', error);
+    console.warn('[Yakable Edit] Source update succeeded but conversation history could not be persisted.', error);
   }
 
   return {

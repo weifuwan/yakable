@@ -14,9 +14,13 @@ import {
   type ProjectUpdate,
 } from '../projects/project-actions.js';
 import { readProjectMetadata } from '../projects/project-metadata.js';
-import { readProjectSession } from '../projects/project-session.js';
+import {
+  readProjectConversation,
+  readProjectSession,
+} from '../projects/project-session.js';
 import { resolveGeneratedProject, startGeneratedProject } from '../runtime/runtime.js';
 import type {
+  ProjectConversation,
   ProjectMetadata,
   ProjectRoute,
   ProjectSessionState,
@@ -38,6 +42,7 @@ export interface WebGeneratedProject {
   template: ProjectTemplate;
   routes: ProjectRoute[];
   session: ProjectSessionState | null;
+  conversation: ProjectConversation | null;
 }
 
 export interface WebEditedProject {
@@ -46,6 +51,7 @@ export interface WebEditedProject {
   model: string;
   changedFiles: string[];
   session: ProjectSessionState | null;
+  conversation: ProjectConversation | null;
 }
 
 export interface RuntimeSession {
@@ -61,6 +67,7 @@ export interface WebApiServices {
   edit(projectId: string, prompt: string): Promise<WebEditedProject>;
   startRuntime(projectId: string): Promise<RuntimeSession>;
   readSession?(projectId: string): Promise<ProjectSessionState | null>;
+  readConversation?(projectId: string): Promise<ProjectConversation | null>;
   updateProject?(projectId: string, patch: ProjectUpdate): Promise<WebProjectListItem>;
   remixProject?(projectId: string): Promise<WebProjectListItem>;
   deleteProject?(projectId: string): Promise<void>;
@@ -102,9 +109,7 @@ async function readJsonBody(request: IncomingMessage): Promise<Record<string, un
     chunks.push(buffer);
   }
 
-  if (chunks.length === 0) {
-    return {};
-  }
+  if (chunks.length === 0) return {};
 
   try {
     const value: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'));
@@ -113,9 +118,7 @@ async function readJsonBody(request: IncomingMessage): Promise<Record<string, un
     }
     return value as Record<string, unknown>;
   } catch (error) {
-    if (error instanceof SyntaxError) {
-      throw new Error('Request body is not valid JSON.');
-    }
+    if (error instanceof SyntaxError) throw new Error('Request body is not valid JSON.');
     throw error;
   }
 }
@@ -172,6 +175,7 @@ async function runtimePayload(
     template: runtime.metadata.template,
     routes: runtime.metadata.routes,
     session: services.readSession ? await services.readSession(projectId) : null,
+    conversation: services.readConversation ? await services.readConversation(projectId) : null,
   };
 }
 
@@ -194,6 +198,7 @@ export function createDefaultWebApiServices(
         template: result.project.template,
         routes: result.project.routes,
         session: await readProjectSession(result.outputDirectory),
+        conversation: await readProjectConversation(result.outputDirectory),
       };
     },
 
@@ -206,6 +211,7 @@ export function createDefaultWebApiServices(
         model: result.model,
         changedFiles: result.changedFiles,
         session: result.session,
+        conversation: await readProjectConversation(result.projectDirectory),
       };
     },
 
@@ -228,6 +234,11 @@ export function createDefaultWebApiServices(
       return readProjectSession(project.directory);
     },
 
+    async readConversation(projectId) {
+      const project = await resolveGeneratedProject(projectId, generatedRoot);
+      return readProjectConversation(project.directory);
+    },
+
     async updateProject(projectId, patch) {
       return updateManagedProject(projectId, patch, generatedRoot);
     },
@@ -248,9 +259,7 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
 
   async function ensureRuntime(projectId: string): Promise<RuntimeSession> {
     const current = runtimes.get(projectId);
-    if (current?.isAlive()) {
-      return current;
-    }
+    if (current?.isAlive()) return current;
     if (current) {
       await current.close().catch(() => undefined);
       runtimes.delete(projectId);
@@ -274,7 +283,7 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
       const method = request.method ?? 'GET';
 
       if (method === 'GET' && url.pathname === '/api/health') {
-        sendJson(response, 200, { ok: true, stage: 'web-product-flow' });
+        sendJson(response, 200, { ok: true, storage: 'sqlite' });
         return;
       }
 
@@ -371,18 +380,14 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
       });
 
       const address = server.address() as AddressInfo | null;
-      if (!address) {
-        throw new Error('Yakable API started without a network address.');
-      }
+      if (!address) throw new Error('Yakable API started without a network address.');
       return `http://${host}:${address.port}`;
     },
     async close() {
       await Promise.all([...runtimes.values()].map((runtime) => runtime.close().catch(() => undefined)));
       runtimes.clear();
 
-      if (!server.listening) {
-        return;
-      }
+      if (!server.listening) return;
       await new Promise<void>((resolve, reject) => {
         server.close((error) => (error ? reject(error) : resolve()));
       });

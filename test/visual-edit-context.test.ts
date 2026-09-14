@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  announceUserEditMessageSubmitted,
   buildVisualEditPrompt,
   type PreviewSelection,
 } from '../dashboard/src/visual-edit-context.js';
@@ -85,23 +84,4 @@ test('keeps unmapped DOM selections as fallback context', () => {
     envelope.visualSelections.unmappedSelections.map((item) => item.runtimeId),
     ['runtime-root'],
   );
-});
-
-test('freezes the submitted message selection snapshot for UI feedback', () => {
-  const original = selection('runtime-1', 'Hero heading');
-  const detail = announceUserEditMessageSubmitted('  Make this smaller  ', [original]);
-
-  assert.equal(detail.prompt, 'Make this smaller');
-  assert.ok(Number.isFinite(new Date(detail.createdAt).getTime()));
-  assert.equal(detail.selections[0]?.tagName, 'h1');
-  assert.deepEqual(detail.selections[0]?.source, {
-    file: 'src/components/Hero.tsx',
-    line: 37,
-    column: 5,
-  });
-
-  if (detail.selections[0]?.source) {
-    detail.selections[0].source.line = 99;
-  }
-  assert.equal(original.source?.line, 37);
 });

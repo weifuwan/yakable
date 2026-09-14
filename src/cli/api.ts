@@ -1,6 +1,7 @@
 import 'dotenv/config';
 
 import { createYakableApiServer } from '../server/web-api.js';
+import { closeYakableDatabases } from '../storage/database.js';
 
 function readPort(): number {
   const raw = process.env.YAKABLE_API_PORT?.trim();
@@ -24,6 +25,7 @@ async function stop() {
   stopping = true;
   console.log('\nStopping Yakable API and project runtimes...');
   await api.close();
+  closeYakableDatabases();
 }
 
 process.once('SIGINT', () => {
