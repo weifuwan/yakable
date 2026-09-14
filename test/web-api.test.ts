@@ -121,6 +121,17 @@ function fakeServices(): WebApiServices {
         conversation,
       };
     },
+    async message() {
+      return {
+        decision: {
+          version: 1,
+          route: 'CHAT' as const,
+          confidence: 'high' as const,
+          message: 'Got it. What would you like to do next?',
+        },
+        conversation,
+      };
+    },
     async edit(projectId, prompt) {
       assert.equal(projectId, 'generated-project');
       assert.equal(prompt, 'Make the hero blue');
@@ -295,6 +306,70 @@ test('web API preserves CHAT/CLARIFY input as a project conversation', async () 
     assert.match(result.previewUrl, /revision=/);
     assert.equal(generated, true);
     assert.equal(runtimeStarted, true);
+  } finally {
+    await api.close();
+  }
+});
+
+test('web API routes conversational follow-ups without invoking Frontend Agent edit', async () => {
+  const services = fakeServices();
+  let editCalled = false;
+  const followUpConversation: ProjectConversation = {
+    ...conversation,
+    updatedAt: '2026-09-11T07:06:00.000Z',
+    messages: [
+      ...conversation.messages,
+      {
+        id: 'chat-user-good',
+        role: 'user',
+        content: 'good',
+        createdAt: '2026-09-11T07:06:00.000Z',
+      },
+      {
+        id: 'chat-assistant-good',
+        role: 'assistant',
+        content: 'Got it. What would you like to do next?',
+        createdAt: '2026-09-11T07:06:00.000Z',
+      },
+    ],
+  };
+
+  services.message = async (projectId, prompt) => {
+    assert.equal(projectId, 'generated-project');
+    assert.equal(prompt, 'good');
+    return {
+      decision: {
+        version: 1,
+        route: 'CHAT',
+        confidence: 'high',
+        message: 'Got it. What would you like to do next?',
+      },
+      conversation: followUpConversation,
+    };
+  };
+  services.edit = async () => {
+    editCalled = true;
+    throw new Error('Frontend Agent edit should not run for CHAT.');
+  };
+
+  const api = createYakableApiServer({ services });
+  const baseUrl = await api.listen(0);
+
+  try {
+    const response = await fetch(`${baseUrl}/api/projects/generated-project/message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: 'good' }),
+    });
+    assert.equal(response.status, 200);
+    const result = await response.json() as {
+      decision: { route: string; message: string };
+      conversation: ProjectConversation;
+    };
+    assert.equal(result.decision.route, 'CHAT');
+    assert.equal(result.conversation.messages.at(-2)?.content, 'good');
+    assert.equal(result.conversation.messages.at(-1)?.content, result.decision.message);
+    assert.equal(editCalled, false);
   } finally {
     await api.close();
   }

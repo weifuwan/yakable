@@ -28,6 +28,16 @@ export interface BuildIntentDecision {
   message: string;
 }
 
+export type ProjectMessageRoute = 'CHAT' | 'CLARIFY' | 'BUILD' | 'EDIT';
+export type ProjectMessageConfidence = 'high' | 'medium';
+
+export interface ProjectMessageDecision {
+  version: 1;
+  route: ProjectMessageRoute;
+  confidence: ProjectMessageConfidence;
+  message: string;
+}
+
 export interface ProjectRoute {
   path: string;
   title: string;
@@ -225,6 +235,20 @@ export interface EditedProject extends RuntimeProject {
   visualFeedback?: VisualFeedbackResult;
 }
 
+export interface ProjectMessageResult extends RuntimeProject {
+  route: ProjectMessageRoute;
+  summary: string;
+  model: string;
+  changedFiles: string[];
+  agentTrace?: FrontendAgentEvent[];
+  visualFeedback?: VisualFeedbackResult;
+}
+
+interface ProjectMessageRoutingResult {
+  decision: ProjectMessageDecision;
+  conversation: ProjectConversation | null;
+}
+
 interface VisualRepairResponse extends RuntimeProject {
   visualRepair: VisualRepairResult;
 }
@@ -360,6 +384,16 @@ export function startProjectRuntime(projectId: string): Promise<RuntimeProject> 
   return requestJson(`/api/projects/${encodeURIComponent(projectId)}/runtime`, {
     method: 'POST',
     body: '{}',
+  });
+}
+
+function routeProjectMessage(
+  projectId: string,
+  prompt: string,
+): Promise<ProjectMessageRoutingResult> {
+  return requestJson(`/api/projects/${encodeURIComponent(projectId)}/message`, {
+    method: 'POST',
+    body: JSON.stringify({ prompt }),
   });
 }
 
@@ -634,13 +668,43 @@ export async function editProject(
   projectId: string,
   prompt: string,
   selections: PreviewSelection[] = getCurrentPreviewSelections(),
-): Promise<EditedProject> {
+): Promise<ProjectMessageResult> {
+  const routed: ProjectMessageRoutingResult = selections.length
+    ? {
+        decision: {
+          version: 1,
+          route: 'EDIT',
+          confidence: 'high',
+          message: 'Ready to update.',
+        },
+        conversation: null,
+      }
+    : await routeProjectMessage(projectId, prompt);
+
+  if (routed.decision.route === 'CHAT' || routed.decision.route === 'CLARIFY') {
+    const runtime = await startProjectRuntime(projectId);
+    const frame = currentPreviewFrame();
+    return {
+      ...runtime,
+      previewUrl: frame?.src || runtime.previewUrl,
+      conversation: routed.conversation ?? runtime.conversation,
+      route: routed.decision.route,
+      summary: routed.decision.message,
+      model: 'project-message-router',
+      changedFiles: [],
+    };
+  }
+
   const runId = createAgentRunId(projectId);
   const visualEditPrompt = buildVisualEditPrompt(prompt, selections);
 
   try {
     const edited = await requestAgentEdit(projectId, visualEditPrompt, runId);
-    return await runVisualFeedback(projectId, prompt, edited, runId);
+    const result = await runVisualFeedback(projectId, prompt, edited, runId);
+    return {
+      ...result,
+      route: routed.decision.route,
+    };
   } catch (error) {
     publishAgentState(
       runId,

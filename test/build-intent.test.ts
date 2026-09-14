@@ -7,6 +7,10 @@ import {
   detectObviousBuildIntent,
   parseBuildIntentDecision,
 } from '../src/prompt-intelligence/build-intent.js';
+import {
+  detectObviousProjectMessageIntent,
+  parseProjectMessageDecision,
+} from '../src/prompt-intelligence/project-message.js';
 
 test('parses CREATE / CHAT / CLARIFY Build Intent decisions', () => {
   assert.deepEqual(
@@ -84,6 +88,29 @@ test('bare Hello World inputs require clarification instead of creating', () => 
 test('real build requests are left for model routing rather than blocked by fast paths', () => {
   assert.equal(detectObviousBuildIntent('Build a Hello World page'), null);
   assert.equal(detectObviousBuildIntent('帮我做一个 Todo App'), null);
+});
+
+test('project message router accepts CHAT / CLARIFY / BUILD / EDIT decisions', () => {
+  for (const route of ['CHAT', 'CLARIFY', 'BUILD', 'EDIT'] as const) {
+    assert.equal(
+      parseProjectMessageDecision(
+        JSON.stringify({
+          version: 1,
+          route,
+          confidence: 'high',
+          message: route === 'CHAT' ? 'Sure.' : 'Ready.',
+        }),
+      ).route,
+      route,
+    );
+  }
+});
+
+test('project message fast path keeps acknowledgements out of Frontend Agent edits', () => {
+  assert.equal(detectObviousProjectMessageIntent({ userInput: 'good' })?.route, 'CHAT');
+  assert.equal(detectObviousProjectMessageIntent({ userInput: 'thanks!' })?.route, 'CHAT');
+  assert.equal(detectObviousProjectMessageIntent({ userInput: '不错' })?.route, 'CHAT');
+  assert.equal(detectObviousProjectMessageIntent({ userInput: '把按钮改成红色' }), null);
 });
 
 test('project generation rejects a precomputed non-CREATE decision before downstream generation', async () => {
