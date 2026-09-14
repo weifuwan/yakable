@@ -4,6 +4,7 @@ import { analyzePromptIntent } from '../prompt-intelligence/intent.js';
 import { expandPromptSemantics } from '../prompt-intelligence/semantic.js';
 import { translatePromptTaste } from '../prompt-intelligence/taste.js';
 import { parseGeneratedProject, writeGeneratedProject } from '../projects/project.js';
+import { initializeProjectSession } from '../projects/project-session.js';
 import type { GenerationResult } from '../types.js';
 import { buildTemplateGenerationRequest, selectProjectTemplate } from './template.js';
 
@@ -32,6 +33,11 @@ export async function generateProject(prompt: string): Promise<GenerationResult>
   const project = parseGeneratedProject(generation.content);
   project.template = template;
   const outputDirectory = await writeGeneratedProject(normalizedPrompt, project);
+  await initializeProjectSession(outputDirectory, {
+    productRequest: normalizedPrompt,
+    designIntent,
+    initialSummary: project.summary,
+  });
 
   return {
     project,
