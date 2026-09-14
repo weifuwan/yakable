@@ -2,8 +2,8 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 
-import { editGeneratedProject } from './edit.js';
-import { generateProject } from './generate.js';
+import { editGeneratedProject } from '../editing/edit.js';
+import { generateProject } from '../generation/generate.js';
 import {
   deleteManagedProject,
   listManagedProjects,
@@ -12,10 +12,10 @@ import {
   updateManagedProject,
   type ProjectListRecord,
   type ProjectUpdate,
-} from './project-actions.js';
-import { readProjectMetadata } from './project-metadata.js';
-import { resolveGeneratedProject, startGeneratedProject } from './runtime.js';
-import type { ProjectMetadata, ProjectRoute, ProjectTemplate } from './types.js';
+} from '../projects/project-actions.js';
+import { readProjectMetadata } from '../projects/project-metadata.js';
+import { resolveGeneratedProject, startGeneratedProject } from '../runtime/runtime.js';
+import type { ProjectMetadata, ProjectRoute, ProjectTemplate } from '../types.js';
 
 const DEFAULT_API_HOST = '127.0.0.1';
 const DEFAULT_API_PORT = 8787;

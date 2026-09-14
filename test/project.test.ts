@@ -4,7 +4,11 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { parseGeneratedProject, slugifyPrompt, writeGeneratedProject } from '../src/project.js';
+import {
+  parseGeneratedProject,
+  slugifyPrompt,
+  writeGeneratedProject,
+} from '../src/projects/project.js';
 
 const validProject = JSON.stringify({
   summary: 'A small generated app',

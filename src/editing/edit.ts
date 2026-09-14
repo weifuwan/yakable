@@ -1,9 +1,9 @@
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { requestProjectPatch } from './deepseek.js';
-import { resolveGeneratedProject, type ResolvedGeneratedProject } from './runtime.js';
-import type { GeneratedFile, ProjectPatch } from './types.js';
+import { requestProjectPatch } from '../model/deepseek.js';
+import { resolveGeneratedProject, type ResolvedGeneratedProject } from '../runtime/runtime.js';
+import type { GeneratedFile, ProjectPatch } from '../types.js';
 
 const MAX_CONTEXT_FILES = 60;
 const MAX_CONTEXT_FILE_BYTES = 200_000;

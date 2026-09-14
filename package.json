@@ -7,10 +7,10 @@
     "node": ">=20.6"
   },
   "scripts": {
-    "generate": "tsx src/cli.ts",
-    "run:project": "tsx src/run-cli.ts",
-    "edit": "tsx src/edit-cli.ts",
-    "dev:api": "tsx src/api-cli.ts",
+    "generate": "tsx src/cli/generate.ts",
+    "run:project": "tsx src/cli/run.ts",
+    "edit": "tsx src/cli/edit.ts",
+    "dev:api": "tsx src/cli/api.ts",
     "dev:web": "vite dashboard --host 127.0.0.1",
     "build:web": "vite build dashboard",
     "typecheck": "tsc --noEmit && tsc -p dashboard/tsconfig.json --noEmit",

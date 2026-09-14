@@ -7,7 +7,7 @@ import type {
   PromptIntent,
   SemanticExpansion,
   TasteTranslation,
-} from './types.js';
+} from '../types.js';
 
 function normalizeString(value: string): string {
   return value.trim();

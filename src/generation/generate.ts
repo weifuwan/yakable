@@ -1,11 +1,11 @@
-import { requestProjectCode } from './deepseek.js';
-import { buildDesignIntent } from './design-intent.js';
-import { analyzePromptIntent } from './intent.js';
-import { parseGeneratedProject, writeGeneratedProject } from './project.js';
-import { expandPromptSemantics } from './semantic.js';
-import { translatePromptTaste } from './taste.js';
+import { requestProjectCode } from '../model/deepseek.js';
+import { buildDesignIntent } from '../prompt-intelligence/design-intent.js';
+import { analyzePromptIntent } from '../prompt-intelligence/intent.js';
+import { expandPromptSemantics } from '../prompt-intelligence/semantic.js';
+import { translatePromptTaste } from '../prompt-intelligence/taste.js';
+import { parseGeneratedProject, writeGeneratedProject } from '../projects/project.js';
+import type { GenerationResult } from '../types.js';
 import { buildTemplateGenerationRequest, selectProjectTemplate } from './template.js';
-import type { GenerationResult } from './types.js';
 
 export async function generateProject(prompt: string): Promise<GenerationResult> {
   const normalizedPrompt = prompt.trim();

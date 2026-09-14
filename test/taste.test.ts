@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildTasteTranslationRequest, parseTasteTranslation } from '../src/taste.js';
+import {
+  buildTasteTranslationRequest,
+  parseTasteTranslation,
+} from '../src/prompt-intelligence/taste.js';
 import type { PromptIntent, SemanticExpansion } from '../src/types.js';
 
 const promptIntent: PromptIntent = {

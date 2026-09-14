@@ -1,6 +1,6 @@
 import 'dotenv/config';
 
-import { resolveGeneratedProject, startGeneratedProject } from './runtime.js';
+import { resolveGeneratedProject, startGeneratedProject } from '../runtime/runtime.js';
 
 function usage(): string {
   return 'Usage: npm run run:project -- generated/<project-id>';

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import test from 'node:test';
 
-import { instrumentPreviewSource } from '../src/preview-source-metadata.js';
+import { instrumentPreviewSource } from '../src/runtime/preview-source-metadata.js';
 
 const projectRoot = path.resolve('/tmp/yakable-preview-source-project');
 const heroPath = path.join(projectRoot, 'src', 'components', 'Hero.tsx');

@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildTemplateGenerationRequest, selectProjectTemplate } from '../src/template.js';
+import {
+  buildTemplateGenerationRequest,
+  selectProjectTemplate,
+} from '../src/generation/template.js';
 import type { DesignIntentIR } from '../src/types.js';
 
 const dashboardDesignIntent: DesignIntentIR = {

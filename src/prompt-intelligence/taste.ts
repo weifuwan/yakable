@@ -1,4 +1,4 @@
-import { requestTasteTranslation } from './deepseek.js';
+import { requestTasteTranslation } from '../model/deepseek.js';
 import type {
   PromptIntent,
   SemanticExpansion,
@@ -7,7 +7,7 @@ import type {
   TasteDecisionBasis,
   TasteIntensity,
   TasteTranslation,
-} from './types.js';
+} from '../types.js';
 
 const MAX_PROMPT_LENGTH = 12_000;
 const MAX_DECISIONS = 20;

@@ -1,4 +1,4 @@
-import type { DesignIntentIR, ProjectTemplate } from './types.js';
+import type { DesignIntentIR, ProjectTemplate } from '../types.js';
 
 const APP_INTENT_PATTERN =
   /\b(app|dashboard|admin|crm|erp|portal|workspace|account|auth|login|order|orders|settings)\b|管理系统|后台|控制台|工作台|登录|注册|账户|账号|订单|设置|会员中心|个人中心/i;

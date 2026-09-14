@@ -4,8 +4,12 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { applyProjectPatch, parseProjectPatch, readProjectSnapshot } from '../src/edit.js';
-import type { ResolvedGeneratedProject } from '../src/runtime.js';
+import {
+  applyProjectPatch,
+  parseProjectPatch,
+  readProjectSnapshot,
+} from '../src/editing/edit.js';
+import type { ResolvedGeneratedProject } from '../src/runtime/runtime.js';
 
 async function createFixture(root: string): Promise<ResolvedGeneratedProject> {
   const directory = path.join(root, 'demo-project');

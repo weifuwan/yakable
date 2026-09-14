@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { resolveDeepSeekRequestConfig } from '../src/deepseek.js';
+import { resolveDeepSeekRequestConfig } from '../src/model/deepseek.js';
 
 test('uses latency-safe DeepSeek defaults', () => {
   const config = resolveDeepSeekRequestConfig({});

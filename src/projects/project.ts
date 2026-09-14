@@ -2,12 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import type { GeneratedFile, GeneratedProject, ProjectTemplate } from '../types.js';
 import {
   createProjectMetadata,
   normalizeProjectRoutes,
   writeProjectMetadata,
 } from './project-metadata.js';
-import type { GeneratedFile, GeneratedProject, ProjectTemplate } from './types.js';
 
 const MAX_FILES = 60;
 const MAX_FILE_BYTES = 200_000;

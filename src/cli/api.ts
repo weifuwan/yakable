@@ -1,6 +1,6 @@
 import 'dotenv/config';
 
-import { createYakableApiServer } from './web-api.js';
+import { createYakableApiServer } from '../server/web-api.js';
 
 function readPort(): number {
   const raw = process.env.YAKABLE_API_PORT?.trim();

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildDesignIntent } from '../src/design-intent.js';
+import { buildDesignIntent } from '../src/prompt-intelligence/design-intent.js';
 import type { PromptIntent, SemanticExpansion, TasteTranslation } from '../src/types.js';
 
 const promptIntent: PromptIntent = {

@@ -4,7 +4,7 @@ import test from 'node:test';
 import {
   buildSemanticExpansionRequest,
   parseSemanticExpansion,
-} from '../src/semantic.js';
+} from '../src/prompt-intelligence/semantic.js';
 import type { PromptIntent } from '../src/types.js';
 
 const intent: PromptIntent = {
