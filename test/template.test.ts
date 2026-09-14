@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { PROJECT_GENERATION_SYSTEM_PROMPT } from '../src/generation/prompt.js';
 import {
   buildTemplateGenerationRequest,
   selectProjectTemplate,
@@ -91,4 +92,11 @@ test('builds generation request around Design Intent and Yakable Base contracts'
   assert.equal(request.promptIntent, undefined);
   assert.equal(request.semanticExpansion, undefined);
   assert.equal(request.tasteTranslation, undefined);
+});
+
+test('generation prompt treats Tailwind Base as fixed infrastructure', () => {
+  assert.match(PROJECT_GENERATION_SYSTEM_PROMPT, /Tailwind utility classes/);
+  assert.match(PROJECT_GENERATION_SYSTEM_PROMPT, /files named \*Page\.tsx belong in src\/pages/);
+  assert.match(PROJECT_GENERATION_SYSTEM_PROMPT, /Never emit or replace Yakable-owned infrastructure/);
+  assert.doesNotMatch(PROJECT_GENERATION_SYSTEM_PROMPT, /using plain CSS/i);
 });
