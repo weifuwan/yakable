@@ -1,14 +1,25 @@
 import { requestProjectCode } from '../model/deepseek.js';
+import {
+  BuildIntentGateError,
+  classifyBuildIntent,
+} from '../prompt-intelligence/build-intent.js';
 import { buildDesignIntent } from '../prompt-intelligence/design-intent.js';
 import { analyzePromptIntent } from '../prompt-intelligence/intent.js';
 import { expandPromptSemantics } from '../prompt-intelligence/semantic.js';
 import { translatePromptTaste } from '../prompt-intelligence/taste.js';
 import { parseGeneratedProject, writeGeneratedProject } from '../projects/project.js';
 import { initializeProjectSession } from '../projects/project-session.js';
-import type { GenerationResult } from '../types.js';
+import type { BuildIntentDecision, GenerationResult } from '../types.js';
 import { buildTemplateGenerationRequest, selectProjectTemplate } from './template.js';
 
-export async function generateProject(prompt: string): Promise<GenerationResult> {
+export interface GenerateProjectOptions {
+  buildIntent?: BuildIntentDecision;
+}
+
+export async function generateProject(
+  prompt: string,
+  options: GenerateProjectOptions = {},
+): Promise<GenerationResult> {
   const normalizedPrompt = prompt.trim();
   if (!normalizedPrompt) {
     throw new Error('A product prompt is required.');
@@ -16,6 +27,11 @@ export async function generateProject(prompt: string): Promise<GenerationResult>
 
   if (normalizedPrompt.length > 12_000) {
     throw new Error('Prompt is too long. Project generation accepts at most 12,000 characters.');
+  }
+
+  const buildIntent = options.buildIntent ?? await classifyBuildIntent(normalizedPrompt);
+  if (buildIntent.route !== 'CREATE') {
+    throw new BuildIntentGateError(buildIntent);
   }
 
   const intent = await analyzePromptIntent(normalizedPrompt);
@@ -43,6 +59,7 @@ export async function generateProject(prompt: string): Promise<GenerationResult>
     project,
     outputDirectory,
     model: generation.model,
+    buildIntent,
     intent,
     semanticExpansion,
     tasteTranslation,

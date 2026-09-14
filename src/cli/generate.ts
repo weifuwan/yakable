@@ -1,6 +1,7 @@
 import 'dotenv/config';
 
 import { generateProject } from '../generation/generate.js';
+import { BuildIntentGateError } from '../prompt-intelligence/build-intent.js';
 
 function usage(): never {
   console.error('Usage: npm run generate -- "Build a simple SaaS landing page"');
@@ -14,10 +15,11 @@ if (!prompt) {
 
 try {
   console.log('Yakable: Generate project');
-  console.log('Understanding the request and generating source; no build or preview will run.');
+  console.log('Checking build intent, then generating source; no build or preview will run.');
 
   const result = await generateProject(prompt);
 
+  console.log(`Build Intent: ${result.buildIntent.route} · ${result.buildIntent.confidence}`);
   console.log(
     `Intent: ${result.intent.productType} · ${result.intent.pageType} · ${result.intent.primaryGoal}`,
   );
@@ -33,6 +35,11 @@ try {
   console.log(`Output: ${result.outputDirectory}`);
   console.log(`Summary: ${result.project.summary}`);
 } catch (error) {
-  console.error(`\nGeneration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  process.exitCode = 1;
+  if (error instanceof BuildIntentGateError) {
+    console.log(`Build Intent: ${error.decision.route} · ${error.decision.confidence}`);
+    console.log(error.decision.message);
+  } else {
+    console.error(`\nGeneration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    process.exitCode = 1;
+  }
 }

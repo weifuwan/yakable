@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { editGeneratedProject } from '../editing/edit.js';
 import { generateProject } from '../generation/generate.js';
+import { classifyBuildIntent } from '../prompt-intelligence/build-intent.js';
 import {
   deleteManagedProject,
   listManagedProjects,
@@ -20,6 +21,7 @@ import {
 } from '../projects/project-session.js';
 import { resolveGeneratedProject, startGeneratedProject } from '../runtime/runtime.js';
 import type {
+  BuildIntentDecision,
   ProjectConversation,
   ProjectMetadata,
   ProjectRoute,
@@ -63,7 +65,8 @@ export interface RuntimeSession {
 
 export interface WebApiServices {
   listProjects(): Promise<WebProjectListItem[]>;
-  generate(prompt: string): Promise<WebGeneratedProject>;
+  gateBuildIntent(prompt: string): Promise<BuildIntentDecision>;
+  generate(prompt: string, buildIntent: BuildIntentDecision): Promise<WebGeneratedProject>;
   edit(projectId: string, prompt: string): Promise<WebEditedProject>;
   startRuntime(projectId: string): Promise<RuntimeSession>;
   readSession?(projectId: string): Promise<ProjectSessionState | null>;
@@ -187,8 +190,12 @@ export function createDefaultWebApiServices(
       return listManagedProjects(generatedRoot);
     },
 
-    async generate(prompt) {
-      const result = await generateProject(prompt);
+    async gateBuildIntent(prompt) {
+      return classifyBuildIntent(prompt);
+    },
+
+    async generate(prompt, buildIntent) {
+      const result = await generateProject(prompt, { buildIntent });
       const id = path.basename(result.outputDirectory);
       return {
         id,
@@ -294,9 +301,18 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
 
       if (method === 'POST' && url.pathname === '/api/projects') {
         const body = await readJsonBody(request);
-        const project = await services.generate(readPrompt(body));
+        const prompt = readPrompt(body);
+        const decision = await services.gateBuildIntent(prompt);
+
+        if (decision.route !== 'CREATE') {
+          sendJson(response, 200, { decision });
+          return;
+        }
+
+        const project = await services.generate(prompt, decision);
         const runtime = await ensureRuntime(project.id);
         sendJson(response, 201, {
+          decision,
           project,
           previewUrl: addRevision(runtime.url),
         });

@@ -4,6 +4,7 @@
 
 ## Working now
 
+- **Build Intent Gate:** route dashboard input into CREATE, CHAT, or CLARIFY before project generation so casual or ambiguous input does not create a project. ✅
 - **Prompt Intelligence:** parse user intent, fill conservative semantic defaults, translate vague taste language, and compile the result into a versioned Design Intent IR. ✅
 - **Project Generation:** turn a product request plus Design Intent into a complete frontend source tree. ✅
 - **Runtime & Preview:** run generated projects in a controlled local Vite runtime and expose a live Preview. ✅

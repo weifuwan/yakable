@@ -6,7 +6,7 @@ Yakable is being rebuilt one product problem at a time.
 
 ## Web product flow
 
-The Lovable-inspired dashboard is wired to Yakable's prompt intelligence, project generation, runtime, preview, editing, and local SQLite persistence capabilities.
+The Lovable-inspired dashboard is wired to Yakable's build-intent routing, prompt intelligence, project generation, runtime, preview, editing, and local SQLite persistence capabilities.
 
 Yakable now requires Node.js 22.13 or newer because it uses Node's built-in SQLite module without an experimental runtime flag.
 
@@ -30,6 +30,11 @@ The web flow is now:
 ```text
 Dashboard Prompt
       ↓
+Build Intent Gate
+  ├── CHAT → respond without creating a project
+  ├── CLARIFY → ask for a clearer build request
+  └── CREATE
+          ↓
 Prompt Intelligence
       ↓
 Design Intent
@@ -49,8 +54,10 @@ The API listens on `127.0.0.1:8787` by default and the dashboard proxies `/api` 
 
 ### What works in the browser
 
-- create a new project from the dashboard prompt
-- analyze the request through Intent Parser, Semantic Expander, Taste Translator, and Design Intent IR
+- route new dashboard input through CREATE / CHAT / CLARIFY before project generation
+- prevent greetings and ambiguous Hello World-style inputs from creating projects
+- create a new project from a clear dashboard build request
+- analyze CREATE requests through Intent Parser, Semantic Expander, Taste Translator, and Design Intent IR
 - generate the frontend source tree with DeepSeek
 - start the controlled Vite runtime automatically
 - enter a Lovable-style split workspace with chat on the left and Preview on the right
@@ -61,6 +68,30 @@ The API listens on `127.0.0.1:8787` by default and the dashboard proxies `/api` 
 - persist Visual Edit source targets with the user message that used them
 - select Preview elements and target edits back to mapped JSX source locations
 - refresh or open the live Preview separately
+
+### Build Intent Gate
+
+The dashboard no longer treats every non-empty input as a project request. The gate runs before Intent Parser and returns one of three routes:
+
+```text
+CREATE   clear request to build a frontend project
+CHAT     greeting, casual chat, or a non-build question
+CLARIFY  plausible project idea, but creation intent is ambiguous
+```
+
+Examples:
+
+```text
+Hello                         → CHAT
+React 是什么？                 → CHAT
+Hello World                   → CLARIFY
+Hello word                    → CLARIFY
+Todo App                      → CLARIFY
+做一个 Hello World 页面        → CREATE
+帮我做一个 Todo App            → CREATE
+```
+
+`Hello`, `你好`, `Hello World`, and the common `Hello word` typo also have local high-confidence guardrails so those obvious cases do not spend a model call or accidentally reach generation.
 
 ### Local persistence
 
@@ -168,6 +199,8 @@ npm run run:project -- generated/<project-id>
 npm run edit -- generated/<project-id> "把 Hero 主色改成蓝色"
 ```
 
+`npm run generate` also respects Build Intent Gate, so a CHAT or CLARIFY input exits without writing a project.
+
 DeepSeek request controls:
 
 ```env
@@ -189,6 +222,7 @@ npm run build:web
 ## Current capability map
 
 ```text
+Build Intent Gate ✅
 Prompt Intelligence ✅
 Design Intent ✅
 Generate Project ✅

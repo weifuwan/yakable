@@ -6,6 +6,15 @@ import {
 } from './visual-edit-context';
 
 export type ProjectTemplate = 'website' | 'app';
+export type BuildIntentRoute = 'CREATE' | 'CHAT' | 'CLARIFY';
+export type BuildIntentConfidence = 'high' | 'medium';
+
+export interface BuildIntentDecision {
+  version: 1;
+  route: BuildIntentRoute;
+  confidence: BuildIntentConfidence;
+  message: string;
+}
 
 export interface ProjectRoute {
   path: string;
@@ -70,17 +79,20 @@ export interface ProjectListItem {
 }
 
 export interface CreatedProject {
-  project: {
-    id: string;
-    name: string;
-    summary: string;
-    model: string;
-    template: ProjectTemplate;
-    routes: ProjectRoute[];
-    session: ProjectSession | null;
-    conversation: ProjectConversation | null;
-  };
-  previewUrl: string;
+  id: string;
+  name: string;
+  summary: string;
+  model: string;
+  template: ProjectTemplate;
+  routes: ProjectRoute[];
+  session: ProjectSession | null;
+  conversation: ProjectConversation | null;
+}
+
+export interface CreateProjectResult {
+  decision: BuildIntentDecision;
+  project?: CreatedProject;
+  previewUrl?: string;
 }
 
 export interface RuntimeProject {
@@ -121,7 +133,7 @@ export async function listProjects(): Promise<ProjectListItem[]> {
   return result.projects;
 }
 
-export function createProject(prompt: string): Promise<CreatedProject> {
+export function createProject(prompt: string): Promise<CreateProjectResult> {
   return requestJson('/api/projects', {
     method: 'POST',
     body: JSON.stringify({ prompt }),

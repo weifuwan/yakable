@@ -6,7 +6,11 @@ import {
   type RuntimeSession,
   type WebApiServices,
 } from '../src/server/web-api.js';
-import type { ProjectConversation, ProjectSessionState } from '../src/types.js';
+import type {
+  BuildIntentDecision,
+  ProjectConversation,
+  ProjectSessionState,
+} from '../src/types.js';
 
 const metadata = {
   version: 1 as const,
@@ -67,6 +71,13 @@ const conversation: ProjectConversation = {
   ],
 };
 
+const createDecision: BuildIntentDecision = {
+  version: 1,
+  route: 'CREATE',
+  confidence: 'high',
+  message: 'Ready to build.',
+};
+
 function fakeServices(): WebApiServices {
   let alive = false;
   let name = 'Demo Project';
@@ -92,8 +103,13 @@ function fakeServices(): WebApiServices {
     async listProjects() {
       return [item()];
     },
-    async generate(prompt) {
+    async gateBuildIntent(prompt) {
+      assert.ok(prompt.length > 0);
+      return createDecision;
+    },
+    async generate(prompt, buildIntent) {
       assert.equal(prompt, 'Build a dashboard');
+      assert.equal(buildIntent.route, 'CREATE');
       return {
         id: 'generated-project',
         name: 'Generated Project',
@@ -141,7 +157,7 @@ function fakeServices(): WebApiServices {
   };
 }
 
-test('web API lists projects and wires Prompt -> Template -> Routes -> Run', async () => {
+test('web API lists projects and wires Build Intent -> Prompt -> Template -> Routes -> Run', async () => {
   const api = createYakableApiServer({ services: fakeServices() });
   const baseUrl = await api.listen(0);
 
@@ -159,6 +175,7 @@ test('web API lists projects and wires Prompt -> Template -> Routes -> Run', asy
     });
     assert.equal(createResponse.status, 201);
     const created = await createResponse.json() as {
+      decision: BuildIntentDecision;
       project: {
         id: string;
         template: string;
@@ -168,6 +185,7 @@ test('web API lists projects and wires Prompt -> Template -> Routes -> Run', asy
       };
       previewUrl: string;
     };
+    assert.equal(created.decision.route, 'CREATE');
     assert.equal(created.project.id, 'generated-project');
     assert.equal(created.project.template, 'app');
     assert.deepEqual(created.project.routes.map((route) => route.path), ['/', '/account']);
@@ -190,6 +208,45 @@ test('web API lists projects and wires Prompt -> Template -> Routes -> Run', asy
     assert.deepEqual(runtimeResult.routes.map((route) => route.path), ['/', '/account']);
     assert.equal(runtimeResult.session.edits[0]?.userRequest, 'Make the hero blue');
     assert.equal(runtimeResult.conversation.messages[2]?.content, 'Make the hero blue');
+  } finally {
+    await api.close();
+  }
+});
+
+test('web API returns CHAT/CLARIFY without generating or starting a project', async () => {
+  const services = fakeServices();
+  let generated = false;
+  let runtimeStarted = false;
+  services.gateBuildIntent = async () => ({
+    version: 1,
+    route: 'CHAT',
+    confidence: 'high',
+    message: 'Hi! Tell me what you want to build.',
+  });
+  services.generate = async () => {
+    generated = true;
+    throw new Error('generate should not be called');
+  };
+  services.startRuntime = async () => {
+    runtimeStarted = true;
+    throw new Error('runtime should not be called');
+  };
+
+  const api = createYakableApiServer({ services });
+  const baseUrl = await api.listen(0);
+
+  try {
+    const response = await fetch(`${baseUrl}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: 'Hello' }),
+    });
+    assert.equal(response.status, 200);
+    const result = await response.json() as { decision: BuildIntentDecision; project?: unknown };
+    assert.equal(result.decision.route, 'CHAT');
+    assert.equal(result.project, undefined);
+    assert.equal(generated, false);
+    assert.equal(runtimeStarted, false);
   } finally {
     await api.close();
   }
