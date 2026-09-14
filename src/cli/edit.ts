@@ -17,10 +17,14 @@ if (!projectInput || !followUpRequest) {
 }
 
 try {
-  console.log('Yakable: Edit project');
-  console.log('Normalizing edit intent, selecting focused context, editing, checking health, and allowing at most one targeted repair.');
+  console.log('Yakable: Frontend Agent v0');
+  console.log('Running the bounded frontend edit states before browser observation.');
 
-  const result = await editGeneratedProject(projectInput, followUpRequest);
+  const result = await editGeneratedProject(projectInput, followUpRequest, {
+    onEvent(event) {
+      console.log(`[${event.state}] ${event.status}: ${event.message}`);
+    },
+  });
 
   console.log(`\nProject: ${result.projectId}`);
   console.log(`Model: ${result.model}`);
@@ -81,7 +85,7 @@ try {
     console.log(`- ${result.projectCheck.error.message}`);
   }
 
-  console.log('\nRun `npm run run:project -- generated/<project-id>` separately to inspect the edited project in the browser.');
+  console.log('\nCLI stops after CHECK. Open the Workspace Preview to run OBSERVE → CRITIQUE → optional REPAIR → DONE.');
 } catch (error) {
   console.error(`\nEdit failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   process.exitCode = 1;
