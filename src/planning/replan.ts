@@ -117,9 +117,9 @@ export async function replanProjectPlan(
   options: ReplanProjectOptions = {},
 ): Promise<ReplanProjectResult> {
   const mode = options.mode ?? 'PLAN';
+  assertModeCapability(mode, 'diff-plan');
   assertModeCapability(mode, 'read-plan');
   assertModeCapability(mode, 'write-plan');
-  assertModeCapability(mode, 'diff-plan');
 
   const project = await resolveGeneratedProject(projectInput, options.generatedRoot);
   const previousPlan = await readPlanArtifactFromDirectory(project.directory, mode);
@@ -154,8 +154,8 @@ export async function readProjectPlanDiff(
   options: ReadProjectPlanDiffOptions = {},
 ): Promise<{ diff: PlanDiff; markdown: string } | null> {
   const mode = options.mode ?? 'PLAN';
-  assertModeCapability(mode, 'read-plan');
   assertModeCapability(mode, 'diff-plan');
+  assertModeCapability(mode, 'read-plan');
   const project = await resolveGeneratedProject(projectInput, options.generatedRoot);
   const current = await readPlanArtifactFromDirectory(project.directory, mode);
   if (!current) return null;
