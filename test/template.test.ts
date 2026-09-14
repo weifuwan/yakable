@@ -54,7 +54,7 @@ test('uses design intent IR before falling back to prompt heuristics', () => {
   assert.equal(selectProjectTemplate('做一个数据分析产品', dashboardDesignIntent), 'app');
 });
 
-test('builds generation request around the normalized design intent contract', () => {
+test('builds generation request around Design Intent and Yakable Base contracts', () => {
   const request = JSON.parse(
     buildTemplateGenerationRequest(
       'Build an analytics product',
@@ -65,6 +65,11 @@ test('builds generation request around the normalized design intent contract', (
     productRequest: string;
     designIntent: DesignIntentIR;
     projectTemplate: string;
+    baseTemplate: {
+      id: string;
+      stack: string;
+      projectOwnedPaths: string[];
+    };
     templateGuidance: { preferredStructure: string[] };
     promptIntent?: unknown;
     semanticExpansion?: unknown;
@@ -77,6 +82,11 @@ test('builds generation request around the normalized design intent contract', (
   assert.equal(request.designIntent.directives[0]?.area, 'visual-hierarchy');
   assert.equal(request.designIntent.openQuestions[0]?.source, 'semantic-decision');
   assert.equal(request.projectTemplate, 'app');
+  assert.equal(request.baseTemplate.id, 'base');
+  assert.match(request.baseTemplate.stack, /Tailwind CSS v4/);
+  assert.ok(request.baseTemplate.projectOwnedPaths.includes('src/pages/**'));
+  assert.ok(request.baseTemplate.projectOwnedPaths.includes('src/components/product/**'));
+  assert.ok(request.templateGuidance.preferredStructure.includes('src/pages/'));
   assert.ok(request.templateGuidance.preferredStructure.includes('src/routes.ts'));
   assert.equal(request.promptIntent, undefined);
   assert.equal(request.semanticExpansion, undefined);
