@@ -6,6 +6,33 @@ import { createProjectMetadata, writeProjectMetadata } from '../projects/project
 export const BASE_TEMPLATE_ID = 'base' as const;
 export const BASE_TEMPLATE_VERSION = 1 as const;
 
+export const BASE_TEMPLATE_YAKABLE_OWNED_PATHS = [
+  '.yakable/**',
+  'AGENTS.md',
+  'README.md',
+  'components.json',
+  'package.json',
+  'tsconfig.json',
+  'vite.config.ts',
+  'yakable.template.json',
+  'src/main.tsx',
+  'src/styles.css',
+  'src/lib/utils.ts',
+  'src/components/ui/**',
+] as const;
+
+export const BASE_TEMPLATE_PROJECT_OWNED_PATHS = [
+  'index.html',
+  'public/**',
+  'src/styles/theme.css',
+  'src/App.tsx',
+  'src/routes.ts',
+  'src/pages/**',
+  'src/components/product/**',
+  'src/features/**',
+  'src/data/**',
+] as const;
+
 const PROJECT_ID_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$/;
 const REQUIRED_BASE_FILES = [
   'package.json',
@@ -59,6 +86,21 @@ function readStringArray(value: unknown, field: string): string[] {
   return [...new Set(value.map((item) => (item as string).trim()))];
 }
 
+function sameStringSet(actual: string[], expected: readonly string[]): boolean {
+  return actual.length === expected.length && expected.every((entry) => actual.includes(entry));
+}
+
+function matchesOwnedPath(candidate: string, pattern: string): boolean {
+  if (pattern.endsWith('/**')) {
+    return candidate.startsWith(pattern.slice(0, -2));
+  }
+  return candidate === pattern;
+}
+
+export function isBaseTemplateProjectOwnedPath(candidate: string): boolean {
+  return BASE_TEMPLATE_PROJECT_OWNED_PATHS.some((pattern) => matchesOwnedPath(candidate, pattern));
+}
+
 function validateProjectId(value: string): string {
   const normalized = value.trim();
   if (!PROJECT_ID_PATTERN.test(normalized)) {
@@ -106,6 +148,12 @@ export async function readBaseTemplateManifest(
   const overlap = yakable.filter((entry) => project.includes(entry));
   if (overlap.length) {
     throw new Error(`Yakable Base ownership contains exact overlaps: ${overlap.join(', ')}`);
+  }
+  if (!sameStringSet(yakable, BASE_TEMPLATE_YAKABLE_OWNED_PATHS)) {
+    throw new Error('Yakable Base manifest ownership.yakable does not match the runtime contract.');
+  }
+  if (!sameStringSet(project, BASE_TEMPLATE_PROJECT_OWNED_PATHS)) {
+    throw new Error('Yakable Base manifest ownership.project does not match the runtime contract.');
   }
 
   return {
