@@ -58,6 +58,37 @@ function initializeSchema(database: DatabaseSync): void {
 
     CREATE INDEX IF NOT EXISTS idx_project_edit_selections_edit
       ON project_edit_selections(edit_id, ordinal, id);
+
+    CREATE TABLE IF NOT EXISTS agent_runs (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      status TEXT NOT NULL,
+      prompt TEXT NOT NULL,
+      model TEXT,
+      summary TEXT,
+      started_at TEXT NOT NULL,
+      completed_at TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_agent_runs_project_started
+      ON agent_runs(project_id, started_at DESC, id DESC);
+
+    CREATE TABLE IF NOT EXISTS agent_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      run_id TEXT NOT NULL,
+      sequence INTEGER NOT NULL,
+      state TEXT NOT NULL,
+      status TEXT NOT NULL,
+      message TEXT NOT NULL,
+      at TEXT NOT NULL,
+      iteration INTEGER,
+      FOREIGN KEY (run_id) REFERENCES agent_runs(id) ON DELETE CASCADE,
+      UNIQUE (run_id, sequence)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_agent_events_run_sequence
+      ON agent_events(run_id, sequence);
   `);
 }
 
