@@ -87,6 +87,7 @@ try {
       console.log(result.markdown);
     }
   } else if (action === 'approve' || action === 'reject') {
+    const diff = await readProjectPlanDiff(projectInput, { mode: 'PLAN' });
     const result = await reviewProjectPlan(
       projectInput,
       action === 'approve' ? 'APPROVE' : 'REJECT',
@@ -94,6 +95,9 @@ try {
       { mode: 'PLAN' },
     );
     console.log(result.markdown);
+    if (diff) {
+      console.log('\n' + diff.markdown);
+    }
   } else {
     usage();
   }
