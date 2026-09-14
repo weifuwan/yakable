@@ -66,6 +66,7 @@ export type {
 } from './modes/mode-contract.js';
 export {
   editGeneratedProjectInMode,
+  generateProjectInMode,
   repairGeneratedProjectVisualInMode,
   runModeCapability,
 } from './modes/mode-execution.js';
