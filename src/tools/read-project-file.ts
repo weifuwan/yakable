@@ -63,7 +63,7 @@ function validateProjectPath(input: unknown): ToolResult<ReadProjectFileOutput> 
     return failure('INVALID_PATH', `Project file path is not safe: ${requested}`);
   }
 
-  if (BLOCKED_DIRECTORIES.has(segments[0] ?? '')) {
+  if (segments.some((segment) => BLOCKED_DIRECTORIES.has(segment))) {
     return failure('BLOCKED_PATH', `Project file is outside the readable source surface: ${requested}`);
   }
 
