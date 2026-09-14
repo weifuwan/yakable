@@ -10,7 +10,6 @@ import {
 } from '../src/planning/plan-diff.js';
 import type { PlanArtifact } from '../src/planning/plan-artifact.js';
 import {
-  archivePlanRevision,
   readProjectPlanDiff,
   readProjectPlanRevision,
   replanProjectPlan,
@@ -167,7 +166,13 @@ test('archived revisions remain readable after plan.json advances and power late
     const r2 = plan(2, {
       goal: 'Show failed task health before all secondary dashboard information.',
     });
-    await archivePlanRevision(fixture.project, r1, 'PLAN');
+    const historyDirectory = path.join(fixture.project, '.yakable', 'plans');
+    await mkdir(historyDirectory, { recursive: true });
+    await writeFile(
+      path.join(historyDirectory, 'revision-000001.json'),
+      `${JSON.stringify(r1, null, 2)}\n`,
+      'utf8',
+    );
     await writeFile(
       path.join(fixture.project, '.yakable', 'plan.json'),
       `${JSON.stringify(r2, null, 2)}\n`,
