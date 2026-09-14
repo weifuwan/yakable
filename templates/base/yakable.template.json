@@ -4,6 +4,7 @@
   "description": "Neutral React + Vite + Tailwind foundation owned by Yakable. Product content, theme, public assets, and page composition remain project-owned.",
   "ownership": {
     "yakable": [
+      ".yakable/**",
       "AGENTS.md",
       "README.md",
       "components.json",
