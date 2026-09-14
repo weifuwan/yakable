@@ -7,6 +7,17 @@ export {
   writeGeneratedProject,
 } from './projects/project.js';
 export {
+  BASE_TEMPLATE_ID,
+  BASE_TEMPLATE_VERSION,
+  createBaseProject,
+  readBaseTemplateManifest,
+} from './templates/base-template.js';
+export type {
+  BaseTemplateManifest,
+  CreateBaseProjectOptions,
+  CreatedBaseProject,
+} from './templates/base-template.js';
+export {
   buildSemanticExpansionRequest,
   expandPromptSemantics,
   parseSemanticExpansion,

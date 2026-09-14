@@ -12,9 +12,11 @@
 - **Persistent Conversation:** store project conversation turns, timestamps, changed files, and Visual Edit targets in local SQLite so the workspace can restore them after reload. ✅
 - **Visual → Source Editing:** select Preview elements, map them back to JSX source locations, and use that context for targeted edits. ✅
 - **Project Workspace:** reopen, switch, rename, star, remix, and delete generated projects from the dashboard. ✅
+- **Yakable Base Template:** copy a neutral, versioned React + Vite + Tailwind foundation with explicit Yakable-owned and project-owned file boundaries, without invoking a model. ✅
 
 ## Next
 
+- **Capability Packs:** add optional, explicitly selected frontend capabilities on top of Base without turning every dependency or component into a global default.
 - **UI Planner:** compile Design Intent into an explicit page, section, hierarchy, and responsive-layout plan before code generation.
 - **Model Prompt Compiler:** compile Yakable's model-independent IR into model-specific generation instructions.
 - **Design Critic:** inspect generated UI against Design Intent and UI Plan instead of relying only on the generator's self-judgment.
