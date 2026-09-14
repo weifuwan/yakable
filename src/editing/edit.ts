@@ -14,7 +14,9 @@ import {
   readProjectSession,
 } from '../projects/project-session.js';
 import { resolveGeneratedProject, type ResolvedGeneratedProject } from '../runtime/runtime.js';
+import { checkProjectTool, type CheckProjectOutput } from '../tools/check-project.js';
 import { readProjectFileTool } from '../tools/read-project-file.js';
+import type { ToolResult } from '../tools/tool.js';
 import type {
   GeneratedFile,
   ProjectPatch,
@@ -65,6 +67,7 @@ export interface EditProjectResult {
   summary: string;
   changedFiles: string[];
   contextSelection: EditContextSelection;
+  projectCheck: ToolResult<CheckProjectOutput>;
   session: ProjectSessionState | null;
 }
 
@@ -464,6 +467,7 @@ export async function editGeneratedProject(
   const patch = parseProjectPatch(generation.content);
   await assertPatchUsesSelectedContext(project, patch, contextSelection.relevantFiles);
   const changedFiles = await applyProjectPatch(project, patch);
+  const projectCheck = await checkProjectTool.execute({}, { projectDirectory: project.directory });
 
   let nextSession = session;
   try {
@@ -485,6 +489,7 @@ export async function editGeneratedProject(
     summary: patch.summary,
     changedFiles,
     contextSelection,
+    projectCheck,
     session: nextSession,
   };
 }

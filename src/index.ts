@@ -69,6 +69,24 @@ export {
   resolveProjectContextSearch,
 } from './editing/context-search.js';
 export {
+  CHECK_PROJECT_MAX_DIAGNOSTICS,
+  CHECK_PROJECT_MAX_OUTPUT_BYTES,
+  CHECK_PROJECT_TIMEOUT_MS,
+  checkProjectDirectory,
+  checkProjectTool,
+  defaultProjectCheckRunner,
+  parseProjectCheckDiagnostics,
+} from './tools/check-project.js';
+export type {
+  CheckProjectOutput,
+  ProjectCheckCommandResult,
+  ProjectCheckDiagnostic,
+  ProjectCheckPhase,
+  ProjectCheckRunner,
+  ProjectCheckStatus,
+  ProjectCheckStep,
+} from './tools/check-project.js';
+export {
   READ_PROJECT_FILE_MAX_BYTES,
   readProjectFileTool,
 } from './tools/read-project-file.js';
