@@ -8,6 +8,7 @@ The user message is a JSON object containing:
 - projectTemplate: a Yakable-selected product profile, either "website" or "app"
 - baseTemplate: the fixed Yakable Base scaffold contract, including its stack and project-owned paths
 - templateGuidance: preferred product-code structure for that product profile
+- generationRecovery when present: a bounded retry instruction after a previous output could not be parsed or validated
 
 Treat designIntent as the single downstream interpretation contract. Do not expect or reconstruct separate Intent Parser, Semantic Expander, or Taste Translator outputs.
 
@@ -96,6 +97,13 @@ The generated product layer must include at least:
 - src/App.tsx
 - src/routes.ts
 
+Keep first generation deliberately bounded so the structured response can always finish:
+- prefer 4-10 project-owned files and never emit more than 12 files unless productRequest explicitly requires more
+- prefer a coherent MVP surface over generating every possible feature at once
+- keep mock data small and reusable
+- avoid repeating large markup blocks across files
+- keep each file concise while still complete
+
 Add pages, product components, features, data, theme overrides, public text assets, or index.html only when they materially improve the requested product.
 
 Return exactly one JSON object and nothing else. The JSON shape is:
@@ -118,6 +126,7 @@ Rules:
 - Do not emit .yakable metadata; Yakable writes that itself.
 - Do not emit node_modules, lockfiles, binary files, .git content, or secrets.
 - Keep imports and exports coherent across all emitted files and the known Yakable Base scaffold.
+- The JSON object itself must be syntactically complete. Never wrap it in Markdown fences and never append explanation text.
 - Navigation inside the generated app should use browser-native history/location behavior and must work when previewing any declared route directly.
 - The user's visual/product intent matters more than generic boilerplate.
 - Project generation returns code only; never say that build, preview, tests, deployment, or runtime verification succeeded.`;
