@@ -13,10 +13,10 @@
 - **Visual → Source Editing:** select Preview elements, map them back to JSX source locations, and use that context for targeted edits. ✅
 - **Project Workspace:** reopen, switch, rename, star, remix, and delete generated projects from the dashboard. ✅
 - **Yakable Base Template:** copy a neutral, versioned React + Vite + Tailwind foundation with explicit Yakable-owned and project-owned file boundaries, without invoking a model. ✅
+- **Capability Packs:** explicitly install optional UI capabilities on top of Base, with pack-owned files, deterministic dependency merging, conflict protection, idempotent installs, and persisted capability state. ✅
 
 ## Next
 
-- **Capability Packs:** add optional, explicitly selected frontend capabilities on top of Base without turning every dependency or component into a global default.
 - **UI Planner:** compile Design Intent into an explicit page, section, hierarchy, and responsive-layout plan before code generation.
 - **Model Prompt Compiler:** compile Yakable's model-independent IR into model-specific generation instructions.
 - **Design Critic:** inspect generated UI against Design Intent and UI Plan instead of relying only on the generator's self-judgment.

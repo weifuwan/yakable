@@ -8,10 +8,10 @@ src/
 ├── model/                # model-provider adapters
 ├── prompt-intelligence/  # understand and normalize the user's request
 ├── generation/           # turn normalized intent into a generated project
-├── editing/              # apply focused edits to an existing project
+├── editing/              # apply focused edits to an existing generated project
 ├── runtime/              # run projects and instrument Preview
 ├── projects/             # project files, metadata, sessions, and lifecycle actions
-├── templates/            # deterministic project foundations; no model calls
+├── templates/            # deterministic Base + optional capability packs; no model selection
 ├── storage/              # SQLite connection and schema
 ├── server/               # local Web API that connects product surfaces to capabilities
 ├── index.ts              # public exports
@@ -25,7 +25,7 @@ src/
 - **editing** answers: how do we apply one requested change to an existing generated project without rewriting unrelated code?
 - **runtime** answers: how do we safely run the generated project and map Preview elements back to source?
 - **projects** owns generated-project parsing, `.yakable/project.json`, project listing, rename/star/remix/delete, and the project conversation/session repository.
-- **templates** owns deterministic frontend foundations and the copy/validation contract. Stage 2.1 contains no model selection and no capability packs.
+- **templates** owns deterministic frontend foundations and optional Capability Packs. Base fixes the environment contract; packs may add only Yakable-owned UI primitives plus explicitly declared npm dependencies. This layer does not choose packs with a model.
 - **storage** owns the local SQLite connection and schema only. It does not know Prompt Intelligence, editing, or UI behavior.
 - **model** owns provider-specific transport. Prompt Intelligence, generation, and editing should not know DeepSeek HTTP details.
 - **server** wires these capabilities into the local API. It should orchestrate them rather than reimplement their logic.
@@ -39,9 +39,10 @@ Yakable keeps two kinds of local state separate:
 
 ```text
 SQLite (`data/yakable.db`)          generated/<project-id>/
-├── project session                 ├── src/
-├── conversation/edit history      ├── public/
-└── Visual Edit source targets     └── project source files
+├── project session                 ├── .yakable/project.json
+├── conversation/edit history      ├── .yakable/capabilities.json
+└── Visual Edit source targets     ├── src/
+                                    └── public/
 ```
 
-SQLite is the source of truth for conversation and edit history.
+SQLite is the source of truth for conversation and edit history. Generated project metadata and installed capability state stay with the generated project.

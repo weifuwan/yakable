@@ -79,11 +79,11 @@ Automatic build/runtime error repair is not implemented yet. If an edit breaks t
 
 There is still no auth, cloud persistence, deployment, or multi-tenant sandbox yet. The Web API, SQLite database, and generated runtimes are local development surfaces.
 
-## Yakable Base Template — Stage 2.1
+## Yakable Templates — Stage 2
 
-`templates/base/` is a neutral React + Vite + Tailwind foundation that can be copied without invoking a model. It establishes the environment before Yakable adds optional capability packs or AI-driven product code.
+### Stage 2.1: Base Template
 
-Create one directly:
+`templates/base/` is a neutral React + Vite + Tailwind foundation that can be copied without invoking a model. It establishes the environment before Yakable adds optional capabilities or product code.
 
 ```bash
 npm run create:base -- base-demo
@@ -98,7 +98,7 @@ npm install
 npm run dev
 ```
 
-The template contract lives in `yakable.template.json`:
+The Base contract keeps infrastructure separate from product code:
 
 ```text
 Yakable-owned                    Project-owned
@@ -111,7 +111,44 @@ Yakable-owned                    Project-owned
                                  └── src/data/**
 ```
 
-Stage 2.1 intentionally does **not** add capability packs, design patterns, retrieval, template selection, or AI integration.
+### Stage 2.2: Capability Packs
+
+`templates/packs/` contains optional capabilities that can be installed explicitly on top of Base. A pack owns only `src/components/ui/**`, declares the exact files it contributes, and declares the npm dependencies those files require.
+
+List the current catalog:
+
+```bash
+npm run list:packs
+```
+
+Initial packs:
+
+```text
+data-display  Badge + Card + Table
+navigation    Breadcrumb + Tabs
+overlay       Dialog + Popover + Dropdown Menu + Tooltip
+form          Form helpers + Select + Checkbox + Switch + Textarea
+feedback      Alert + Progress + Skeleton + Sonner toast
+```
+
+Install one or more packs into an existing Base project:
+
+```bash
+npm run add:pack -- base-demo data-display navigation overlay
+cd generated/base-demo
+npm install
+```
+
+Installation is intentionally conservative:
+
+- selected pack files are copied; unrelated files are untouched
+- package dependencies are merged only when versions do not conflict
+- an existing different UI file is never overwritten
+- repeated pack installation is idempotent
+- installed pack ids are recorded in `.yakable/capabilities.json`
+- product pages, theme, features, and product components remain project-owned
+
+Stage 2.2 still has **no AI pack selection, no design patterns, no Hero/Pricing/Dashboard knowledge base, and no automatic dependency installation**. It only makes optional frontend capabilities deterministic and composable.
 
 ## CLI commands
 
@@ -119,6 +156,8 @@ The core capabilities are available directly from the CLI:
 
 ```bash
 npm run create:base -- base-demo
+npm run list:packs
+npm run add:pack -- base-demo data-display navigation
 npm run generate -- "Build a clean SaaS landing page"
 npm run run:project -- generated/<project-id>
 npm run edit -- generated/<project-id> "把 Hero 主色改成蓝色"
@@ -154,5 +193,6 @@ Persistent Edit Context ✅
 Persistent Conversation (SQLite) ✅
 Visual → Source Edit ✅
 Yakable Base Template ✅
+Capability Packs ✅
 Automatic Error Repair ⏭️
 ```

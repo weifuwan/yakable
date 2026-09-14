@@ -9,13 +9,15 @@
   "scripts": {
     "generate": "tsx src/cli/generate.ts",
     "create:base": "tsx src/cli/create-base.ts",
+    "list:packs": "tsx src/cli/list-packs.ts",
+    "add:pack": "tsx src/cli/add-pack.ts",
     "run:project": "tsx src/cli/run.ts",
     "edit": "tsx src/cli/edit.ts",
     "dev:api": "tsx src/cli/api.ts",
     "dev:web": "vite dashboard --host 127.0.0.1",
     "build:web": "vite build dashboard",
     "typecheck": "tsc --noEmit && tsc -p dashboard/tsconfig.json --noEmit",
-    "test": "node --import tsx --test test/project.test.ts test/base-template.test.ts test/project-session.test.ts test/template.test.ts test/intent.test.ts test/semantic.test.ts test/taste.test.ts test/design-intent.test.ts test/deepseek.test.ts test/runtime.test.ts test/preview-source-metadata.test.ts test/edit.test.ts test/web-api.test.ts test/visual-edit-context.test.ts"
+    "test": "node --import tsx --test test/project.test.ts test/base-template.test.ts test/capability-pack.test.ts test/project-session.test.ts test/template.test.ts test/intent.test.ts test/semantic.test.ts test/taste.test.ts test/design-intent.test.ts test/deepseek.test.ts test/runtime.test.ts test/preview-source-metadata.test.ts test/edit.test.ts test/web-api.test.ts test/visual-edit-context.test.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.0",
