@@ -18,12 +18,17 @@ if (!projectInput || !followUpRequest) {
 
 try {
   console.log('Yakable: Edit project');
-  console.log('Editing the existing source only; Yakable will not run or automatically repair the project.');
+  console.log('Selecting focused project context before editing; Yakable will not run or automatically repair the project.');
 
   const result = await editGeneratedProject(projectInput, followUpRequest);
 
   console.log(`\nProject: ${result.projectId}`);
   console.log(`Model: ${result.model}`);
+  console.log(`Context source: ${result.contextSelection.source}`);
+  console.log(`Context files: ${result.contextSelection.relevantFiles.length}`);
+  for (const file of result.contextSelection.relevantFiles) {
+    console.log(`- ${file}`);
+  }
   console.log(`Changed files: ${result.changedFiles.length}`);
   for (const file of result.changedFiles) {
     console.log(`- ${file}`);

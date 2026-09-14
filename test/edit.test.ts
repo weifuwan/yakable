@@ -6,9 +6,11 @@ import test from 'node:test';
 
 import {
   applyProjectPatch,
+  assertPatchUsesSelectedContext,
   buildProjectEditContext,
   extractUserEditContext,
   extractUserEditRequest,
+  listProjectContextFiles,
   parseProjectPatch,
   readProjectSnapshot,
 } from '../src/editing/edit.js';
@@ -20,11 +22,17 @@ async function createFixture(root: string): Promise<ResolvedGeneratedProject> {
   await mkdir(path.join(directory, 'src/components'), { recursive: true });
   await mkdir(path.join(directory, 'dist'), { recursive: true });
   await writeFile(path.join(directory, 'package.json'), '{"name":"demo-project"}', 'utf8');
+  await writeFile(path.join(directory, 'package-lock.json'), '{"lockfileVersion":3}', 'utf8');
   await writeFile(path.join(directory, 'index.html'), '<div id="root"></div>', 'utf8');
   await writeFile(path.join(directory, 'src/main.tsx'), 'import App from "./App";', 'utf8');
   await writeFile(
     path.join(directory, 'src/App.tsx'),
     'export default function App() { return <main>Before</main>; }',
+    'utf8',
+  );
+  await writeFile(
+    path.join(directory, 'src/components/Hero.tsx'),
+    'export function Hero() { return <h1>Hero</h1>; }',
     'utf8',
   );
   await writeFile(path.join(directory, 'src/styles.css'), 'body { margin: 0; }', 'utf8');
@@ -68,19 +76,39 @@ test('rejects root configuration and traversal changes', () => {
   );
 });
 
-test('reads source context without secrets or build output', async () => {
+test('lists context candidates without secrets, lockfiles, or build output', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'yakable-edit-candidates-'));
+
+  try {
+    const project = await createFixture(tempRoot);
+    const paths = await listProjectContextFiles(project.directory);
+
+    assert.ok(paths.includes('package.json'));
+    assert.ok(paths.includes('src/App.tsx'));
+    assert.ok(paths.includes('src/components/Hero.tsx'));
+    assert.ok(!paths.includes('package-lock.json'));
+    assert.ok(!paths.includes('.env'));
+    assert.ok(!paths.includes('dist/bundle.js'));
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('reads only the selected project context files', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'yakable-edit-context-'));
 
   try {
     const project = await createFixture(tempRoot);
-    const snapshot = await readProjectSnapshot(project);
-    const paths = snapshot.files.map((file) => file.path);
+    const snapshot = await readProjectSnapshot(project, [
+      'src/components/Hero.tsx',
+      'src/styles.css',
+    ]);
 
-    assert.ok(paths.includes('package.json'));
-    assert.ok(paths.includes('src/App.tsx'));
-    assert.ok(!paths.includes('.env'));
-    assert.ok(!paths.includes('dist/bundle.js'));
-    assert.ok(!snapshot.files.some((file) => file.content.includes('do-not-send')));
+    assert.deepEqual(
+      snapshot.files.map((file) => file.path),
+      ['src/components/Hero.tsx', 'src/styles.css'],
+    );
+    assert.ok(!snapshot.files.some((file) => file.content.includes('Before')));
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }
@@ -91,7 +119,7 @@ test('includes original intent and recent accepted edits in follow-up context', 
 
   try {
     const project = await createFixture(tempRoot);
-    const snapshot = await readProjectSnapshot(project);
+    const snapshot = await readProjectSnapshot(project, ['src/App.tsx']);
     const session: ProjectSessionState = {
       version: 1,
       productRequest: 'Build a restrained developer tool landing page',
@@ -117,6 +145,7 @@ test('includes original intent and recent accepted edits in follow-up context', 
         originalProductRequest: string;
         recentEdits: Array<{ userRequest: string }>;
       };
+      project: { files: Array<{ path: string }> };
     };
 
     assert.equal(context.followUpRequest, 'Make the logo larger');
@@ -125,6 +154,7 @@ test('includes original intent and recent accepted edits in follow-up context', 
       'Build a restrained developer tool landing page',
     );
     assert.equal(context.continuity.recentEdits[0]?.userRequest, 'Remove all shadows');
+    assert.deepEqual(context.project.files.map((file) => file.path), ['src/App.tsx']);
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }
@@ -170,6 +200,56 @@ test('extracts the human request and source-mapped visual targets for persistenc
   ]);
   assert.equal(extractUserEditRequest(request), 'Make this heading larger');
   assert.equal(extractUserEditRequest('Tighten the hero spacing'), 'Tighten the hero spacing');
+});
+
+test('rejects changes to existing files that were not selected as context', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'yakable-edit-context-guard-'));
+
+  try {
+    const project = await createFixture(tempRoot);
+    const patch = parseProjectPatch(
+      JSON.stringify({
+        summary: 'Unexpected style rewrite',
+        changes: [{ path: 'src/styles.css', content: 'body { margin: 4px; }' }],
+      }),
+    );
+
+    await assert.rejects(
+      () => assertPatchUsesSelectedContext(project, patch, ['src/App.tsx']),
+      /outside selected context/,
+    );
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('allows a selected existing file and a genuinely new file', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'yakable-edit-context-new-file-'));
+
+  try {
+    const project = await createFixture(tempRoot);
+    const patch = parseProjectPatch(
+      JSON.stringify({
+        summary: 'Change the app and add a badge',
+        changes: [
+          {
+            path: 'src/App.tsx',
+            content: 'export default function App() { return <main>After</main>; }',
+          },
+          {
+            path: 'src/components/Badge.tsx',
+            content: 'export function Badge() { return <span>New</span>; }',
+          },
+        ],
+      }),
+    );
+
+    await assert.doesNotReject(() =>
+      assertPatchUsesSelectedContext(project, patch, ['src/App.tsx']),
+    );
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
 });
 
 test('applies only returned files and preserves unrelated source', async () => {

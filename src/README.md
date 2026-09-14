@@ -8,7 +8,7 @@ src/
 ├── model/                # model-provider adapters
 ├── prompt-intelligence/  # gate build intent, then understand and normalize build requests
 ├── generation/           # turn normalized intent into a generated project
-├── editing/              # apply focused edits to an existing generated project
+├── editing/              # select focused context, then apply one project edit
 ├── runtime/              # run projects and instrument Preview
 ├── projects/             # project files, metadata, sessions, and lifecycle actions
 ├── templates/            # deterministic Base + optional capability packs; no model selection
@@ -23,13 +23,13 @@ src/
 
 - **prompt-intelligence** first answers whether dashboard input is CREATE, CHAT, or CLARIFY. Only CREATE continues into product intent, semantic defaults, taste translation, and Design Intent.
 - **generation** answers: how do we turn that normalized intent into a complete frontend source tree? It also refuses a precomputed non-CREATE Build Intent decision, so callers cannot bypass the gate accidentally.
-- **editing** answers: how do we apply one requested change to an existing generated project without rewriting unrelated code? Project snapshot reads now pass through the same `read_project_file` capability that future context selection can call.
+- **editing** answers two bounded questions: which existing project files are relevant to the current edit, and how do we apply one requested change without rewriting unrelated code? It lists safe text-file paths first, selects at most 12 relevant paths, reads only those files through `read_project_file`, and rejects edits to existing files that were not part of the selected context. Source-mapped Visual Edit targets bypass model selection and become the context directly.
 - **runtime** answers: how do we safely run the generated project and map Preview elements back to source?
 - **projects** owns generated-project parsing, `.yakable/project.json`, project listing, rename/star/remix/delete, and the project conversation/session repository.
 - **templates** owns deterministic frontend foundations and optional Capability Packs. Base fixes the environment contract; packs may add only Yakable-owned UI primitives plus explicitly declared npm dependencies. This layer does not choose packs with a model.
 - **tools** defines the minimal `Tool`, `ToolResult`, `ToolContext`, and `ToolRegistry` contracts. The first tool, `read_project_file`, reads one safe UTF-8 project file while blocking secrets, build output, traversal, binary files, and oversized files. Tools are invoked by Yakable code only for now; there is no model tool-calling or MCP adapter yet.
 - **storage** owns the local SQLite connection and schema only. It does not know Prompt Intelligence, editing, or UI behavior.
-- **model** owns provider-specific transport. Prompt Intelligence, generation, and editing should not know DeepSeek HTTP details.
+- **model** owns provider-specific transport. Prompt Intelligence, context selection, generation, and editing should not know DeepSeek HTTP details.
 - **server** wires these capabilities into the local API. It should orchestrate them rather than reimplement their logic.
 - **cli** contains thin executable entry points only.
 
