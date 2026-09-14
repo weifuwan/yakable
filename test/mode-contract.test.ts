@@ -1,0 +1,95 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import { generateProject } from '../src/generation/generate.js';
+import {
+  ModeCapabilityError,
+  assertModeCapability,
+  capabilitiesForMode,
+  createYakableModeContext,
+  modeAllowsCapability,
+  parseYakableMode,
+} from '../src/modes/mode-contract.js';
+import {
+  editGeneratedProjectInMode,
+  runModeCapability,
+} from '../src/modes/mode-execution.js';
+import type { BuildIntentDecision } from '../src/types.js';
+
+const createDecision: BuildIntentDecision = {
+  version: 1,
+  route: 'CREATE',
+  confidence: 'high',
+  message: 'Create the requested frontend.',
+};
+
+test('parses PLAN and BUILD modes with BUILD as the compatibility default', () => {
+  assert.equal(parseYakableMode('plan'), 'PLAN');
+  assert.equal(parseYakableMode(' BUILD '), 'BUILD');
+  assert.equal(parseYakableMode(undefined), 'BUILD');
+  assert.throws(() => parseYakableMode('agent'), /PLAN or BUILD/);
+});
+
+test('PLAN exposes read-only frontend capabilities', () => {
+  assert.deepEqual(capabilitiesForMode('PLAN'), [
+    'read-project',
+    'search-project',
+    'observe-preview',
+    'critique-design',
+  ]);
+  assert.equal(modeAllowsCapability('PLAN', 'read-project'), true);
+  assert.equal(modeAllowsCapability('PLAN', 'critique-design'), true);
+  assert.equal(modeAllowsCapability('PLAN', 'generate-source'), false);
+  assert.equal(modeAllowsCapability('PLAN', 'edit-source'), false);
+  assert.equal(modeAllowsCapability('PLAN', 'repair-source'), false);
+});
+
+test('BUILD keeps the existing bounded source capabilities', () => {
+  const context = createYakableModeContext('BUILD');
+  assert.equal(context.allows('generate-source'), true);
+  assert.equal(context.allows('edit-source'), true);
+  assert.equal(context.allows('repair-source'), true);
+  assert.doesNotThrow(() => context.assert('edit-source'));
+});
+
+test('forbidden PLAN capability fails with a structured mode error', () => {
+  assert.throws(
+    () => assertModeCapability('PLAN', 'edit-source'),
+    (error: unknown) => {
+      assert.ok(error instanceof ModeCapabilityError);
+      assert.equal(error.code, 'MODE_CAPABILITY_FORBIDDEN');
+      assert.equal(error.mode, 'PLAN');
+      assert.equal(error.capability, 'edit-source');
+      return true;
+    },
+  );
+});
+
+test('mode capability gate rejects before running a mutation task', async () => {
+  let called = false;
+  await assert.rejects(
+    runModeCapability('PLAN', 'repair-source', async () => {
+      called = true;
+      return 'mutated';
+    }),
+    /PLAN mode does not allow repair-source/,
+  );
+  assert.equal(called, false);
+});
+
+test('mode-aware project edit rejects PLAN before resolving or reading a project', async () => {
+  await assert.rejects(
+    editGeneratedProjectInMode('PLAN', 'project-that-does-not-exist', 'Change the Hero'),
+    /PLAN mode does not allow edit-source/,
+  );
+});
+
+test('project generation rejects PLAN before any generation model work', async () => {
+  await assert.rejects(
+    generateProject('Build a dashboard', {
+      mode: 'PLAN',
+      buildIntent: createDecision,
+    }),
+    /PLAN mode does not allow generate-source/,
+  );
+});

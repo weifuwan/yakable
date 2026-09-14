@@ -252,7 +252,7 @@ Frontend Agent should remain an execution state machine unless real usage proves
 
 ## Mode Permissions
 
-Plan and Build should eventually enforce different capability policies, not merely different prompts.
+Plan and Build enforce different capability policies, not merely different prompts.
 
 | Capability | Plan | Build |
 | --- | --- | --- |
@@ -262,14 +262,17 @@ Plan and Build should eventually enforce different capability policies, not mere
 | Inspect Preview | Yes | Yes |
 | Page Observation | Yes | Yes |
 | Design Critic | Yes | Yes |
-| Create / revise Plan Artifact | Yes | Read / execute |
+| Create / revise Plan Artifact | Next | Read / execute later |
+| Generate source | No | Yes |
 | Edit source | No | Yes |
 | Visual Repair | No | Yes |
 | Add files | No | Bounded |
 | Change dependencies | No | Bounded |
 | External write tools | No | Explicitly gated |
 
-This separation should become the foundation for future MCP or external-tool support.
+The v0 contract is represented as a versioned `PLAN | BUILD` mode policy with explicit capabilities. Plan exposes only `read-project`, `search-project`, `observe-preview`, and `critique-design`; Build additionally exposes `generate-source`, `edit-source`, and `repair-source`. Existing product flows remain Build by default until the Plan Artifact and Plan UI exist.
+
+This separation is the foundation for future Plan orchestration, MCP, and external-tool permission policies.
 
 ## Current Foundation
 
@@ -294,6 +297,7 @@ Yakable already has working foundations for:
 - evidence-grounded Design Critic
 - bounded Visual Repair with rollback
 - explicit Frontend Agent execution states and live progress
+- Plan / Build mode capability policy with a read-only Plan mutation boundary
 
 These capabilities are foundations, not the roadmap itself.
 
@@ -316,12 +320,13 @@ Goal: **separate decision-making from source mutation and make frontend decision
 
 Near-term work should focus on the following outcomes, without locking them to permanent PR numbers:
 
-1. **Plan / Build Mode Contract**
+1. **Plan / Build Mode Contract** ✅
    - make the two modes first-class concepts
-   - define capability permissions and transition rules
+   - enforce a capability policy instead of relying on prompt instructions
    - keep Plan read-only with respect to project source
+   - preserve Build as the compatibility default until Plan has a real product surface
 
-2. **Plan Artifact + Review**
+2. **Plan Artifact + Review** ← NEXT
    - create a small versioned structured Plan Artifact
    - render it in a human-readable form
    - allow revise / approve / reject before Build
