@@ -1,12 +1,13 @@
 {
   "version": 1,
   "id": "date",
-  "description": "Calendar and date selection UI backed by React Day Picker.",
+  "description": "Calendar and date selection UI with common date utilities.",
   "base": {
     "id": "base",
     "version": 1
   },
   "dependencies": {
+    "date-fns": "^4.1.0",
     "react-day-picker": "^9.14.0"
   },
   "devDependencies": {},
