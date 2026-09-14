@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import ts from 'typescript';
 
 import { createBaseProject } from '../src/templates/base-template.js';
 import {
@@ -30,6 +31,43 @@ test('lists the initial Stage 2.2 capability catalog with Yakable-owned UI files
   for (const pack of packs) {
     assert.ok(pack.files.length > 0);
     assert.ok(pack.files.every((file) => file.startsWith('src/components/ui/')));
+  }
+});
+
+test('all declared pack sources parse as TypeScript or TSX', async () => {
+  const packs = await listCapabilityPacks();
+
+  for (const pack of packs) {
+    for (const relativePath of pack.files) {
+      const sourcePath = path.join(
+        process.cwd(),
+        'templates',
+        'packs',
+        pack.id,
+        'files',
+        ...relativePath.split('/'),
+      );
+      const source = await readFile(sourcePath, 'utf8');
+      const result = ts.transpileModule(source, {
+        fileName: relativePath,
+        reportDiagnostics: true,
+        compilerOptions: {
+          target: ts.ScriptTarget.ES2022,
+          module: ts.ModuleKind.ESNext,
+          jsx: ts.JsxEmit.ReactJSX,
+        },
+      });
+      const errors = (result.diagnostics ?? []).filter(
+        (diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error,
+      );
+      assert.equal(
+        errors.length,
+        0,
+        `${pack.id}/${relativePath}: ${errors
+          .map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'))
+          .join('; ')}`,
+      );
+    }
   }
 });
 
