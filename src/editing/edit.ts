@@ -7,6 +7,7 @@ import {
   readProjectSession,
 } from '../projects/project-session.js';
 import { resolveGeneratedProject, type ResolvedGeneratedProject } from '../runtime/runtime.js';
+import { readProjectFileTool } from '../tools/read-project-file.js';
 import type {
   GeneratedFile,
   ProjectPatch,
@@ -15,7 +16,6 @@ import type {
 } from '../types.js';
 
 const MAX_CONTEXT_FILES = 60;
-const MAX_CONTEXT_FILE_BYTES = 200_000;
 const MAX_CONTEXT_TOTAL_BYTES = 800_000;
 const MAX_FOLLOW_UP_LENGTH = 8_000;
 const MAX_CHANGE_FILES = 12;
@@ -117,16 +117,24 @@ async function collectProjectFiles(
       continue;
     }
 
-    const buffer = await readFile(absolutePath);
-    if (buffer.includes(0)) {
-      continue;
+    const result = await readProjectFileTool.execute(
+      { path: relativePath },
+      { projectDirectory },
+    );
+
+    if (!result.ok) {
+      if (result.error.code === 'BINARY_FILE') {
+        continue;
+      }
+      if (result.error.code === 'FILE_TOO_LARGE') {
+        throw new Error(`Project file is too large for edit context: ${relativePath}`);
+      }
+      throw new Error(
+        `Could not read project file for edit context (${relativePath}): ${result.error.message}`,
+      );
     }
 
-    if (buffer.byteLength > MAX_CONTEXT_FILE_BYTES) {
-      throw new Error(`Project file is too large for edit context: ${relativePath}`);
-    }
-
-    files.push({ path: relativePath, content: buffer.toString('utf8') });
+    files.push({ path: result.value.path, content: result.value.content });
   }
 
   return files;
