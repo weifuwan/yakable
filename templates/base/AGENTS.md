@@ -6,6 +6,7 @@ This project starts from Yakable Base. Keep the runtime foundation stable and ma
 
 Avoid changing these unless the task explicitly changes project infrastructure:
 
+- `.yakable/**`
 - `package.json`, `vite.config.ts`, `tsconfig.json`, `components.json`
 - `src/main.tsx`, `src/styles.css`, `src/lib/utils.ts`
 - `src/components/ui/**`
