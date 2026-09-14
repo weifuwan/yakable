@@ -28,23 +28,18 @@ export function Dashboard({
 }) {
   const [creating, setCreating] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [buildIntentFeedback, setBuildIntentFeedback] = useState<BuildIntentDecision | null>(null);
   const [createError, setCreateError] = useState("");
 
   async function create(prompt: string) {
     setCreating(true);
-    setBuildIntentFeedback(null);
     setCreateError("");
     try {
-      const decision = await onCreate(prompt);
-      if (decision.route !== "CREATE") {
-        setBuildIntentFeedback(decision);
-      }
+      await onCreate(prompt);
     } catch (error) {
       setCreateError(
         error instanceof Error
           ? error.message
-          : "Yakable could not finish this generation. Please try again.",
+          : "Yakable could not finish this request. Please try again.",
       );
     } finally {
       setCreating(false);
@@ -91,25 +86,13 @@ export function Dashboard({
                 role="alert"
               >
                 <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-red-700/70">
-                  Generation paused
+                  Request paused
                 </div>
                 <p className="m-0 text-sm leading-6 text-red-800/80">
                   {createError}
                 </p>
                 <p className="mb-0 mt-1 text-xs leading-5 text-red-700/60">
                   Your Yakable session is still available. You can submit the prompt again without restarting the app.
-                </p>
-              </div>
-            ) : buildIntentFeedback ? (
-              <div
-                className="mt-3 w-full rounded-xl border border-black/[0.08] bg-white/85 px-4 py-3 text-left shadow-[0_1px_4px_rgba(15,23,42,0.04)]"
-                role="status"
-              >
-                <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-black/40">
-                  {buildIntentFeedback.route === "CLARIFY" ? "Need a little more detail" : "No project created"}
-                </div>
-                <p className="m-0 text-sm leading-6 text-black/65">
-                  {buildIntentFeedback.message}
                 </p>
               </div>
             ) : null}
