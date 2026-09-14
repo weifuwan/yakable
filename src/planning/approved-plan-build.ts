@@ -23,6 +23,10 @@ import {
   type FrontendAgentProgressOptions,
 } from '../editing/frontend-agent.js';
 import { runOneShotRepair, type OneShotRepairResult } from '../editing/repair.js';
+import {
+  assertModeCapability,
+  type YakableMode,
+} from '../modes/mode-contract.js';
 import { requestProjectPatch, requestProjectRepair } from '../model/deepseek.js';
 import {
   appendProjectEditHistory,
@@ -44,6 +48,7 @@ const MAX_APPROVED_PLAN_DEVIATION_LENGTH = 600;
 const MAX_HISTORY_CONTEXT = 12;
 
 export interface BuildFromApprovedPlanOptions extends FrontendAgentProgressOptions {
+  mode?: YakableMode;
   generatedRoot?: string;
 }
 
@@ -192,8 +197,13 @@ export async function buildProjectFromApprovedPlan(
   projectInput: string,
   options: BuildFromApprovedPlanOptions = {},
 ): Promise<ApprovedPlanBuildResult> {
+  const mode = options.mode ?? 'BUILD';
+  assertModeCapability(mode, 'execute-plan');
+  assertModeCapability(mode, 'read-plan');
+  assertModeCapability(mode, 'edit-source');
+
   const project = await resolveGeneratedProject(projectInput, options.generatedRoot);
-  const persistedPlan = await readPlanArtifactFromDirectory(project.directory, 'BUILD');
+  const persistedPlan = await readPlanArtifactFromDirectory(project.directory, mode);
   if (!persistedPlan) {
     throw new ApprovedPlanExecutionError(
       'APPROVED_PLAN_NOT_FOUND',
