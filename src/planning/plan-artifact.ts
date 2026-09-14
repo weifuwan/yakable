@@ -18,6 +18,12 @@ import { requestPlanArtifact } from '../model/deepseek.js';
 import { readProjectSession } from '../projects/project-session.js';
 import { resolveGeneratedProject } from '../runtime/runtime.js';
 import type { DesignIntentIR, GeneratedFile } from '../types.js';
+import {
+  parseUiPlanValue,
+  planInterface,
+  type UiPlan,
+  type UiPlannerResult,
+} from './ui-planner.js';
 
 export const PLAN_ARTIFACT_VERSION = 1 as const;
 export const PLAN_ARTIFACT_JSON_PATH = '.yakable/plan.json';
@@ -59,6 +65,7 @@ export interface PlanArtifactContent {
   goal: string;
   context: PlanArtifactContext;
   decisions: PlanArtifactDecision[];
+  ui?: UiPlan;
   implementation: PlanArtifactImplementationStep[];
   validation: string[];
   constraints: string[];
@@ -93,6 +100,8 @@ export interface ReviewProjectPlanOptions {
 export interface PlanArtifactRun extends PlanArtifactBundle {
   model: string;
   contextSelection: EditContextSelection;
+  uiPlannerModel: string;
+  uiPlanner: UiPlannerResult;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -253,6 +262,7 @@ export function parsePlanArtifactContent(
   const allowed = allowedRelevantFiles
     ? new Set(allowedRelevantFiles.map((file) => file.trim()).filter(Boolean))
     : undefined;
+  const currentBehavior = readOptionalString(value.context.currentBehavior, 'context.currentBehavior');
 
   return {
     goal: readString(value.goal, 'goal'),
@@ -264,16 +274,10 @@ export function parsePlanArtifactContent(
         PLAN_ARTIFACT_MAX_CONTEXT_FILES,
         allowed,
       ),
-      ...(readOptionalString(value.context.currentBehavior, 'context.currentBehavior')
-        ? {
-            currentBehavior: readOptionalString(
-              value.context.currentBehavior,
-              'context.currentBehavior',
-            ),
-          }
-        : {}),
+      ...(currentBehavior ? { currentBehavior } : {}),
     },
     decisions: readDecisions(value.decisions),
+    ...(value.ui !== undefined && value.ui !== null ? { ui: parseUiPlanValue(value.ui) } : {}),
     implementation: readImplementation(value.implementation),
     validation: readStringArray(
       value.validation,
@@ -347,6 +351,45 @@ function markdownList(values: string[], empty = '_None_'): string {
     : empty;
 }
 
+function renderUiPlanMarkdown(ui: UiPlan): string[] {
+  const sections = ui.sections
+    .map((section, index) => [
+      `${index + 1}. **${markdownText(section.title)}** — ${section.priority} · ${section.pattern}`,
+      `   - Purpose: ${markdownText(section.purpose)}`,
+      ...(section.content.length
+        ? section.content.map((item) => `   - Content: ${markdownText(item)}`)
+        : []),
+    ].join('\n'))
+    .join('\n');
+
+  return [
+    '',
+    '## UI Blueprint',
+    '',
+    `- Scope: ${ui.scope}`,
+    `- Page type: ${markdownText(ui.pageType)}`,
+    `- Navigation: ${ui.shell.navigation}`,
+    `- Density: ${ui.shell.density}`,
+    `- Content width: ${ui.shell.contentWidth}`,
+    `- Primary hierarchy: ${markdownText(ui.hierarchy.primary)}`,
+    ...(ui.hierarchy.secondary.length
+      ? [`- Secondary hierarchy: ${ui.hierarchy.secondary.map(markdownText).join('; ')}`]
+      : []),
+    '',
+    '### Sections',
+    '',
+    sections || '_None_',
+    '',
+    '### Responsive',
+    '',
+    markdownList(ui.responsive),
+    '',
+    '### Deliberate omissions',
+    '',
+    markdownList(ui.deliberateOmissions),
+  ];
+}
+
 export function renderPlanArtifactMarkdown(plan: PlanArtifact): string {
   const decisions = plan.decisions.length
     ? plan.decisions
@@ -381,6 +424,7 @@ export function renderPlanArtifactMarkdown(plan: PlanArtifact): string {
     ...(plan.context.currentBehavior
       ? [`- Current behavior: ${markdownText(plan.context.currentBehavior)}`]
       : []),
+    ...(plan.ui ? renderUiPlanMarkdown(plan.ui) : []),
     '',
     '## Decisions',
     '',
@@ -474,6 +518,7 @@ export function buildPlanArtifactRequest(input: {
   productRequest?: string;
   designIntent: DesignIntentIR | null;
   currentPlan: PlanArtifact | null;
+  uiPlan?: UiPlan | null;
   contextSelection: EditContextSelection;
   files: GeneratedFile[];
 }): string {
@@ -482,6 +527,7 @@ export function buildPlanArtifactRequest(input: {
     productRequest: input.productRequest ?? null,
     designIntent: input.designIntent,
     currentPlan: input.currentPlan,
+    uiPlan: input.uiPlan ?? null,
     contextSelection: input.contextSelection,
     project: {
       id: input.projectId,
@@ -506,6 +552,7 @@ export async function draftProjectPlan(
   assertModeCapability(mode, 'search-project');
   assertModeCapability(mode, 'read-plan');
   assertModeCapability(mode, 'write-plan');
+  assertModeCapability(mode, 'plan-ui');
   const request = validatePlanningRequest(userRequest);
 
   const project = await resolveGeneratedProject(projectInput, options.generatedRoot);
@@ -524,6 +571,19 @@ export async function draftProjectPlan(
   );
   const snapshot = await readProjectSnapshot(project, contextSelection.relevantFiles);
 
+  const uiPlannerRun = await planInterface({
+    projectId: project.id,
+    userRequest: request,
+    productRequest: session?.productRequest,
+    designIntent: session?.designIntent ?? null,
+    currentUiPlan: currentPlan?.ui ?? null,
+    contextSelection,
+    files: snapshot.files,
+  });
+  const uiPlan = uiPlannerRun.result.status === 'PLANNED'
+    ? uiPlannerRun.result.plan
+    : currentPlan?.ui ?? null;
+
   const generation = await requestPlanArtifact(
     buildPlanArtifactRequest({
       projectId: project.id,
@@ -531,6 +591,7 @@ export async function draftProjectPlan(
       productRequest: session?.productRequest,
       designIntent: session?.designIntent ?? null,
       currentPlan,
+      uiPlan,
       contextSelection,
       files: snapshot.files,
     }),
@@ -545,6 +606,7 @@ export async function draftProjectPlan(
     revision: (currentPlan?.revision ?? 0) + 1,
     status: 'DRAFT',
     ...content,
+    ...(uiPlan ? { ui: uiPlan } : {}),
     createdAt: currentPlan?.createdAt ?? now,
     updatedAt: now,
   };
@@ -552,6 +614,8 @@ export async function draftProjectPlan(
   return {
     model: generation.model,
     contextSelection,
+    uiPlannerModel: uiPlannerRun.model,
+    uiPlanner: uiPlannerRun.result,
     ...persisted,
   };
 }

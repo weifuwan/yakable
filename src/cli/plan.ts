@@ -30,9 +30,11 @@ try {
   if (action === 'draft' || action === 'revise') {
     if (!text) usage();
     console.log(`Yakable: ${action === 'draft' ? 'Draft' : 'Revise'} Plan Artifact`);
-    console.log('PLAN mode may read/search project context but cannot mutate project source.');
+    console.log('PLAN mode may read/search project context and plan UI, but cannot mutate project source.');
     const result = await draftProjectPlan(projectInput, text, { mode: 'PLAN' });
-    console.log(`\nModel: ${result.model}`);
+    console.log(`\nPlan model: ${result.model}`);
+    console.log(`UI Planner model: ${result.uiPlannerModel}`);
+    console.log(`UI Planner: ${result.uiPlanner.status}`);
     console.log(`Context: ${result.contextSelection.relevantFiles.length} file(s)`);
     console.log(`Revision: ${result.plan.revision}`);
     console.log(`Status: ${result.plan.status}\n`);

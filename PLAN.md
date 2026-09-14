@@ -175,7 +175,7 @@ Taste should gradually become a reusable system capability rather than a collect
 
 Planning produces structured data internally, not only free-form Markdown.
 
-Plan Artifact v0 is deliberately small:
+Plan Artifact v0 remains deliberately small and now attaches the dedicated UI Planner blueprint when UI planning is applicable:
 
 ```ts
 interface YakablePlan {
@@ -194,6 +194,8 @@ interface YakablePlan {
     decision: string;
     reason: string;
   }>;
+
+  ui?: UIPlan;
 
   implementation: Array<{
     id: string;
@@ -215,27 +217,62 @@ interface YakablePlan {
 
 The current source of truth is `.yakable/plan.json`; `.yakable/plan.md` is a derived human-readable review document. Current `context.relevantFiles` must be grounded in the bounded project snapshot supplied to the planner.
 
-A planning turn may revise the current artifact by creating the next `DRAFT` revision. Review is explicit: only a draft may transition to `APPROVED` or `REJECTED`. Build may read plan metadata but cannot silently rewrite or approve/reject it.
+A planning turn may revise the current artifact by creating the next `DRAFT` revision. Review is explicit: only a draft may transition to `APPROVED` or `REJECTED`. Build may read plan metadata but cannot silently rewrite, review, or re-plan it.
 
-The exact schema should stay small and evolve from real needs. UI-specific structure belongs to UI Planner rather than being prematurely encoded as a broad layout DSL. Plan history/diff is deferred to the later Re-plan / Plan Diff stage.
+The exact schema should stay small and evolve from real needs. Plan history/diff is deferred to the later Re-plan / Plan Diff stage.
 
 ## UI Planner
 
 UI Planner is a capability inside Plan Mode, not a replacement for Plan Mode.
 
-Its responsibility is to translate product and design intent into an explicit frontend page blueprint before code generation.
+UI Planner v0 runs against the same bounded project context used by the Plan Artifact and produces either `PLANNED` or `NOT_APPLICABLE`. When applicable, the blueprint is attached to the Plan Artifact as `ui` before review.
 
-UI Planner should answer questions such as:
+The blueprint is intentionally semantic rather than a layout DSL:
 
-- what kind of page or product surface is this?
-- what shell or navigation structure fits?
-- which sections belong on the page?
-- what is primary vs secondary?
-- which UI pattern best expresses each section?
-- what responsive behavior matters?
-- what should be intentionally omitted?
+```ts
+interface UIPlan {
+  version: 1;
+  scope: "PAGE" | "PROJECT";
+  pageType: string;
 
-UI Planner v0 should stay small. It does not need a visual AST, constraint solver, or universal layout language.
+  shell: {
+    navigation: "NONE" | "TOP" | "SIDEBAR" | "MIXED";
+    density: "COMPACT" | "COMFORTABLE" | "SPACIOUS";
+    contentWidth: "NARROW" | "CONTAINED" | "FLUID";
+  };
+
+  hierarchy: {
+    primary: string;
+    secondary: string[];
+  };
+
+  sections: Array<{
+    id: string;
+    title: string;
+    purpose: string;
+    priority: "PRIMARY" | "SECONDARY";
+    pattern: "HERO" | "STATS" | "TABLE" | "FORM" | "LIST" |
+             "CARD_GRID" | "DETAIL" | "TOOLBAR" | "NAVIGATION" | "CUSTOM";
+    content: string[];
+  }>;
+
+  responsive: string[];
+  deliberateOmissions: string[];
+}
+```
+
+UI Planner v0 is responsible for:
+
+- page/product-surface type
+- shell and navigation direction
+- information hierarchy
+- section composition and pattern choice
+- meaningful responsive behavior
+- deliberate omissions that keep the interface focused
+
+It intentionally does not encode exact pixels, Tailwind classes, color values, font families, deeply nested component trees, coordinates, or a constraint graph. Those details remain implementation concerns unless the human explicitly specifies them.
+
+When revising a Plan Artifact, the previous UI blueprint is continuity context. A non-UI planning revision preserves the current blueprint instead of silently discarding it.
 
 ## Execution Model
 
@@ -272,6 +309,7 @@ Plan and Build enforce different capability policies, not merely different promp
 | Read Plan Artifact | Yes | Yes |
 | Create / revise Plan Artifact | Yes | No |
 | Approve / reject Plan Artifact | Yes | No |
+| Create / revise UI blueprint | Yes | No |
 | Generate source | No | Yes |
 | Edit source | No | Yes |
 | Visual Repair | No | Yes |
@@ -279,9 +317,9 @@ Plan and Build enforce different capability policies, not merely different promp
 | Change dependencies | No | Bounded |
 | External write tools | No | Explicitly gated |
 
-The mode policy now includes plan-specific capabilities. Plan may `read-plan`, `write-plan`, and `review-plan`; Build may only `read-plan`. This preserves the rule that execution can consume approved decisions but cannot silently redefine them.
+The mode policy includes plan-specific capabilities. Plan may `read-plan`, `write-plan`, `review-plan`, and `plan-ui`; Build may only `read-plan`. This preserves the rule that execution can consume approved decisions but cannot silently redefine them.
 
-This separation is the foundation for UI planning, Build-from-approved-plan, future MCP, and external-tool permission policies.
+This separation is the foundation for Build-from-approved-plan, future MCP, and external-tool permission policies.
 
 ## Current Foundation
 
@@ -308,6 +346,7 @@ Yakable already has working foundations for:
 - explicit Frontend Agent execution states and live progress
 - Plan / Build mode capability policy with a read-only Plan source boundary
 - versioned Plan Artifact drafting, Markdown rendering, persistence, and explicit review state
+- UI Planner v0 with a bounded semantic UI blueprint attached to the Plan Artifact
 
 These capabilities are foundations, not the roadmap itself.
 
@@ -343,14 +382,15 @@ Near-term work should focus on the following outcomes, without locking them to p
    - allow explicit approve / reject transitions before Build
    - keep plan metadata separate from project source mutation
 
-3. **UI Planner v0** ← NEXT
-   - compile Design Intent into a small page / section / hierarchy / responsive blueprint
-   - attach that blueprint to the Plan Artifact without introducing a broad layout DSL
-   - support both CREATE planning and focused EDIT planning
+3. **UI Planner v0** ✅
+   - compile Design Intent and bounded project evidence into a small semantic UI blueprint
+   - attach page type, shell, hierarchy, sections, responsive guidance, and deliberate omissions to the Plan Artifact
+   - keep UI planning Plan-only and avoid a broad layout DSL
+   - preserve the previous blueprint across non-UI plan revisions
 
-4. **Build From Approved Plan**
+4. **Build From Approved Plan** ← NEXT
    - pass the approved Plan Artifact into generation or Frontend Agent execution
-   - preserve approved decisions during Build
+   - preserve approved decisions and UI blueprint during Build
    - surface deviations instead of silently replanning
 
 5. **Re-plan / Plan Diff**
