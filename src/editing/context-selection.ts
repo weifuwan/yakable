@@ -2,6 +2,7 @@ import path from 'node:path';
 
 import { requestProjectContextSelection } from '../model/deepseek.js';
 import type { ProjectVisualSelection } from '../types.js';
+import type { EditIntentDelta } from './edit-intent.js';
 
 export const MAX_EDIT_CONTEXT_FILES = 12;
 export const MAX_PROJECT_CONTEXT_CANDIDATES = 500;
@@ -21,6 +22,7 @@ export interface EditContextSelection {
 export interface EditContextSelectionInput {
   userRequest: string;
   visualSelections: ProjectVisualSelection[];
+  editIntent?: EditIntentDelta;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -54,6 +56,7 @@ export function buildProjectContextSelectionRequest(
 
   return JSON.stringify({
     userRequest: input.userRequest.trim(),
+    editIntent: input.editIntent ?? null,
     availableFiles: files,
     visualSelections,
   });
@@ -199,6 +202,16 @@ export function fallbackEditContextFiles(userRequest: string, availableFiles: st
   return selected.slice(0, FALLBACK_CONTEXT_FILES);
 }
 
+function fallbackContextQuery(input: EditContextSelectionInput): string {
+  if (!input.editIntent) return input.userRequest;
+  return [
+    input.userRequest,
+    input.editIntent.summary,
+    ...input.editIntent.targetHints,
+    ...input.editIntent.directives.map((directive) => directive.directive),
+  ].join(' ');
+}
+
 export async function selectProjectContextFiles(
   input: EditContextSelectionInput,
   availableFiles: string[],
@@ -228,7 +241,7 @@ export async function selectProjectContextFiles(
     const reason = error instanceof Error ? error.message : String(error);
     return {
       version: 1,
-      relevantFiles: fallbackEditContextFiles(input.userRequest, files),
+      relevantFiles: fallbackEditContextFiles(fallbackContextQuery(input), files),
       searchQuery: null,
       reason: `Context selector fallback used after model selection failed: ${reason}`.slice(0, 400),
       source: 'fallback',
