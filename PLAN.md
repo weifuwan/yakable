@@ -15,16 +15,22 @@
 - **Project Workspace:** reopen, switch, rename, star, remix, and delete generated projects from the dashboard. ✅
 - **Yakable Base Template:** copy a neutral, versioned React + Vite + Tailwind foundation with explicit Yakable-owned and project-owned file boundaries, without invoking a model. ✅
 - **Capability Packs:** explicitly install optional UI capabilities on top of Base, with pack-owned files, deterministic dependency merging, conflict protection, idempotent installs, and persisted capability state. ✅
+- **Minimal Tool Contract:** expose structured Tool / ToolResult / ToolRegistry primitives and route project text reads through a safe `read_project_file` tool, without model tool-calling or MCP. ✅
 
 ## Next
 
-- **UI Planner:** compile Design Intent into an explicit page, section, hierarchy, and responsive-layout plan before code generation.
-- **Model Prompt Compiler:** compile Yakable's model-independent IR into model-specific generation instructions.
-- **Design Critic:** inspect generated UI against Design Intent and UI Plan instead of relying only on the generator's self-judgment.
-- **Repair Loop:** feed bounded build, runtime, and design failures back into targeted repair until the project is healthy or the retry limit is reached.
+- **Project Context Selection:** choose a small relevant file set for an edit before reading model context instead of sending the whole project snapshot.
+- **Project Search Tool:** add one bounded search capability for edits whose source file is not already known from Visual Edit metadata.
+- **Project Check Tool:** run a deterministic TypeScript/build health check after an edit and return structured pass/fail observations without repairing anything yet.
+- **One-shot Repair:** on a failed project check, allow exactly one targeted repair attempt and check again.
 
 ## Later
 
+- **UI Planner:** compile Design Intent into an explicit page, section, hierarchy, and responsive-layout plan before code generation.
+- **Design Critic:** inspect generated UI against Design Intent and UI Plan instead of relying only on the generator's self-judgment.
+- **Taste Library & Retrieval:** retrieve focused frontend patterns and examples only when they are relevant to the current design decision.
+- **MCP Adapter:** expose external MCP tools through the same internal Tool contract after local tool execution is stable.
+- **Model Prompt Compiler:** compile Yakable's model-independent IR into model-specific generation instructions when multiple model providers make that abstraction necessary.
 - **Long-running Iteration Robustness:** improve compaction, conflict handling, and preservation of unrelated code when edit histories become large.
 - **Versioning & Rollback:** capture stable project versions, inspect diffs, and restore earlier states safely.
 - **Full-stack Capabilities:** add product-facing database, auth, storage, secrets, and backend functions without exposing unnecessary complexity.
