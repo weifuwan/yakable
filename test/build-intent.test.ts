@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { generateProject } from '../src/generation/generate.js';
 import {
+  BuildIntentGateError,
   detectObviousBuildIntent,
   parseBuildIntentDecision,
 } from '../src/prompt-intelligence/build-intent.js';
@@ -82,4 +84,20 @@ test('bare Hello World inputs require clarification instead of creating', () => 
 test('real build requests are left for model routing rather than blocked by fast paths', () => {
   assert.equal(detectObviousBuildIntent('Build a Hello World page'), null);
   assert.equal(detectObviousBuildIntent('帮我做一个 Todo App'), null);
+});
+
+test('project generation rejects a precomputed non-CREATE decision before downstream generation', async () => {
+  await assert.rejects(
+    () =>
+      generateProject('Hello World', {
+        buildIntent: {
+          version: 1,
+          route: 'CLARIFY',
+          confidence: 'high',
+          message: 'Do you want me to create a Hello World page?',
+        },
+      }),
+    (error: unknown) =>
+      error instanceof BuildIntentGateError && error.decision.route === 'CLARIFY',
+  );
 });
