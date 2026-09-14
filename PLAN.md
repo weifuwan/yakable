@@ -18,15 +18,15 @@
 - **Minimal Tool Contract:** expose structured Tool / ToolResult / ToolRegistry primitives and route project text reads through a safe `read_project_file` tool, without model tool-calling or MCP. ✅
 - **Project Context Selection:** list safe text-file paths first, select at most 12 relevant files from the request or Visual Edit mapping, then read only those files for Project Edit. Existing files outside selected context cannot be modified. ✅
 - **Project Search Tool:** when file paths alone are ambiguous, allow Context Selection to request exactly one bounded literal `search_project` query, merge matched files into context, then continue through `read_project_file`. ✅
-- **Project Check Tool:** after each source edit, run bounded TypeScript and Vite build checks and return structured PASS/FAIL diagnostics without modifying the project or triggering repair. ✅
+- **Project Check Tool:** after each source edit, run bounded TypeScript and Vite build checks and return structured PASS/FAIL diagnostics without modifying the project. ✅
+- **One-shot Repair:** when the post-edit check reports FAIL, build a bounded repair context, allow exactly one targeted repair patch, run one final project check, then stop whether it passes or fails. ✅
 
 ## Next
 
-- **One-shot Repair:** on a failed project check, allow exactly one targeted repair attempt and check again.
+- **UI Planner v0:** compile Design Intent into a small explicit page/section/hierarchy/responsive plan before code generation, without introducing a broad layout DSL.
 
 ## Later
 
-- **UI Planner:** compile Design Intent into an explicit page, section, hierarchy, and responsive-layout plan before code generation.
 - **Design Critic:** inspect generated UI against Design Intent and UI Plan instead of relying only on the generator's self-judgment.
 - **Taste Library & Retrieval:** retrieve focused frontend patterns and examples only when they are relevant to the current design decision.
 - **MCP Adapter:** expose external MCP tools through the same internal Tool contract after local tool execution is stable.
