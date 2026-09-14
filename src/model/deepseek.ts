@@ -1,3 +1,4 @@
+import { DESIGN_CRITIC_SYSTEM_PROMPT } from '../editing/design-critic-prompt.js';
 import { EDIT_INTENT_DELTA_SYSTEM_PROMPT } from '../editing/edit-intent-prompt.js';
 import { PROJECT_CONTEXT_SELECTION_SYSTEM_PROMPT } from '../editing/context-selection-prompt.js';
 import { PROJECT_EDIT_SYSTEM_PROMPT } from '../editing/edit-prompt.js';
@@ -210,6 +211,14 @@ export function requestEditIntentDelta(userPrompt: string): Promise<DeepSeekGene
     EDIT_INTENT_DELTA_SYSTEM_PROMPT,
     userPrompt,
     'Edit Intent Delta',
+  );
+}
+
+export function requestDesignCritique(userPrompt: string): Promise<DeepSeekGeneration> {
+  return requestStructuredGeneration(
+    DESIGN_CRITIC_SYSTEM_PROMPT,
+    userPrompt,
+    'Design Critic',
   );
 }
 
