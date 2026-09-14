@@ -213,23 +213,64 @@ test('web API lists projects and wires Build Intent -> Prompt -> Template -> Rou
   }
 });
 
-test('web API returns CHAT/CLARIFY without generating or starting a project', async () => {
+test('web API preserves CHAT/CLARIFY input as a project conversation', async () => {
   const services = fakeServices();
   let generated = false;
   let runtimeStarted = false;
-  services.gateBuildIntent = async () => ({
+  const chatDecision: BuildIntentDecision = {
     version: 1,
     route: 'CHAT',
     confidence: 'high',
     message: 'Hi! Tell me what you want to build.',
-  });
-  services.generate = async () => {
-    generated = true;
-    throw new Error('generate should not be called');
   };
-  services.startRuntime = async () => {
+  const chatSession: ProjectSessionState = {
+    version: 1,
+    productRequest: 'Hello',
+    initialSummary: chatDecision.message,
+    createdAt: '2026-09-11T08:00:00.000Z',
+    updatedAt: '2026-09-11T08:00:00.000Z',
+    edits: [],
+  };
+  const chatConversation: ProjectConversation = {
+    projectId: 'chat-project',
+    createdAt: chatSession.createdAt,
+    updatedAt: chatSession.updatedAt,
+    messages: [
+      {
+        id: 'chat-user',
+        role: 'user',
+        content: 'Hello',
+        createdAt: chatSession.createdAt,
+      },
+      {
+        id: 'chat-assistant',
+        role: 'assistant',
+        content: chatDecision.message,
+        createdAt: chatSession.createdAt,
+      },
+    ],
+  };
+
+  services.gateBuildIntent = async () => chatDecision;
+  services.generate = async (prompt, decision) => {
+    generated = true;
+    assert.equal(prompt, 'Hello');
+    assert.equal(decision.route, 'CHAT');
+    return {
+      id: 'chat-project',
+      name: 'Hello',
+      summary: decision.message,
+      model: 'build-intent',
+      template: metadata.template,
+      routes: metadata.routes,
+      session: chatSession,
+      conversation: chatConversation,
+    };
+  };
+  const startRuntime = services.startRuntime;
+  services.startRuntime = async (projectId) => {
     runtimeStarted = true;
-    throw new Error('runtime should not be called');
+    return startRuntime(projectId);
   };
 
   const api = createYakableApiServer({ services });
@@ -241,12 +282,19 @@ test('web API returns CHAT/CLARIFY without generating or starting a project', as
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt: 'Hello' }),
     });
-    assert.equal(response.status, 200);
-    const result = await response.json() as { decision: BuildIntentDecision; project?: unknown };
+    assert.equal(response.status, 201);
+    const result = await response.json() as {
+      decision: BuildIntentDecision;
+      project: { id: string; conversation: ProjectConversation };
+      previewUrl: string;
+    };
     assert.equal(result.decision.route, 'CHAT');
-    assert.equal(result.project, undefined);
-    assert.equal(generated, false);
-    assert.equal(runtimeStarted, false);
+    assert.equal(result.project.id, 'chat-project');
+    assert.equal(result.project.conversation.messages[0]?.content, 'Hello');
+    assert.equal(result.project.conversation.messages[1]?.content, chatDecision.message);
+    assert.match(result.previewUrl, /revision=/);
+    assert.equal(generated, true);
+    assert.equal(runtimeStarted, true);
   } finally {
     await api.close();
   }
