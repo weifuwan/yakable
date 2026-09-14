@@ -9,6 +9,11 @@ import {
   type VisualRepairResult,
 } from '../editing/visual-repair.js';
 import {
+  generateProject,
+  type GenerateProjectOptions,
+} from '../generation/generate.js';
+import type { GenerationResult } from '../types.js';
+import {
   assertModeCapability,
   type YakableMode,
   type YakableModeCapability,
@@ -21,6 +26,16 @@ export async function runModeCapability<T>(
 ): Promise<T> {
   assertModeCapability(mode, capability);
   return task();
+}
+
+export function generateProjectInMode(
+  mode: YakableMode,
+  prompt: string,
+  options: Omit<GenerateProjectOptions, 'mode'> = {},
+): Promise<GenerationResult> {
+  return runModeCapability(mode, 'generate-source', () =>
+    generateProject(prompt, { ...options, mode }),
+  );
 }
 
 export function editGeneratedProjectInMode(
