@@ -125,8 +125,8 @@ function requestLooksStylingRelated(request: string): boolean {
 }
 
 function pathWords(file: string): string[] {
-  return path
-    .basename(file, path.extname(file))
+  return path.posix
+    .basename(file, path.posix.extname(file))
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .split(/[^A-Za-z0-9]+/)
     .map((word) => word.toLowerCase())
@@ -142,7 +142,7 @@ export function fallbackEditContextFiles(userRequest: string, availableFiles: st
     .map((file) => {
       let score = 0;
       const lower = file.toLowerCase();
-      const base = path.basename(lower, path.extname(lower));
+      const base = path.posix.basename(lower, path.posix.extname(lower));
       if (base.length >= 3 && request.includes(base)) score += 10;
       for (const word of pathWords(file)) {
         if (request.includes(word)) score += 4;
