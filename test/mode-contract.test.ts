@@ -46,21 +46,23 @@ test('PLAN exposes read-only source capabilities plus planning and review', () =
   assert.equal(modeAllowsCapability('PLAN', 'write-plan'), true);
   assert.equal(modeAllowsCapability('PLAN', 'review-plan'), true);
   assert.equal(modeAllowsCapability('PLAN', 'plan-ui'), true);
+  assert.equal(modeAllowsCapability('PLAN', 'execute-plan'), false);
   assert.equal(modeAllowsCapability('PLAN', 'generate-source'), false);
   assert.equal(modeAllowsCapability('PLAN', 'edit-source'), false);
   assert.equal(modeAllowsCapability('PLAN', 'repair-source'), false);
 });
 
-test('BUILD may read an approved plan but cannot silently revise, review, or re-plan UI', () => {
+test('BUILD may execute and read an approved plan but cannot silently revise, review, or re-plan UI', () => {
   const context = createYakableModeContext('BUILD');
   assert.equal(context.allows('read-plan'), true);
   assert.equal(context.allows('write-plan'), false);
   assert.equal(context.allows('review-plan'), false);
   assert.equal(context.allows('plan-ui'), false);
+  assert.equal(context.allows('execute-plan'), true);
   assert.equal(context.allows('generate-source'), true);
   assert.equal(context.allows('edit-source'), true);
   assert.equal(context.allows('repair-source'), true);
-  assert.doesNotThrow(() => context.assert('edit-source'));
+  assert.doesNotThrow(() => context.assert('execute-plan'));
 });
 
 test('forbidden PLAN capability fails with a structured mode error', () => {

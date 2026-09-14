@@ -104,6 +104,31 @@ export type {
   ReviewProjectPlanOptions,
 } from './planning/plan-artifact.js';
 export {
+  APPROVED_PLAN_EXECUTION_VERSION,
+  APPROVED_PLAN_MAX_CONTEXT_HINTS,
+  APPROVED_PLAN_MAX_DEVIATIONS,
+  ApprovedPlanExecutionError,
+  buildApprovedPlanExecutionRequest,
+  collectApprovedPlanContextHints,
+  compileApprovedPlanExecutionContract,
+} from './planning/approved-plan-contract.js';
+export type {
+  ApprovedPlanExecutionContract,
+  ApprovedPlanExecutionErrorCode,
+  ApprovedPlanExecutionSource,
+} from './planning/approved-plan-contract.js';
+export {
+  buildApprovedPlanEditContext,
+  buildProjectFromApprovedPlan,
+  mergeApprovedPlanContextSelection,
+  parseApprovedPlanPatch,
+} from './planning/approved-plan-build.js';
+export type {
+  ApprovedPlanBuildResult,
+  ApprovedPlanPatchResult,
+  BuildFromApprovedPlanOptions,
+} from './planning/approved-plan-build.js';
+export {
   UI_PLAN_CONTENT_WIDTHS,
   UI_PLAN_DENSITIES,
   UI_PLAN_MAX_OMISSIONS,
