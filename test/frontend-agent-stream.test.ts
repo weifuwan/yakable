@@ -35,8 +35,26 @@ function services(): WebApiServices {
         message: 'Create project.',
       };
     },
-    async generate() {
-      throw new Error('not used');
+    async generate(prompt, buildIntent, onAgentEvent) {
+      assert.equal(prompt, 'Build a SaaS landing page');
+      assert.equal(buildIntent.route, 'CREATE');
+      onAgentEvent?.(createFrontendAgentEvent('ROUTE', 'COMPLETED', 'create'));
+      onAgentEvent?.(createFrontendAgentEvent('UNDERSTAND', 'COMPLETED', 'understood'));
+      onAgentEvent?.(createFrontendAgentEvent('DESIGN', 'COMPLETED', 'designed'));
+      onAgentEvent?.(createFrontendAgentEvent('TEMPLATE', 'COMPLETED', 'website'));
+      onAgentEvent?.(createFrontendAgentEvent('GENERATE', 'COMPLETED', 'generated'));
+      onAgentEvent?.(createFrontendAgentEvent('WRITE', 'COMPLETED', 'written'));
+      onAgentEvent?.(createFrontendAgentEvent('CHECK', 'COMPLETED', 'healthy'));
+      return {
+        id: 'created-project',
+        name: 'Created Project',
+        summary: 'Generated landing page',
+        model: 'test-model',
+        template: 'website',
+        routes: [{ path: '/', title: 'Home' }],
+        session: null,
+        conversation: null,
+      };
     },
     async edit(projectId, prompt, onAgentEvent) {
       assert.equal(projectId, 'demo-project');
@@ -61,6 +79,58 @@ function services(): WebApiServices {
     },
   };
 }
+
+test('agent-create streams create pipeline states before the final project result', async () => {
+  const api = createYakableApiServer({ services: services() });
+  const baseUrl = await api.listen(0);
+
+  try {
+    const response = await fetch(`${baseUrl}/api/projects/agent-create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: 'Build a SaaS landing page' }),
+    });
+
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-type') ?? '', /application\/x-ndjson/);
+
+    const records = (await response.text())
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+
+    assert.deepEqual(
+      records.filter((record) => record.type === 'agent-event').map((record) => {
+        const event = record.event as { state: string; status: string };
+        return `${event.state}:${event.status}`;
+      }),
+      [
+        'ROUTE:COMPLETED',
+        'UNDERSTAND:COMPLETED',
+        'DESIGN:COMPLETED',
+        'TEMPLATE:COMPLETED',
+        'GENERATE:COMPLETED',
+        'WRITE:COMPLETED',
+        'CHECK:COMPLETED',
+      ],
+    );
+
+    const final = records.at(-1) as {
+      type: string;
+      result: {
+        decision: { route: string };
+        project: { id: string };
+        previewUrl: string;
+      };
+    };
+    assert.equal(final.type, 'result');
+    assert.equal(final.result.decision.route, 'CREATE');
+    assert.equal(final.result.project.id, 'created-project');
+    assert.match(final.result.previewUrl, /revision=/);
+  } finally {
+    await api.close();
+  }
+});
 
 test('agent-edit streams real backend states before the final edit result', async () => {
   const api = createYakableApiServer({ services: services() });
