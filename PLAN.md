@@ -1,13 +1,26 @@
-# Yakable Staged Plan
+# Yakable Capability Roadmap
 
-> One stage, one problem, one verifiable outcome.
+> One capability, one problem, one verifiable outcome.
 
-1. **Stage 1 — Prompt → Code:** turn one natural-language product request into a complete frontend source tree. ✅
-2. **Stage 2 — Code → Run:** execute the generated project in a controlled runtime and show a real Preview. ✅
-3. **Stage 3 — Prompt → Patch:** let a follow-up prompt modify the existing project instead of regenerating it. 🚧
-4. **Stage 4 — Error → Fix:** feed runtime/build failures back to the model until the project is repaired or a bounded retry limit is reached.
-5. **Stage 5 — Stable Iteration:** make repeated edits preserve unrelated code and remain usable over long conversations.
-6. **Stage 6 — Version → Rollback:** capture stable project versions, inspect diffs, and restore an earlier state safely.
-7. **Stage 7 — Frontend → Full Stack:** add database, auth, storage, secrets, and backend capabilities without exposing unnecessary complexity to the user.
-8. **Stage 8 — Visual → Source:** select a Preview element and map that visual target back to the source for precise edits.
-9. **Stage 9 — Project → Product:** add deployment, GitHub sync, collaboration, model routing, and production infrastructure as real usage demands them.
+## Working now
+
+- **Prompt Intelligence:** parse user intent, fill conservative semantic defaults, translate vague taste language, and compile the result into a versioned Design Intent IR. ✅
+- **Project Generation:** turn a product request plus Design Intent into a complete frontend source tree. ✅
+- **Runtime & Preview:** run generated projects in a controlled local Vite runtime and expose a live Preview. ✅
+- **Project Editing:** apply follow-up requests as focused source changes without regenerating the whole project. ✅
+- **Visual → Source Editing:** select Preview elements, map them back to JSX source locations, and use that context for targeted edits. ✅
+- **Project Workspace:** reopen, switch, rename, star, remix, and delete generated projects from the dashboard. ✅
+
+## Next
+
+- **UI Planner:** compile Design Intent into an explicit page, section, hierarchy, and responsive-layout plan before code generation.
+- **Model Prompt Compiler:** compile Yakable's model-independent IR into model-specific generation instructions.
+- **Design Critic:** inspect generated UI against Design Intent and UI Plan instead of relying only on the generator's self-judgment.
+- **Repair Loop:** feed bounded build, runtime, and design failures back into targeted repair until the project is healthy or the retry limit is reached.
+
+## Later
+
+- **Stable Iteration:** make repeated edits preserve unrelated code and remain reliable over long conversations.
+- **Versioning & Rollback:** capture stable project versions, inspect diffs, and restore earlier states safely.
+- **Full-stack Capabilities:** add database, auth, storage, secrets, and backend functions without exposing unnecessary complexity.
+- **Deployment & Collaboration:** add deployment, GitHub sync, collaboration, model routing, ownership, and production infrastructure as real usage demands them.

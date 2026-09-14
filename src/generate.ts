@@ -14,7 +14,7 @@ export async function generateProject(prompt: string): Promise<GenerationResult>
   }
 
   if (normalizedPrompt.length > 12_000) {
-    throw new Error('Prompt is too long. Stage 1 accepts at most 12,000 characters.');
+    throw new Error('Prompt is too long. Project generation accepts at most 12,000 characters.');
   }
 
   const intent = await analyzePromptIntent(normalizedPrompt);

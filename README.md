@@ -2,11 +2,11 @@
 
 Yakable is being rebuilt one product problem at a time.
 
-> One stage, one problem, one verifiable outcome.
+> One capability, one problem, one verifiable outcome.
 
 ## Web product flow
 
-The Lovable-inspired dashboard is now wired to the Stage 1–3 backend capabilities.
+The Lovable-inspired dashboard is wired to Yakable's prompt intelligence, project generation, runtime, preview, and editing capabilities.
 
 Run the local API in one terminal:
 
@@ -28,38 +28,42 @@ The web flow is now:
 ```text
 Dashboard Prompt
       ↓
-Prompt → Code
+Prompt Intelligence
       ↓
-Code → Run
+Design Intent
       ↓
-Project Workspace + live iframe Preview
+Generate Project
       ↓
-Follow-up Prompt → Patch
+Run + live Preview
+      ↓
+Follow-up Prompt → Edit
       ↓
 Preview refresh
 ```
 
-The API listens only on `127.0.0.1:8787` by default and the dashboard proxies `/api` to it. Set `YAKABLE_API_PORT` only if you also update the dashboard Vite proxy.
+The API listens on `127.0.0.1:8787` by default and the dashboard proxies `/api` to it. Set `YAKABLE_API_PORT` only if you also update the dashboard Vite proxy.
 
 ### What works in the browser
 
 - create a new project from the dashboard prompt
-- generate the Stage 1 source tree with DeepSeek
-- start the Stage 2 controlled Vite runtime automatically
+- analyze the request through Intent Parser, Semantic Expander, Taste Translator, and Design Intent IR
+- generate the frontend source tree with DeepSeek
+- start the controlled Vite runtime automatically
 - enter a Lovable-style split workspace with chat on the left and Preview on the right
 - reopen existing local projects from the dashboard
-- send follow-up edit prompts using the Stage 3 patch flow
+- send follow-up edit prompts against the existing project
+- select Preview elements and target edits back to mapped JSX source locations
 - refresh or open the live Preview separately
 
-### Boundary
+### Current boundary
 
-This is still **not Stage 4**. The browser does not feed build/runtime failures back into DeepSeek and does not run an automatic repair loop. If a patch breaks the generated project, the Preview exposes that failure and repair remains manual for now.
+Automatic build/runtime error repair is not implemented yet. If an edit breaks the generated project, the Preview exposes that failure and repair remains manual for now.
 
 There is also no auth, database, cloud persistence, deployment, or multi-tenant sandbox yet. The Web API and generated runtimes are local development surfaces.
 
-## CLI stages
+## CLI commands
 
-The original stage commands remain available:
+The same core capabilities are available directly from the CLI:
 
 ```bash
 npm run generate -- "Build a clean SaaS landing page"
@@ -85,12 +89,14 @@ npm test
 npm run build:web
 ```
 
-## Current flow
+## Current capability map
 
 ```text
-Prompt → Code ✅
-Code → Run ✅
-Prompt → Patch ✅
-Dashboard → real product flow ✅
-Error → Fix ⏭️
+Prompt Intelligence ✅
+Design Intent ✅
+Generate Project ✅
+Run + Preview ✅
+Targeted Project Edit ✅
+Visual → Source Edit ✅
+Automatic Error Repair ⏭️
 ```

@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { resolveDeepSeekRequestConfig } from '../src/deepseek.js';
 
-test('uses Stage 1 latency-safe DeepSeek defaults', () => {
+test('uses latency-safe DeepSeek defaults', () => {
   const config = resolveDeepSeekRequestConfig({});
 
   assert.equal(config.model, 'deepseek-v4-pro');

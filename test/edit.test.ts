@@ -25,7 +25,7 @@ async function createFixture(root: string): Promise<ResolvedGeneratedProject> {
   return { directory, id: 'demo-project' };
 }
 
-test('parses a focused Stage 3 change set', () => {
+test('parses a focused project change set', () => {
   const patch = parseProjectPatch(
     JSON.stringify({
       summary: 'Update the Hero copy',
@@ -61,7 +61,7 @@ test('rejects root configuration and traversal changes', () => {
 });
 
 test('reads source context without secrets or build output', async () => {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'yakable-stage3-context-'));
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'yakable-edit-context-'));
 
   try {
     const project = await createFixture(tempRoot);
@@ -79,7 +79,7 @@ test('reads source context without secrets or build output', async () => {
 });
 
 test('applies only returned files and preserves unrelated source', async () => {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'yakable-stage3-apply-'));
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'yakable-edit-apply-'));
 
   try {
     const project = await createFixture(tempRoot);
