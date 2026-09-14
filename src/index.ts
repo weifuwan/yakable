@@ -18,6 +18,22 @@ export type {
   CreatedBaseProject,
 } from './templates/base-template.js';
 export {
+  CAPABILITY_PACK_VERSION,
+  PROJECT_CAPABILITY_STATE_VERSION,
+  installCapabilityPacks,
+  listCapabilityPacks,
+  readCapabilityPackManifest,
+  readProjectCapabilityState,
+} from './templates/capability-pack.js';
+export type {
+  CapabilityDependencyChange,
+  CapabilityPackManifest,
+  InstallCapabilityPacksOptions,
+  InstallCapabilityPacksResult,
+  InstalledCapabilityPack,
+  ProjectCapabilityState,
+} from './templates/capability-pack.js';
+export {
   buildSemanticExpansionRequest,
   expandPromptSemantics,
   parseSemanticExpansion,
