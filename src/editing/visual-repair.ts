@@ -25,6 +25,7 @@ export interface VisualRepairResult {
   contextFiles: string[];
   changedFiles: string[];
   projectCheck: ToolResult<CheckProjectOutput> | null;
+  rolledBack: boolean;
   model?: string;
   summary?: string;
   error?: string;
@@ -53,6 +54,7 @@ export interface RunVisualRepairInput extends VisualRepairProjectInput {
   parsePatch(rawContent: string): ProjectPatch;
   applyPatch(patch: ProjectPatch): Promise<string[]>;
   checkProject(): Promise<ToolResult<CheckProjectOutput>>;
+  restoreFiles?(files: GeneratedFile[]): Promise<void>;
 }
 
 function addUnique(target: string[], value: string, allowed: Set<string>): void {
@@ -192,6 +194,7 @@ export async function runVisualRepairOnce(
       contextFiles: [],
       changedFiles: [],
       projectCheck: null,
+      rolledBack: false,
     };
   }
 
@@ -210,6 +213,7 @@ export async function runVisualRepairOnce(
       contextFiles: [],
       changedFiles: [],
       projectCheck: null,
+      rolledBack: false,
       error: 'Visual Repair skipped because no bounded readable source context could be derived.',
     };
   }
@@ -217,9 +221,10 @@ export async function runVisualRepairOnce(
   let changedFiles: string[] = [];
   let model: string | undefined;
   let summary: string | undefined;
+  let originalFiles: GeneratedFile[] = [];
 
   try {
-    const files = await input.readFiles(contextFiles);
+    originalFiles = await input.readFiles(contextFiles);
     const generation = await input.requestRepair(
       buildVisualRepairRequest(
         input.projectId,
@@ -228,7 +233,7 @@ export async function runVisualRepairOnce(
         input.editIntent,
         input.critique,
         input.pageObservation,
-        files,
+        originalFiles,
       ),
     );
     model = generation.model;
@@ -244,6 +249,7 @@ export async function runVisualRepairOnce(
       contextFiles,
       changedFiles,
       projectCheck: null,
+      rolledBack: false,
       ...(model ? { model } : {}),
       ...(summary ? { summary } : {}),
       error: error instanceof Error ? error.message : String(error),
@@ -258,22 +264,52 @@ export async function runVisualRepairOnce(
   }
 
   const repaired = projectCheck.ok && projectCheck.value.status === 'PASS';
+  if (repaired) {
+    return {
+      attempted: true,
+      status: 'REPAIRED',
+      contextFiles,
+      changedFiles,
+      projectCheck,
+      rolledBack: false,
+      ...(model ? { model } : {}),
+      ...(summary ? { summary } : {}),
+    };
+  }
+
+  let rolledBack = false;
+  let rollbackError: string | undefined;
+  if (input.restoreFiles && changedFiles.length > 0) {
+    const changed = new Set(changedFiles);
+    const filesToRestore = originalFiles.filter((file) => changed.has(file.path));
+    if (filesToRestore.length > 0) {
+      try {
+        await input.restoreFiles(filesToRestore);
+        rolledBack = true;
+      } catch (error) {
+        rollbackError = error instanceof Error ? error.message : String(error);
+      }
+    }
+  }
+
+  const checkError = projectCheck.ok
+    ? 'Visual Repair changed source but the fixed project health check still failed.'
+    : projectCheck.error.message;
 
   return {
     attempted: true,
-    status: repaired ? 'REPAIRED' : 'FAILED',
+    status: 'FAILED',
     contextFiles,
     changedFiles,
     projectCheck,
+    rolledBack,
     ...(model ? { model } : {}),
     ...(summary ? { summary } : {}),
-    ...(!repaired
-      ? {
-          error: projectCheck.ok
-            ? 'Visual Repair changed source but the fixed project health check still failed.'
-            : projectCheck.error.message,
-        }
-      : {}),
+    error: rollbackError
+      ? `${checkError} Rollback also failed: ${rollbackError}`
+      : rolledBack
+        ? `${checkError} The visual-repair source changes were rolled back.`
+        : checkError,
   };
 }
 
@@ -294,5 +330,12 @@ export async function repairGeneratedProjectVisual(
     parsePatch: parseProjectPatch,
     applyPatch: (patch) => applyProjectPatch(project, patch),
     checkProject: () => checkProjectTool.execute({}, { projectDirectory: project.directory }),
+    restoreFiles: async (files) => {
+      if (files.length === 0) return;
+      await applyProjectPatch(project, {
+        summary: 'Restore pre-visual-repair source',
+        changes: files,
+      });
+    },
   });
 }
