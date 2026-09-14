@@ -20,20 +20,37 @@ const availableFiles = [
   'src/styles/theme.css',
 ];
 
-test('builds selection request from paths and metadata without source contents', () => {
+test('builds selection request from paths, edit intent, and metadata without source contents', () => {
   const request = buildProjectContextSelectionRequest(
     {
       userRequest: 'Make the Hero spacing tighter',
+      editIntent: {
+        version: 1,
+        summary: 'Tighten Hero spacing.',
+        scope: 'section',
+        targetHints: ['Hero'],
+        directives: [
+          {
+            area: 'spacing-density',
+            directive: 'Reduce vertical spacing inside the Hero.',
+            basis: 'explicit',
+          },
+        ],
+        preserve: [],
+      },
       visualSelections: [],
     },
     availableFiles,
   );
   const parsed = JSON.parse(request) as {
     userRequest: string;
+    editIntent: { scope: string; targetHints: string[] };
     availableFiles: string[];
   };
 
   assert.equal(parsed.userRequest, 'Make the Hero spacing tighter');
+  assert.equal(parsed.editIntent.scope, 'section');
+  assert.deepEqual(parsed.editIntent.targetHints, ['Hero']);
   assert.deepEqual(parsed.availableFiles, [...availableFiles].sort());
   assert.ok(!request.includes('export default function'));
   assert.ok(!request.includes('file content'));
