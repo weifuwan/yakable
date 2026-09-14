@@ -5,6 +5,7 @@ import {
   buildUiPlannerRequest,
   parseUiPlanValue,
   parseUiPlannerResult,
+  planInterface,
   type UiPlan,
 } from '../src/planning/ui-planner.js';
 import {
@@ -51,6 +52,22 @@ const uiPlan: UiPlan = {
   deliberateOmissions: [
     'Do not add decorative charts that duplicate task-state information.',
   ],
+};
+
+const plannerInput = {
+  projectId: 'demo-project',
+  userRequest: 'Make the dashboard hierarchy clearer',
+  productRequest: 'Build a data synchronization dashboard',
+  designIntent: null,
+  currentUiPlan: uiPlan,
+  contextSelection: {
+    version: 1 as const,
+    relevantFiles: ['src/App.tsx'],
+    searchQuery: null,
+    reason: 'Selected current page shell.',
+    source: 'fallback' as const,
+  },
+  files: [{ path: 'src/App.tsx', content: 'export default function App() {}' }],
 };
 
 test('parses one bounded applicable UI blueprint', () => {
@@ -117,21 +134,7 @@ test('rejects unbounded or unsupported UI-plan structure', () => {
 });
 
 test('builds UI Planner context from intent, prior UI plan, and bounded source files', () => {
-  const request = buildUiPlannerRequest({
-    projectId: 'demo-project',
-    userRequest: 'Make the dashboard hierarchy clearer',
-    productRequest: 'Build a data synchronization dashboard',
-    designIntent: null,
-    currentUiPlan: uiPlan,
-    contextSelection: {
-      version: 1,
-      relevantFiles: ['src/App.tsx'],
-      searchQuery: null,
-      reason: 'Selected current page shell.',
-      source: 'fallback',
-    },
-    files: [{ path: 'src/App.tsx', content: 'export default function App() {}' }],
-  });
+  const request = buildUiPlannerRequest(plannerInput);
 
   const parsed = JSON.parse(request) as {
     currentUiPlan: UiPlan;
@@ -139,6 +142,13 @@ test('builds UI Planner context from intent, prior UI plan, and bounded source f
   };
   assert.equal(parsed.currentUiPlan.sections[0]?.id, 'overview');
   assert.deepEqual(parsed.project.files.map((file) => file.path), ['src/App.tsx']);
+});
+
+test('UI Planner is structurally PLAN-only and rejects BUILD before model work', async () => {
+  await assert.rejects(
+    planInterface({ ...plannerInput, mode: 'BUILD' }),
+    /BUILD mode does not allow plan-ui/,
+  );
 });
 
 test('Plan Artifact persists and renders the UI blueprint as one reviewable contract', () => {
