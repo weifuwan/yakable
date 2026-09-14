@@ -154,10 +154,10 @@ export interface VisualRepairResult {
   contextFiles: string[];
   changedFiles: string[];
   projectCheck: ProjectCheckResult | null;
+  rolledBack: boolean;
   model?: string;
   summary?: string;
   error?: string;
-  rolledBack?: boolean;
 }
 
 export type VisualFeedbackStatus =
@@ -401,7 +401,10 @@ async function runVisualFeedback(
       previewUrl: repairResponse.previewUrl,
       session: repairResponse.session,
       conversation: repairResponse.conversation,
-      changedFiles: mergeChangedFiles(current.changedFiles, repair.changedFiles),
+      changedFiles:
+        repair.status === 'REPAIRED'
+          ? mergeChangedFiles(current.changedFiles, repair.changedFiles)
+          : current.changedFiles,
     };
 
     if (repair.status !== 'REPAIRED' || !repair.projectCheck || !healthyProjectCheck(repair.projectCheck)) {
