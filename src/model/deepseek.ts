@@ -1,3 +1,4 @@
+import { PROJECT_CONTEXT_SELECTION_SYSTEM_PROMPT } from '../editing/context-selection-prompt.js';
 import { PROJECT_EDIT_SYSTEM_PROMPT } from '../editing/edit-prompt.js';
 import { PROJECT_GENERATION_SYSTEM_PROMPT } from '../generation/prompt.js';
 import { BUILD_INTENT_SYSTEM_PROMPT } from '../prompt-intelligence/build-intent-prompt.js';
@@ -199,6 +200,14 @@ export function requestProjectCode(userPrompt: string): Promise<DeepSeekGenerati
     PROJECT_GENERATION_SYSTEM_PROMPT,
     userPrompt,
     'Project Generation',
+  );
+}
+
+export function requestProjectContextSelection(userPrompt: string): Promise<DeepSeekGeneration> {
+  return requestStructuredGeneration(
+    PROJECT_CONTEXT_SELECTION_SYSTEM_PROMPT,
+    userPrompt,
+    'Project Context Selection',
   );
 }
 
