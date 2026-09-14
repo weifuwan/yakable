@@ -1,7 +1,9 @@
 import {
+  announceUserEditMessageSubmitted,
   buildVisualEditPrompt,
   clearCurrentPreviewSelections,
   getCurrentPreviewSelections,
+  type PreviewSelection,
 } from './visual-edit-context';
 
 export type ProjectTemplate = 'website' | 'app';
@@ -103,8 +105,12 @@ export function startProjectRuntime(projectId: string): Promise<RuntimeProject> 
   });
 }
 
-export async function editProject(projectId: string, prompt: string): Promise<EditedProject> {
-  const selections = getCurrentPreviewSelections();
+export async function editProject(
+  projectId: string,
+  prompt: string,
+  selections: PreviewSelection[] = getCurrentPreviewSelections(),
+): Promise<EditedProject> {
+  announceUserEditMessageSubmitted(prompt, selections);
   const visualEditPrompt = buildVisualEditPrompt(prompt, selections);
   const result = await requestJson<EditedProject>(
     `/api/projects/${encodeURIComponent(projectId)}/edit`,
