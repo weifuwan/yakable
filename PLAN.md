@@ -24,14 +24,14 @@
 - **Edit Intent Delta v0:** normalize a follow-up edit request against the persisted Design Intent into a bounded `summary + scope + targetHints + directives + preserve` contract, then give the same delta to Context Selection and Project Edit. Normalization failures use a deterministic fallback instead of blocking the edit. ✅
 - **Design Critic v0:** inspect one bounded Page Observation against the original Design Intent and current Edit Intent Delta, returning evidence-grounded PASS/FAIL findings plus explicit unverified areas without modifying source. Runtime errors are deterministic failures. ✅
 - **Visual Repair v0:** after a healthy frontend edit, automatically observe the current Preview, critique it once, allow at most one bounded source-mapped visual repair on FAIL, run the fixed project health check, then re-observe and critique exactly once before stopping. Failed visual repairs roll their own source changes back. ✅
+- **Frontend Agent v0:** expose the bounded workflow as explicit deterministic states `SELECT_CONTEXT → READ → EDIT → CHECK → OBSERVE → CRITIQUE → REPAIR → DONE`. Backend edit states stream live over a narrow NDJSON endpoint; browser-only observation/critique/repair states continue the same run and the Workspace shows current progress without introducing model-selected tools. ✅
 
 ## Next
 
-- **Frontend Agent v0:** expose the bounded frontend workflow as explicit states such as SELECT_CONTEXT → READ → EDIT → CHECK → OBSERVE → CRITIQUE → REPAIR → DONE, with visible progress and deterministic transition rules before considering broad model-selected tool calling.
+- **UI Planner v0:** compile Design Intent into a small explicit page/section/hierarchy/responsive plan before code generation, without introducing a broad layout DSL.
 
 ## Later
 
-- **UI Planner v0:** compile Design Intent into a small explicit page/section/hierarchy/responsive plan before code generation, without introducing a broad layout DSL.
 - **Taste Library & Retrieval:** retrieve focused frontend patterns and examples only when they are relevant to the current design decision.
 - **MCP Adapter:** expose external MCP tools through the same internal Tool contract after local tool execution is stable.
 - **Model Prompt Compiler:** compile Yakable's model-independent IR into model-specific generation instructions when multiple model providers make that abstraction necessary.
