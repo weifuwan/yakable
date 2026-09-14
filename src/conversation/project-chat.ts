@@ -36,10 +36,7 @@ const MAX_USER_INPUT = 8_000;
 const MAX_RECENT_MESSAGES = 12;
 const MAX_RECENT_MESSAGE_LENGTH = 2_000;
 const MAX_REPLY_LENGTH = 4_000;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
+const PROJECT_CHAT_MAX_ATTEMPTS = 2;
 
 function normalizeInput(input: ProjectChatInput): ProjectChatInput {
   const userInput = input.userInput.trim();
@@ -88,18 +85,77 @@ export function buildProjectChatMessages(input: ProjectChatInput): ProjectChatMe
 }
 
 export function parseProjectChatReply(raw: string): string {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    throw new Error('Project Chat Agent returned invalid JSON.');
+  const content = raw.trim();
+  if (!content) {
+    throw new Error('Project Chat Agent returned an empty response.');
+  }
+  return content.slice(0, MAX_REPLY_LENGTH);
+}
+
+function isTimeoutError(error: unknown): boolean {
+  return error instanceof Error && /abort|timeout|timed out/i.test(`${error.name} ${error.message}`);
+}
+
+async function requestProjectChatCompletion(
+  apiKey: string,
+  input: ProjectChatInput,
+): Promise<ProjectChatReply> {
+  const config = resolveDeepSeekRequestConfig();
+  const messages = buildProjectChatMessages(input);
+
+  for (let attempt = 1; attempt <= PROJECT_CHAT_MAX_ATTEMPTS; attempt += 1) {
+    let response: Response;
+
+    try {
+      response = await fetch(`${config.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: config.model,
+          messages,
+          thinking: { type: config.thinkingMode },
+          max_tokens: Math.min(config.maxTokens, 4_096),
+          stream: false,
+        }),
+        signal: AbortSignal.timeout(config.requestTimeoutMs),
+      });
+    } catch (error) {
+      if (isTimeoutError(error)) {
+        throw new Error('Project Chat Agent timed out. Please try again.');
+      }
+      throw error;
+    }
+
+    const rawBody = await response.text();
+    let payload: DeepSeekChatResponse;
+    try {
+      payload = JSON.parse(rawBody) as DeepSeekChatResponse;
+    } catch {
+      throw new Error(`DeepSeek returned a non-JSON response during Project Chat (${response.status}).`);
+    }
+
+    if (!response.ok) {
+      const message = payload.error?.message?.trim();
+      throw new Error(message ? `DeepSeek API error: ${message}` : `DeepSeek API error: HTTP ${response.status}`);
+    }
+
+    const content = payload.choices?.[0]?.message?.content ?? '';
+    if (content.trim()) {
+      return {
+        message: parseProjectChatReply(content),
+        model: config.model,
+      };
+    }
+
+    if (attempt === PROJECT_CHAT_MAX_ATTEMPTS) {
+      throw new Error('Project Chat Agent returned an empty response after one automatic retry.');
+    }
   }
 
-  if (!isRecord(parsed) || typeof parsed.message !== 'string' || !parsed.message.trim()) {
-    throw new Error('Project Chat Agent returned an invalid message.');
-  }
-
-  return parsed.message.trim().slice(0, MAX_REPLY_LENGTH);
+  throw new Error('Project Chat Agent did not complete.');
 }
 
 export async function generateProjectChatReply(input: ProjectChatInput): Promise<ProjectChatReply> {
@@ -108,52 +164,5 @@ export async function generateProjectChatReply(input: ProjectChatInput): Promise
     throw new Error('DEEPSEEK_API_KEY is required. Copy .env.example to .env and add your key.');
   }
 
-  const config = resolveDeepSeekRequestConfig();
-  const messages = buildProjectChatMessages(input);
-  let response: Response;
-
-  try {
-    response = await fetch(`${config.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: config.model,
-        messages,
-        response_format: { type: 'json_object' },
-        thinking: { type: config.thinkingMode },
-        max_tokens: Math.min(config.maxTokens, 4_096),
-        stream: false,
-      }),
-      signal: AbortSignal.timeout(config.requestTimeoutMs),
-    });
-  } catch (error) {
-    if (error instanceof Error && /abort|timeout|timed out/i.test(`${error.name} ${error.message}`)) {
-      throw new Error('Project Chat Agent timed out. Please try again.');
-    }
-    throw error;
-  }
-
-  const rawBody = await response.text();
-  let payload: DeepSeekChatResponse;
-  try {
-    payload = JSON.parse(rawBody) as DeepSeekChatResponse;
-  } catch {
-    throw new Error(`DeepSeek returned a non-JSON response during Project Chat (${response.status}).`);
-  }
-
-  if (!response.ok) {
-    const message = payload.error?.message?.trim();
-    throw new Error(message ? `DeepSeek API error: ${message}` : `DeepSeek API error: HTTP ${response.status}`);
-  }
-
-  const content = payload.choices?.[0]?.message?.content?.trim();
-  if (!content) throw new Error('Project Chat Agent returned an empty response.');
-
-  return {
-    message: parseProjectChatReply(content),
-    model: config.model,
-  };
+  return requestProjectChatCompletion(apiKey, input);
 }
