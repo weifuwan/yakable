@@ -47,8 +47,10 @@ export async function resolveProjectContextSearch(
     if (selection.relevantFiles.length > 0) {
       return {
         ...selection,
-        source: 'search',
-        reason: `${selection.reason} Search could not run: ${search.error.message}`.slice(0, 400),
+        reason: `${selection.reason} Search could not run; using the directly selected files: ${search.error.message}`.slice(
+          0,
+          400,
+        ),
       };
     }
 
@@ -65,6 +67,16 @@ export async function resolveProjectContextSearch(
   }
 
   const searchedFiles = rankProjectSearchFiles(search.value.matches);
+  if (searchedFiles.length === 0 && selection.relevantFiles.length > 0) {
+    return {
+      ...selection,
+      reason: `${selection.reason} Search for "${selection.searchQuery}" returned no matches; using the directly selected files.`.slice(
+        0,
+        400,
+      ),
+    };
+  }
+
   const relevantFiles = [...selection.relevantFiles];
   for (const file of searchedFiles) {
     if (relevantFiles.length >= MAX_EDIT_CONTEXT_FILES) break;
