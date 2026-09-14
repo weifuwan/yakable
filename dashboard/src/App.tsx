@@ -4,6 +4,7 @@ import {
   createProject,
   listProjects,
   startProjectRuntime,
+  type BuildIntentDecision,
   type ProjectListItem,
 } from "./api";
 import { Dashboard } from "./pages/Dashboard";
@@ -177,8 +178,16 @@ export default function App() {
     setPathname(nextPath);
   }
 
-  async function handleCreate(prompt: string) {
+  async function handleCreate(prompt: string): Promise<BuildIntentDecision> {
     const result = await createProject(prompt);
+    if (result.decision.route !== "CREATE") {
+      return result.decision;
+    }
+
+    if (!result.project || !result.previewUrl) {
+      throw new Error("Build Intent Gate allowed creation, but no project was returned.");
+    }
+
     const nextProject: ActiveProject = {
       id: result.project.id,
       title: result.project.name || projectTitle(result.project.id),
@@ -193,6 +202,7 @@ export default function App() {
     setActiveProject(nextProject);
     navigate(projectPath(result.project.id));
     void reloadProjects();
+    return result.decision;
   }
 
   async function handleOpen(projectId: string) {
