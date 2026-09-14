@@ -48,10 +48,7 @@ export function Topbar({ onNavigate }: { onNavigate: NavigateHandler }) {
       </div>
 
       <div className="flex items-center gap-2">
-        <span className="hidden items-center gap-1.5 rounded-lg bg-black/[0.04] px-3 py-1.5 text-xs font-medium text-black/65 md:flex">
-          <i className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-          Stage 3 ready
-        </span>
+        
         <a
           className={`${controlClass} hidden no-underline md:inline-flex`}
           href="https://github.com/weifuwan/yakable"
@@ -369,19 +366,6 @@ export function Sidebar({
       </nav>
 
       <div className="min-h-6 flex-1" />
-
-      <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-black/[0.08] bg-white/70 p-2 shadow-[0_1px_3px_rgba(0,0,0,0.025)]">
-        <div className="flex min-w-0 flex-col">
-          <strong className="text-xs font-semibold">Generation flow</strong>
-          <small className="truncate text-[10px] text-black/45">
-            Prompt → Code → Run
-          </small>
-        </div>
-        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-semibold text-emerald-700">
-          <i className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-          Ready
-        </span>
-      </div>
 
       <div className="mb-3 h-px w-full bg-black/[0.09]" />
 

@@ -400,7 +400,7 @@ export function ProjectActionsMenu({
           }
         }}
       >
-        <span className="text-[16px] leading-none tracking-[-2px]">•••</span>
+        <span className="text-[8px] leading-none tracking-[1px]">•••</span>
       </button>
       {menu}
       {dialog === "rename" ? <RenameDialog project={project} onClose={() => setDialog(null)} /> : null}
