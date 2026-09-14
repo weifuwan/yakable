@@ -11,6 +11,22 @@ Base
   + overlay
   + form
   + feedback
+  + chart
+  + date
+  + command
+```
+
+Current catalog:
+
+```text
+data-display  Badge + Card + Table
+navigation    Breadcrumb + Tabs
+overlay       Dialog + Popover + Dropdown Menu + Tooltip
+form          Form helpers + Select + Checkbox + Switch + Textarea
+feedback      Alert + Progress + Skeleton + Sonner toast
+chart         Responsive ChartContainer + Recharts
+date          Calendar + React Day Picker + date-fns
+command       Command palette primitives + cmdk
 ```
 
 A pack directory contains:

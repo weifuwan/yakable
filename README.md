@@ -121,7 +121,7 @@ List the current catalog:
 npm run list:packs
 ```
 
-Initial packs:
+Current packs:
 
 ```text
 data-display  Badge + Card + Table
@@ -129,12 +129,16 @@ navigation    Breadcrumb + Tabs
 overlay       Dialog + Popover + Dropdown Menu + Tooltip
 form          Form helpers + Select + Checkbox + Switch + Textarea
 feedback      Alert + Progress + Skeleton + Sonner toast
+chart         Responsive ChartContainer + Recharts
+date          Calendar + React Day Picker + date-fns
+command       Command palette primitives + cmdk
 ```
 
 Install one or more packs into an existing Base project:
 
 ```bash
 npm run add:pack -- base-demo data-display navigation overlay
+npm run add:pack -- base-demo chart date command
 cd generated/base-demo
 npm install
 ```
@@ -158,6 +162,7 @@ The core capabilities are available directly from the CLI:
 npm run create:base -- base-demo
 npm run list:packs
 npm run add:pack -- base-demo data-display navigation
+npm run add:pack -- base-demo chart date command
 npm run generate -- "Build a clean SaaS landing page"
 npm run run:project -- generated/<project-id>
 npm run edit -- generated/<project-id> "把 Hero 主色改成蓝色"

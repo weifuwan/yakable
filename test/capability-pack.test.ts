@@ -21,11 +21,11 @@ async function withTempRoot(run: (root: string) => Promise<void>) {
   }
 }
 
-test('lists the initial Stage 2.2 capability catalog with Yakable-owned UI files only', async () => {
+test('lists the Stage 2.2 capability catalog with Yakable-owned UI files only', async () => {
   const packs = await listCapabilityPacks();
   assert.deepEqual(
     packs.map((pack) => pack.id),
-    ['data-display', 'feedback', 'form', 'navigation', 'overlay'],
+    ['chart', 'command', 'data-display', 'date', 'feedback', 'form', 'navigation', 'overlay'],
   );
 
   for (const pack of packs) {
@@ -113,6 +113,48 @@ test('installs multiple packs, merges dependencies, records state, and is idempo
     assert.deepEqual(second.alreadyInstalledPacks, ['data-display', 'feedback', 'navigation']);
     assert.deepEqual(second.addedFiles, []);
     assert.deepEqual(second.addedDependencies, []);
+  });
+});
+
+test('extended packs add chart, date, and command capabilities without touching product code', async () => {
+  await withTempRoot(async (root) => {
+    const base = await createBaseProject('extended-pack-demo', { outputRoot: root });
+    const beforeHome = await readFile(path.join(base.directory, 'src/pages/Home.tsx'), 'utf8');
+    const beforeTheme = await readFile(path.join(base.directory, 'src/styles/theme.css'), 'utf8');
+
+    const result = await installCapabilityPacks(
+      'extended-pack-demo',
+      ['chart', 'date', 'command'],
+      { generatedRoot: root },
+    );
+
+    assert.deepEqual(result.installedPacks, ['chart', 'command', 'date']);
+    assert.ok(result.addedFiles.includes('src/components/ui/chart.tsx'));
+    assert.ok(result.addedFiles.includes('src/components/ui/calendar.tsx'));
+    assert.ok(result.addedFiles.includes('src/components/ui/command.tsx'));
+
+    const packageJson = JSON.parse(
+      await readFile(path.join(base.directory, 'package.json'), 'utf8'),
+    ) as { dependencies: Record<string, string> };
+    assert.equal(packageJson.dependencies.recharts, '^2.15.4');
+    assert.equal(packageJson.dependencies.cmdk, '^1.1.1');
+    assert.equal(packageJson.dependencies['date-fns'], '^4.1.0');
+    assert.equal(packageJson.dependencies['react-day-picker'], '^9.14.0');
+
+    const state = await readProjectCapabilityState(base.directory);
+    assert.deepEqual(
+      state.packs.map((pack) => pack.id),
+      ['chart', 'command', 'date'],
+    );
+
+    assert.equal(
+      await readFile(path.join(base.directory, 'src/pages/Home.tsx'), 'utf8'),
+      beforeHome,
+    );
+    assert.equal(
+      await readFile(path.join(base.directory, 'src/styles/theme.css'), 'utf8'),
+      beforeTheme,
+    );
   });
 });
 
