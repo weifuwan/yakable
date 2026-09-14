@@ -1,6 +1,12 @@
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import {
+  MAX_EDIT_CONTEXT_FILES,
+  MAX_PROJECT_CONTEXT_CANDIDATES,
+  selectProjectContextFiles,
+  type EditContextSelection,
+} from './context-selection.js';
 import { requestProjectPatch } from '../model/deepseek.js';
 import {
   appendProjectEditHistory,
@@ -15,7 +21,6 @@ import type {
   ProjectVisualSelection,
 } from '../types.js';
 
-const MAX_CONTEXT_FILES = 60;
 const MAX_CONTEXT_TOTAL_BYTES = 800_000;
 const MAX_FOLLOW_UP_LENGTH = 8_000;
 const MAX_CHANGE_FILES = 12;
@@ -24,6 +29,27 @@ const MAX_CHANGE_TOTAL_BYTES = 500_000;
 const MAX_HISTORY_CONTEXT = 12;
 const MAX_VISUAL_SELECTIONS = 20;
 const SKIPPED_DIRECTORIES = new Set(['node_modules', 'dist', '.git', '.yakable']);
+const EXCLUDED_CONTEXT_FILES = new Set([
+  'package-lock.json',
+  'pnpm-lock.yaml',
+  'yarn.lock',
+  'bun.lock',
+  'bun.lockb',
+]);
+const CONTEXT_TEXT_EXTENSIONS = new Set([
+  '.ts',
+  '.tsx',
+  '.js',
+  '.jsx',
+  '.mjs',
+  '.cjs',
+  '.css',
+  '.html',
+  '.json',
+  '.md',
+  '.txt',
+  '.svg',
+]);
 const VISUAL_EDIT_START = '[[YAKABLE_VISUAL_EDIT_REQUEST]]';
 const VISUAL_EDIT_END = '[[/YAKABLE_VISUAL_EDIT_REQUEST]]';
 
@@ -37,6 +63,7 @@ export interface EditProjectResult {
   model: string;
   summary: string;
   changedFiles: string[];
+  contextSelection: EditContextSelection;
   session: ProjectSessionState | null;
 }
 
@@ -56,6 +83,12 @@ function toPosixPath(value: string): string {
 function isSensitiveProjectFile(relativePath: string): boolean {
   const base = path.posix.basename(relativePath);
   return base === '.env' || base.startsWith('.env.');
+}
+
+function isContextTextFile(relativePath: string): boolean {
+  const base = path.posix.basename(relativePath);
+  if (EXCLUDED_CONTEXT_FILES.has(base)) return false;
+  return CONTEXT_TEXT_EXTENSIONS.has(path.posix.extname(relativePath).toLowerCase());
 }
 
 function validateEditablePath(candidate: string): string {
@@ -93,14 +126,14 @@ function validateEditablePath(candidate: string): string {
   return candidate;
 }
 
-async function collectProjectFiles(
+async function collectProjectContextPaths(
   projectDirectory: string,
   currentDirectory = projectDirectory,
-): Promise<GeneratedFile[]> {
+): Promise<string[]> {
   const entries = await readdir(currentDirectory, { withFileTypes: true });
   entries.sort((left, right) => left.name.localeCompare(right.name));
 
-  const files: GeneratedFile[] = [];
+  const files: string[] = [];
 
   for (const entry of entries) {
     const absolutePath = path.join(currentDirectory, entry.name);
@@ -108,47 +141,63 @@ async function collectProjectFiles(
 
     if (entry.isDirectory()) {
       if (!SKIPPED_DIRECTORIES.has(entry.name)) {
-        files.push(...(await collectProjectFiles(projectDirectory, absolutePath)));
+        files.push(...(await collectProjectContextPaths(projectDirectory, absolutePath)));
       }
       continue;
     }
 
-    if (!entry.isFile() || isSensitiveProjectFile(relativePath)) {
+    if (
+      !entry.isFile() ||
+      isSensitiveProjectFile(relativePath) ||
+      !isContextTextFile(relativePath)
+    ) {
       continue;
     }
 
-    const result = await readProjectFileTool.execute(
-      { path: relativePath },
-      { projectDirectory },
-    );
-
-    if (!result.ok) {
-      if (result.error.code === 'BINARY_FILE') {
-        continue;
-      }
-      if (result.error.code === 'FILE_TOO_LARGE') {
-        throw new Error(`Project file is too large for edit context: ${relativePath}`);
-      }
-      throw new Error(
-        `Could not read project file for edit context (${relativePath}): ${result.error.message}`,
-      );
-    }
-
-    files.push({ path: result.value.path, content: result.value.content });
+    files.push(relativePath);
   }
 
   return files;
 }
 
+export async function listProjectContextFiles(projectDirectory: string): Promise<string[]> {
+  const files = await collectProjectContextPaths(projectDirectory);
+  if (files.length === 0) {
+    throw new Error('Project has no readable text files for edit context.');
+  }
+  if (files.length > MAX_PROJECT_CONTEXT_CANDIDATES) {
+    throw new Error(
+      `Project has too many context candidates (${files.length}; max ${MAX_PROJECT_CONTEXT_CANDIDATES}).`,
+    );
+  }
+  return files;
+}
+
 export async function readProjectSnapshot(
   project: ResolvedGeneratedProject,
+  selectedPaths: string[],
 ): Promise<ProjectSnapshot> {
-  const files = await collectProjectFiles(project.directory);
-
-  if (files.length === 0 || files.length > MAX_CONTEXT_FILES) {
+  const paths = [...new Set(selectedPaths)];
+  if (paths.length === 0 || paths.length > MAX_EDIT_CONTEXT_FILES) {
     throw new Error(
-      `Project edit context must contain between 1 and ${MAX_CONTEXT_FILES} text files.`,
+      `Project edit context must contain between 1 and ${MAX_EDIT_CONTEXT_FILES} selected files.`,
     );
+  }
+
+  const files: GeneratedFile[] = [];
+  for (const relativePath of paths) {
+    const result = await readProjectFileTool.execute(
+      { path: relativePath },
+      { projectDirectory: project.directory },
+    );
+
+    if (!result.ok) {
+      throw new Error(
+        `Could not read selected project context (${relativePath}): ${result.error.message}`,
+      );
+    }
+
+    files.push({ path: result.value.path, content: result.value.content });
   }
 
   const totalBytes = files.reduce(
@@ -341,6 +390,26 @@ export function parseProjectPatch(rawContent: string): ProjectPatch {
   };
 }
 
+export async function assertPatchUsesSelectedContext(
+  project: ResolvedGeneratedProject,
+  patch: ProjectPatch,
+  selectedFiles: string[],
+): Promise<void> {
+  const selected = new Set(selectedFiles);
+
+  for (const change of patch.changes) {
+    if (selected.has(change.path)) continue;
+
+    const destination = path.join(project.directory, ...change.path.split('/'));
+    const info = await stat(destination).catch(() => null);
+    if (info?.isFile()) {
+      throw new Error(
+        `Project edit attempted to modify an existing file outside selected context: ${change.path}`,
+      );
+    }
+  }
+}
+
 export async function applyProjectPatch(
   project: ResolvedGeneratedProject,
   patch: ProjectPatch,
@@ -377,14 +446,17 @@ export async function editGeneratedProject(
   }
 
   const project = await resolveGeneratedProject(projectInput);
-  const snapshot = await readProjectSnapshot(project);
+  const userEdit = extractUserEditContext(request);
   const session = await readProjectSession(project.directory);
+  const availableFiles = await listProjectContextFiles(project.directory);
+  const contextSelection = await selectProjectContextFiles(userEdit, availableFiles);
+  const snapshot = await readProjectSnapshot(project, contextSelection.relevantFiles);
   const editContext = buildProjectEditContext(snapshot, request, session);
 
   const generation = await requestProjectPatch(editContext);
   const patch = parseProjectPatch(generation.content);
+  await assertPatchUsesSelectedContext(project, patch, contextSelection.relevantFiles);
   const changedFiles = await applyProjectPatch(project, patch);
-  const userEdit = extractUserEditContext(request);
 
   let nextSession = session;
   try {
@@ -405,6 +477,7 @@ export async function editGeneratedProject(
     model: generation.model,
     summary: patch.summary,
     changedFiles,
+    contextSelection,
     session: nextSession,
   };
 }
