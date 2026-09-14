@@ -46,9 +46,11 @@ test('selects website for presentation-first prompts', () => {
   assert.equal(selectProjectTemplate('Build a SaaS landing page with hero and pricing'), 'website');
 });
 
-test('selects app for multi-screen product prompts', () => {
+test('selects app for multi-screen and data-product prompts', () => {
   assert.equal(selectProjectTemplate('做一个 CRM 管理系统，有客户、订单和设置页面'), 'app');
   assert.equal(selectProjectTemplate('Build an account dashboard with login and settings'), 'app');
+  assert.equal(selectProjectTemplate('帮我做一个数据同步的项目'), 'app');
+  assert.equal(selectProjectTemplate('Build a data sync workspace'), 'app');
 });
 
 test('uses design intent IR before falling back to prompt heuristics', () => {
