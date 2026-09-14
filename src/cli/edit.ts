@@ -18,7 +18,7 @@ if (!projectInput || !followUpRequest) {
 
 try {
   console.log('Yakable: Edit project');
-  console.log('Selecting focused project context before editing; Yakable will not run or automatically repair the project.');
+  console.log('Selecting focused project context, editing, then checking project health without automatic repair.');
 
   const result = await editGeneratedProject(projectInput, followUpRequest);
 
@@ -37,6 +37,24 @@ try {
     console.log(`- ${file}`);
   }
   console.log(`Summary: ${result.summary}`);
+
+  if (result.projectCheck.ok) {
+    console.log(`Project check: ${result.projectCheck.value.status}`);
+    for (const check of result.projectCheck.value.checks) {
+      console.log(`- ${check.phase}: ${check.status}`);
+    }
+    for (const diagnostic of result.projectCheck.value.diagnostics) {
+      const location = diagnostic.path
+        ? `${diagnostic.path}${diagnostic.line ? `:${diagnostic.line}${diagnostic.column ? `:${diagnostic.column}` : ''}` : ''}`
+        : diagnostic.phase;
+      const code = diagnostic.code ? ` ${diagnostic.code}` : '';
+      console.log(`  ${location}${code}: ${diagnostic.message}`);
+    }
+  } else {
+    console.log(`Project check: ERROR (${result.projectCheck.error.code})`);
+    console.log(`- ${result.projectCheck.error.message}`);
+  }
+
   console.log('\nRun `npm run run:project -- generated/<project-id>` separately to inspect the edited project in the browser.');
 } catch (error) {
   console.error(`\nEdit failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
