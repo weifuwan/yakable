@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "id": "feedback",
+  "description": "Alert, Progress, Skeleton, and Sonner toast primitives for user feedback states.",
+  "base": {
+    "id": "base",
+    "version": 1
+  },
+  "dependencies": {
+    "@radix-ui/react-progress": "^1.1.8",
+    "sonner": "^2.0.7"
+  },
+  "devDependencies": {},
+  "files": [
+    "src/components/ui/alert.tsx",
+    "src/components/ui/progress.tsx",
+    "src/components/ui/skeleton.tsx",
+    "src/components/ui/sonner.tsx"
+  ]
+}
