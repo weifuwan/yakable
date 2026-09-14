@@ -1,4 +1,5 @@
 import { requestProjectCode } from '../model/deepseek.js';
+import { assertModeCapability, type YakableMode } from '../modes/mode-contract.js';
 import {
   BuildIntentGateError,
   classifyBuildIntent,
@@ -37,6 +38,7 @@ export class ProjectGenerationError extends Error {
 
 export interface GenerateProjectOptions {
   buildIntent?: BuildIntentDecision;
+  mode?: YakableMode;
 }
 
 function errorMessage(error: unknown): string {
@@ -98,6 +100,9 @@ export async function generateProject(
   if (normalizedPrompt.length > 12_000) {
     throw new Error('Prompt is too long. Project generation accepts at most 12,000 characters.');
   }
+
+  const mode = options.mode ?? 'BUILD';
+  assertModeCapability(mode, 'generate-source');
 
   const buildIntent = options.buildIntent ?? await classifyBuildIntent(normalizedPrompt);
   if (buildIntent.route !== 'CREATE') {
