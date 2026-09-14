@@ -3,6 +3,7 @@ import { EDIT_INTENT_DELTA_SYSTEM_PROMPT } from '../editing/edit-intent-prompt.j
 import { PROJECT_CONTEXT_SELECTION_SYSTEM_PROMPT } from '../editing/context-selection-prompt.js';
 import { PROJECT_EDIT_SYSTEM_PROMPT } from '../editing/edit-prompt.js';
 import { PROJECT_REPAIR_SYSTEM_PROMPT } from '../editing/repair-prompt.js';
+import { VISUAL_REPAIR_SYSTEM_PROMPT } from '../editing/visual-repair-prompt.js';
 import { PROJECT_GENERATION_SYSTEM_PROMPT } from '../generation/prompt.js';
 import { BUILD_INTENT_SYSTEM_PROMPT } from '../prompt-intelligence/build-intent-prompt.js';
 import { INTENT_ANALYSIS_SYSTEM_PROMPT } from '../prompt-intelligence/intent-prompt.js';
@@ -239,5 +240,13 @@ export function requestProjectRepair(repairContext: string): Promise<DeepSeekGen
     PROJECT_REPAIR_SYSTEM_PROMPT,
     repairContext,
     'One-shot Project Repair',
+  );
+}
+
+export function requestVisualRepair(userPrompt: string): Promise<DeepSeekGeneration> {
+  return requestStructuredGeneration(
+    VISUAL_REPAIR_SYSTEM_PROMPT,
+    userPrompt,
+    'Visual Repair',
   );
 }
