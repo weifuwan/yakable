@@ -91,6 +91,22 @@ export type {
   DesignCriticStatus,
 } from './editing/design-critic.js';
 export {
+  MAX_VISUAL_REPAIR_CONTEXT_FILES,
+  MAX_VISUAL_REPAIR_REQUEST_CHARS,
+  assertVisualRepairPatchUsesContext,
+  buildVisualRepairRequest,
+  repairGeneratedProjectVisual,
+  runVisualRepairOnce,
+  selectVisualRepairContextFiles,
+} from './editing/visual-repair.js';
+export type {
+  RunVisualRepairInput,
+  VisualRepairGeneration,
+  VisualRepairProjectInput,
+  VisualRepairResult,
+  VisualRepairStatus,
+} from './editing/visual-repair.js';
+export {
   MAX_CONTEXT_SEARCH_QUERY_LENGTH,
   MAX_EDIT_CONTEXT_FILES,
   MAX_PROJECT_CONTEXT_CANDIDATES,
