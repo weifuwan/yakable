@@ -2,38 +2,28 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { buildTemplateGenerationRequest, selectProjectTemplate } from '../src/template.js';
-import type { PromptIntent, SemanticExpansion, TasteTranslation } from '../src/types.js';
+import type { DesignIntentIR } from '../src/types.js';
 
-const dashboardIntent: PromptIntent = {
+const dashboardDesignIntent: DesignIntentIR = {
   version: 1,
-  productType: 'analytics product',
-  pageType: 'dashboard',
-  primaryGoal: 'operate analytics workflows',
-  targetAudience: null,
-  styleKeywords: ['简洁'],
-  explicitRequirements: [],
-  hardConstraints: [],
-  missingInformation: [],
-};
-
-const semanticExpansion: SemanticExpansion = {
-  version: 1,
-  defaults: [
+  product: {
+    type: 'analytics product',
+    surface: 'dashboard',
+    primaryGoal: 'operate analytics workflows',
+    targetAudience: null,
+  },
+  designDirection: 'Calm, precise and low-noise analytics workspace',
+  styleSignals: ['简洁'],
+  requirements: [
     {
+      statement: 'Make the primary analytics workflow obvious from the first screen',
+      source: 'semantic-default',
       kind: 'behavior',
-      value: 'Make the primary analytics workflow obvious from the first screen',
-      basis: 'goal-pattern',
       confidence: 'high',
+      basis: 'goal-pattern',
     },
   ],
-  assumptions: [],
-  deferredDecisions: ['Whether authentication is required'],
-};
-
-const tasteTranslation: TasteTranslation = {
-  version: 1,
-  designDirection: 'Calm, precise and low-noise analytics workspace',
-  decisions: [
+  directives: [
     {
       area: 'visual-hierarchy',
       directive: 'Make the primary analytical task dominant and keep secondary controls visually quiet',
@@ -43,7 +33,9 @@ const tasteTranslation: TasteTranslation = {
     },
   ],
   antiPatterns: ['uniformly emphasizing every dashboard surface'],
-  unresolvedDecisions: [],
+  openQuestions: [
+    { value: 'Whether authentication is required', source: 'semantic-decision' },
+  ],
 };
 
 test('selects website for presentation-first prompts', () => {
@@ -55,34 +47,35 @@ test('selects app for multi-screen product prompts', () => {
   assert.equal(selectProjectTemplate('Build an account dashboard with login and settings'), 'app');
 });
 
-test('uses structured intent before falling back to prompt heuristics', () => {
-  assert.equal(selectProjectTemplate('做一个数据分析产品', dashboardIntent), 'app');
+test('uses design intent IR before falling back to prompt heuristics', () => {
+  assert.equal(selectProjectTemplate('做一个数据分析产品', dashboardDesignIntent), 'app');
 });
 
-test('builds a structured generation request with prompt intelligence context', () => {
+test('builds generation request around the normalized design intent contract', () => {
   const request = JSON.parse(
     buildTemplateGenerationRequest(
       'Build an analytics product',
       'app',
-      dashboardIntent,
-      semanticExpansion,
-      tasteTranslation,
+      dashboardDesignIntent,
     ),
   ) as {
     productRequest: string;
-    promptIntent: PromptIntent;
-    semanticExpansion: SemanticExpansion;
-    tasteTranslation: TasteTranslation;
+    designIntent: DesignIntentIR;
     projectTemplate: string;
     templateGuidance: { preferredStructure: string[] };
+    promptIntent?: unknown;
+    semanticExpansion?: unknown;
+    tasteTranslation?: unknown;
   };
 
   assert.equal(request.productRequest, 'Build an analytics product');
-  assert.equal(request.promptIntent.pageType, 'dashboard');
-  assert.equal(request.semanticExpansion.defaults[0]?.kind, 'behavior');
-  assert.equal(request.semanticExpansion.deferredDecisions[0], 'Whether authentication is required');
-  assert.equal(request.tasteTranslation.designDirection, 'Calm, precise and low-noise analytics workspace');
-  assert.equal(request.tasteTranslation.decisions[0]?.area, 'visual-hierarchy');
+  assert.equal(request.designIntent.product.surface, 'dashboard');
+  assert.equal(request.designIntent.requirements[0]?.kind, 'behavior');
+  assert.equal(request.designIntent.directives[0]?.area, 'visual-hierarchy');
+  assert.equal(request.designIntent.openQuestions[0]?.source, 'semantic-decision');
   assert.equal(request.projectTemplate, 'app');
   assert.ok(request.templateGuidance.preferredStructure.includes('src/routes.ts'));
+  assert.equal(request.promptIntent, undefined);
+  assert.equal(request.semanticExpansion, undefined);
+  assert.equal(request.tasteTranslation, undefined);
 });
