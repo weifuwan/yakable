@@ -102,9 +102,10 @@ The template contract lives in `yakable.template.json`:
 
 ```text
 Yakable-owned                    Project-owned
-├── package / Vite / TS config   ├── src/App.tsx
-├── public assets                ├── src/routes.ts
-├── global styles + utils        ├── src/pages/**
+├── package / Vite / TS config   ├── index.html + public/**
+├── runtime entry                ├── src/styles/theme.css
+├── Tailwind/reset contract      ├── src/App.tsx + src/routes.ts
+├── utilities                    ├── src/pages/**
 └── src/components/ui/**         ├── src/components/product/**
                                  ├── src/features/**
                                  └── src/data/**

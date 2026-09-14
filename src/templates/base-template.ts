@@ -18,6 +18,7 @@ const REQUIRED_BASE_FILES = [
   'src/App.tsx',
   'src/routes.ts',
   'src/styles.css',
+  'src/styles/theme.css',
   'src/lib/utils.ts',
   'src/components/ui/button.tsx',
   'src/components/ui/input.tsx',
@@ -52,7 +53,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function readStringArray(value: unknown, field: string): string[] {
-  if (!Array.isArray(value) || value.some((item) => typeof item !== 'string' || !item.trim())) {
+  if (!Array.isArray(value) || value.length === 0 || value.some((item) => typeof item !== 'string' || !item.trim())) {
     throw new Error(`Yakable Base manifest ${field} must be a non-empty string array.`);
   }
   return [...new Set(value.map((item) => (item as string).trim()))];

@@ -13,7 +13,9 @@ npm run dev
 
 `yakable.template.json` is the source of truth for the boundary:
 
-- **Yakable-owned:** runtime/config, global styles, utilities, public assets, and minimal `components/ui` primitives.
-- **Project-owned:** `App`, routes, pages, product components, features, and data.
+- **Yakable-owned:** package/tooling, the runtime entry, Base stylesheet, utilities, and minimal `components/ui` primitives.
+- **Project-owned:** page title/assets, theme tokens, `App`, routes, pages, product components, features, and data.
+
+The split between `src/styles.css` and `src/styles/theme.css` is intentional: Yakable owns the Tailwind/reset contract, while each project owns its visual tokens.
 
 Stage 2.1 intentionally contains no capability packs, design patterns, template retrieval, or AI selection logic.

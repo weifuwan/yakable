@@ -19,6 +19,8 @@ const REQUIRED_FILES = [
   'src/main.tsx',
   'src/App.tsx',
   'src/pages/Home.tsx',
+  'src/styles.css',
+  'src/styles/theme.css',
   'src/lib/utils.ts',
   'src/components/ui/button.tsx',
   'src/components/ui/input.tsx',
@@ -32,6 +34,9 @@ test('Yakable Base declares a clear fixed/project ownership contract', async () 
   assert.equal(manifest.id, 'base');
   assert.equal(manifest.version, 1);
   assert.ok(manifest.ownership.yakable.includes('src/components/ui/**'));
+  assert.ok(manifest.ownership.yakable.includes('src/styles.css'));
+  assert.ok(manifest.ownership.project.includes('src/styles/theme.css'));
+  assert.ok(manifest.ownership.project.includes('public/**'));
   assert.ok(manifest.ownership.project.includes('src/pages/**'));
   assert.ok(manifest.ownership.project.includes('src/components/product/**'));
 });
@@ -65,8 +70,8 @@ test('creates a runnable Base project without model generation', async () => {
     );
     assert.ok(await started.server.transformRequest('/src/App.tsx'));
     assert.ok(await started.server.transformRequest('/src/pages/Home.tsx'));
-    const styles = await started.server.transformRequest('/src/styles.css');
-    assert.ok(styles?.code);
+    assert.ok(await started.server.transformRequest('/src/styles.css'));
+    assert.ok(await started.server.transformRequest('/src/styles/theme.css'));
   } finally {
     if (started) {
       await started.server.close().catch(() => undefined);

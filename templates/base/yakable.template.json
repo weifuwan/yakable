@@ -1,15 +1,13 @@
 {
   "version": 1,
   "id": "base",
-  "description": "Neutral React + Vite + Tailwind foundation owned by Yakable. Product pages and product components remain project-owned.",
+  "description": "Neutral React + Vite + Tailwind foundation owned by Yakable. Product content, theme, public assets, and page composition remain project-owned.",
   "ownership": {
     "yakable": [
       "AGENTS.md",
       "README.md",
       "components.json",
-      "index.html",
       "package.json",
-      "public/**",
       "tsconfig.json",
       "vite.config.ts",
       "yakable.template.json",
@@ -19,6 +17,9 @@
       "src/components/ui/**"
     ],
     "project": [
+      "index.html",
+      "public/**",
+      "src/styles/theme.css",
       "src/App.tsx",
       "src/routes.ts",
       "src/pages/**",
