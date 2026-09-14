@@ -76,9 +76,9 @@ export interface WebEditedProject {
   summary: string;
   model: string;
   changedFiles: string[];
-  editIntent: EditIntentResolution;
-  contextSelection: EditContextSelection;
-  projectCheck: ToolResult<CheckProjectOutput>;
+  editIntent?: EditIntentResolution;
+  contextSelection?: EditContextSelection;
+  projectCheck?: ToolResult<CheckProjectOutput>;
   session: ProjectSessionState | null;
   conversation: ProjectConversation | null;
 }
