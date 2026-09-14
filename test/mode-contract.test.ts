@@ -30,22 +30,30 @@ test('parses PLAN and BUILD modes with BUILD as the compatibility default', () =
   assert.throws(() => parseYakableMode('agent'), /PLAN or BUILD/);
 });
 
-test('PLAN exposes read-only frontend capabilities', () => {
+test('PLAN exposes read-only source capabilities plus plan authoring and review', () => {
   assert.deepEqual(capabilitiesForMode('PLAN'), [
     'read-project',
     'search-project',
     'observe-preview',
     'critique-design',
+    'read-plan',
+    'write-plan',
+    'review-plan',
   ]);
   assert.equal(modeAllowsCapability('PLAN', 'read-project'), true);
   assert.equal(modeAllowsCapability('PLAN', 'critique-design'), true);
+  assert.equal(modeAllowsCapability('PLAN', 'write-plan'), true);
+  assert.equal(modeAllowsCapability('PLAN', 'review-plan'), true);
   assert.equal(modeAllowsCapability('PLAN', 'generate-source'), false);
   assert.equal(modeAllowsCapability('PLAN', 'edit-source'), false);
   assert.equal(modeAllowsCapability('PLAN', 'repair-source'), false);
 });
 
-test('BUILD keeps the existing bounded source capabilities', () => {
+test('BUILD may read an approved plan but cannot silently revise or review it', () => {
   const context = createYakableModeContext('BUILD');
+  assert.equal(context.allows('read-plan'), true);
+  assert.equal(context.allows('write-plan'), false);
+  assert.equal(context.allows('review-plan'), false);
   assert.equal(context.allows('generate-source'), true);
   assert.equal(context.allows('edit-source'), true);
   assert.equal(context.allows('repair-source'), true);

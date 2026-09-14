@@ -5,6 +5,7 @@ import { PROJECT_EDIT_SYSTEM_PROMPT } from '../editing/edit-prompt.js';
 import { PROJECT_REPAIR_SYSTEM_PROMPT } from '../editing/repair-prompt.js';
 import { VISUAL_REPAIR_SYSTEM_PROMPT } from '../editing/visual-repair-prompt.js';
 import { PROJECT_GENERATION_SYSTEM_PROMPT } from '../generation/prompt.js';
+import { PLAN_ARTIFACT_SYSTEM_PROMPT } from '../planning/plan-artifact-prompt.js';
 import { BUILD_INTENT_SYSTEM_PROMPT } from '../prompt-intelligence/build-intent-prompt.js';
 import { INTENT_ANALYSIS_SYSTEM_PROMPT } from '../prompt-intelligence/intent-prompt.js';
 import { SEMANTIC_EXPANSION_SYSTEM_PROMPT } from '../prompt-intelligence/semantic-prompt.js';
@@ -204,6 +205,14 @@ export function requestProjectCode(userPrompt: string): Promise<DeepSeekGenerati
     PROJECT_GENERATION_SYSTEM_PROMPT,
     userPrompt,
     'Project Generation',
+  );
+}
+
+export function requestPlanArtifact(userPrompt: string): Promise<DeepSeekGeneration> {
+  return requestStructuredGeneration(
+    PLAN_ARTIFACT_SYSTEM_PROMPT,
+    userPrompt,
+    'Plan Artifact',
   );
 }
 

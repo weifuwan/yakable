@@ -7,6 +7,9 @@ export const YAKABLE_MODE_CAPABILITIES = [
   'search-project',
   'observe-preview',
   'critique-design',
+  'read-plan',
+  'write-plan',
+  'review-plan',
   'generate-source',
   'edit-source',
   'repair-source',
@@ -19,9 +22,21 @@ const PLAN_CAPABILITIES = new Set<YakableModeCapability>([
   'search-project',
   'observe-preview',
   'critique-design',
+  'read-plan',
+  'write-plan',
+  'review-plan',
 ]);
 
-const BUILD_CAPABILITIES = new Set<YakableModeCapability>(YAKABLE_MODE_CAPABILITIES);
+const BUILD_CAPABILITIES = new Set<YakableModeCapability>([
+  'read-project',
+  'search-project',
+  'observe-preview',
+  'critique-design',
+  'read-plan',
+  'generate-source',
+  'edit-source',
+  'repair-source',
+]);
 
 const MODE_POLICY: Record<YakableMode, ReadonlySet<YakableModeCapability>> = {
   PLAN: PLAN_CAPABILITIES,
