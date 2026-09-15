@@ -95,7 +95,7 @@ test('API startup resumes projects interrupted while starting runtime', async ()
     const streamText = await streamResponse.text();
     assert.match(streamText, /"type":"snapshot"/);
     assert.match(streamText, /"type":"ready"/);
-    assert.match(streamText, /"previewUrl":"http:\/\/127\.0\.0\.1:59004\//);
+    assert.ok(streamText.includes('"previewUrl":"http://127.0.0.1:59004/'));
     assert.equal(runtimeStarts, 1, 'recovered runtime should be reused by the stream');
   } finally {
     await api.close();
