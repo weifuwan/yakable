@@ -6,11 +6,14 @@ import {
   runFrontendAgentStage,
 } from '../src/editing/frontend-agent.js';
 
-test('records the bounded frontend agent happy path', async () => {
-  const received: string[] = [];
+test('updates one structured progress item from active to completed', async () => {
+  const received: Array<{ id: string; state: string; status: string }> = [];
+  let nextId = 0;
   const recorder = createFrontendAgentRecorder({
-    onEvent(event) {
-      received.push(`${event.state}:${event.status}`);
+    onEvent(item) {
+      if (item.type === 'progress') {
+        received.push({ id: item.id, state: item.state, status: item.status });
+      }
     },
   });
 
@@ -21,37 +24,47 @@ test('records the bounded frontend agent happy path', async () => {
     'selected',
     async () => 'context',
   );
+
+  assert.equal(received.length, 2);
+  assert.equal(received[0]?.state, 'SELECT_CONTEXT');
+  assert.equal(received[0]?.status, 'ACTIVE');
+  assert.equal(received[1]?.status, 'COMPLETED');
+  assert.equal(received[0]?.id, received[1]?.id);
+
+  const snapshot = recorder.snapshot();
+  assert.equal(snapshot.length, 1);
+  assert.equal(snapshot[0]?.type, 'progress');
+  if (snapshot[0]?.type === 'progress') {
+    assert.equal(snapshot[0].state, 'SELECT_CONTEXT');
+    assert.equal(snapshot[0].status, 'COMPLETED');
+    assert.ok(snapshot[0].completedAt);
+  }
+  void nextId;
+});
+
+test('records the bounded edit path as progress items', async () => {
+  const recorder = createFrontendAgentRecorder();
+  await runFrontendAgentStage(recorder, 'SELECT_CONTEXT', 'selecting', 'selected', async () => 'context');
   await runFrontendAgentStage(recorder, 'READ', 'reading', 'read', async () => 'files');
   await runFrontendAgentStage(recorder, 'EDIT', 'editing', 'edited', async () => 'patch');
   recorder.emit('CHECK', 'ACTIVE', 'checking');
-  recorder.emit('CHECK', 'COMPLETED', 'healthy');
-  recorder.emit('OBSERVE', 'ACTIVE', 'observing', 0);
-  recorder.emit('OBSERVE', 'COMPLETED', 'observed', 0);
-  recorder.emit('CRITIQUE', 'ACTIVE', 'critiquing', 0);
-  recorder.emit('CRITIQUE', 'COMPLETED', 'issues found', 0);
   recorder.emit('REPAIR', 'ACTIVE', 'repairing');
   recorder.emit('REPAIR', 'COMPLETED', 'repaired');
-  recorder.emit('OBSERVE', 'ACTIVE', 're-observing', 1);
-  recorder.emit('OBSERVE', 'COMPLETED', 're-observed', 1);
-  recorder.emit('CRITIQUE', 'ACTIVE', 'final critique', 1);
-  recorder.emit('CRITIQUE', 'COMPLETED', 'final critique complete', 1);
+  recorder.emit('CHECK', 'COMPLETED', 'healthy');
+  recorder.emit('OBSERVE', 'COMPLETED', 'observed', 0);
+  recorder.emit('CRITIQUE', 'COMPLETED', 'passed', 0);
   recorder.emit('DONE', 'COMPLETED', 'done');
 
-  assert.deepEqual(received.slice(0, 8), [
-    'SELECT_CONTEXT:ACTIVE',
-    'SELECT_CONTEXT:COMPLETED',
-    'READ:ACTIVE',
-    'READ:COMPLETED',
-    'EDIT:ACTIVE',
-    'EDIT:COMPLETED',
-    'CHECK:ACTIVE',
-    'CHECK:COMPLETED',
-  ]);
-  assert.equal(recorder.snapshot().at(-1)?.state, 'DONE');
-  assert.equal(recorder.snapshot().filter((event) => event.state === 'REPAIR').length, 2);
+  const progress = recorder.snapshot().filter((item) => item.type === 'progress');
+  assert.deepEqual(
+    progress.map((item) => item.state),
+    ['SELECT_CONTEXT', 'READ', 'EDIT', 'CHECK', 'REPAIR', 'OBSERVE', 'CRITIQUE', 'DONE'],
+  );
+  assert.equal(progress.find((item) => item.state === 'REPAIR')?.status, 'COMPLETED');
+  assert.equal(progress.find((item) => item.state === 'CHECK')?.status, 'COMPLETED');
 });
 
-test('records the create pipeline through runtime', () => {
+test('records the create pipeline through runtime after bounded repair', () => {
   const recorder = createFrontendAgentRecorder();
   recorder.emit('ROUTE', 'COMPLETED', 'create');
   recorder.emit('UNDERSTAND', 'COMPLETED', 'understood');
@@ -66,38 +79,10 @@ test('records the create pipeline through runtime', () => {
   recorder.emit('RUNTIME', 'COMPLETED', 'runtime ready');
   recorder.emit('DONE', 'COMPLETED', 'done');
 
+  const progress = recorder.snapshot().filter((item) => item.type === 'progress');
   assert.deepEqual(
-    recorder.snapshot().map((event) => event.state),
-    [
-      'ROUTE',
-      'UNDERSTAND',
-      'DESIGN',
-      'TEMPLATE',
-      'GENERATE',
-      'WRITE',
-      'CHECK',
-      'REPAIR',
-      'REPAIR',
-      'CHECK',
-      'RUNTIME',
-      'DONE',
-    ],
-  );
-});
-
-test('allows critique to finish directly without visual repair', () => {
-  const recorder = createFrontendAgentRecorder();
-  recorder.emit('SELECT_CONTEXT', 'COMPLETED', 'selected');
-  recorder.emit('READ', 'COMPLETED', 'read');
-  recorder.emit('EDIT', 'COMPLETED', 'edited');
-  recorder.emit('CHECK', 'COMPLETED', 'healthy');
-  recorder.emit('OBSERVE', 'COMPLETED', 'observed', 0);
-  recorder.emit('CRITIQUE', 'COMPLETED', 'passed', 0);
-  recorder.emit('DONE', 'COMPLETED', 'done');
-
-  assert.deepEqual(
-    recorder.snapshot().map((event) => event.state),
-    ['SELECT_CONTEXT', 'READ', 'EDIT', 'CHECK', 'OBSERVE', 'CRITIQUE', 'DONE'],
+    progress.map((item) => item.state),
+    ['ROUTE', 'UNDERSTAND', 'DESIGN', 'TEMPLATE', 'GENERATE', 'WRITE', 'CHECK', 'REPAIR', 'RUNTIME', 'DONE'],
   );
 });
 
@@ -125,7 +110,7 @@ test('rejects invalid order and a second visual repair cycle', () => {
   );
 });
 
-test('marks a stage failed and preserves the error', async () => {
+test('marks a stage failed on the same progress item', async () => {
   const recorder = createFrontendAgentRecorder();
   await assert.rejects(
     () =>
@@ -142,7 +127,8 @@ test('marks a stage failed and preserves the error', async () => {
   );
 
   const failure = recorder.snapshot().at(-1);
-  assert.equal(failure?.state, 'SELECT_CONTEXT');
+  assert.equal(failure?.type, 'progress');
+  if (failure?.type === 'progress') assert.equal(failure.state, 'SELECT_CONTEXT');
   assert.equal(failure?.status, 'FAILED');
   assert.match(failure?.message ?? '', /selection failed/);
 });
