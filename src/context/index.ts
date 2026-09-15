@@ -83,6 +83,7 @@ export {
 } from './project-context-search.js';
 
 export {
+  buildProjectContinuityContext,
   buildProjectEditContext,
   extractUserEditContext,
   extractUserEditRequest,
@@ -91,6 +92,7 @@ export {
   resolveProjectEditContext,
 } from './project-context.js';
 export type {
+  ProjectContinuityContext,
   ProjectSnapshot,
   ResolvedProjectEditContext,
   ResolveProjectEditContextInput,
