@@ -7,8 +7,8 @@ import test from 'node:test';
 import {
   rankProjectSearchFiles,
   resolveProjectContextSearch,
-} from '../src/editing/context-search.js';
-import type { EditContextSelection } from '../src/editing/context-selection.js';
+} from '../src/context/project-context-search.js';
+import type { EditContextSelection } from '../src/context/project-context-selection.js';
 
 const availableFiles = [
   'src/App.tsx',
