@@ -10,7 +10,6 @@ import {
 import { assertPatchUsesSelectedContext } from '../../editing/project-change.js';
 import { listProjectContextFiles } from '../../editing/project-context.js';
 import type { OneShotRepairResult } from '../../editing/repair.js';
-import type { FrontendAgentEvent, FrontendAgentProgressOptions } from '../../editing/frontend-agent.js';
 import { assertModeCapability, type YakableMode } from '../../modes/mode-contract.js';
 import { requestProjectPatch, requestProjectRepair } from '../../model/deepseek.js';
 import {
@@ -30,6 +29,7 @@ import {
   appendProjectEditHistory,
   readProjectSession,
 } from '../../projects/project-session.js';
+import type { AgentProtocolItem } from '../../protocol/agent-protocol.js';
 import { resolveGeneratedProject } from '../../runtime/runtime.js';
 import { completeAgentRun, createAgentRun } from '../../storage/agent-run.js';
 import { recordAgentRunTurnDiff } from '../../storage/agent-run-turn-diff.js';
@@ -37,12 +37,14 @@ import type { CheckProjectOutput } from '../../tools/check-project.js';
 import type { ToolResult } from '../../tools/tool.js';
 import type { ProjectSessionState } from '../../types.js';
 import type { WorkspaceChangeSet } from '../../workspace/change-set.js';
+import { TurnDiffTracker } from '../../workspace/turn-diff.js';
 import { createPersistedAgentRecorder } from '../persisted-recorder.js';
 import { runSourceEditWorkflow } from './source-edit-workflow.js';
 
-export interface ApprovedPlanWorkflowOptions extends FrontendAgentProgressOptions {
+export interface ApprovedPlanWorkflowOptions {
   mode?: YakableMode;
   generatedRoot?: string;
+  onEvent?: (item: AgentProtocolItem) => void;
 }
 
 export interface ApprovedPlanWorkflowResult {
@@ -57,9 +59,17 @@ export interface ApprovedPlanWorkflowResult {
   repair: OneShotRepairResult;
   projectCheck: ToolResult<CheckProjectOutput>;
   agentRunId: string;
-  agentTrace: FrontendAgentEvent[];
+  agentTrace: AgentProtocolItem[];
   session: ProjectSessionState | null;
   executionPlan: ApprovedPlanExecutionContract;
+}
+
+async function persistTurnDiff(runId: string, turnDiff: TurnDiffTracker): Promise<void> {
+  try {
+    recordAgentRunTurnDiff(runId, await turnDiff.snapshot());
+  } catch (error) {
+    console.warn('[Yakable Agent] Approved Plan turn diff could not be persisted.', error);
+  }
 }
 
 export async function runApprovedPlanWorkflow(
@@ -90,6 +100,7 @@ export async function runApprovedPlanWorkflow(
     prompt: historyRequest,
   });
   const agent = createPersistedAgentRecorder(agentRun.id, options.onEvent);
+  const turnDiff = new TurnDiffTracker();
 
   try {
     const result = await runSourceEditWorkflow({
@@ -98,6 +109,7 @@ export async function runApprovedPlanWorkflow(
       userRequest: executionRequest,
       visualSelections: [],
       agent,
+      turnDiff,
       async resolveContext() {
         const editIntent = await resolveEditIntentDelta({
           userRequest: executionRequest,
@@ -174,9 +186,16 @@ export async function runApprovedPlanWorkflow(
       );
     }
 
+    const healthy = result.projectCheck.ok && result.projectCheck.value.status === 'PASS';
     agent.message(result.patch.summary);
-    agent.progress('DONE', 'COMPLETED', 'Approved Plan execution completed');
-    recordAgentRunTurnDiff(agentRun.id, await result.turnDiff.snapshot());
+    agent.progress(
+      'DONE',
+      healthy ? 'COMPLETED' : 'FAILED',
+      healthy
+        ? 'Approved Plan execution completed'
+        : 'Approved Plan execution finished with project health issues',
+    );
+    await persistTurnDiff(agentRun.id, turnDiff);
     completeAgentRun(agentRun.id, {
       model: result.generation.model,
       summary: result.patch.summary,
@@ -199,6 +218,7 @@ export async function runApprovedPlanWorkflow(
       executionPlan,
     };
   } catch (error) {
+    await persistTurnDiff(agentRun.id, turnDiff);
     completeAgentRun(agentRun.id);
     throw error;
   }
