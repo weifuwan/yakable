@@ -1,4 +1,6 @@
-import { requestDesignCritique } from '../model/deepseek.js';
+import { requestDesignCritique } from '../model/capabilities.js';
+import { defaultModelClient } from '../model/default-client.js';
+import type { ModelClient } from '../model/model-client.js';
 import type { DesignIntentIR } from '../types.js';
 import type { PageObservation } from '../runtime/page-observation.js';
 import type { EditIntentArea, EditIntentDelta } from './edit-intent.js';
@@ -42,38 +44,15 @@ export interface DesignCriticRun {
 }
 
 const AREAS = new Set<DesignCriticArea>([
-  'content',
-  'visual-hierarchy',
-  'composition',
-  'typography',
-  'color',
-  'spacing-density',
-  'surface-treatment',
-  'imagery',
-  'motion',
-  'interaction',
-  'responsive',
-  'navigation',
-  'component-expression',
-  'runtime',
+  'content', 'visual-hierarchy', 'composition', 'typography', 'color', 'spacing-density',
+  'surface-treatment', 'imagery', 'motion', 'interaction', 'responsive', 'navigation',
+  'component-expression', 'runtime',
 ]);
-
 const FRONTEND_AREAS = new Set<EditIntentArea>([
-  'content',
-  'visual-hierarchy',
-  'composition',
-  'typography',
-  'color',
-  'spacing-density',
-  'surface-treatment',
-  'imagery',
-  'motion',
-  'interaction',
-  'responsive',
-  'navigation',
+  'content', 'visual-hierarchy', 'composition', 'typography', 'color', 'spacing-density',
+  'surface-treatment', 'imagery', 'motion', 'interaction', 'responsive', 'navigation',
   'component-expression',
 ]);
-
 const SEVERITIES = new Set<DesignCriticSeverity>(['major', 'minor']);
 const STATUSES = new Set<DesignCriticStatus>(['PASS', 'FAIL']);
 
@@ -89,9 +68,7 @@ function readEnum<T extends string>(value: unknown, field: string, allowed: Set<
 }
 
 function readString(value: unknown, field: string, maxLength: number): string {
-  if (typeof value !== 'string') {
-    throw new Error(`Design Critic returned an invalid ${field}.`);
-  }
+  if (typeof value !== 'string') throw new Error(`Design Critic returned an invalid ${field}.`);
   const normalized = value.trim();
   if (!normalized || normalized.length > maxLength) {
     throw new Error(`Design Critic returned an invalid ${field}.`);
@@ -107,30 +84,17 @@ function evidenceCatalog(observation: PageObservation): Set<string> {
 }
 
 function readEvidenceRefs(value: unknown, allowed: Set<string>): string[] {
-  if (
-    !Array.isArray(value)
-    || value.length === 0
-    || value.length > DESIGN_CRITIC_MAX_EVIDENCE_REFS
-  ) {
-    throw new Error(
-      `Design Critic evidenceRefs must contain 1-${DESIGN_CRITIC_MAX_EVIDENCE_REFS} items.`,
-    );
+  if (!Array.isArray(value) || value.length === 0 || value.length > DESIGN_CRITIC_MAX_EVIDENCE_REFS) {
+    throw new Error(`Design Critic evidenceRefs must contain 1-${DESIGN_CRITIC_MAX_EVIDENCE_REFS} items.`);
   }
-
   const refs: string[] = [];
   for (const item of value) {
-    if (typeof item !== 'string') {
-      throw new Error('Design Critic evidenceRefs must contain strings only.');
-    }
+    if (typeof item !== 'string') throw new Error('Design Critic evidenceRefs must contain strings only.');
     const ref = item.trim();
-    if (!allowed.has(ref)) {
-      throw new Error(`Design Critic referenced unavailable evidence: ${ref || '<empty>'}.`);
-    }
+    if (!allowed.has(ref)) throw new Error(`Design Critic referenced unavailable evidence: ${ref || '<empty>'}.`);
     if (!refs.includes(ref)) refs.push(ref);
   }
-  if (refs.length === 0) {
-    throw new Error('Design Critic finding must contain at least one evidence reference.');
-  }
+  if (refs.length === 0) throw new Error('Design Critic finding must contain at least one evidence reference.');
   return refs;
 }
 
@@ -138,15 +102,11 @@ function readFindings(value: unknown, observation: PageObservation): DesignCriti
   if (!Array.isArray(value) || value.length > DESIGN_CRITIC_MAX_FINDINGS) {
     throw new Error(`Design Critic may return at most ${DESIGN_CRITIC_MAX_FINDINGS} findings.`);
   }
-
   const allowedEvidence = evidenceCatalog(observation);
   const findings: DesignCriticFinding[] = [];
   const seen = new Set<string>();
-
   for (const item of value) {
-    if (!isRecord(item)) {
-      throw new Error('Design Critic returned an invalid finding.');
-    }
+    if (!isRecord(item)) throw new Error('Design Critic returned an invalid finding.');
     const area = readEnum(item.area, 'finding area', AREAS);
     const severity = readEnum(item.severity, 'finding severity', SEVERITIES);
     const message = readString(item.message, 'finding message', DESIGN_CRITIC_MAX_FINDING_LENGTH);
@@ -156,17 +116,13 @@ function readFindings(value: unknown, observation: PageObservation): DesignCriti
     seen.add(key);
     findings.push({ area, severity, message, evidenceRefs });
   }
-
   return findings;
 }
 
 function readUnverifiedAreas(value: unknown): EditIntentArea[] {
   if (!Array.isArray(value) || value.length > DESIGN_CRITIC_MAX_UNVERIFIED_AREAS) {
-    throw new Error(
-      `Design Critic may return at most ${DESIGN_CRITIC_MAX_UNVERIFIED_AREAS} unverified areas.`,
-    );
+    throw new Error(`Design Critic may return at most ${DESIGN_CRITIC_MAX_UNVERIFIED_AREAS} unverified areas.`);
   }
-
   const areas: EditIntentArea[] = [];
   for (const item of value) {
     const area = readEnum(item, 'unverified area', FRONTEND_AREAS);
@@ -175,31 +131,20 @@ function readUnverifiedAreas(value: unknown): EditIntentArea[] {
   return areas;
 }
 
-export function parseDesignCriticResult(
-  rawContent: string,
-  observation: PageObservation,
-): DesignCriticResult {
+export function parseDesignCriticResult(rawContent: string, observation: PageObservation): DesignCriticResult {
   let value: unknown;
   try {
     value = JSON.parse(rawContent);
   } catch {
     throw new Error('Design Critic output was not valid JSON.');
   }
-
   if (!isRecord(value) || value.version !== DESIGN_CRITIC_VERSION) {
     throw new Error('Design Critic output must be a version 1 object.');
   }
-
   const status = readEnum(value.status, 'status', STATUSES);
   const findings = readFindings(value.findings, observation);
-
-  if (status === 'PASS' && findings.length > 0) {
-    throw new Error('Design Critic PASS cannot contain findings.');
-  }
-  if (status === 'FAIL' && findings.length === 0) {
-    throw new Error('Design Critic FAIL must contain at least one finding.');
-  }
-
+  if (status === 'PASS' && findings.length > 0) throw new Error('Design Critic PASS cannot contain findings.');
+  if (status === 'FAIL' && findings.length === 0) throw new Error('Design Critic FAIL must contain at least one finding.');
   return {
     version: DESIGN_CRITIC_VERSION,
     status,
@@ -213,14 +158,8 @@ function observationWithEvidenceRefs(observation: PageObservation) {
   return {
     ...observation,
     evidenceRef: 'page',
-    elements: observation.elements.map((element, index) => ({
-      evidenceRef: `element:${index}`,
-      ...element,
-    })),
-    runtimeErrors: observation.runtimeErrors.map((error, index) => ({
-      evidenceRef: `runtime:${index}`,
-      ...error,
-    })),
+    elements: observation.elements.map((element, index) => ({ evidenceRef: `element:${index}`, ...element })),
+    runtimeErrors: observation.runtimeErrors.map((error, index) => ({ evidenceRef: `runtime:${index}`, ...error })),
   };
 }
 
@@ -230,11 +169,8 @@ export function buildDesignCriticRequest(input: DesignCriticInput): string {
     editIntent: input.editIntent,
     pageObservation: observationWithEvidenceRefs(input.pageObservation),
   });
-
   if (request.length > DESIGN_CRITIC_MAX_REQUEST_CHARS) {
-    throw new Error(
-      `Design Critic request is too large (max ${DESIGN_CRITIC_MAX_REQUEST_CHARS} characters).`,
-    );
+    throw new Error(`Design Critic request is too large (max ${DESIGN_CRITIC_MAX_REQUEST_CHARS} characters).`);
   }
   return request;
 }
@@ -253,33 +189,28 @@ export function mergeDeterministicRuntimeFindings(
   observation: PageObservation,
 ): DesignCriticResult {
   if (observation.runtimeErrors.length === 0) return result;
-
   const coveredRuntimeRefs = new Set(
-    result.findings.flatMap((finding) =>
-      finding.evidenceRefs.filter((ref) => ref.startsWith('runtime:')),
-    ),
+    result.findings.flatMap((finding) => finding.evidenceRefs.filter((ref) => ref.startsWith('runtime:'))),
   );
   const findings = [...result.findings];
-
   observation.runtimeErrors.forEach((error, index) => {
     const ref = `runtime:${index}`;
     if (coveredRuntimeRefs.has(ref) || findings.length >= DESIGN_CRITIC_MAX_FINDINGS) return;
     findings.push(runtimeFinding(error, index));
   });
-
   return {
     ...result,
     status: 'FAIL',
-    summary:
-      result.status === 'PASS'
-        ? 'Runtime errors were observed in the current Preview.'
-        : result.summary,
+    summary: result.status === 'PASS' ? 'Runtime errors were observed in the current Preview.' : result.summary,
     findings,
   };
 }
 
-export async function critiqueDesign(input: DesignCriticInput): Promise<DesignCriticRun> {
-  const generation = await requestDesignCritique(buildDesignCriticRequest(input));
+export async function critiqueDesign(
+  input: DesignCriticInput,
+  modelClient: ModelClient = defaultModelClient,
+): Promise<DesignCriticRun> {
+  const generation = await requestDesignCritique(modelClient, buildDesignCriticRequest(input));
   const parsed = parseDesignCriticResult(generation.content, input.pageObservation);
   return {
     model: generation.model,
