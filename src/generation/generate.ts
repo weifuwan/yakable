@@ -1,13 +1,14 @@
-import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import {
-  applyProjectPatch,
-  listProjectContextFiles,
+  applyProjectChanges,
+  createProjectChangeManager,
   parseProjectPatch,
+} from '../editing/project-change.js';
+import {
+  listProjectContextFiles,
   readProjectSnapshot,
-  type AppliedProjectFileChange,
-} from '../editing/edit.js';
+} from '../editing/project-context.js';
 import {
   createFrontendAgentRecorder,
   runFrontendAgentStage,
@@ -32,10 +33,8 @@ import { initializeProjectSession } from '../projects/project-session.js';
 import {
   appendAgentRunEvent,
   createAgentRun,
-  recordAgentRunFileChange,
-  recordAgentRunFileChanges,
-  type AgentRunFileChangeInput,
 } from '../storage/agent-run.js';
+import { recordAgentRunChangeSet } from '../storage/agent-run-change-set.js';
 import { checkProjectTool } from '../tools/check-project.js';
 import type {
   BuildIntentDecision,
@@ -43,6 +42,7 @@ import type {
   GenerationResult,
   ProjectTemplate,
 } from '../types.js';
+import { workspaceChangedPaths } from '../workspace/change-set.js';
 import { normalizeModelJsonObject } from './model-output.js';
 import { buildTemplateGenerationRequest, selectProjectTemplate } from './template.js';
 
@@ -76,25 +76,6 @@ function parseProjectGeneration(content: string, template: ProjectTemplate): Gen
     mode: 'base-overlay',
     expectedTemplate: template,
   });
-}
-
-async function initialGeneratedFileChanges(
-  project: GeneratedProject,
-): Promise<AgentRunFileChangeInput[]> {
-  const baseRoot = path.resolve(process.cwd(), 'templates', 'base');
-  return Promise.all(
-    project.files.map(async (file) => {
-      const beforeContent = await readFile(
-        path.join(baseRoot, ...file.path.split('/')),
-        'utf8',
-      ).catch(() => null);
-      return {
-        path: file.path,
-        beforeContent,
-        afterContent: file.content,
-      };
-    }),
-  );
 }
 
 export function buildProjectGenerationRecoveryRequest(
@@ -141,7 +122,6 @@ export async function generateProject(
   if (!normalizedPrompt) {
     throw new Error('A product prompt is required.');
   }
-
   if (normalizedPrompt.length > 12_000) {
     throw new Error('Prompt is too long. Project generation accepts at most 12,000 characters.');
   }
@@ -251,13 +231,14 @@ export async function generateProject(
   );
   const { generation, project } = generated;
 
-  const outputDirectory = await runFrontendAgentStage(
+  const written = await runFrontendAgentStage(
     agent,
     'WRITE',
     'Applying the generated product layer to Yakable Base',
     'Created the project from Yakable Base and applied the generated overlay',
     () => writeGeneratedProjectFromBase(normalizedPrompt, project),
   );
+  const { outputDirectory, changeSet: initialChangeSet } = written;
 
   await initializeProjectSession(outputDirectory, {
     productRequest: normalizedPrompt,
@@ -276,26 +257,18 @@ export async function generateProject(
       appendAgentRunEvent(run.id, event);
     }
     try {
-      recordAgentRunFileChanges(run.id, await initialGeneratedFileChanges(project));
+      recordAgentRunChangeSet(run.id, initialChangeSet);
     } catch (error) {
-      console.warn('[Yakable Agent] Initial create file changes could not be persisted.', error);
+      console.warn('[Yakable Agent] Initial create change set could not be persisted.', error);
     }
   }
-
-  const recordCreateChange = (change: AppliedProjectFileChange) => {
-    if (!agentRunId) return;
-    try {
-      recordAgentRunFileChange(agentRunId, change);
-    } catch (error) {
-      console.warn('[Yakable Agent] Create repair file change could not be persisted.', error);
-    }
-  };
 
   if (options.verifyProject) {
     const resolvedProject = {
       id: path.basename(outputDirectory),
       directory: outputDirectory,
     };
+    const changeManager = createProjectChangeManager(resolvedProject);
     agent.emit('CHECK', 'ACTIVE', 'Checking TypeScript and production build health');
     const initialCheck = await checkProjectTool.execute(
       {},
@@ -313,7 +286,7 @@ export async function generateProject(
     } else {
       agent.emit('REPAIR', 'ACTIVE', 'Applying one bounded build repair');
       const availableFiles = await listProjectContextFiles(outputDirectory);
-      const initialChangedFiles = project.files.map((file) => file.path);
+      const initialChangedFiles = workspaceChangedPaths(initialChangeSet);
       const repair = await runOneShotRepair({
         projectId: resolvedProject.id,
         userRequest: normalizedPrompt,
@@ -325,7 +298,17 @@ export async function generateProject(
         readFiles: async (paths) => (await readProjectSnapshot(resolvedProject, paths)).files,
         requestRepair: requestProjectRepair,
         parsePatch: parseProjectPatch,
-        applyPatch: (patch) => applyProjectPatch(resolvedProject, patch, recordCreateChange),
+        applyChanges: async (patch) => {
+          const changeSet = await applyProjectChanges(changeManager, patch);
+          if (agentRunId) {
+            try {
+              recordAgentRunChangeSet(agentRunId, changeSet);
+            } catch (error) {
+              console.warn('[Yakable Agent] Create repair change set could not be persisted.', error);
+            }
+          }
+          return changeSet;
+        },
         checkProject: () =>
           checkProjectTool.execute({}, { projectDirectory: outputDirectory }),
       });
