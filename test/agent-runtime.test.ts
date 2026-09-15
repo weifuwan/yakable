@@ -131,3 +131,55 @@ test('AgentRuntime passes the authoritative model and tool dependencies into wor
     /PLAN mode does not allow execute-plan/,
   );
 });
+
+test('AgentRuntime routing uses the injected ModelClient without provider globals', async () => {
+  const structuredLabels: string[] = [];
+  const textLabels: string[] = [];
+  const routingModel: ModelClient = {
+    id: 'fixture-provider',
+    async generateStructured(request) {
+      structuredLabels.push(request.capabilityLabel);
+      if (request.capabilityLabel === 'Build Intent Gate') {
+        return {
+          model: 'fixture-provider',
+          content: JSON.stringify({
+            version: 1,
+            route: 'CREATE',
+            confidence: 'high',
+            message: 'Create it.',
+          }),
+        };
+      }
+      if (request.capabilityLabel === 'Project Message Router') {
+        return {
+          model: 'fixture-provider',
+          content: JSON.stringify({
+            version: 1,
+            route: 'CHAT',
+            confidence: 'high',
+            message: 'Chat.',
+          }),
+        };
+      }
+      throw new Error(`Unexpected capability: ${request.capabilityLabel}`);
+    },
+    async generateText(request) {
+      textLabels.push(request.capabilityLabel);
+      return { content: 'A provider-neutral project reply.', model: 'fixture-provider' };
+    },
+  };
+
+  const runtime = new AgentRuntime({ modelClient: routingModel });
+  const build = await runtime.classifyBuildIntent('Build a metrics dashboard');
+  assert.equal(build.route, 'CREATE');
+
+  const message = await runtime.classifyProjectMessage({
+    userInput: 'Can you explain the current layout?',
+    hasGeneratedUi: true,
+    recentConversation: [],
+  });
+  assert.equal(message.route, 'CHAT');
+  assert.equal(message.message, 'A provider-neutral project reply.');
+  assert.deepEqual(structuredLabels, ['Build Intent Gate', 'Project Message Router']);
+  assert.deepEqual(textLabels, ['Project Chat']);
+});
