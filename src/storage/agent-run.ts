@@ -3,7 +3,11 @@ import { randomUUID } from 'node:crypto';
 import type { AgentProtocolItem } from '../protocol/agent-protocol.js';
 import type { WorkspaceFileChange } from '../workspace/change-set.js';
 import type { WorkspaceTurnDiff } from '../workspace/turn-diff.js';
-import { listAgentRunItems } from './agent-run-item.js';
+import {
+  listAgentRunItems,
+  upsertAgentRunItem,
+  type AgentRunItemRecord,
+} from './agent-run-item.js';
 import { readAgentRunTurnDiff } from './agent-run-turn-diff.js';
 import { getYakableDatabase } from './database.js';
 
@@ -125,6 +129,13 @@ export function createAgentRun(input: CreateAgentRunInput): AgentRunRecord {
     turnDiff: null,
     changes: [],
   };
+}
+
+export function appendAgentRunEvent(
+  runId: string,
+  item: AgentProtocolItem,
+): AgentRunItemRecord {
+  return upsertAgentRunItem(runId, item);
 }
 
 export function completeAgentRun(runId: string, input: CompleteAgentRunInput = {}): void {
