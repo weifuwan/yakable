@@ -29,7 +29,7 @@ export function createFrontendAgentEvent(
   const timestamp = new Date().toISOString();
   return {
     version: 1,
-    id: globalThis.crypto.randomUUID(),
+    id: `progress:${state}:${iteration ?? 0}`,
     type: 'progress',
     state,
     status,
