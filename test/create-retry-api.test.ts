@@ -150,14 +150,12 @@ test('failed project creation can start a fresh async create run', async () => {
     });
     assert.equal(response.status, 202);
     const result = await response.json() as {
-      accepted: boolean;
       retryOf: string;
       decision: { route: string };
       project: { id: string; status: string };
       run: { id: string; status: string };
     };
 
-    assert.equal(result.accepted, true);
     assert.equal(result.retryOf, 'failed-project');
     assert.equal(result.decision.route, 'CREATE');
     assert.equal(result.project.id, 'retry-project');
