@@ -12,11 +12,13 @@ export function WorkspaceResizer({
   isResizing,
   setChatWidth,
   onResizeStart,
+  onCollapsePreview,
 }: {
   chatWidth: number;
   isResizing: boolean;
   setChatWidth: Dispatch<SetStateAction<number>>;
   onResizeStart: () => void;
+  onCollapsePreview: () => void;
 }) {
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === "ArrowLeft") {
@@ -24,13 +26,17 @@ export function WorkspaceResizer({
       setChatWidth((current) => clampChatWidth(current - 1));
     } else if (event.key === "ArrowRight") {
       event.preventDefault();
+      if (chatWidth >= MAX_CHAT_WIDTH) {
+        onCollapsePreview();
+        return;
+      }
       setChatWidth((current) => clampChatWidth(current + 1));
     } else if (event.key === "Home") {
       event.preventDefault();
       setChatWidth(MIN_CHAT_WIDTH);
     } else if (event.key === "End") {
       event.preventDefault();
-      setChatWidth(MAX_CHAT_WIDTH);
+      onCollapsePreview();
     }
   }
 
@@ -45,7 +51,7 @@ export function WorkspaceResizer({
       aria-label="Resize chat and preview panels"
       aria-orientation="vertical"
       aria-valuemin={MIN_CHAT_WIDTH}
-      aria-valuemax={MAX_CHAT_WIDTH}
+      aria-valuemax={100}
       aria-valuenow={Math.round(chatWidth)}
       aria-valuetext={`${Math.round(chatWidth)}% chat, ${Math.round(100 - chatWidth)}% preview`}
       tabIndex={0}

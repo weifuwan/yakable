@@ -4,8 +4,8 @@ export function PreviewExpandButton({ onClick }: { onClick: () => void }) {
       type="button"
       className="grid h-7 w-7 shrink-0 place-items-center rounded-full border-0 bg-transparent text-black/55 transition-[background-color,color,transform] duration-150 hover:bg-black/[0.05] hover:text-black active:scale-[0.96]"
       onClick={onClick}
-      aria-label="Restore preview toolbar"
-      title="Restore preview toolbar"
+      aria-label="Restore preview panel"
+      title="Restore preview panel"
     >
       <svg
         viewBox="0 0 24 24"

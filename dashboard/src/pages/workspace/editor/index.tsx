@@ -11,6 +11,7 @@ import { getCurrentPreviewSelections } from "../../../visual-edit-context";
 import {
   resolvePreviewHeaderMode,
   restoredChatWidth,
+  shouldCollapsePreviewPanel,
 } from "./adaptive-header";
 import { ChatComposer, ChatTimeline } from "./ChatPanel";
 import { EditorHeader } from "./EditorHeader";
@@ -44,6 +45,7 @@ export function Workspace({
   const [busy, setBusy] = useState(false);
   const [chatWidth, setChatWidth] = useState(DEFAULT_CHAT_WIDTH);
   const [isResizing, setIsResizing] = useState(false);
+  const [previewCollapsed, setPreviewCollapsed] = useState(false);
   const [panelsWidth, setPanelsWidth] = useState(0);
   const panelsRef = useRef<HTMLDivElement>(null);
   const previewUrl = buildPreviewUrl(runtimeUrl, currentRoute);
@@ -51,7 +53,13 @@ export function Workspace({
     panelsWidth > 0
       ? panelsWidth * (1 - chatWidth / 100)
       : Number.POSITIVE_INFINITY;
-  const previewHeaderMode = resolvePreviewHeaderMode(previewWidth);
+  const measuredPreviewHeaderMode = resolvePreviewHeaderMode(previewWidth);
+  const previewHeaderMode = previewCollapsed
+    ? "collapsed"
+    : measuredPreviewHeaderMode === "collapsed"
+      ? "tight"
+      : measuredPreviewHeaderMode;
+  const layoutChatWidth = previewCollapsed ? 100 : chatWidth;
   const [messages, setMessages] = useState<ChatMessage[]>(() =>
     conversationMessages(project.conversation, project.summary),
   );
@@ -91,6 +99,14 @@ export function Workspace({
       if (!panels) return;
       const rect = panels.getBoundingClientRect();
       if (!rect.width) return;
+
+      const rawPreviewWidth = Math.max(0, rect.right - event.clientX);
+      if (shouldCollapsePreviewPanel(rawPreviewWidth)) {
+        setPreviewCollapsed(true);
+        setIsResizing(false);
+        return;
+      }
+
       const nextWidth = ((event.clientX - rect.left) / rect.width) * 100;
       setChatWidth(clampChatWidth(nextWidth));
     }
@@ -178,15 +194,21 @@ export function Workspace({
     setRuntimeUrl(url.toString());
   }
 
+  function collapsePreview() {
+    setIsResizing(false);
+    setPreviewCollapsed(true);
+  }
+
   function restorePreviewToolbar() {
     const width = panelsRef.current?.getBoundingClientRect().width ?? panelsWidth;
     setChatWidth(restoredChatWidth(width));
+    setPreviewCollapsed(false);
   }
 
   return (
     <div
       className="flex h-screen flex-col overflow-hidden bg-[#f6f6f4] font-sans text-[#252522] antialiased"
-      style={{ "--editor-chat-width": `${chatWidth}%` } as CSSProperties}
+      style={{ "--editor-chat-width": `${layoutChatWidth}%` } as CSSProperties}
     >
       <EditorHeader
         project={project}
@@ -202,7 +224,7 @@ export function Workspace({
 
       <div
         ref={panelsRef}
-        className="relative grid min-h-0 flex-1 [grid-template-columns:var(--editor-chat-width)_minmax(0,1fr)] max-[900px]:grid-cols-1 max-[900px]:grid-rows-[45%_55%]"
+        className="relative grid min-h-0 flex-1 [grid-template-columns:var(--editor-chat-width)_minmax(0,1fr)] transition-[grid-template-columns] duration-200 ease-out max-[900px]:grid-cols-1 max-[900px]:grid-rows-[45%_55%]"
       >
         <section className="flex min-h-0 flex-col overflow-hidden bg-[#f6f6f4]">
           <ChatTimeline messages={messages} busy={busy} />
@@ -214,18 +236,28 @@ export function Workspace({
           />
         </section>
 
-        <WorkspaceResizer
-          chatWidth={chatWidth}
-          isResizing={isResizing}
-          setChatWidth={setChatWidth}
-          onResizeStart={() => setIsResizing(true)}
-        />
+        {!previewCollapsed ? (
+          <WorkspaceResizer
+            chatWidth={chatWidth}
+            isResizing={isResizing}
+            setChatWidth={setChatWidth}
+            onResizeStart={() => setIsResizing(true)}
+            onCollapsePreview={collapsePreview}
+          />
+        ) : null}
 
-        {isResizing ? (
+        {isResizing && !previewCollapsed ? (
           <div className="absolute inset-0 z-20 cursor-col-resize" aria-hidden="true" />
         ) : null}
 
-        <section className="relative mb-2 mr-2 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-black/[0.08] bg-white shadow-[0_3px_14px_rgba(15,23,42,0.07)] max-[900px]:m-2">
+        <section
+          aria-hidden={previewCollapsed}
+          className={`relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl bg-white transition-[opacity,margin,border-color,box-shadow] duration-150 max-[900px]:m-2 ${
+            previewCollapsed
+              ? "invisible m-0 pointer-events-none border border-transparent opacity-0 shadow-none"
+              : "visible mb-2 mr-2 border border-black/[0.08] opacity-100 shadow-[0_3px_14px_rgba(15,23,42,0.07)]"
+          }`}
+        >
           <iframe
             className="min-h-0 w-full flex-1 border-0 bg-white"
             key={previewUrl}
@@ -233,6 +265,7 @@ export function Workspace({
             src={previewUrl}
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
             referrerPolicy="no-referrer"
+            tabIndex={previewCollapsed ? -1 : 0}
           />
           <PreviewInteractionToolbar />
         </section>
