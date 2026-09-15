@@ -1,23 +1,19 @@
-import {
-  editGeneratedProject,
-  type EditGeneratedProjectOptions,
-  type EditProjectResult,
+import { createDefaultAgentRuntime } from '../agent-runtime/agent-runtime.js';
+import type {
+  EditGeneratedProjectOptions,
+  EditProjectResult,
 } from '../editing/edit.js';
-import {
-  repairGeneratedProjectVisual,
-  type VisualRepairProjectInput,
-  type VisualRepairResult,
-} from '../editing/visual-repair.js';
-import {
-  generateProject,
-  type GenerateProjectOptions,
-} from '../generation/generate.js';
+import type { VisualRepairProjectInput, VisualRepairResult } from '../editing/visual-repair.js';
+import { repairGeneratedProjectVisual } from '../editing/visual-repair.js';
+import type { GenerateProjectOptions } from '../generation/generate.js';
 import type { GenerationResult } from '../types.js';
 import {
   assertModeCapability,
   type YakableMode,
   type YakableModeCapability,
 } from './mode-contract.js';
+
+const agentRuntime = createDefaultAgentRuntime();
 
 export async function runModeCapability<T>(
   mode: YakableMode,
@@ -34,7 +30,7 @@ export function generateProjectInMode(
   options: Omit<GenerateProjectOptions, 'mode'> = {},
 ): Promise<GenerationResult> {
   return runModeCapability(mode, 'generate-source', () =>
-    generateProject(prompt, { ...options, mode }),
+    agentRuntime.createProject(prompt, { ...options, mode }),
   );
 }
 
@@ -45,7 +41,7 @@ export function editGeneratedProjectInMode(
   options: EditGeneratedProjectOptions = {},
 ): Promise<EditProjectResult> {
   return runModeCapability(mode, 'edit-source', () =>
-    editGeneratedProject(projectInput, followUpRequest, options),
+    agentRuntime.editProject(projectInput, followUpRequest, options, mode),
   );
 }
 

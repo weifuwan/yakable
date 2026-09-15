@@ -1,3 +1,4 @@
+import type { ModelClient, ModelGeneration } from './model-client.js';
 import { DESIGN_CRITIC_SYSTEM_PROMPT } from '../editing/design-critic-prompt.js';
 import { EDIT_INTENT_DELTA_SYSTEM_PROMPT } from '../editing/edit-intent-prompt.js';
 import { PROJECT_CONTEXT_SELECTION_SYSTEM_PROMPT } from '../editing/context-selection-prompt.js';
@@ -31,10 +32,7 @@ interface DeepSeekChatResponse {
   };
 }
 
-export interface DeepSeekGeneration {
-  content: string;
-  model: string;
-}
+export type DeepSeekGeneration = ModelGeneration;
 
 export interface DeepSeekRequestConfig {
   baseUrl: string;
@@ -169,102 +167,117 @@ async function requestStructuredGeneration(
   return { content, model: config.model };
 }
 
+export const deepSeekModelClient: ModelClient = {
+  id: 'deepseek',
+  generateStructured(request) {
+    return requestStructuredGeneration(
+      request.systemPrompt,
+      request.userPrompt,
+      request.capabilityLabel,
+    );
+  },
+};
+
 export function requestBuildIntent(userPrompt: string): Promise<DeepSeekGeneration> {
-  return requestStructuredGeneration(
-    BUILD_INTENT_SYSTEM_PROMPT,
+  return deepSeekModelClient.generateStructured({
+    systemPrompt: BUILD_INTENT_SYSTEM_PROMPT,
     userPrompt,
-    'Build Intent Gate',
-  );
+    capabilityLabel: 'Build Intent Gate',
+  });
 }
 
 export function requestPromptIntent(userPrompt: string): Promise<DeepSeekGeneration> {
-  return requestStructuredGeneration(
-    INTENT_ANALYSIS_SYSTEM_PROMPT,
+  return deepSeekModelClient.generateStructured({
+    systemPrompt: INTENT_ANALYSIS_SYSTEM_PROMPT,
     userPrompt,
-    'Prompt Intelligence Intent Parser',
-  );
+    capabilityLabel: 'Prompt Intelligence Intent Parser',
+  });
 }
 
 export function requestSemanticExpansion(userPrompt: string): Promise<DeepSeekGeneration> {
-  return requestStructuredGeneration(
-    SEMANTIC_EXPANSION_SYSTEM_PROMPT,
+  return deepSeekModelClient.generateStructured({
+    systemPrompt: SEMANTIC_EXPANSION_SYSTEM_PROMPT,
     userPrompt,
-    'Prompt Intelligence Semantic Expander',
-  );
+    capabilityLabel: 'Prompt Intelligence Semantic Expander',
+  });
 }
 
 export function requestTasteTranslation(userPrompt: string): Promise<DeepSeekGeneration> {
-  return requestStructuredGeneration(
-    TASTE_TRANSLATION_SYSTEM_PROMPT,
+  return deepSeekModelClient.generateStructured({
+    systemPrompt: TASTE_TRANSLATION_SYSTEM_PROMPT,
     userPrompt,
-    'Prompt Intelligence Taste Translator',
-  );
+    capabilityLabel: 'Prompt Intelligence Taste Translator',
+  });
 }
 
 export function requestProjectCode(userPrompt: string): Promise<DeepSeekGeneration> {
-  return requestStructuredGeneration(
-    PROJECT_GENERATION_SYSTEM_PROMPT,
+  return deepSeekModelClient.generateStructured({
+    systemPrompt: PROJECT_GENERATION_SYSTEM_PROMPT,
     userPrompt,
-    'Project Generation',
-  );
+    capabilityLabel: 'Project Generation',
+  });
 }
 
 export function requestPlanArtifact(userPrompt: string): Promise<DeepSeekGeneration> {
-  return requestStructuredGeneration(
-    PLAN_ARTIFACT_SYSTEM_PROMPT,
+  return deepSeekModelClient.generateStructured({
+    systemPrompt: PLAN_ARTIFACT_SYSTEM_PROMPT,
     userPrompt,
-    'Plan Artifact',
-  );
+    capabilityLabel: 'Plan Artifact',
+  });
 }
 
 export function requestUiPlan(userPrompt: string): Promise<DeepSeekGeneration> {
-  return requestStructuredGeneration(
-    UI_PLANNER_SYSTEM_PROMPT,
+  return deepSeekModelClient.generateStructured({
+    systemPrompt: UI_PLANNER_SYSTEM_PROMPT,
     userPrompt,
-    'UI Planner',
-  );
+    capabilityLabel: 'UI Planner',
+  });
 }
 
 export function requestEditIntentDelta(userPrompt: string): Promise<DeepSeekGeneration> {
-  return requestStructuredGeneration(
-    EDIT_INTENT_DELTA_SYSTEM_PROMPT,
+  return deepSeekModelClient.generateStructured({
+    systemPrompt: EDIT_INTENT_DELTA_SYSTEM_PROMPT,
     userPrompt,
-    'Edit Intent Delta',
-  );
+    capabilityLabel: 'Edit Intent Delta',
+  });
 }
 
 export function requestDesignCritique(userPrompt: string): Promise<DeepSeekGeneration> {
-  return requestStructuredGeneration(
-    DESIGN_CRITIC_SYSTEM_PROMPT,
+  return deepSeekModelClient.generateStructured({
+    systemPrompt: DESIGN_CRITIC_SYSTEM_PROMPT,
     userPrompt,
-    'Design Critic',
-  );
+    capabilityLabel: 'Design Critic',
+  });
 }
 
 export function requestProjectContextSelection(userPrompt: string): Promise<DeepSeekGeneration> {
-  return requestStructuredGeneration(
-    PROJECT_CONTEXT_SELECTION_SYSTEM_PROMPT,
+  return deepSeekModelClient.generateStructured({
+    systemPrompt: PROJECT_CONTEXT_SELECTION_SYSTEM_PROMPT,
     userPrompt,
-    'Project Context Selection',
-  );
+    capabilityLabel: 'Project Context Selection',
+  });
 }
 
 export function requestProjectPatch(editContext: string): Promise<DeepSeekGeneration> {
-  return requestStructuredGeneration(PROJECT_EDIT_SYSTEM_PROMPT, editContext, 'Project Edit');
+  return deepSeekModelClient.generateStructured({
+    systemPrompt: PROJECT_EDIT_SYSTEM_PROMPT,
+    userPrompt: editContext,
+    capabilityLabel: 'Project Edit',
+  });
 }
 
 export function requestProjectRepair(repairContext: string): Promise<DeepSeekGeneration> {
-  return requestStructuredGeneration(
-    PROJECT_REPAIR_SYSTEM_PROMPT,
-    repairContext,
-    'One-shot Project Repair',
-  );
+  return deepSeekModelClient.generateStructured({
+    systemPrompt: PROJECT_REPAIR_SYSTEM_PROMPT,
+    userPrompt: repairContext,
+    capabilityLabel: 'One-shot Project Repair',
+  });
 }
 
 export function requestVisualRepair(userPrompt: string): Promise<DeepSeekGeneration> {
-  return requestStructuredGeneration(
-    VISUAL_REPAIR_SYSTEM_PROMPT,
+  return deepSeekModelClient.generateStructured({
+    systemPrompt: VISUAL_REPAIR_SYSTEM_PROMPT,
     userPrompt,
-    'Visual Repair',
-  );
+    capabilityLabel: 'Visual Repair',
+  });
 }
