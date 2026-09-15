@@ -10,7 +10,10 @@ export {
   buildProjectGenerationRecoveryRequest,
   runCreateProjectWorkflow,
 } from './create-project-workflow.js';
-export type { CreateProjectWorkflowOptions } from './create-project-workflow.js';
+export type {
+  CreateProjectWorkflowOptions,
+  ReservedProjectBuildLifecycle,
+} from './create-project-workflow.js';
 export { runEditProjectWorkflow } from './edit-project-workflow.js';
 export type {
   EditProjectWorkflowOptions,
