@@ -9,6 +9,21 @@ export type {
   GenerateProjectExecutor,
 } from './agent-runtime.js';
 export {
+  beginUnifiedEditRun,
+  continueUnifiedEditRun,
+} from './edit-run.js';
+export type {
+  AgentClientToolName,
+  AgentClientToolRequest,
+  AgentClientToolResult,
+  BeginUnifiedEditRunOptions,
+  ContinueUnifiedEditRunOptions,
+  UnifiedEditRunResult,
+  UnifiedEditRunStatus,
+  UnifiedVisualFeedbackResult,
+  UnifiedVisualFeedbackStatus,
+} from './edit-run.js';
+export {
   createAgentRunContext,
 } from './run-context.js';
 export type {
