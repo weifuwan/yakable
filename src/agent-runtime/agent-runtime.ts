@@ -1,7 +1,3 @@
-import {
-  generateProject,
-  type GenerateProjectOptions,
-} from '../generation/generate.js';
 import { deepSeekModelClient } from '../model/deepseek.js';
 import type { ModelClient } from '../model/model-client.js';
 import {
@@ -23,16 +19,31 @@ import {
   type AgentRuntimeOperation,
 } from './run-context.js';
 import { createDefaultToolRouter, type ToolRouter } from './tool-router.js';
+import {
+  runApprovedPlanWorkflow,
+  type ApprovedPlanWorkflowOptions,
+  type ApprovedPlanWorkflowResult,
+} from './workflows/approved-plan-workflow.js';
+import {
+  runCreateProjectWorkflow,
+  type CreateProjectWorkflowOptions,
+} from './workflows/create-project-workflow.js';
 
-export type GenerateProjectExecutor = (
+export type CreateProjectExecutor = (
   prompt: string,
-  options?: GenerateProjectOptions,
+  options?: CreateProjectWorkflowOptions,
 ) => Promise<GenerationResult>;
+
+export type ApprovedPlanExecutor = (
+  projectInput: string,
+  options?: ApprovedPlanWorkflowOptions,
+) => Promise<ApprovedPlanWorkflowResult>;
 
 export interface AgentRuntimeDependencies {
   modelClient?: ModelClient;
   toolRouter?: ToolRouter;
-  generateProject?: GenerateProjectExecutor;
+  createProject?: CreateProjectExecutor;
+  executeApprovedPlan?: ApprovedPlanExecutor;
   now?: () => Date;
 }
 
@@ -47,13 +58,15 @@ export class AgentRuntime {
   readonly modelClient: ModelClient;
   readonly toolRouter: ToolRouter;
 
-  private readonly generateProjectExecutor: GenerateProjectExecutor;
+  private readonly createProjectExecutor: CreateProjectExecutor;
+  private readonly approvedPlanExecutor: ApprovedPlanExecutor;
   private readonly now: () => Date;
 
   constructor(dependencies: AgentRuntimeDependencies = {}) {
     this.modelClient = dependencies.modelClient ?? deepSeekModelClient;
     this.toolRouter = dependencies.toolRouter ?? createDefaultToolRouter();
-    this.generateProjectExecutor = dependencies.generateProject ?? generateProject;
+    this.createProjectExecutor = dependencies.createProject ?? runCreateProjectWorkflow;
+    this.approvedPlanExecutor = dependencies.executeApprovedPlan ?? runApprovedPlanWorkflow;
     this.now = dependencies.now ?? (() => new Date());
   }
 
@@ -72,7 +85,7 @@ export class AgentRuntime {
 
   async createProject(
     prompt: string,
-    options: GenerateProjectOptions = {},
+    options: CreateProjectWorkflowOptions = {},
   ): Promise<GenerationResult> {
     const context = this.createContext({
       operation: 'CREATE',
@@ -80,7 +93,7 @@ export class AgentRuntime {
       mode: options.mode,
     });
     assertModeCapability(context.mode, 'generate-source');
-    return this.generateProjectExecutor(context.prompt, {
+    return this.createProjectExecutor(context.prompt, {
       ...options,
       mode: context.mode,
     });
@@ -108,6 +121,24 @@ export class AgentRuntime {
     options: ContinueUnifiedEditRunOptions = {},
   ): Promise<UnifiedEditRunResult> {
     return continueUnifiedEditRun(runId, toolResult, options);
+  }
+
+  async executeApprovedPlan(
+    projectInput: string,
+    options: ApprovedPlanWorkflowOptions = {},
+  ): Promise<ApprovedPlanWorkflowResult> {
+    const mode = options.mode ?? 'BUILD';
+    const context = this.createContext({
+      operation: 'EDIT',
+      projectInput,
+      prompt: 'Execute approved project plan',
+      mode,
+    });
+    assertModeCapability(context.mode, 'execute-plan');
+    return this.approvedPlanExecutor(context.projectInput!, {
+      ...options,
+      mode: context.mode,
+    });
   }
 }
 
