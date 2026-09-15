@@ -4,28 +4,16 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 
-import type { EditContextSelection } from '../editing/context-selection.js';
 import {
-  critiqueDesign,
-  parseDesignCriticResult,
-  type DesignCriticResult,
-  type DesignCriticRun,
-} from '../editing/design-critic.js';
-import { editGeneratedProject } from '../editing/edit.js';
-import {
-  parseEditIntentDelta,
-  type EditIntentDelta,
-  type EditIntentResolution,
-} from '../editing/edit-intent.js';
-import {
-  createFrontendAgentEvent,
-  type FrontendAgentEvent,
-} from '../editing/frontend-agent.js';
-import {
-  repairGeneratedProjectVisual,
-  type VisualRepairResult,
-} from '../editing/visual-repair.js';
-import { generateProject } from '../generation/generate.js';
+  createDefaultAgentRuntime,
+  type AgentRuntime,
+} from '../agent-runtime/agent-runtime.js';
+import type {
+  AgentClientToolResult,
+  UnifiedEditRunResult,
+} from '../agent-runtime/edit-run.js';
+import { createPersistedAgentRecorder } from '../agent-runtime/persisted-recorder.js';
+import type { AgentProtocolItem } from '../protocol/agent-protocol.js';
 import { classifyBuildIntent } from '../prompt-intelligence/build-intent.js';
 import {
   classifyProjectMessageIntent,
@@ -47,19 +35,9 @@ import {
   readProjectSession,
   writeProjectSession,
 } from '../projects/project-session.js';
-import {
-  parsePageObservation,
-  type PageObservation,
-} from '../runtime/page-observation.js';
 import { resolveGeneratedProject, startGeneratedProject } from '../runtime/runtime.js';
-import {
-  appendAgentRunEvent,
-  completeAgentRun,
-  readAgentRun,
-} from '../storage/agent-run.js';
+import { completeAgentRun, readAgentRun } from '../storage/agent-run.js';
 import { createBaseProject } from '../templates/base-template.js';
-import type { CheckProjectOutput } from '../tools/check-project.js';
-import type { ToolResult } from '../tools/tool.js';
 import type {
   BuildIntentDecision,
   ProjectConversation,
@@ -73,13 +51,10 @@ const DEFAULT_API_HOST = '127.0.0.1';
 const DEFAULT_API_PORT = 8787;
 const MAX_JSON_BODY_BYTES = 512_000;
 const PROJECT_ID_PATTERN = /^[a-zA-Z0-9._-]+$/;
-const MAX_INITIAL_CHANGED_FILES = 24;
-const MAX_SELECTED_CONTEXT_FILES = 12;
 const CONVERSATION_PROJECT_NAME_MAX = 56;
 const EMPTY_CONVERSATION_APP = `export default function App() {
   return <main className="min-h-screen bg-white" aria-label="Empty project preview" />;
-}
-`;
+}\n`;
 
 export type WebProjectListItem = ProjectListRecord;
 
@@ -95,31 +70,9 @@ export interface WebGeneratedProject {
   conversation: ProjectConversation | null;
 }
 
-export interface WebEditedProject {
-  projectId: string;
-  summary: string;
-  model: string;
-  changedFiles: string[];
-  editIntent?: EditIntentResolution;
-  contextSelection?: EditContextSelection;
-  projectCheck?: ToolResult<CheckProjectOutput>;
-  agentTrace?: FrontendAgentEvent[];
-  session: ProjectSessionState | null;
-  conversation: ProjectConversation | null;
-}
-
 export interface WebProjectMessageResult {
   decision: ProjectMessageDecision;
   conversation: ProjectConversation | null;
-}
-
-export interface WebVisualRepairInput {
-  userRequest: string;
-  editIntent: EditIntentDelta;
-  critique: DesignCriticResult;
-  pageObservation: PageObservation;
-  initialChangedFiles: string[];
-  selectedContextFiles: string[];
 }
 
 export interface RuntimeSession {
@@ -135,21 +88,21 @@ export interface WebApiServices {
   generate(
     prompt: string,
     buildIntent: BuildIntentDecision,
-    onAgentEvent?: (event: FrontendAgentEvent) => void,
+    onAgentItem?: (item: AgentProtocolItem) => void,
   ): Promise<WebGeneratedProject>;
   message?(projectId: string, prompt: string): Promise<WebProjectMessageResult>;
-  edit(
+  beginEditRun(
     projectId: string,
     prompt: string,
-    onAgentEvent?: (event: FrontendAgentEvent) => void,
-  ): Promise<WebEditedProject>;
+    onRunCreated?: (runId: string) => void,
+    onAgentItem?: (item: AgentProtocolItem) => void,
+  ): Promise<UnifiedEditRunResult>;
+  continueEditRun(
+    runId: string,
+    result: AgentClientToolResult,
+    onAgentItem?: (item: AgentProtocolItem) => void,
+  ): Promise<UnifiedEditRunResult>;
   startRuntime(projectId: string): Promise<RuntimeSession>;
-  critique?(
-    projectId: string,
-    editIntent: EditIntentDelta,
-    pageObservation: PageObservation,
-  ): Promise<DesignCriticRun>;
-  visualRepair?(projectId: string, input: WebVisualRepairInput): Promise<VisualRepairResult>;
   readSession?(projectId: string): Promise<ProjectSessionState | null>;
   readConversation?(projectId: string): Promise<ProjectConversation | null>;
   updateProject?(projectId: string, patch: ProjectUpdate): Promise<WebProjectListItem>;
@@ -210,7 +163,6 @@ async function createConversationProject(
   });
 
   await writeFile(path.join(created.directory, 'src', 'App.tsx'), EMPTY_CONVERSATION_APP, 'utf8');
-
   await writeProjectSession(created.directory, {
     version: 1,
     productRequest: prompt,
@@ -236,7 +188,6 @@ async function createConversationProject(
 async function readJsonBody(request: IncomingMessage): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = [];
   let bytes = 0;
-
   for await (const chunk of request) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     bytes += buffer.byteLength;
@@ -245,7 +196,6 @@ async function readJsonBody(request: IncomingMessage): Promise<Record<string, un
     }
     chunks.push(buffer);
   }
-
   if (chunks.length === 0) return {};
 
   try {
@@ -267,61 +217,6 @@ function readPrompt(body: Record<string, unknown>): string {
   return body.prompt.trim();
 }
 
-function readUserRequest(body: Record<string, unknown>): string {
-  if (typeof body.userRequest !== 'string' || !body.userRequest.trim()) {
-    throw new Error('A visual repair userRequest is required.');
-  }
-  return body.userRequest.trim();
-}
-
-function readEditIntent(body: Record<string, unknown>): EditIntentDelta {
-  if (body.editIntent === undefined) {
-    throw new Error('An editIntent is required.');
-  }
-  return parseEditIntentDelta(JSON.stringify(body.editIntent));
-}
-
-function readPageObservation(body: Record<string, unknown>): PageObservation {
-  if (body.pageObservation === undefined) {
-    throw new Error('A pageObservation is required.');
-  }
-  return parsePageObservation(body.pageObservation);
-}
-
-function readCritique(
-  body: Record<string, unknown>,
-  pageObservation: PageObservation,
-): DesignCriticResult {
-  if (body.critique === undefined) {
-    throw new Error('A critique is required.');
-  }
-  return parseDesignCriticResult(JSON.stringify(body.critique), pageObservation);
-}
-
-function readPathArray(
-  body: Record<string, unknown>,
-  field: string,
-  maxItems: number,
-): string[] {
-  const value = body[field];
-  if (!Array.isArray(value) || value.length > maxItems) {
-    throw new Error(`${field} must be an array with at most ${maxItems} paths.`);
-  }
-
-  const paths: string[] = [];
-  for (const item of value) {
-    if (typeof item !== 'string') {
-      throw new Error(`${field} must contain string paths only.`);
-    }
-    const pathValue = item.trim();
-    if (!pathValue || pathValue.length > 240) {
-      throw new Error(`${field} contains an invalid path.`);
-    }
-    if (!paths.includes(pathValue)) paths.push(pathValue);
-  }
-  return paths;
-}
-
 function readProjectUpdate(body: Record<string, unknown>): ProjectUpdate {
   const patch: ProjectUpdate = {};
   if ('name' in body) {
@@ -333,6 +228,36 @@ function readProjectUpdate(body: Record<string, unknown>): ProjectUpdate {
     patch.starred = body.starred;
   }
   return patch;
+}
+
+function readClientToolResult(body: Record<string, unknown>): AgentClientToolResult {
+  if (typeof body.toolCallId !== 'string' || !body.toolCallId.trim()) {
+    throw new Error('Client tool result requires toolCallId.');
+  }
+  if (body.toolName !== 'observe_preview') {
+    throw new Error('Client tool result must target observe_preview.');
+  }
+  if (body.status === 'COMPLETED') {
+    if (!('output' in body)) throw new Error('Completed client tool result requires output.');
+    return {
+      toolCallId: body.toolCallId.trim(),
+      toolName: 'observe_preview',
+      status: 'COMPLETED',
+      output: body.output,
+    };
+  }
+  if (body.status === 'FAILED') {
+    if (typeof body.error !== 'string' || !body.error.trim()) {
+      throw new Error('Failed client tool result requires error.');
+    }
+    return {
+      toolCallId: body.toolCallId.trim(),
+      toolName: 'observe_preview',
+      status: 'FAILED',
+      error: body.error.trim().slice(0, 2_000),
+    };
+  }
+  throw new Error('Client tool result status must be COMPLETED or FAILED.');
 }
 
 function sendJson(response: ServerResponse, status: number, value: unknown): void {
@@ -357,7 +282,7 @@ function writeNdjson(response: ServerResponse, value: unknown): void {
 }
 
 function isClientError(error: Error): boolean {
-  return /required|invalid|too large|too long|does not exist|missing|only|must|not valid json|outside repair context/i.test(
+  return /required|invalid|too large|too long|does not exist|missing|must|not valid json|pending|waiting|unsupported/i.test(
     error.message,
   );
 }
@@ -386,6 +311,7 @@ async function runtimePayload(
 
 export function createDefaultWebApiServices(
   generatedRoot = path.resolve(process.cwd(), 'generated'),
+  agentRuntime: AgentRuntime = createDefaultAgentRuntime(),
 ): WebApiServices {
   return {
     async listProjects() {
@@ -396,14 +322,13 @@ export function createDefaultWebApiServices(
       return classifyBuildIntent(prompt);
     },
 
-    async generate(prompt, buildIntent, onAgentEvent) {
+    async generate(prompt, buildIntent, onAgentItem) {
       if (buildIntent.route !== 'CREATE') {
         return createConversationProject(prompt, buildIntent, generatedRoot);
       }
-
-      const result = await generateProject(prompt, {
+      const result = await agentRuntime.createProject(prompt, {
         buildIntent,
-        onEvent: onAgentEvent,
+        onEvent: onAgentItem,
         verifyProject: true,
         persistAgentRun: true,
       });
@@ -447,55 +372,25 @@ export function createDefaultWebApiServices(
         });
         await touchManagedProject(projectId, generatedRoot);
       }
-
       return {
         decision,
         conversation: await readProjectConversation(project.directory),
       };
     },
 
-    async edit(projectId, prompt, onAgentEvent) {
-      const result = await editGeneratedProject(projectId, prompt, { onEvent: onAgentEvent });
-      await touchManagedProject(projectId, generatedRoot);
-      return {
-        projectId: result.projectId,
-        summary: result.summary,
-        model: result.model,
-        changedFiles: result.changedFiles,
-        editIntent: result.editIntent,
-        contextSelection: result.contextSelection,
-        projectCheck: result.projectCheck,
-        agentTrace: result.agentTrace,
-        session: result.session,
-        conversation: await readProjectConversation(result.projectDirectory),
-      };
-    },
-
-    async critique(projectId, editIntent, pageObservation) {
-      const project = await resolveGeneratedProject(projectId, generatedRoot);
-      const session = await readProjectSession(project.directory);
-      return critiqueDesign({
-        baselineDesignIntent: session?.designIntent ?? null,
-        editIntent,
-        pageObservation,
+    async beginEditRun(projectId, prompt, onRunCreated, onAgentItem) {
+      const result = await agentRuntime.beginEditRun(projectId, prompt, {
+        onRunCreated,
+        onItem: onAgentItem,
       });
+      if (result.changedFiles.length > 0) await touchManagedProject(projectId, generatedRoot);
+      return result;
     },
 
-    async visualRepair(projectId, input) {
-      const project = await resolveGeneratedProject(projectId, generatedRoot);
-      const session = await readProjectSession(project.directory);
-      const result = await repairGeneratedProjectVisual(
-        projectId,
-        {
-          ...input,
-          baselineDesignIntent: session?.designIntent ?? null,
-        },
-        generatedRoot,
-      );
-      if (result.changedFiles.length > 0) {
-        await touchManagedProject(projectId, generatedRoot);
-      }
-      return result;
+    async continueEditRun(runId, result, onAgentItem) {
+      const next = await agentRuntime.continueEditRun(runId, result, { onItem: onAgentItem });
+      if (next.changedFiles.length > 0) await touchManagedProject(next.projectId, generatedRoot);
+      return next;
     },
 
     async startRuntime(projectId) {
@@ -547,80 +442,37 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
       await current.close().catch(() => undefined);
       runtimes.delete(projectId);
     }
-
     const runtime = await services.startRuntime(projectId);
     runtimes.set(projectId, runtime);
     return runtime;
   }
 
-  function emitCreateEvent(
-    project: WebGeneratedProject,
-    event: FrontendAgentEvent,
-    onAgentEvent?: (event: FrontendAgentEvent) => void,
-  ): void {
-    if (project.agentRunId) {
-      try {
-        appendAgentRunEvent(project.agentRunId, event);
-      } catch (error) {
-        console.warn('[Yakable Agent] Create runtime event could not be persisted.', error);
-      }
-    }
-    onAgentEvent?.(event);
-  }
-
   async function ensureGeneratedRuntime(
     project: WebGeneratedProject,
-    onAgentEvent?: (event: FrontendAgentEvent) => void,
+    onAgentItem?: (item: AgentProtocolItem) => void,
   ): Promise<RuntimeSession> {
     if (!project.agentRunId) return ensureRuntime(project.id);
 
-    emitCreateEvent(
-      project,
-      createFrontendAgentEvent('RUNTIME', 'ACTIVE', 'Starting the generated project runtime'),
-      onAgentEvent,
-    );
-
+    const agent = createPersistedAgentRecorder(project.agentRunId, onAgentItem);
+    agent.progress('RUNTIME', 'ACTIVE', 'Starting the generated project runtime');
     try {
       const runtime = await ensureRuntime(project.id);
-      emitCreateEvent(
-        project,
-        createFrontendAgentEvent('RUNTIME', 'COMPLETED', 'Generated project runtime is ready'),
-        onAgentEvent,
-      );
-
+      agent.progress('RUNTIME', 'COMPLETED', 'Generated project runtime is ready');
       const failed = readAgentRun(project.agentRunId)?.status === 'FAILED';
-      emitCreateEvent(
-        project,
-        createFrontendAgentEvent(
-          'DONE',
-          failed ? 'FAILED' : 'COMPLETED',
-          failed
-            ? 'Create pipeline finished with project health issues'
-            : 'Create pipeline completed successfully',
-        ),
-        onAgentEvent,
+      agent.progress(
+        'DONE',
+        failed ? 'FAILED' : 'COMPLETED',
+        failed
+          ? 'Create pipeline finished with project health issues'
+          : 'Create pipeline completed successfully',
       );
-      completeAgentRun(project.agentRunId, {
-        model: project.model,
-        summary: project.summary,
-      });
+      completeAgentRun(project.agentRunId, { model: project.model, summary: project.summary });
       return runtime;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      emitCreateEvent(
-        project,
-        createFrontendAgentEvent('RUNTIME', 'FAILED', `Runtime failed to start: ${message}`),
-        onAgentEvent,
-      );
-      emitCreateEvent(
-        project,
-        createFrontendAgentEvent('DONE', 'FAILED', 'Create pipeline stopped before runtime was ready'),
-        onAgentEvent,
-      );
-      completeAgentRun(project.agentRunId, {
-        model: project.model,
-        summary: project.summary,
-      });
+      agent.progress('RUNTIME', 'FAILED', `Runtime failed to start: ${message}`);
+      agent.progress('DONE', 'FAILED', 'Create pipeline stopped before runtime was ready');
+      completeAgentRun(project.agentRunId, { model: project.model, summary: project.summary });
       throw error;
     }
   }
@@ -632,6 +484,14 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
     runtimes.delete(projectId);
   }
 
+  async function editRunPayload(result: UnifiedEditRunResult) {
+    const runtime = await ensureRuntime(result.projectId);
+    return {
+      ...(await runtimePayload(result.projectId, runtime, services)),
+      ...result,
+    };
+  }
+
   const server = createServer(async (request, response) => {
     try {
       const url = new URL(request.url ?? '/', 'http://127.0.0.1');
@@ -641,7 +501,6 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
         sendJson(response, 200, { ok: true, storage: 'sqlite' });
         return;
       }
-
       if (method === 'GET' && url.pathname === '/api/projects') {
         sendJson(response, 200, { projects: await services.listProjects() });
         return;
@@ -653,19 +512,15 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
         startNdjson(response);
         try {
           const decision = await services.gateBuildIntent(prompt);
-          const project = await services.generate(prompt, decision, (event) => {
-            writeNdjson(response, { type: 'agent-event', event });
+          const project = await services.generate(prompt, decision, (item) => {
+            writeNdjson(response, { type: 'agent-item', item });
           });
-          const runtime = await ensureGeneratedRuntime(project, (event) => {
-            writeNdjson(response, { type: 'agent-event', event });
+          const runtime = await ensureGeneratedRuntime(project, (item) => {
+            writeNdjson(response, { type: 'agent-item', item });
           });
           writeNdjson(response, {
             type: 'result',
-            result: {
-              decision,
-              project,
-              previewUrl: addRevision(runtime.url),
-            },
+            result: { decision, project, previewUrl: addRevision(runtime.url) },
           });
         } catch (error) {
           const normalized = error instanceof Error ? error : new Error('Unknown create agent failure.');
@@ -681,25 +536,43 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
         const decision = await services.gateBuildIntent(prompt);
         const project = await services.generate(prompt, decision);
         const runtime = await ensureGeneratedRuntime(project);
-        sendJson(response, 201, {
-          decision,
-          project,
-          previewUrl: addRevision(runtime.url),
-        });
+        sendJson(response, 201, { decision, project, previewUrl: addRevision(runtime.url) });
+        return;
+      }
+
+      const continuationRoute = url.pathname.match(/^\/api\/agent-runs\/([^/]+)\/client-tool-result$/);
+      if (method === 'POST' && continuationRoute) {
+        const runId = decodeURIComponent(continuationRoute[1] ?? '').trim();
+        if (!runId) throw new Error('Agent run id is required.');
+        const body = await readJsonBody(request);
+        startNdjson(response);
+        try {
+          const result = await services.continueEditRun(
+            runId,
+            readClientToolResult(body),
+            (item) => writeNdjson(response, { type: 'agent-item', item }),
+          );
+          writeNdjson(response, {
+            type: result.status === 'WAITING_FOR_CLIENT_TOOL' ? 'await-client-tool' : 'result',
+            result: await editRunPayload(result),
+          });
+        } catch (error) {
+          const normalized = error instanceof Error ? error : new Error('Unknown Agent continuation failure.');
+          writeNdjson(response, { type: 'error', error: normalized.message });
+        }
+        response.end();
         return;
       }
 
       const projectBaseRoute = url.pathname.match(/^\/api\/projects\/([^/]+)$/);
       if (projectBaseRoute) {
         const projectId = assertProjectId(projectBaseRoute[1] ?? '');
-
         if (method === 'PATCH') {
           if (!services.updateProject) throw new Error('Project updates are not available.');
           const body = await readJsonBody(request);
           sendJson(response, 200, { project: await services.updateProject(projectId, readProjectUpdate(body)) });
           return;
         }
-
         if (method === 'DELETE') {
           if (!services.deleteProject) throw new Error('Project deletion is not available.');
           await closeRuntime(projectId);
@@ -717,13 +590,10 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
         return;
       }
 
-      const projectRoute = url.pathname.match(
-        /^\/api\/projects\/([^/]+)\/(runtime|message|edit|agent-edit|critique|visual-repair)$/,
-      );
+      const projectRoute = url.pathname.match(/^\/api\/projects\/([^/]+)\/(runtime|message|agent-edit)$/);
       if (method === 'POST' && projectRoute) {
         const projectId = assertProjectId(projectRoute[1] ?? '');
         const action = projectRoute[2];
-
         if (action === 'runtime') {
           const runtime = await ensureRuntime(projectId);
           sendJson(response, 200, await runtimePayload(projectId, runtime, services));
@@ -731,80 +601,35 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
         }
 
         const body = await readJsonBody(request);
-
         if (action === 'message') {
           if (!services.message) throw new Error('Project message routing is not available.');
           sendJson(response, 200, await services.message(projectId, readPrompt(body)));
           return;
         }
 
-        if (action === 'agent-edit') {
-          const prompt = readPrompt(body);
-          startNdjson(response);
-          try {
-            const edit = await services.edit(projectId, prompt, (event) => {
-              writeNdjson(response, { type: 'agent-event', event });
-            });
-            const runtime = await ensureRuntime(projectId);
-            writeNdjson(response, {
-              type: 'result',
-              result: {
-                ...(await runtimePayload(projectId, runtime, services)),
-                ...edit,
-              },
-            });
-          } catch (error) {
-            const normalized = error instanceof Error ? error : new Error('Unknown agent edit failure.');
-            writeNdjson(response, { type: 'error', error: normalized.message });
-          }
-          response.end();
-          return;
-        }
-
-        if (action === 'edit') {
-          const edit = await services.edit(projectId, readPrompt(body));
-          const runtime = await ensureRuntime(projectId);
-          sendJson(response, 200, {
-            ...(await runtimePayload(projectId, runtime, services)),
-            ...edit,
+        const prompt = readPrompt(body);
+        startNdjson(response);
+        try {
+          let runId = '';
+          const result = await services.beginEditRun(
+            projectId,
+            prompt,
+            (createdRunId) => {
+              runId = createdRunId;
+              writeNdjson(response, { type: 'run-started', runId: createdRunId });
+            },
+            (item) => writeNdjson(response, { type: 'agent-item', item }),
+          );
+          if (!runId) writeNdjson(response, { type: 'run-started', runId: result.runId });
+          writeNdjson(response, {
+            type: result.status === 'WAITING_FOR_CLIENT_TOOL' ? 'await-client-tool' : 'result',
+            result: await editRunPayload(result),
           });
-          return;
+        } catch (error) {
+          const normalized = error instanceof Error ? error : new Error('Unknown agent edit failure.');
+          writeNdjson(response, { type: 'error', error: normalized.message });
         }
-
-        const pageObservation = readPageObservation(body);
-        const editIntent = readEditIntent(body);
-
-        if (action === 'critique') {
-          if (!services.critique) throw new Error('Design critique is not available.');
-          sendJson(response, 200, {
-            critique: await services.critique(projectId, editIntent, pageObservation),
-          });
-          return;
-        }
-
-        if (!services.visualRepair) throw new Error('Visual repair is not available.');
-        const critique = readCritique(body, pageObservation);
-        const visualRepair = await services.visualRepair(projectId, {
-          userRequest: readUserRequest(body),
-          editIntent,
-          critique,
-          pageObservation,
-          initialChangedFiles: readPathArray(
-            body,
-            'initialChangedFiles',
-            MAX_INITIAL_CHANGED_FILES,
-          ),
-          selectedContextFiles: readPathArray(
-            body,
-            'selectedContextFiles',
-            MAX_SELECTED_CONTEXT_FILES,
-          ),
-        });
-        const runtime = await ensureRuntime(projectId);
-        sendJson(response, 200, {
-          ...(await runtimePayload(projectId, runtime, services)),
-          visualRepair,
-        });
+        response.end();
         return;
       }
 
@@ -834,7 +659,6 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
         server.once('listening', onListening);
         server.listen(port, host);
       });
-
       const address = server.address() as AddressInfo | null;
       if (!address) throw new Error('Yakable API started without a network address.');
       return `http://${host}:${address.port}`;
@@ -842,7 +666,6 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
     async close() {
       await Promise.all([...runtimes.values()].map((runtime) => runtime.close().catch(() => undefined)));
       runtimes.clear();
-
       if (!server.listening) return;
       await new Promise<void>((resolve, reject) => {
         server.close((error) => (error ? reject(error) : resolve()));
