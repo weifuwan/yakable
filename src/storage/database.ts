@@ -90,6 +90,8 @@ function initializeSchema(database: DatabaseSync): void {
     CREATE INDEX IF NOT EXISTS idx_agent_events_run_sequence
       ON agent_events(run_id, sequence);
 
+    DROP TABLE IF EXISTS agent_file_changes;
+
     CREATE TABLE IF NOT EXISTS agent_turn_diffs (
       run_id TEXT PRIMARY KEY,
       files_json TEXT NOT NULL,
