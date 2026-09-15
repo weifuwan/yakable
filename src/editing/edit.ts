@@ -30,6 +30,8 @@ import {
   appendAgentRunEvent,
   completeAgentRun,
   createAgentRun,
+  recordAgentRunFileChange,
+  type AgentRunFileChangeInput,
 } from '../storage/agent-run.js';
 import { checkProjectTool, type CheckProjectOutput } from '../tools/check-project.js';
 import { readProjectFileTool } from '../tools/read-project-file.js';
@@ -76,6 +78,8 @@ const VISUAL_EDIT_END = '[[/YAKABLE_VISUAL_EDIT_REQUEST]]';
 export interface ProjectSnapshot extends ResolvedGeneratedProject {
   files: GeneratedFile[];
 }
+
+export interface AppliedProjectFileChange extends AgentRunFileChangeInput {}
 
 export interface EditProjectResult {
   projectId: string;
@@ -442,6 +446,7 @@ export async function assertPatchUsesSelectedContext(
 export async function applyProjectPatch(
   project: ResolvedGeneratedProject,
   patch: ProjectPatch,
+  onFileChange?: (change: AppliedProjectFileChange) => void,
 ): Promise<string[]> {
   const changedFiles: string[] = [];
 
@@ -455,6 +460,11 @@ export async function applyProjectPatch(
     await mkdir(path.dirname(destination), { recursive: true });
     await writeFile(destination, change.content, 'utf8');
     changedFiles.push(safePath);
+    onFileChange?.({
+      path: safePath,
+      beforeContent: existing,
+      afterContent: change.content,
+    });
   }
 
   if (changedFiles.length === 0) {
@@ -493,6 +503,13 @@ export async function editGeneratedProject(
       options.onEvent?.(event);
     },
   });
+  const recordChange = (change: AppliedProjectFileChange) => {
+    try {
+      recordAgentRunFileChange(agentRun.id, change);
+    } catch (error) {
+      console.warn('[Yakable Agent] Agent file change could not be persisted.', error);
+    }
+  };
 
   const prepared = await runFrontendAgentStage(
     agent,
@@ -542,7 +559,7 @@ export async function editGeneratedProject(
       const generation = await requestProjectPatch(editContext);
       const patch = parseProjectPatch(generation.content);
       await assertPatchUsesSelectedContext(project, patch, contextSelection.relevantFiles);
-      const initialChangedFiles = await applyProjectPatch(project, patch);
+      const initialChangedFiles = await applyProjectPatch(project, patch, recordChange);
       return { generation, patch, initialChangedFiles };
     },
   );
@@ -568,7 +585,7 @@ export async function editGeneratedProject(
       readFiles: async (paths) => (await readProjectSnapshot(project, paths)).files,
       requestRepair: requestProjectRepair,
       parsePatch: parseProjectPatch,
-      applyPatch: (repairPatch) => applyProjectPatch(project, repairPatch),
+      applyPatch: (repairPatch) => applyProjectPatch(project, repairPatch, recordChange),
       checkProject: () =>
         checkProjectTool.execute({}, { projectDirectory: project.directory }),
     });
