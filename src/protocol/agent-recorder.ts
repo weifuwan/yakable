@@ -118,6 +118,11 @@ export function assertAgentProgressTransition(
   }
 }
 
+function progressUpdateTime(item: AgentProgressItem): number {
+  const value = Date.parse(item.completedAt ?? item.startedAt);
+  return Number.isFinite(value) ? value : 0;
+}
+
 export function createAgentProtocolRecorder(
   options: AgentProtocolRecorderOptions = {},
 ): AgentProtocolRecorder {
@@ -132,11 +137,16 @@ export function createAgentProtocolRecorder(
   }
 
   let currentState: AgentProgressState | null = null;
+  let currentStateAt = -1;
   let repairCount = 0;
   for (const item of options.initialItems ?? []) {
     if (item.type !== 'progress') continue;
-    currentState = item.state;
     if (item.state === 'REPAIR') repairCount += 1;
+    const updatedAt = progressUpdateTime(item);
+    if (updatedAt >= currentStateAt) {
+      currentState = item.state;
+      currentStateAt = updatedAt;
+    }
   }
 
   const publish = <T extends AgentProtocolItem>(item: T): T => {

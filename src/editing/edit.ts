@@ -27,17 +27,14 @@ import {
 } from './project-context.js';
 import { runOneShotRepair, type OneShotRepairResult } from './repair.js';
 import { requestProjectPatch, requestProjectRepair } from '../model/deepseek.js';
-import {
-  appendProjectEditHistory,
-  readProjectSession,
-} from '../projects/project-session.js';
+import { readProjectSession } from '../projects/project-session.js';
 import { resolveGeneratedProject } from '../runtime/runtime.js';
-import { completeAgentRun, createAgentRun } from '../storage/agent-run.js';
+import { createAgentRun } from '../storage/agent-run.js';
 import { upsertAgentRunItem } from '../storage/agent-run-item.js';
 import { recordAgentRunTurnDiff } from '../storage/agent-run-turn-diff.js';
 import { checkProjectTool, type CheckProjectOutput } from '../tools/check-project.js';
 import type { ToolResult } from '../tools/tool.js';
-import type { ProjectSessionState } from '../types.js';
+import type { ProjectSessionState, ProjectVisualSelection } from '../types.js';
 import {
   workspaceChangedPaths,
   type WorkspaceChangeSet,
@@ -49,6 +46,8 @@ const MAX_FOLLOW_UP_LENGTH = 8_000;
 export interface EditProjectResult {
   projectId: string;
   projectDirectory: string;
+  userRequest: string;
+  visualSelections: ProjectVisualSelection[];
   model: string;
   summary: string;
   changedFiles: string[];
@@ -62,7 +61,9 @@ export interface EditProjectResult {
   session: ProjectSessionState | null;
 }
 
-export interface EditGeneratedProjectOptions extends FrontendAgentProgressOptions {}
+export interface EditGeneratedProjectOptions extends FrontendAgentProgressOptions {
+  onRunCreated?: (runId: string) => void;
+}
 
 async function persistTurnDiff(runId: string, tracker: TurnDiffTracker): Promise<void> {
   try {
@@ -93,6 +94,8 @@ export async function editGeneratedProject(
     kind: 'EDIT',
     prompt: userEdit.userRequest,
   });
+  options.onRunCreated?.(agentRun.id);
+
   const agent = createFrontendAgentRecorder({
     onEvent(item) {
       try {
@@ -215,29 +218,13 @@ export async function editGeneratedProject(
     );
   }
 
-  let nextSession = session;
-  try {
-    nextSession = await appendProjectEditHistory(project.directory, {
-      userRequest: userEdit.userRequest,
-      assistantSummary: patch.summary,
-      changedFiles,
-      model: generation.model,
-      visualSelections: userEdit.visualSelections,
-    });
-  } catch (error) {
-    console.warn('[Yakable Edit] Source update succeeded but conversation history could not be persisted.', error);
-  }
-
-  agent.message(patch.summary);
   await persistTurnDiff(agentRun.id, turnDiff);
-  completeAgentRun(agentRun.id, {
-    model: generation.model,
-    summary: patch.summary,
-  });
 
   return {
     projectId: project.id,
     projectDirectory: project.directory,
+    userRequest: userEdit.userRequest,
+    visualSelections: userEdit.visualSelections,
     model: generation.model,
     summary: patch.summary,
     changedFiles,
@@ -248,6 +235,6 @@ export async function editGeneratedProject(
     projectCheck,
     agentRunId: agentRun.id,
     agentTrace: agent.snapshot(),
-    session: nextSession,
+    session,
   };
 }

@@ -8,6 +8,27 @@ import {
   type WebApiServices,
 } from '../src/server/web-api.js';
 
+const editIntent = {
+  delta: {
+    version: 1 as const,
+    summary: 'Polish the Hero',
+    scope: 'section' as const,
+    targetHints: ['Hero'],
+    directives: [],
+    preserve: [],
+  },
+  source: 'model' as const,
+  reason: 'test',
+};
+
+const contextSelection = {
+  version: 1 as const,
+  relevantFiles: ['src/components/Hero.tsx'],
+  searchQuery: null,
+  reason: 'test',
+  source: 'model' as const,
+};
+
 function services(): WebApiServices {
   let alive = false;
   const runtime: RuntimeSession = {
@@ -35,16 +56,12 @@ function services(): WebApiServices {
         message: 'Create project.',
       };
     },
-    async generate(prompt, buildIntent, onAgentEvent) {
+    async generate(prompt, buildIntent, onAgentItem) {
       assert.equal(prompt, 'Build a SaaS landing page');
       assert.equal(buildIntent.route, 'CREATE');
-      onAgentEvent?.(createFrontendAgentEvent('ROUTE', 'COMPLETED', 'create'));
-      onAgentEvent?.(createFrontendAgentEvent('UNDERSTAND', 'COMPLETED', 'understood'));
-      onAgentEvent?.(createFrontendAgentEvent('DESIGN', 'COMPLETED', 'designed'));
-      onAgentEvent?.(createFrontendAgentEvent('TEMPLATE', 'COMPLETED', 'website'));
-      onAgentEvent?.(createFrontendAgentEvent('GENERATE', 'COMPLETED', 'generated'));
-      onAgentEvent?.(createFrontendAgentEvent('WRITE', 'COMPLETED', 'written'));
-      onAgentEvent?.(createFrontendAgentEvent('CHECK', 'COMPLETED', 'healthy'));
+      for (const state of ['ROUTE', 'UNDERSTAND', 'DESIGN', 'TEMPLATE', 'GENERATE', 'WRITE', 'CHECK'] as const) {
+        onAgentItem?.(createFrontendAgentEvent(state, 'COMPLETED', state.toLowerCase()));
+      }
       return {
         id: 'created-project',
         name: 'Created Project',
@@ -56,21 +73,52 @@ function services(): WebApiServices {
         conversation: null,
       };
     },
-    async edit(projectId, prompt, onAgentEvent) {
+    async beginEditRun(projectId, prompt, onRunCreated, onAgentItem) {
       assert.equal(projectId, 'demo-project');
       assert.equal(prompt, 'Polish the Hero');
-      onAgentEvent?.(createFrontendAgentEvent('SELECT_CONTEXT', 'ACTIVE', 'selecting'));
-      onAgentEvent?.(createFrontendAgentEvent('SELECT_CONTEXT', 'COMPLETED', 'selected'));
-      onAgentEvent?.(createFrontendAgentEvent('READ', 'COMPLETED', 'read'));
-      onAgentEvent?.(createFrontendAgentEvent('EDIT', 'COMPLETED', 'edited'));
-      onAgentEvent?.(createFrontendAgentEvent('CHECK', 'COMPLETED', 'healthy'));
+      onRunCreated?.('run-1');
+      onAgentItem?.(createFrontendAgentEvent('SELECT_CONTEXT', 'COMPLETED', 'selected'));
+      onAgentItem?.(createFrontendAgentEvent('READ', 'COMPLETED', 'read'));
+      onAgentItem?.(createFrontendAgentEvent('EDIT', 'COMPLETED', 'edited'));
+      onAgentItem?.(createFrontendAgentEvent('CHECK', 'COMPLETED', 'healthy'));
+      onAgentItem?.(createFrontendAgentEvent('OBSERVE', 'ACTIVE', 'waiting'));
       return {
+        runId: 'run-1',
+        status: 'WAITING_FOR_CLIENT_TOOL',
         projectId,
+        userRequest: prompt,
         summary: 'Polished Hero',
         model: 'test-model',
         changedFiles: ['src/components/Hero.tsx'],
-        session: null,
-        conversation: null,
+        editIntent,
+        contextSelection,
+        projectCheck: { ok: true, value: { status: 'PASS', checks: [], diagnostics: [] } },
+        clientTool: {
+          toolCallId: 'observe-1',
+          toolName: 'observe_preview',
+          iteration: 0,
+          message: 'Observe Preview',
+        },
+      };
+    },
+    async continueEditRun(runId, result, onAgentItem) {
+      assert.equal(runId, 'run-1');
+      assert.equal(result.toolCallId, 'observe-1');
+      onAgentItem?.(createFrontendAgentEvent('OBSERVE', 'COMPLETED', 'observed'));
+      onAgentItem?.(createFrontendAgentEvent('CRITIQUE', 'COMPLETED', 'passed'));
+      onAgentItem?.(createFrontendAgentEvent('DONE', 'COMPLETED', 'done'));
+      return {
+        runId,
+        status: 'COMPLETED',
+        projectId: 'demo-project',
+        userRequest: 'Polish the Hero',
+        summary: 'Polished Hero',
+        model: 'test-model',
+        changedFiles: ['src/components/Hero.tsx'],
+        editIntent,
+        contextSelection,
+        projectCheck: { ok: true, value: { status: 'PASS', checks: [], diagnostics: [] } },
+        visualFeedback: { status: 'PASS' },
       };
     },
     async startRuntime() {
@@ -80,127 +128,87 @@ function services(): WebApiServices {
   };
 }
 
-test('agent-create streams create pipeline states before the final project result', async () => {
+function records(text: string): Array<Record<string, unknown>> {
+  return text.trim().split('\n').map((line) => JSON.parse(line) as Record<string, unknown>);
+}
+
+function progressStates(items: Array<Record<string, unknown>>): string[] {
+  return items
+    .filter((record) => record.type === 'agent-item')
+    .map((record) => record.item as { type?: string; state?: string; status?: string })
+    .filter((item) => item.type === 'progress')
+    .map((item) => `${item.state}:${item.status}`);
+}
+
+test('agent-create streams structured items before the final project result', async () => {
   const api = createYakableApiServer({ services: services() });
   const baseUrl = await api.listen(0);
-
   try {
     const response = await fetch(`${baseUrl}/api/projects/agent-create`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt: 'Build a SaaS landing page' }),
     });
-
-    assert.equal(response.status, 200);
-    assert.match(response.headers.get('content-type') ?? '', /application\/x-ndjson/);
-
-    const records = (await response.text())
-      .trim()
-      .split('\n')
-      .map((line) => JSON.parse(line) as Record<string, unknown>);
-
-    assert.deepEqual(
-      records.filter((record) => record.type === 'agent-event').map((record) => {
-        const event = record.event as { state: string; status: string };
-        return `${event.state}:${event.status}`;
-      }),
-      [
-        'ROUTE:COMPLETED',
-        'UNDERSTAND:COMPLETED',
-        'DESIGN:COMPLETED',
-        'TEMPLATE:COMPLETED',
-        'GENERATE:COMPLETED',
-        'WRITE:COMPLETED',
-        'CHECK:COMPLETED',
-      ],
-    );
-
-    const final = records.at(-1) as {
-      type: string;
-      result: {
-        decision: { route: string };
-        project: { id: string };
-        previewUrl: string;
-      };
-    };
-    assert.equal(final.type, 'result');
-    assert.equal(final.result.decision.route, 'CREATE');
-    assert.equal(final.result.project.id, 'created-project');
-    assert.match(final.result.previewUrl, /revision=/);
+    const streamed = records(await response.text());
+    assert.deepEqual(progressStates(streamed), [
+      'ROUTE:COMPLETED',
+      'UNDERSTAND:COMPLETED',
+      'DESIGN:COMPLETED',
+      'TEMPLATE:COMPLETED',
+      'GENERATE:COMPLETED',
+      'WRITE:COMPLETED',
+      'CHECK:COMPLETED',
+    ]);
+    assert.equal(streamed.at(-1)?.type, 'result');
   } finally {
     await api.close();
   }
 });
 
-test('agent-edit streams real backend states before the final edit result', async () => {
+test('agent-edit returns the server run id and waits for the browser client tool', async () => {
   const api = createYakableApiServer({ services: services() });
   const baseUrl = await api.listen(0);
-
   try {
     const response = await fetch(`${baseUrl}/api/projects/demo-project/agent-edit`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt: 'Polish the Hero' }),
     });
-
-    assert.equal(response.status, 200);
-    assert.match(response.headers.get('content-type') ?? '', /application\/x-ndjson/);
-
-    const records = (await response.text())
-      .trim()
-      .split('\n')
-      .map((line) => JSON.parse(line) as Record<string, unknown>);
-
-    assert.deepEqual(
-      records.filter((record) => record.type === 'agent-event').map((record) => {
-        const event = record.event as { state: string; status: string };
-        return `${event.state}:${event.status}`;
-      }),
-      [
-        'SELECT_CONTEXT:ACTIVE',
-        'SELECT_CONTEXT:COMPLETED',
-        'READ:COMPLETED',
-        'EDIT:COMPLETED',
-        'CHECK:COMPLETED',
-      ],
-    );
-
-    const final = records.at(-1) as {
-      type: string;
-      result: { summary: string; previewUrl: string };
-    };
-    assert.equal(final.type, 'result');
-    assert.equal(final.result.summary, 'Polished Hero');
-    assert.match(final.result.previewUrl, /revision=/);
+    const streamed = records(await response.text());
+    assert.deepEqual(streamed[0], { type: 'run-started', runId: 'run-1' });
+    assert.equal(streamed.at(-1)?.type, 'await-client-tool');
+    const payload = streamed.at(-1)?.result as { runId: string; clientTool: { toolCallId: string } };
+    assert.equal(payload.runId, 'run-1');
+    assert.equal(payload.clientTool.toolCallId, 'observe-1');
   } finally {
     await api.close();
   }
 });
 
-test('agent-edit turns backend failures into one terminal stream record', async () => {
-  const failing = services();
-  failing.edit = async (_projectId, _prompt, onAgentEvent) => {
-    onAgentEvent?.(createFrontendAgentEvent('SELECT_CONTEXT', 'ACTIVE', 'selecting'));
-    throw new Error('context selection exploded');
-  };
-
-  const api = createYakableApiServer({ services: failing });
+test('client-tool-result continues the same run to completion', async () => {
+  const api = createYakableApiServer({ services: services() });
   const baseUrl = await api.listen(0);
-
   try {
-    const response = await fetch(`${baseUrl}/api/projects/demo-project/agent-edit`, {
+    const response = await fetch(`${baseUrl}/api/agent-runs/run-1/client-tool-result`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: 'Polish the Hero' }),
+      body: JSON.stringify({
+        toolCallId: 'observe-1',
+        toolName: 'observe_preview',
+        status: 'COMPLETED',
+        output: { version: 1 },
+      }),
     });
-    const records = (await response.text())
-      .trim()
-      .split('\n')
-      .map((line) => JSON.parse(line) as Record<string, unknown>);
-
-    assert.equal(records[0]?.type, 'agent-event');
-    assert.equal(records.at(-1)?.type, 'error');
-    assert.match(String(records.at(-1)?.error), /context selection exploded/);
+    const streamed = records(await response.text());
+    assert.deepEqual(progressStates(streamed), [
+      'OBSERVE:COMPLETED',
+      'CRITIQUE:COMPLETED',
+      'DONE:COMPLETED',
+    ]);
+    assert.equal(streamed.at(-1)?.type, 'result');
+    const payload = streamed.at(-1)?.result as { runId: string; status: string };
+    assert.equal(payload.runId, 'run-1');
+    assert.equal(payload.status, 'COMPLETED');
   } finally {
     await api.close();
   }

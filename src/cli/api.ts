@@ -1,7 +1,6 @@
 import 'dotenv/config';
 
-import { createAgentRuntimeWebApiServices } from '../server/agent-runtime-services.js';
-import { createYakableApiServer } from '../server/web-api.js';
+import { createDefaultWebApiServices, createYakableApiServer } from '../server/web-api.js';
 import { closeYakableDatabases } from '../storage/database.js';
 
 function readPort(): number {
@@ -15,7 +14,7 @@ function readPort(): number {
 }
 
 const api = createYakableApiServer({
-  services: createAgentRuntimeWebApiServices(),
+  services: createDefaultWebApiServices(),
 });
 const url = await api.listen(readPort());
 

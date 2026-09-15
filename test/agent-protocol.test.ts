@@ -40,6 +40,40 @@ test('updates active progress and tool calls in place while preserving item orde
   );
 });
 
+test('restores resumed progress from the latest completion time instead of item start order', () => {
+  const recorder = createAgentProtocolRecorder({
+    initialItems: [
+      {
+        version: 1,
+        id: 'check',
+        type: 'progress',
+        state: 'CHECK',
+        status: 'COMPLETED',
+        startedAt: '2026-09-15T02:00:00.000Z',
+        completedAt: '2026-09-15T02:00:04.000Z',
+        message: 'Healthy after repair',
+      },
+      {
+        version: 1,
+        id: 'repair',
+        type: 'progress',
+        state: 'REPAIR',
+        status: 'COMPLETED',
+        startedAt: '2026-09-15T02:00:01.000Z',
+        completedAt: '2026-09-15T02:00:03.000Z',
+        message: 'Repaired',
+      },
+    ],
+    idFactory: () => 'observe',
+    now: () => new Date('2026-09-15T02:00:05.000Z'),
+  });
+
+  assert.doesNotThrow(() => recorder.progress('OBSERVE', 'ACTIVE', 'Observe Preview'));
+  const observe = recorder.snapshot().find((item) => item.id === 'observe');
+  assert.equal(observe?.type, 'progress');
+  if (observe?.type === 'progress') assert.equal(observe.state, 'OBSERVE');
+});
+
 test('records heterogeneous file, command, check, and message items', () => {
   let nextId = 0;
   const recorder = createAgentProtocolRecorder({ idFactory: () => `item-${++nextId}` });

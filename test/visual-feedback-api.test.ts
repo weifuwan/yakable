@@ -1,31 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import type { DesignCriticRun } from '../src/editing/design-critic.js';
-import type { EditIntentDelta } from '../src/editing/edit-intent.js';
-import type { VisualRepairResult } from '../src/editing/visual-repair.js';
 import type { PageObservation } from '../src/runtime/page-observation.js';
 import {
   createYakableApiServer,
   type RuntimeSession,
   type WebApiServices,
 } from '../src/server/web-api.js';
-import type { BuildIntentDecision } from '../src/types.js';
-
-const editIntent: EditIntentDelta = {
-  version: 1,
-  summary: 'Refine the Hero hierarchy.',
-  scope: 'section',
-  targetHints: ['Hero'],
-  directives: [
-    {
-      area: 'visual-hierarchy',
-      directive: 'Strengthen the primary hierarchy.',
-      basis: 'interpreted',
-    },
-  ],
-  preserve: [],
-};
 
 const pageObservation: PageObservation = {
   version: 1,
@@ -51,49 +32,28 @@ const pageObservation: PageObservation = {
   truncated: { elements: false, runtimeErrors: false },
 };
 
-const critique: DesignCriticRun = {
-  model: 'test-model',
-  result: {
-    version: 1,
-    status: 'FAIL',
-    summary: 'The Hero hierarchy needs one repair.',
-    findings: [
-      {
-        area: 'visual-hierarchy',
-        severity: 'major',
-        message: 'The current heading hierarchy is too weak.',
-        evidenceRefs: ['element:0'],
-      },
-    ],
-    unverifiedAreas: [],
+const editIntent = {
+  delta: {
+    version: 1 as const,
+    summary: 'Refine the Hero hierarchy.',
+    scope: 'section' as const,
+    targetHints: ['Hero'],
+    directives: [],
+    preserve: [],
   },
+  source: 'model' as const,
+  reason: 'test',
 };
 
-const visualRepair: VisualRepairResult = {
-  attempted: true,
-  status: 'REPAIRED',
-  contextFiles: ['src/components/Hero.tsx'],
-  changedFiles: ['src/components/Hero.tsx'],
-  projectCheck: {
-    ok: true,
-    value: {
-      status: 'PASS',
-      checks: [],
-      diagnostics: [],
-    },
-  },
-  rolledBack: false,
-  model: 'test-model',
-  summary: 'Repaired the Hero hierarchy.',
+const contextSelection = {
+  version: 1 as const,
+  relevantFiles: ['src/components/Hero.tsx'],
+  searchQuery: null,
+  reason: 'test',
+  source: 'model' as const,
 };
 
 function services(): WebApiServices {
-  const decision: BuildIntentDecision = {
-    version: 1,
-    route: 'CREATE',
-    confidence: 'high',
-    message: 'Create project.',
-  };
   let alive = false;
   const runtime: RuntimeSession = {
     url: 'http://127.0.0.1:59001/',
@@ -113,7 +73,12 @@ function services(): WebApiServices {
       return [];
     },
     async gateBuildIntent() {
-      return decision;
+      return {
+        version: 1,
+        route: 'CREATE',
+        confidence: 'high',
+        message: 'Create project.',
+      };
     },
     async generate() {
       return {
@@ -127,77 +92,89 @@ function services(): WebApiServices {
         conversation: null,
       };
     },
-    async edit(projectId) {
+    async beginEditRun() {
       return {
-        projectId,
-        summary: 'Edited',
+        runId: 'run-1',
+        status: 'WAITING_FOR_CLIENT_TOOL',
+        projectId: 'demo-project',
+        userRequest: 'Polish the Hero',
         model: 'test-model',
+        summary: 'Edited',
         changedFiles: ['src/components/Hero.tsx'],
-        session: null,
-        conversation: null,
+        editIntent,
+        contextSelection,
+        projectCheck: { ok: true, value: { status: 'PASS', checks: [], diagnostics: [] } },
+        clientTool: {
+          toolCallId: 'observe-1',
+          toolName: 'observe_preview',
+          iteration: 0,
+          message: 'Observe Preview',
+        },
+      };
+    },
+    async continueEditRun(runId, result) {
+      assert.equal(runId, 'run-1');
+      assert.equal(result.toolCallId, 'observe-1');
+      assert.equal(result.status, 'COMPLETED');
+      if (result.status === 'COMPLETED') {
+        assert.deepEqual(result.output, pageObservation);
+      }
+      return {
+        runId,
+        status: 'COMPLETED',
+        projectId: 'demo-project',
+        userRequest: 'Polish the Hero',
+        model: 'test-model',
+        summary: 'Edited',
+        changedFiles: ['src/components/Hero.tsx'],
+        editIntent,
+        contextSelection,
+        projectCheck: { ok: true, value: { status: 'PASS', checks: [], diagnostics: [] } },
+        visualFeedback: {
+          status: 'PASS',
+          initialObservation: pageObservation,
+        },
       };
     },
     async startRuntime() {
       alive = true;
       return runtime;
     },
-    async critique(projectId, receivedEditIntent, receivedObservation) {
-      assert.equal(projectId, 'demo-project');
-      assert.deepEqual(receivedEditIntent, editIntent);
-      assert.deepEqual(receivedObservation, pageObservation);
-      return critique;
-    },
-    async visualRepair(projectId, input) {
-      assert.equal(projectId, 'demo-project');
-      assert.equal(input.userRequest, 'Polish the Hero');
-      assert.deepEqual(input.editIntent, editIntent);
-      assert.deepEqual(input.pageObservation, pageObservation);
-      assert.equal(input.critique.status, 'FAIL');
-      assert.deepEqual(input.initialChangedFiles, ['src/components/Hero.tsx']);
-      assert.deepEqual(input.selectedContextFiles, ['src/components/Hero.tsx']);
-      return visualRepair;
-    },
   };
 }
 
-test('web API exposes bounded critique and one visual repair boundary', async () => {
+test('browser can only return observe_preview results to the server-owned run', async () => {
   const api = createYakableApiServer({ services: services() });
   const baseUrl = await api.listen(0);
-
   try {
-    const critiqueResponse = await fetch(`${baseUrl}/api/projects/demo-project/critique`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ editIntent, pageObservation }),
-    });
-    assert.equal(critiqueResponse.status, 200);
-    const critiquePayload = await critiqueResponse.json() as { critique: DesignCriticRun };
-    assert.equal(critiquePayload.critique.result.status, 'FAIL');
-    assert.deepEqual(
-      critiquePayload.critique.result.findings[0]?.evidenceRefs,
-      ['element:0'],
-    );
-
-    const repairResponse = await fetch(`${baseUrl}/api/projects/demo-project/visual-repair`, {
+    const response = await fetch(`${baseUrl}/api/agent-runs/run-1/client-tool-result`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userRequest: 'Polish the Hero',
-        editIntent,
-        critique: critique.result,
-        pageObservation,
-        initialChangedFiles: ['src/components/Hero.tsx'],
-        selectedContextFiles: ['src/components/Hero.tsx'],
+        toolCallId: 'observe-1',
+        toolName: 'observe_preview',
+        status: 'COMPLETED',
+        output: pageObservation,
       }),
     });
-    assert.equal(repairResponse.status, 200);
-    const repairPayload = await repairResponse.json() as {
-      visualRepair: VisualRepairResult;
-      previewUrl: string;
-    };
-    assert.equal(repairPayload.visualRepair.status, 'REPAIRED');
-    assert.equal(repairPayload.visualRepair.rolledBack, false);
-    assert.match(repairPayload.previewUrl, /revision=/);
+    assert.equal(response.status, 200);
+    const rows = (await response.text()).trim().split('\n').map((line) => JSON.parse(line));
+    assert.equal(rows.at(-1)?.type, 'result');
+    assert.equal(rows.at(-1)?.result.visualFeedback.status, 'PASS');
+
+    const oldCritique = await fetch(`${baseUrl}/api/projects/demo-project/critique`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    assert.equal(oldCritique.status, 404);
+
+    const oldRepair = await fetch(`${baseUrl}/api/projects/demo-project/visual-repair`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    assert.equal(oldRepair.status, 404);
   } finally {
     await api.close();
   }

@@ -101,6 +101,13 @@ function initializeSchema(database: DatabaseSync): void {
       removed_lines INTEGER NOT NULL,
       FOREIGN KEY (run_id) REFERENCES agent_runs(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS agent_run_states (
+      run_id TEXT PRIMARY KEY,
+      state_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (run_id) REFERENCES agent_runs(id) ON DELETE CASCADE
+    );
   `);
 }
 

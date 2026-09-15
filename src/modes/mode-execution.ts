@@ -1,9 +1,12 @@
-import { createDefaultAgentRuntime } from '../agent-runtime/agent-runtime.js';
+import {
+  createDefaultAgentRuntime,
+  type UnifiedEditRunResult,
+} from '../agent-runtime/index.js';
+import type { EditGeneratedProjectOptions } from '../editing/edit.js';
 import type {
-  EditGeneratedProjectOptions,
-  EditProjectResult,
-} from '../editing/edit.js';
-import type { VisualRepairProjectInput, VisualRepairResult } from '../editing/visual-repair.js';
+  VisualRepairProjectInput,
+  VisualRepairResult,
+} from '../editing/visual-repair.js';
 import { repairGeneratedProjectVisual } from '../editing/visual-repair.js';
 import type { GenerateProjectOptions } from '../generation/generate.js';
 import type { GenerationResult } from '../types.js';
@@ -34,24 +37,29 @@ export function generateProjectInMode(
   );
 }
 
-export function editGeneratedProjectInMode(
+export function beginEditRunInMode(
   mode: YakableMode,
   projectInput: string,
   followUpRequest: string,
   options: EditGeneratedProjectOptions = {},
-): Promise<EditProjectResult> {
+): Promise<UnifiedEditRunResult> {
   return runModeCapability(mode, 'edit-source', () =>
-    agentRuntime.editProject(projectInput, followUpRequest, options, mode),
+    agentRuntime.beginEditRun(projectInput, followUpRequest, options, mode),
   );
 }
 
-export function repairGeneratedProjectVisualInMode(
+export async function repairGeneratedProjectVisualInMode(
   mode: YakableMode,
   projectInput: string,
   input: VisualRepairProjectInput,
   generatedRoot?: string,
 ): Promise<VisualRepairResult> {
-  return runModeCapability(mode, 'repair-source', () =>
-    repairGeneratedProjectVisual(projectInput, input, generatedRoot),
-  );
+  return runModeCapability(mode, 'repair-source', async () => {
+    const { changeSet: _changeSet, ...result } = await repairGeneratedProjectVisual(
+      projectInput,
+      input,
+      { generatedRoot },
+    );
+    return result;
+  });
 }

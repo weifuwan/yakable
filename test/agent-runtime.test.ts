@@ -4,7 +4,6 @@ import test from 'node:test';
 import { AgentRuntime } from '../src/agent-runtime/agent-runtime.js';
 import { createAgentRunContext } from '../src/agent-runtime/run-context.js';
 import { ToolRouter } from '../src/agent-runtime/tool-router.js';
-import type { EditProjectResult } from '../src/editing/edit.js';
 import type { ModelClient } from '../src/model/model-client.js';
 import type { Tool } from '../src/tools/tool.js';
 import type { GenerationResult } from '../src/types.js';
@@ -73,10 +72,9 @@ test('ToolRouter exposes and executes tools according to mode capabilities', asy
   assert.deepEqual(allowed, { ok: true, value: 'applied' });
 });
 
-test('AgentRuntime owns create/edit entry points while delegating legacy workflow behavior', async () => {
+test('AgentRuntime keeps create behind one normalized runtime boundary', async () => {
   const calls: string[] = [];
   const generationResult = { marker: 'create-result' } as unknown as GenerationResult;
-  const editResult = { marker: 'edit-result' } as unknown as EditProjectResult;
   const router = new ToolRouter().register(editTool, { capability: 'edit-source' });
 
   const runtime = new AgentRuntime({
@@ -86,10 +84,6 @@ test('AgentRuntime owns create/edit entry points while delegating legacy workflo
     async generateProject(prompt, options) {
       calls.push(`create:${prompt}:${options?.mode}`);
       return generationResult;
-    },
-    async editProject(projectInput, prompt) {
-      calls.push(`edit:${projectInput}:${prompt}`);
-      return editResult;
     },
   });
 
@@ -103,14 +97,7 @@ test('AgentRuntime owns create/edit entry points while delegating legacy workflo
   assert.deepEqual(context.availableTools, [editTool.name]);
 
   assert.equal(await runtime.createProject('  Build a dashboard  '), generationResult);
-  assert.equal(
-    await runtime.editProject(' generated/example ', '  Refine spacing  '),
-    editResult,
-  );
-  assert.deepEqual(calls, [
-    'create:Build a dashboard:BUILD',
-    'edit:generated/example:Refine spacing',
-  ]);
+  assert.deepEqual(calls, ['create:Build a dashboard:BUILD']);
 
   await assert.rejects(
     runtime.createProject('Plan only', { mode: 'PLAN' }),
