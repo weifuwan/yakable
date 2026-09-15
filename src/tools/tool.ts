@@ -1,5 +1,8 @@
+import type { AgentProtocolRecorder } from '../protocol/agent-recorder.js';
+
 export interface ToolContext {
   projectDirectory: string;
+  agent?: AgentProtocolRecorder;
 }
 
 export interface ToolError {
