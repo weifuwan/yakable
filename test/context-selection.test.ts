@@ -8,7 +8,7 @@ import {
   parseProjectContextSelection,
   selectMappedVisualContextFiles,
   selectProjectContextFiles,
-} from '../src/editing/context-selection.js';
+} from '../src/context/project-context-selection.js';
 
 const availableFiles = [
   'index.html',
