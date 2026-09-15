@@ -1,9 +1,4 @@
 import {
-  editGeneratedProject,
-  type EditGeneratedProjectOptions,
-  type EditProjectResult,
-} from '../editing/edit.js';
-import {
   generateProject,
   type GenerateProjectOptions,
 } from '../generation/generate.js';
@@ -34,17 +29,10 @@ export type GenerateProjectExecutor = (
   options?: GenerateProjectOptions,
 ) => Promise<GenerationResult>;
 
-export type EditProjectExecutor = (
-  projectInput: string,
-  followUpRequest: string,
-  options?: EditGeneratedProjectOptions,
-) => Promise<EditProjectResult>;
-
 export interface AgentRuntimeDependencies {
   modelClient?: ModelClient;
   toolRouter?: ToolRouter;
   generateProject?: GenerateProjectExecutor;
-  editProject?: EditProjectExecutor;
   now?: () => Date;
 }
 
@@ -60,14 +48,12 @@ export class AgentRuntime {
   readonly toolRouter: ToolRouter;
 
   private readonly generateProjectExecutor: GenerateProjectExecutor;
-  private readonly editProjectExecutor: EditProjectExecutor;
   private readonly now: () => Date;
 
   constructor(dependencies: AgentRuntimeDependencies = {}) {
     this.modelClient = dependencies.modelClient ?? deepSeekModelClient;
     this.toolRouter = dependencies.toolRouter ?? createDefaultToolRouter();
     this.generateProjectExecutor = dependencies.generateProject ?? generateProject;
-    this.editProjectExecutor = dependencies.editProject ?? editGeneratedProject;
     this.now = dependencies.now ?? (() => new Date());
   }
 
@@ -98,26 +84,6 @@ export class AgentRuntime {
       ...options,
       mode: context.mode,
     });
-  }
-
-  async editProject(
-    projectInput: string,
-    followUpRequest: string,
-    options: EditGeneratedProjectOptions = {},
-    mode: YakableMode = 'BUILD',
-  ): Promise<EditProjectResult> {
-    const context = this.createContext({
-      operation: 'EDIT',
-      projectInput,
-      prompt: followUpRequest,
-      mode,
-    });
-    assertModeCapability(context.mode, 'edit-source');
-    return this.editProjectExecutor(
-      context.projectInput!,
-      context.prompt,
-      options,
-    );
   }
 
   async beginEditRun(
