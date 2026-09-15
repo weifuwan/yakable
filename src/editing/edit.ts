@@ -7,6 +7,11 @@ import {
 export type EditProjectResult = EditProjectWorkflowResult;
 export type EditGeneratedProjectOptions = EditProjectWorkflowOptions;
 
+export {
+  listProjectContextFiles,
+  readProjectSnapshot,
+} from './project-context.js';
+
 /**
  * Editing is now an AgentRuntime workflow concern.
  *
