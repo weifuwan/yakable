@@ -1,9 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {
-  createAgentProtocolRecorder,
-} from '../src/protocol/agent-recorder.js';
+import { createAgentProtocolRecorder } from '../src/protocol/agent-recorder.js';
 import { parseAgentProtocolItem } from '../src/protocol/agent-protocol.js';
 
 test('updates active progress and tool calls in place while preserving item order', () => {
@@ -111,7 +109,14 @@ test('parses a valid structured item and rejects malformed protocol payloads', (
   assert.equal(parsed.type, 'agent_message');
 
   assert.throws(
-    () => parseAgentProtocolItem({ version: 1, type: 'progress' }),
+    () => parseAgentProtocolItem({
+      version: 1,
+      type: 'progress',
+      status: 'COMPLETED',
+      startedAt: '2026-09-15T02:00:00.000Z',
+      message: 'missing id',
+      state: 'ROUTE',
+    }),
     /id is required/,
   );
   assert.throws(
