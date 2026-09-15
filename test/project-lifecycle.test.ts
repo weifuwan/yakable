@@ -69,7 +69,7 @@ test('advances the creation lifecycle independently from the Agent run', () => {
 
 test('records terminal project failures and rejects invalid backwards transitions', () => {
   withMemoryDatabase(() => {
-    const { project } = beginProjectBuildLifecycle({
+    const { project, run } = beginProjectBuildLifecycle({
       projectId: 'failed-lifecycle-project',
       prompt: 'Build a project that fails',
     });
@@ -79,6 +79,8 @@ test('records terminal project failures and rejects invalid backwards transition
 
     assert.equal(failed.status, 'FAILED');
     assert.equal(failed.failureMessage, 'Model request timed out');
+    assert.equal(readAgentRun(run.id)?.status, 'FAILED');
+    assert.equal(readAgentRun(run.id)?.summary, 'Model request timed out');
     assert.throws(
       () => transitionProjectLifecycle(project.projectId, 'GENERATING'),
       /Invalid project lifecycle transition: FAILED -> GENERATING/,
