@@ -1,10 +1,10 @@
 export interface ContextBudgetInput {
-  maxContextTokens: number;
-  reservedOutputTokens: number;
+  readonly maxContextTokens: number;
+  readonly reservedOutputTokens: number;
 }
 
 export interface ContextBudget extends ContextBudgetInput {
-  maxInputTokens: number;
+  readonly maxInputTokens: number;
 }
 
 function requirePositiveInteger(value: number, name: string): number {
