@@ -115,9 +115,34 @@ function fakeServices(): WebApiServices {
       assert.ok(prompt.length > 0);
       return createDecision;
     },
-    async generate(prompt, buildIntent) {
+    async bootstrapCreate(prompt, decision) {
+      assert.equal(prompt, 'Build a dashboard');
+      assert.equal(decision.route, 'CREATE');
+      return {
+        reservation: {
+          projectId: 'generated-project',
+          agentRunId: 'create-run-1',
+          createdAt: '2026-09-11T07:00:00.000Z',
+        },
+        project: {
+          id: 'generated-project',
+          name: 'Generated Project',
+          prompt,
+          status: 'CREATING',
+          createdAt: '2026-09-11T07:00:00.000Z',
+          updatedAt: '2026-09-11T07:00:00.000Z',
+        },
+        run: {
+          id: 'create-run-1',
+          status: 'RUNNING',
+          startedAt: '2026-09-11T07:00:00.000Z',
+        },
+      };
+    },
+    async generate(prompt, buildIntent, _onAgentItem, reservation) {
       assert.equal(prompt, 'Build a dashboard');
       assert.equal(buildIntent.route, 'CREATE');
+      assert.equal(reservation?.projectId, 'generated-project');
       return {
         id: 'generated-project',
         name: 'Generated Project',
@@ -208,7 +233,7 @@ function ndjson(text: string): Array<Record<string, unknown>> {
   return text.trim().split('\n').map((line) => JSON.parse(line) as Record<string, unknown>);
 }
 
-test('web API lists projects and wires project creation to runtime', async () => {
+test('web API lists projects and bootstraps project creation through the unified entry', async () => {
   const api = createYakableApiServer({ services: fakeServices() });
   const baseUrl = await api.listen(0);
   try {
@@ -216,21 +241,48 @@ test('web API lists projects and wires project creation to runtime', async () =>
     const list = await listResponse.json() as { projects: Array<{ id: string; name: string }> };
     assert.deepEqual(list.projects.map((project) => project.id), ['demo-project']);
 
-    const createResponse = await fetch(`${baseUrl}/api/projects`, {
+    const createResponse = await fetch(`${baseUrl}/api/projects/bootstrap`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt: 'Build a dashboard' }),
     });
-    assert.equal(createResponse.status, 201);
+    assert.equal(createResponse.status, 202);
     const created = await createResponse.json() as {
       decision: BuildIntentDecision;
-      project: { id: string; template: string; routes: Array<{ path: string }> };
-      previewUrl: string;
+      project: { id: string; name: string };
+      creation: {
+        project: { status: string; activeRunId?: string };
+        run: { id: string; status: string; items: unknown[] };
+      };
     };
     assert.equal(created.decision.route, 'CREATE');
     assert.equal(created.project.id, 'generated-project');
-    assert.deepEqual(created.project.routes.map((route) => route.path), ['/', '/account']);
-    assert.match(created.previewUrl, /revision=/);
+    assert.equal(created.creation.project.status, 'CREATING');
+    assert.equal(created.creation.project.activeRunId, 'create-run-1');
+    assert.equal(created.creation.run.id, 'create-run-1');
+    assert.deepEqual(created.creation.run.items, []);
+  } finally {
+    await api.close();
+  }
+});
+
+test('legacy project create endpoints are removed instead of kept for compatibility', async () => {
+  const api = createYakableApiServer({ services: fakeServices() });
+  const baseUrl = await api.listen(0);
+  try {
+    const syncCreate = await fetch(`${baseUrl}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: 'Build a dashboard' }),
+    });
+    assert.equal(syncCreate.status, 404);
+
+    const agentCreate = await fetch(`${baseUrl}/api/projects/agent-create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: 'Build a dashboard' }),
+    });
+    assert.equal(agentCreate.status, 404);
   } finally {
     await api.close();
   }
