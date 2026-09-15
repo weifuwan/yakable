@@ -5,8 +5,6 @@ import {
   createDefaultAgentRuntime,
   type AgentRuntime,
 } from '../agent-runtime/agent-runtime.js';
-import { classifyBuildIntent } from '../prompt-intelligence/build-intent.js';
-import { classifyProjectMessageIntent } from '../prompt-intelligence/project-message.js';
 import {
   deleteManagedProject,
   listManagedProjects,
@@ -114,7 +112,7 @@ export function createDefaultWebApiServices(
     },
 
     async gateBuildIntent(prompt) {
-      return classifyBuildIntent(prompt);
+      return agentRuntime.classifyBuildIntent(prompt);
     },
 
     async generate(prompt, buildIntent, onAgentItem) {
@@ -148,7 +146,7 @@ export function createDefaultWebApiServices(
       const hasGeneratedUi = Boolean(
         session?.designIntent || session?.edits.some((edit) => edit.changedFiles.length > 0),
       );
-      const decision = await classifyProjectMessageIntent({
+      const decision = await agentRuntime.classifyProjectMessage({
         userInput: prompt,
         hasGeneratedUi,
         recentConversation:
