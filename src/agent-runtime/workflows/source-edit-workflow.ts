@@ -14,7 +14,10 @@ import {
   type OneShotRepairResult,
   type RepairGeneration,
 } from '../../editing/repair.js';
-import type { AgentProtocolRecorder } from '../../protocol/agent-recorder.js';
+import {
+  runAgentStage,
+  type AgentProtocolRecorder,
+} from '../../protocol/agent-recorder.js';
 import type { ResolvedGeneratedProject } from '../../runtime/runtime.js';
 import { checkProjectTool, type CheckProjectOutput } from '../../tools/check-project.js';
 import type { ToolResult } from '../../tools/tool.js';
@@ -130,7 +133,8 @@ export async function runSourceEditWorkflow(
   const turnDiff = input.turnDiff ?? new TurnDiffTracker();
   const changeManager = createProjectChangeManager(input.project);
 
-  const prepared = await input.agentStage(
+  const prepared = await runAgentStage(
+    input.agent,
     'SELECT_CONTEXT',
     messages.selectingActive,
     messages.selectingCompleted,
@@ -144,7 +148,8 @@ export async function runSourceEditWorkflow(
   );
 
   const { editIntent, availableFiles, contextSelection } = prepared;
-  const snapshot = await input.agentStage(
+  const snapshot = await runAgentStage(
+    input.agent,
     'READ',
     messages.readingActive,
     `Read ${contextSelection.relevantFiles.length} selected project file(s)`,
@@ -159,7 +164,8 @@ export async function runSourceEditWorkflow(
     contextSelection,
   });
 
-  const edited = await input.agentStage(
+  const edited = await runAgentStage(
+    input.agent,
     'EDIT',
     messages.editingActive,
     messages.editingCompleted,
@@ -244,7 +250,9 @@ export async function runSourceEditWorkflow(
     input.agent.emit(
       'CHECK',
       'FAILED',
-      projectCheck.ok ? messages.unhealthy : `Project health check could not run: ${projectCheck.error.message}`,
+      projectCheck.ok
+        ? messages.unhealthy
+        : `Project health check could not run: ${projectCheck.error.message}`,
     );
   }
 
