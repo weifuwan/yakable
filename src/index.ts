@@ -73,7 +73,7 @@ export type {
   YakableModeContext,
 } from './modes/mode-contract.js';
 export {
-  editGeneratedProjectInMode,
+  beginEditRunInMode,
   generateProjectInMode,
   repairGeneratedProjectVisualInMode,
   runModeCapability,
@@ -269,7 +269,9 @@ export {
   selectVisualRepairContextFiles,
 } from './editing/visual-repair.js';
 export type {
+  RepairGeneratedProjectVisualOptions,
   RunVisualRepairInput,
+  VisualRepairExecutionResult,
   VisualRepairGeneration,
   VisualRepairProjectInput,
   VisualRepairResult,
