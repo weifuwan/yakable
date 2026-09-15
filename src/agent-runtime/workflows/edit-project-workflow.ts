@@ -2,8 +2,8 @@ import {
   buildProjectEditContext,
   extractUserEditContext,
   resolveProjectEditContext,
-  type EditContextSelection,
-} from '../../context/index.js';
+} from '../../context/project-context.js';
+import type { EditContextSelection } from '../../context/project-context-selection.js';
 import {
   resolveEditIntentDelta,
   type EditIntentResolution,
