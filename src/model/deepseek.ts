@@ -1,4 +1,4 @@
-import type { ModelClient, ModelGeneration } from './model-client.js';
+import { assertModelRequestWithinBudget } from '../context/model-request-budget.js';
 import { DESIGN_CRITIC_SYSTEM_PROMPT } from '../editing/design-critic-prompt.js';
 import { EDIT_INTENT_DELTA_SYSTEM_PROMPT } from '../editing/edit-intent-prompt.js';
 import { PROJECT_CONTEXT_SELECTION_SYSTEM_PROMPT } from '../editing/context-selection-prompt.js';
@@ -17,10 +17,12 @@ import { BUILD_INTENT_SYSTEM_PROMPT } from '../prompt-intelligence/build-intent-
 import { INTENT_ANALYSIS_SYSTEM_PROMPT } from '../prompt-intelligence/intent-prompt.js';
 import { SEMANTIC_EXPANSION_SYSTEM_PROMPT } from '../prompt-intelligence/semantic-prompt.js';
 import { TASTE_TRANSLATION_SYSTEM_PROMPT } from '../prompt-intelligence/taste-prompt.js';
+import type { ModelClient, ModelGeneration } from './model-client.js';
 
 const DEFAULT_BASE_URL = 'https://api.deepseek.com';
 const DEFAULT_MODEL = 'deepseek-v4-pro';
 const DEFAULT_REQUEST_TIMEOUT_MS = 600_000;
+const DEFAULT_CONTEXT_WINDOW_TOKENS = 128_000;
 const DEFAULT_MAX_TOKENS = 16_384;
 const DEFAULT_THINKING_MODE = 'disabled' as const;
 
@@ -43,6 +45,7 @@ export interface DeepSeekRequestConfig {
   baseUrl: string;
   model: string;
   requestTimeoutMs: number;
+  contextWindowTokens: number;
   maxTokens: number;
   thinkingMode: ThinkingMode;
 }
@@ -81,6 +84,19 @@ function readThinkingMode(env: NodeJS.ProcessEnv): ThinkingMode {
 export function resolveDeepSeekRequestConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): DeepSeekRequestConfig {
+  const contextWindowTokens = readPositiveInteger(
+    env,
+    'DEEPSEEK_CONTEXT_WINDOW_TOKENS',
+    DEFAULT_CONTEXT_WINDOW_TOKENS,
+  );
+  const maxTokens = readPositiveInteger(env, 'DEEPSEEK_MAX_TOKENS', DEFAULT_MAX_TOKENS);
+
+  if (maxTokens >= contextWindowTokens) {
+    throw new Error(
+      'DEEPSEEK_MAX_TOKENS must be smaller than DEEPSEEK_CONTEXT_WINDOW_TOKENS.',
+    );
+  }
+
   return {
     model: env.DEEPSEEK_MODEL?.trim() || DEFAULT_MODEL,
     baseUrl: (env.DEEPSEEK_BASE_URL?.trim() || DEFAULT_BASE_URL).replace(/\/+$/, ''),
@@ -89,7 +105,8 @@ export function resolveDeepSeekRequestConfig(
       'DEEPSEEK_TIMEOUT_MS',
       DEFAULT_REQUEST_TIMEOUT_MS,
     ),
-    maxTokens: readPositiveInteger(env, 'DEEPSEEK_MAX_TOKENS', DEFAULT_MAX_TOKENS),
+    contextWindowTokens,
+    maxTokens,
     thinkingMode: readThinkingMode(env),
   };
 }
@@ -117,6 +134,17 @@ async function requestStructuredGeneration(
 
   throwIfOperationCancelled();
   const config = resolveDeepSeekRequestConfig();
+  const messages = [
+    { role: 'system' as const, content: systemPrompt },
+    { role: 'user' as const, content: userPrompt },
+  ];
+  assertModelRequestWithinBudget({
+    messages,
+    maxContextTokens: config.contextWindowTokens,
+    reservedOutputTokens: config.maxTokens,
+    label: `${capabilityLabel} model request`,
+  });
+
   const operationSignal = currentOperationSignal();
   const timeoutSignal = AbortSignal.timeout(config.requestTimeoutMs);
   const requestSignal = operationSignal
@@ -133,10 +161,7 @@ async function requestStructuredGeneration(
       },
       body: JSON.stringify({
         model: config.model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
+        messages,
         response_format: { type: 'json_object' },
         thinking: { type: config.thinkingMode },
         max_tokens: config.maxTokens,
