@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { createAgentProtocolRecorder } from '../src/protocol/agent-recorder.js';
 import {
+  cancelAgentRun,
   completeAgentRun,
   createAgentRun,
   deleteProjectAgentRuns,
@@ -156,6 +157,31 @@ test('only failed progress items make the whole run terminally failed', () => {
     const stored = readAgentRun(failed.id);
     assert.equal(stored?.status, 'FAILED');
     assert.equal(stored?.summary, 'Edit did not complete');
+    assert.ok(stored?.completedAt);
+  });
+});
+
+test('persists explicit cancellation even when a stopped progress item was marked failed first', () => {
+  withMemoryDatabase(() => {
+    const run = createAgentRun({
+      projectId: 'cancelled-project',
+      kind: 'EDIT',
+      prompt: 'Change the hero',
+    });
+    const recorder = createAgentProtocolRecorder({
+      idFactory: () => 'cancelled-progress',
+      onItem: (item) => upsertAgentRunItem(run.id, item),
+    });
+
+    recorder.progress('SELECT_CONTEXT', 'FAILED', 'Stopped by user.');
+    assert.equal(readAgentRun(run.id)?.status, 'FAILED');
+
+    cancelAgentRun(run.id, { summary: 'Stopped by user.' });
+    completeAgentRun(run.id, { summary: 'This must not turn the run into completed.' });
+
+    const stored = readAgentRun(run.id);
+    assert.equal(stored?.status, 'CANCELLED');
+    assert.equal(stored?.summary, 'This must not turn the run into completed.');
     assert.ok(stored?.completedAt);
   });
 });
