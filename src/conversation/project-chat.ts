@@ -3,6 +3,7 @@ import {
   buildConversationContext,
   type ConversationContextMessage,
 } from '../context/conversation-context.js';
+import { assertModelRequestWithinBudget } from '../context/model-request-budget.js';
 import { truncateTextToEstimatedTokens } from '../context/token-estimator.js';
 import { resolveDeepSeekRequestConfig } from '../model/deepseek.js';
 import { PROJECT_CHAT_SYSTEM_PROMPT } from './project-chat-prompt.js';
@@ -117,6 +118,13 @@ async function requestProjectChatCompletion(
 ): Promise<ProjectChatReply> {
   const config = resolveDeepSeekRequestConfig();
   const messages = buildProjectChatMessages(input);
+  const maxOutputTokens = Math.min(config.maxTokens, 4_096);
+  assertModelRequestWithinBudget({
+    messages,
+    maxContextTokens: config.contextWindowTokens,
+    reservedOutputTokens: maxOutputTokens,
+    label: 'Project Chat model request',
+  });
 
   for (let attempt = 1; attempt <= PROJECT_CHAT_MAX_ATTEMPTS; attempt += 1) {
     let response: Response;
@@ -132,7 +140,7 @@ async function requestProjectChatCompletion(
           model: config.model,
           messages,
           thinking: { type: config.thinkingMode },
-          max_tokens: Math.min(config.maxTokens, 4_096),
+          max_tokens: maxOutputTokens,
           stream: false,
         }),
         signal: AbortSignal.timeout(config.requestTimeoutMs),
