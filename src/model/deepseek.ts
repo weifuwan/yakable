@@ -1,17 +1,10 @@
-import type { ModelClient, ModelGeneration } from './model-client.js';
-import { DESIGN_CRITIC_SYSTEM_PROMPT } from '../editing/design-critic-prompt.js';
-import { EDIT_INTENT_DELTA_SYSTEM_PROMPT } from '../editing/edit-intent-prompt.js';
-import { PROJECT_CONTEXT_SELECTION_SYSTEM_PROMPT } from '../editing/context-selection-prompt.js';
-import { PROJECT_EDIT_SYSTEM_PROMPT } from '../editing/edit-prompt.js';
-import { PROJECT_REPAIR_SYSTEM_PROMPT } from '../editing/repair-prompt.js';
-import { VISUAL_REPAIR_SYSTEM_PROMPT } from '../editing/visual-repair-prompt.js';
-import { PROJECT_GENERATION_SYSTEM_PROMPT } from '../generation/prompt.js';
-import { PLAN_ARTIFACT_SYSTEM_PROMPT } from '../planning/plan-artifact-prompt.js';
-import { UI_PLANNER_SYSTEM_PROMPT } from '../planning/ui-planner-prompt.js';
-import { BUILD_INTENT_SYSTEM_PROMPT } from '../prompt-intelligence/build-intent-prompt.js';
-import { INTENT_ANALYSIS_SYSTEM_PROMPT } from '../prompt-intelligence/intent-prompt.js';
-import { SEMANTIC_EXPANSION_SYSTEM_PROMPT } from '../prompt-intelligence/semantic-prompt.js';
-import { TASTE_TRANSLATION_SYSTEM_PROMPT } from '../prompt-intelligence/taste-prompt.js';
+import type {
+  ModelClient,
+  ModelGeneration,
+  ModelMessage,
+  StructuredModelRequest,
+  TextModelRequest,
+} from './model-client.js';
 
 const DEFAULT_BASE_URL = 'https://api.deepseek.com';
 const DEFAULT_MODEL = 'deepseek-v4-pro';
@@ -48,28 +41,19 @@ function readPositiveInteger(
   fallback: number,
 ): number {
   const raw = env[name]?.trim();
-  if (!raw) {
-    return fallback;
-  }
+  if (!raw) return fallback;
 
   const value = Number(raw);
   if (!Number.isSafeInteger(value) || value <= 0) {
     throw new Error(`${name} must be a positive integer.`);
   }
-
   return value;
 }
 
 function readThinkingMode(env: NodeJS.ProcessEnv): ThinkingMode {
   const raw = env.DEEPSEEK_THINKING?.trim().toLowerCase();
-  if (!raw) {
-    return DEFAULT_THINKING_MODE;
-  }
-
-  if (raw === 'enabled' || raw === 'disabled') {
-    return raw;
-  }
-
+  if (!raw) return DEFAULT_THINKING_MODE;
+  if (raw === 'enabled' || raw === 'disabled') return raw;
   throw new Error('DEEPSEEK_THINKING must be either enabled or disabled.');
 }
 
@@ -79,32 +63,26 @@ export function resolveDeepSeekRequestConfig(
   return {
     model: env.DEEPSEEK_MODEL?.trim() || DEFAULT_MODEL,
     baseUrl: (env.DEEPSEEK_BASE_URL?.trim() || DEFAULT_BASE_URL).replace(/\/+$/, ''),
-    requestTimeoutMs: readPositiveInteger(
-      env,
-      'DEEPSEEK_TIMEOUT_MS',
-      DEFAULT_REQUEST_TIMEOUT_MS,
-    ),
+    requestTimeoutMs: readPositiveInteger(env, 'DEEPSEEK_TIMEOUT_MS', DEFAULT_REQUEST_TIMEOUT_MS),
     maxTokens: readPositiveInteger(env, 'DEEPSEEK_MAX_TOKENS', DEFAULT_MAX_TOKENS),
     thinkingMode: readThinkingMode(env),
   };
 }
 
 function isTimeoutError(error: unknown): boolean {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-
+  if (!(error instanceof Error)) return false;
   return (
-    error.name === 'TimeoutError' ||
-    /aborted due to timeout|timed out|timeout/i.test(error.message)
+    error.name === 'TimeoutError'
+    || /aborted due to timeout|timed out|timeout/i.test(error.message)
   );
 }
 
-async function requestStructuredGeneration(
-  systemPrompt: string,
-  userPrompt: string,
-  capabilityLabel: string,
-): Promise<DeepSeekGeneration> {
+async function requestGeneration(input: {
+  messages: ModelMessage[];
+  capabilityLabel: string;
+  structured: boolean;
+  maxTokens?: number;
+}): Promise<DeepSeekGeneration> {
   const apiKey = process.env.DEEPSEEK_API_KEY?.trim();
   if (!apiKey) {
     throw new Error('DEEPSEEK_API_KEY is required. Copy .env.example to .env and add your key.');
@@ -122,13 +100,10 @@ async function requestStructuredGeneration(
       },
       body: JSON.stringify({
         model: config.model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        response_format: { type: 'json_object' },
+        messages: input.messages,
+        ...(input.structured ? { response_format: { type: 'json_object' } } : {}),
         thinking: { type: config.thinkingMode },
-        max_tokens: config.maxTokens,
+        max_tokens: Math.min(input.maxTokens ?? config.maxTokens, config.maxTokens),
         stream: false,
       }),
       signal: AbortSignal.timeout(config.requestTimeoutMs),
@@ -137,17 +112,15 @@ async function requestStructuredGeneration(
     if (isTimeoutError(error)) {
       const seconds = Math.round(config.requestTimeoutMs / 1000);
       throw new Error(
-        `DeepSeek request timed out after ${seconds} seconds during ${capabilityLabel}. ` +
-          'Try again, increase DEEPSEEK_TIMEOUT_MS, or keep DEEPSEEK_THINKING=disabled.',
+        `DeepSeek request timed out after ${seconds} seconds during ${input.capabilityLabel}. `
+          + 'Try again, increase DEEPSEEK_TIMEOUT_MS, or keep DEEPSEEK_THINKING=disabled.',
       );
     }
-
     throw error;
   }
 
   const rawBody = await response.text();
   let payload: DeepSeekChatResponse;
-
   try {
     payload = JSON.parse(rawBody) as DeepSeekChatResponse;
   } catch {
@@ -160,124 +133,31 @@ async function requestStructuredGeneration(
   }
 
   const content = payload.choices?.[0]?.message?.content?.trim();
-  if (!content) {
-    throw new Error('DeepSeek returned an empty generation.');
-  }
-
+  if (!content) throw new Error(`DeepSeek returned an empty generation during ${input.capabilityLabel}.`);
   return { content, model: config.model };
 }
 
 export const deepSeekModelClient: ModelClient = {
   id: 'deepseek',
-  generateStructured(request) {
-    return requestStructuredGeneration(
-      request.systemPrompt,
-      request.userPrompt,
-      request.capabilityLabel,
-    );
+
+  generateStructured(request: StructuredModelRequest) {
+    return requestGeneration({
+      messages: [
+        { role: 'system', content: request.systemPrompt },
+        { role: 'user', content: request.userPrompt },
+      ],
+      capabilityLabel: request.capabilityLabel,
+      structured: true,
+      maxTokens: request.maxTokens,
+    });
+  },
+
+  generateText(request: TextModelRequest) {
+    return requestGeneration({
+      messages: request.messages,
+      capabilityLabel: request.capabilityLabel,
+      structured: false,
+      maxTokens: request.maxTokens,
+    });
   },
 };
-
-export function requestBuildIntent(userPrompt: string): Promise<DeepSeekGeneration> {
-  return deepSeekModelClient.generateStructured({
-    systemPrompt: BUILD_INTENT_SYSTEM_PROMPT,
-    userPrompt,
-    capabilityLabel: 'Build Intent Gate',
-  });
-}
-
-export function requestPromptIntent(userPrompt: string): Promise<DeepSeekGeneration> {
-  return deepSeekModelClient.generateStructured({
-    systemPrompt: INTENT_ANALYSIS_SYSTEM_PROMPT,
-    userPrompt,
-    capabilityLabel: 'Prompt Intelligence Intent Parser',
-  });
-}
-
-export function requestSemanticExpansion(userPrompt: string): Promise<DeepSeekGeneration> {
-  return deepSeekModelClient.generateStructured({
-    systemPrompt: SEMANTIC_EXPANSION_SYSTEM_PROMPT,
-    userPrompt,
-    capabilityLabel: 'Prompt Intelligence Semantic Expander',
-  });
-}
-
-export function requestTasteTranslation(userPrompt: string): Promise<DeepSeekGeneration> {
-  return deepSeekModelClient.generateStructured({
-    systemPrompt: TASTE_TRANSLATION_SYSTEM_PROMPT,
-    userPrompt,
-    capabilityLabel: 'Prompt Intelligence Taste Translator',
-  });
-}
-
-export function requestProjectCode(userPrompt: string): Promise<DeepSeekGeneration> {
-  return deepSeekModelClient.generateStructured({
-    systemPrompt: PROJECT_GENERATION_SYSTEM_PROMPT,
-    userPrompt,
-    capabilityLabel: 'Project Generation',
-  });
-}
-
-export function requestPlanArtifact(userPrompt: string): Promise<DeepSeekGeneration> {
-  return deepSeekModelClient.generateStructured({
-    systemPrompt: PLAN_ARTIFACT_SYSTEM_PROMPT,
-    userPrompt,
-    capabilityLabel: 'Plan Artifact',
-  });
-}
-
-export function requestUiPlan(userPrompt: string): Promise<DeepSeekGeneration> {
-  return deepSeekModelClient.generateStructured({
-    systemPrompt: UI_PLANNER_SYSTEM_PROMPT,
-    userPrompt,
-    capabilityLabel: 'UI Planner',
-  });
-}
-
-export function requestEditIntentDelta(userPrompt: string): Promise<DeepSeekGeneration> {
-  return deepSeekModelClient.generateStructured({
-    systemPrompt: EDIT_INTENT_DELTA_SYSTEM_PROMPT,
-    userPrompt,
-    capabilityLabel: 'Edit Intent Delta',
-  });
-}
-
-export function requestDesignCritique(userPrompt: string): Promise<DeepSeekGeneration> {
-  return deepSeekModelClient.generateStructured({
-    systemPrompt: DESIGN_CRITIC_SYSTEM_PROMPT,
-    userPrompt,
-    capabilityLabel: 'Design Critic',
-  });
-}
-
-export function requestProjectContextSelection(userPrompt: string): Promise<DeepSeekGeneration> {
-  return deepSeekModelClient.generateStructured({
-    systemPrompt: PROJECT_CONTEXT_SELECTION_SYSTEM_PROMPT,
-    userPrompt,
-    capabilityLabel: 'Project Context Selection',
-  });
-}
-
-export function requestProjectPatch(editContext: string): Promise<DeepSeekGeneration> {
-  return deepSeekModelClient.generateStructured({
-    systemPrompt: PROJECT_EDIT_SYSTEM_PROMPT,
-    userPrompt: editContext,
-    capabilityLabel: 'Project Edit',
-  });
-}
-
-export function requestProjectRepair(repairContext: string): Promise<DeepSeekGeneration> {
-  return deepSeekModelClient.generateStructured({
-    systemPrompt: PROJECT_REPAIR_SYSTEM_PROMPT,
-    userPrompt: repairContext,
-    capabilityLabel: 'One-shot Project Repair',
-  });
-}
-
-export function requestVisualRepair(userPrompt: string): Promise<DeepSeekGeneration> {
-  return deepSeekModelClient.generateStructured({
-    systemPrompt: VISUAL_REPAIR_SYSTEM_PROMPT,
-    userPrompt,
-    capabilityLabel: 'Visual Repair',
-  });
-}
