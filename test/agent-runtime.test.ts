@@ -4,6 +4,7 @@ import test from 'node:test';
 import { AgentRuntime } from '../src/agent-runtime/agent-runtime.js';
 import { createAgentRunContext } from '../src/agent-runtime/run-context.js';
 import { ToolRouter } from '../src/agent-runtime/tool-router.js';
+import type { ApprovedPlanWorkflowResult } from '../src/agent-runtime/workflows/approved-plan-workflow.js';
 import type { ModelClient } from '../src/model/model-client.js';
 import type { Tool } from '../src/tools/tool.js';
 import type { GenerationResult } from '../src/types.js';
@@ -72,18 +73,23 @@ test('ToolRouter exposes and executes tools according to mode capabilities', asy
   assert.deepEqual(allowed, { ok: true, value: 'applied' });
 });
 
-test('AgentRuntime keeps create behind one normalized runtime boundary', async () => {
+test('AgentRuntime owns create and approved-plan workflow entry points', async () => {
   const calls: string[] = [];
   const generationResult = { marker: 'create-result' } as unknown as GenerationResult;
+  const approvedPlanResult = { marker: 'plan-result' } as unknown as ApprovedPlanWorkflowResult;
   const router = new ToolRouter().register(editTool, { capability: 'edit-source' });
 
   const runtime = new AgentRuntime({
     modelClient,
     toolRouter: router,
     now: () => new Date('2026-09-15T00:00:00.000Z'),
-    async generateProject(prompt, options) {
+    async createProject(prompt, options) {
       calls.push(`create:${prompt}:${options?.mode}`);
       return generationResult;
+    },
+    async executeApprovedPlan(projectInput, options) {
+      calls.push(`approved-plan:${projectInput}:${options?.mode}`);
+      return approvedPlanResult;
     },
   });
 
@@ -97,10 +103,18 @@ test('AgentRuntime keeps create behind one normalized runtime boundary', async (
   assert.deepEqual(context.availableTools, [editTool.name]);
 
   assert.equal(await runtime.createProject('  Build a dashboard  '), generationResult);
-  assert.deepEqual(calls, ['create:Build a dashboard:BUILD']);
+  assert.equal(await runtime.executeApprovedPlan(' generated/example '), approvedPlanResult);
+  assert.deepEqual(calls, [
+    'create:Build a dashboard:BUILD',
+    'approved-plan:generated/example:BUILD',
+  ]);
 
   await assert.rejects(
     runtime.createProject('Plan only', { mode: 'PLAN' }),
     /PLAN mode does not allow generate-source/,
+  );
+  await assert.rejects(
+    runtime.executeApprovedPlan('generated/example', { mode: 'PLAN' }),
+    /PLAN mode does not allow execute-plan/,
   );
 });
