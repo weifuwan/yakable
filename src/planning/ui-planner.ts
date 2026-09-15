@@ -1,9 +1,11 @@
 import type { EditContextSelection } from '../editing/context-selection.js';
+import { requestUiPlan } from '../model/capabilities.js';
+import { defaultModelClient } from '../model/default-client.js';
+import type { ModelClient } from '../model/model-client.js';
 import {
   assertModeCapability,
   type YakableMode,
 } from '../modes/mode-contract.js';
-import { requestUiPlan } from '../model/deepseek.js';
 import type { DesignIntentIR, GeneratedFile } from '../types.js';
 
 export const UI_PLAN_VERSION = 1 as const;
@@ -25,16 +27,8 @@ export const UI_PLAN_DENSITIES = ['COMPACT', 'COMFORTABLE', 'SPACIOUS'] as const
 export const UI_PLAN_CONTENT_WIDTHS = ['NARROW', 'CONTAINED', 'FLUID'] as const;
 export const UI_PLAN_PRIORITIES = ['PRIMARY', 'SECONDARY'] as const;
 export const UI_PLAN_PATTERNS = [
-  'HERO',
-  'STATS',
-  'TABLE',
-  'FORM',
-  'LIST',
-  'CARD_GRID',
-  'DETAIL',
-  'TOOLBAR',
-  'NAVIGATION',
-  'CUSTOM',
+  'HERO', 'STATS', 'TABLE', 'FORM', 'LIST', 'CARD_GRID', 'DETAIL', 'TOOLBAR',
+  'NAVIGATION', 'CUSTOM',
 ] as const;
 export const UI_PLANNER_STATUSES = ['PLANNED', 'NOT_APPLICABLE'] as const;
 
@@ -78,17 +72,8 @@ export interface UiPlan {
 }
 
 export type UiPlannerResult =
-  | {
-      version: 1;
-      status: 'PLANNED';
-      reason: string;
-      plan: UiPlan;
-    }
-  | {
-      version: 1;
-      status: 'NOT_APPLICABLE';
-      reason: string;
-    };
+  | { version: 1; status: 'PLANNED'; reason: string; plan: UiPlan }
+  | { version: 1; status: 'NOT_APPLICABLE'; reason: string };
 
 export interface UiPlannerInput {
   mode?: YakableMode;
@@ -111,9 +96,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function readString(value: unknown, field: string, maxLength = UI_PLAN_MAX_TEXT): string {
-  if (typeof value !== 'string') {
-    throw new Error(`UI Planner ${field} must be a string.`);
-  }
+  if (typeof value !== 'string') throw new Error(`UI Planner ${field} must be a string.`);
   const normalized = value.trim();
   if (!normalized || normalized.length > maxLength) {
     throw new Error(`UI Planner ${field} must contain 1-${maxLength} characters.`);
@@ -121,23 +104,14 @@ function readString(value: unknown, field: string, maxLength = UI_PLAN_MAX_TEXT)
   return normalized;
 }
 
-function readEnum<T extends string>(
-  value: unknown,
-  field: string,
-  allowed: readonly T[],
-): T {
+function readEnum<T extends string>(value: unknown, field: string, allowed: readonly T[]): T {
   if (typeof value !== 'string' || !allowed.includes(value as T)) {
     throw new Error(`UI Planner ${field} has an invalid value.`);
   }
   return value as T;
 }
 
-function readStringArray(
-  value: unknown,
-  field: string,
-  maxItems: number,
-  maxLength = UI_PLAN_MAX_TEXT,
-): string[] {
+function readStringArray(value: unknown, field: string, maxItems: number, maxLength = UI_PLAN_MAX_TEXT): string[] {
   if (!Array.isArray(value) || value.length > maxItems) {
     throw new Error(`UI Planner ${field} must contain at most ${maxItems} items.`);
   }
@@ -153,7 +127,6 @@ function readSections(value: unknown): UiPlanSection[] {
   if (!Array.isArray(value) || value.length === 0 || value.length > UI_PLAN_MAX_SECTIONS) {
     throw new Error(`UI Planner sections must contain 1-${UI_PLAN_MAX_SECTIONS} items.`);
   }
-
   const ids = new Set<string>();
   return value.map((item, index) => {
     if (!isRecord(item)) throw new Error(`UI Planner sections[${index}] must be an object.`);
@@ -168,12 +141,7 @@ function readSections(value: unknown): UiPlanSection[] {
       purpose: readString(item.purpose, `sections[${index}].purpose`),
       priority: readEnum(item.priority, `sections[${index}].priority`, UI_PLAN_PRIORITIES),
       pattern: readEnum(item.pattern, `sections[${index}].pattern`, UI_PLAN_PATTERNS),
-      content: readStringArray(
-        item.content,
-        `sections[${index}].content`,
-        UI_PLAN_MAX_SECTION_CONTENT,
-        500,
-      ),
+      content: readStringArray(item.content, `sections[${index}].content`, UI_PLAN_MAX_SECTION_CONTENT, 500),
     };
   });
 }
@@ -185,7 +153,6 @@ export function parseUiPlanValue(value: unknown): UiPlan {
   if (!isRecord(value.shell) || !isRecord(value.hierarchy)) {
     throw new Error('UI Plan must contain shell and hierarchy objects.');
   }
-
   return {
     version: UI_PLAN_VERSION,
     scope: readEnum(value.scope, 'scope', UI_PLAN_SCOPES),
@@ -193,34 +160,15 @@ export function parseUiPlanValue(value: unknown): UiPlan {
     shell: {
       navigation: readEnum(value.shell.navigation, 'shell.navigation', UI_PLAN_NAVIGATION),
       density: readEnum(value.shell.density, 'shell.density', UI_PLAN_DENSITIES),
-      contentWidth: readEnum(
-        value.shell.contentWidth,
-        'shell.contentWidth',
-        UI_PLAN_CONTENT_WIDTHS,
-      ),
+      contentWidth: readEnum(value.shell.contentWidth, 'shell.contentWidth', UI_PLAN_CONTENT_WIDTHS),
     },
     hierarchy: {
       primary: readString(value.hierarchy.primary, 'hierarchy.primary'),
-      secondary: readStringArray(
-        value.hierarchy.secondary,
-        'hierarchy.secondary',
-        UI_PLAN_MAX_SECONDARY_HIERARCHY,
-        500,
-      ),
+      secondary: readStringArray(value.hierarchy.secondary, 'hierarchy.secondary', UI_PLAN_MAX_SECONDARY_HIERARCHY, 500),
     },
     sections: readSections(value.sections),
-    responsive: readStringArray(
-      value.responsive,
-      'responsive',
-      UI_PLAN_MAX_RESPONSIVE_ITEMS,
-      700,
-    ),
-    deliberateOmissions: readStringArray(
-      value.deliberateOmissions,
-      'deliberateOmissions',
-      UI_PLAN_MAX_OMISSIONS,
-      700,
-    ),
+    responsive: readStringArray(value.responsive, 'responsive', UI_PLAN_MAX_RESPONSIVE_ITEMS, 700),
+    deliberateOmissions: readStringArray(value.deliberateOmissions, 'deliberateOmissions', UI_PLAN_MAX_OMISSIONS, 700),
   };
 }
 
@@ -243,30 +191,18 @@ export function parseUiPlannerResult(rawContent: string): UiPlannerResult {
     }
     return { version: UI_PLANNER_RESULT_VERSION, status, reason };
   }
-
-  if (value.plan === undefined) {
-    throw new Error('UI Planner PLANNED output must contain a plan.');
-  }
-  return {
-    version: UI_PLANNER_RESULT_VERSION,
-    status,
-    reason,
-    plan: parseUiPlanValue(value.plan),
-  };
+  if (value.plan === undefined) throw new Error('UI Planner PLANNED output must contain a plan.');
+  return { version: UI_PLANNER_RESULT_VERSION, status, reason, plan: parseUiPlanValue(value.plan) };
 }
 
 function validateRequestContext(input: UiPlannerInput): string {
   const request = input.userRequest.trim();
   if (!request) throw new Error('UI Planner requires a user request.');
   if (request.length > UI_PLANNER_MAX_USER_REQUEST) {
-    throw new Error(
-      `UI Planner user request is too long (max ${UI_PLANNER_MAX_USER_REQUEST} characters).`,
-    );
+    throw new Error(`UI Planner user request is too long (max ${UI_PLANNER_MAX_USER_REQUEST} characters).`);
   }
   if (input.files.length === 0 || input.files.length > UI_PLANNER_MAX_CONTEXT_FILES) {
-    throw new Error(
-      `UI Planner requires 1-${UI_PLANNER_MAX_CONTEXT_FILES} bounded context files.`,
-    );
+    throw new Error(`UI Planner requires 1-${UI_PLANNER_MAX_CONTEXT_FILES} bounded context files.`);
   }
 
   const selected = new Set(input.contextSelection.relevantFiles);
@@ -292,24 +228,21 @@ export function buildUiPlannerRequest(input: UiPlannerInput): string {
     designIntent: input.designIntent,
     currentUiPlan: input.currentUiPlan,
     contextSelection: input.contextSelection,
-    project: {
-      id: input.projectId,
-      files: input.files,
-    },
+    project: { id: input.projectId, files: input.files },
   });
-
   if (request.length > UI_PLANNER_MAX_REQUEST_CHARS) {
-    throw new Error(
-      `UI Planner request is too large (max ${UI_PLANNER_MAX_REQUEST_CHARS} characters).`,
-    );
+    throw new Error(`UI Planner request is too large (max ${UI_PLANNER_MAX_REQUEST_CHARS} characters).`);
   }
   return request;
 }
 
-export async function planInterface(input: UiPlannerInput): Promise<UiPlannerRun> {
+export async function planInterface(
+  input: UiPlannerInput,
+  modelClient: ModelClient = defaultModelClient,
+): Promise<UiPlannerRun> {
   const mode = input.mode ?? 'PLAN';
   assertModeCapability(mode, 'plan-ui');
-  const generation = await requestUiPlan(buildUiPlannerRequest(input));
+  const generation = await requestUiPlan(modelClient, buildUiPlannerRequest(input));
   return {
     model: generation.model,
     result: parseUiPlannerResult(generation.content),
