@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import type { EditContextSelection } from '../editing/context-selection.js';
 import { critiqueDesign, type DesignCriticRun } from '../editing/design-critic.js';
 import {
@@ -11,9 +13,9 @@ import {
   type VisualRepairExecutionResult,
   type VisualRepairResult,
 } from '../editing/visual-repair.js';
+import type { AgentProtocolRecorder } from '../protocol/agent-recorder.js';
 import type { AgentProtocolItem } from '../protocol/agent-protocol.js';
 import { parsePageObservation, type PageObservation } from '../runtime/page-observation.js';
-import { resolveGeneratedProject } from '../runtime/runtime.js';
 import { completeAgentRun } from '../storage/agent-run.js';
 import { readAgentRunTurnDiff, recordAgentRunTurnDiff } from '../storage/agent-run-turn-diff.js';
 import {
@@ -93,6 +95,7 @@ interface PersistedEditRunState {
   version: 1;
   runId: string;
   projectId: string;
+  projectDirectory: string;
   userRequest: string;
   visualSelections: ProjectVisualSelection[];
   model: string;
@@ -137,6 +140,7 @@ function stateFromEdit(edit: EditProjectResult): EditRunBaseState {
     version: 1,
     runId: edit.agentRunId,
     projectId: edit.projectId,
+    projectDirectory: edit.projectDirectory,
     userRequest: edit.userRequest,
     visualSelections: edit.visualSelections,
     model: edit.model,
@@ -169,16 +173,12 @@ function resultFromState(
   };
 }
 
-async function projectDirectory(projectId: string): Promise<string> {
-  return (await resolveGeneratedProject(projectId)).directory;
-}
-
 async function persistHistory(state: Pick<
   PersistedEditRunState,
-  'projectId' | 'userRequest' | 'summary' | 'changedFiles' | 'model' | 'visualSelections'
+  'projectDirectory' | 'userRequest' | 'summary' | 'changedFiles' | 'model' | 'visualSelections'
 >): Promise<void> {
   try {
-    await appendProjectEditHistory(await projectDirectory(state.projectId), {
+    await appendProjectEditHistory(state.projectDirectory, {
       userRequest: state.userRequest,
       assistantSummary: state.summary,
       changedFiles: state.changedFiles,
@@ -212,6 +212,15 @@ async function finalizeRun(
   });
   deleteAgentRunState(state.runId);
   return resultFromState(state, status, { visualFeedback: feedback });
+}
+
+function failActiveProgress(agent: AgentProtocolRecorder, message: string): void {
+  const active = [...agent.snapshot()]
+    .reverse()
+    .find((item) => item.type === 'progress' && item.status === 'ACTIVE');
+  if (active?.type === 'progress') {
+    agent.progress(active.state, 'FAILED', message, active.iteration);
+  }
 }
 
 function requestObservation(
@@ -337,112 +346,140 @@ export async function continueUnifiedEditRun(
     state.iteration,
   );
 
-  agent.progress(
-    'CRITIQUE',
-    'ACTIVE',
-    state.iteration === 0
-      ? 'Checking the rendered result against design intent'
-      : 'Running the final bounded design critique',
-    state.iteration,
-  );
-  const session = await readProjectSession(await projectDirectory(state.projectId));
-  const critique = await critiqueDesign({
-    baselineDesignIntent: session?.designIntent ?? null,
-    editIntent: state.editIntent.delta,
-    pageObservation: observation,
-  });
-  agent.progress(
-    'CRITIQUE',
-    'COMPLETED',
-    critique.result.status === 'PASS'
-      ? 'No concrete observable mismatch was found'
-      : `Found ${critique.result.findings.length} grounded design issue(s)`,
-    state.iteration,
-  );
-
-  if (state.iteration === 1) {
-    return finalizeRun(
-      state,
+  let failureState: EditRunBaseState = state;
+  try {
+    agent.progress(
+      'CRITIQUE',
+      'ACTIVE',
+      state.iteration === 0
+        ? 'Checking the rendered result against design intent'
+        : 'Running the final bounded design critique',
+      state.iteration,
+    );
+    const session = await readProjectSession(state.projectDirectory);
+    const critique = await critiqueDesign({
+      baselineDesignIntent: session?.designIntent ?? null,
+      editIntent: state.editIntent.delta,
+      pageObservation: observation,
+    });
+    agent.progress(
+      'CRITIQUE',
       'COMPLETED',
+      critique.result.status === 'PASS'
+        ? 'No concrete observable mismatch was found'
+        : `Found ${critique.result.findings.length} grounded design issue(s)`,
+      state.iteration,
+    );
+
+    if (state.iteration === 1) {
+      return finalizeRun(
+        state,
+        'COMPLETED',
+        {
+          status: critique.result.status === 'PASS' ? 'REPAIRED_PASS' : 'REPAIRED_FAIL',
+          ...(state.initialObservation ? { initialObservation: state.initialObservation } : {}),
+          ...(state.initialCritique ? { initialCritique: state.initialCritique } : {}),
+          ...(state.repair ? { repair: state.repair } : {}),
+          finalObservation: observation,
+          finalCritique: critique,
+        },
+        options.onItem,
+      );
+    }
+
+    if (critique.result.status === 'PASS') {
+      return finalizeRun(
+        state,
+        'COMPLETED',
+        {
+          status: 'PASS',
+          initialObservation: observation,
+          initialCritique: critique,
+        },
+        options.onItem,
+      );
+    }
+
+    agent.progress('REPAIR', 'ACTIVE', 'Applying one bounded visual repair');
+    const repairExecution = await repairGeneratedProjectVisual(
+      state.projectDirectory,
       {
-        status: critique.result.status === 'PASS' ? 'REPAIRED_PASS' : 'REPAIRED_FAIL',
+        userRequest: state.userRequest,
+        baselineDesignIntent: session?.designIntent ?? null,
+        editIntent: state.editIntent.delta,
+        critique: critique.result,
+        pageObservation: observation,
+        initialChangedFiles: state.changedFiles,
+        selectedContextFiles: state.contextSelection.relevantFiles,
+      },
+      {
+        generatedRoot: path.dirname(state.projectDirectory),
+        agent,
+      },
+    );
+    const repair = publicRepair(repairExecution);
+
+    if (
+      repairExecution.status !== 'REPAIRED'
+      || !repairExecution.changeSet
+      || !repairExecution.projectCheck
+      || !healthyProjectCheck(repairExecution.projectCheck)
+    ) {
+      agent.progress(
+        'REPAIR',
+        'FAILED',
+        repairExecution.rolledBack
+          ? 'Visual repair failed project health checks and was rolled back'
+          : repairExecution.error || 'Visual repair did not produce a healthy project',
+      );
+      return finalizeRun(
+        state,
+        'FAILED',
+        {
+          status: 'REPAIR_FAILED',
+          initialObservation: observation,
+          initialCritique: critique,
+          repair,
+          ...(repair.error ? { error: repair.error } : {}),
+        },
+        options.onItem,
+      );
+    }
+
+    const repairedState: EditRunBaseState = {
+      ...state,
+      changedFiles: mergeChangedFiles(state.changedFiles, repairExecution.changedFiles),
+      initialObservation: observation,
+      initialCritique: critique,
+      repair,
+    };
+    failureState = repairedState;
+
+    const turnDiff = new TurnDiffTracker(readAgentRunTurnDiff(runId));
+    turnDiff.record(repairExecution.changeSet);
+    recordAgentRunTurnDiff(runId, await turnDiff.snapshot());
+
+    agent.progress('REPAIR', 'COMPLETED', 'Applied one code-healthy visual repair');
+    return requestObservation(repairedState, 1, options.onItem);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    try {
+      failActiveProgress(agent, `Frontend feedback failed: ${message}`);
+    } catch {
+      // Preserve the original continuation error if the progress stream cannot be closed cleanly.
+    }
+    return finalizeRun(
+      failureState,
+      'FAILED',
+      {
+        status: 'ERROR',
+        ...(state.iteration === 0 ? { initialObservation: observation } : {}),
         ...(state.initialObservation ? { initialObservation: state.initialObservation } : {}),
         ...(state.initialCritique ? { initialCritique: state.initialCritique } : {}),
         ...(state.repair ? { repair: state.repair } : {}),
-        finalObservation: observation,
-        finalCritique: critique,
+        error: message,
       },
       options.onItem,
     );
   }
-
-  if (critique.result.status === 'PASS') {
-    return finalizeRun(
-      state,
-      'COMPLETED',
-      {
-        status: 'PASS',
-        initialObservation: observation,
-        initialCritique: critique,
-      },
-      options.onItem,
-    );
-  }
-
-  agent.progress('REPAIR', 'ACTIVE', 'Applying one bounded visual repair');
-  const repairExecution = await repairGeneratedProjectVisual(
-    state.projectId,
-    {
-      userRequest: state.userRequest,
-      baselineDesignIntent: session?.designIntent ?? null,
-      editIntent: state.editIntent.delta,
-      critique: critique.result,
-      pageObservation: observation,
-      initialChangedFiles: state.changedFiles,
-      selectedContextFiles: state.contextSelection.relevantFiles,
-    },
-    { agent },
-  );
-  const repair = publicRepair(repairExecution);
-
-  if (
-    repairExecution.status !== 'REPAIRED'
-    || !repairExecution.changeSet
-    || !repairExecution.projectCheck
-    || !healthyProjectCheck(repairExecution.projectCheck)
-  ) {
-    agent.progress(
-      'REPAIR',
-      'FAILED',
-      repairExecution.rolledBack
-        ? 'Visual repair failed project health checks and was rolled back'
-        : repairExecution.error || 'Visual repair did not produce a healthy project',
-    );
-    return finalizeRun(
-      state,
-      'FAILED',
-      {
-        status: 'REPAIR_FAILED',
-        initialObservation: observation,
-        initialCritique: critique,
-        repair,
-        ...(repair.error ? { error: repair.error } : {}),
-      },
-      options.onItem,
-    );
-  }
-
-  const turnDiff = new TurnDiffTracker(readAgentRunTurnDiff(runId));
-  turnDiff.record(repairExecution.changeSet);
-  recordAgentRunTurnDiff(runId, await turnDiff.snapshot());
-
-  const repairedState: EditRunBaseState = {
-    ...state,
-    changedFiles: mergeChangedFiles(state.changedFiles, repairExecution.changedFiles),
-    initialObservation: observation,
-    initialCritique: critique,
-    repair,
-  };
-  agent.progress('REPAIR', 'COMPLETED', 'Applied one code-healthy visual repair');
-  return requestObservation(repairedState, 1, options.onItem);
 }
