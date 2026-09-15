@@ -5,10 +5,7 @@ import {
   createProjectChangeManager,
   parseProjectPatch,
 } from '../../editing/project-change.js';
-import {
-  readProjectSnapshot,
-  type ProjectSnapshot,
-} from '../../editing/project-context.js';
+import type { ProjectSnapshot } from '../../editing/project-context.js';
 import {
   runOneShotRepair,
   type OneShotRepairResult,
@@ -19,7 +16,7 @@ import {
   type AgentProtocolRecorder,
 } from '../../protocol/agent-recorder.js';
 import type { ResolvedGeneratedProject } from '../../runtime/runtime.js';
-import { checkProjectTool, type CheckProjectOutput } from '../../tools/check-project.js';
+import type { CheckProjectOutput } from '../../tools/check-project.js';
 import type { ToolResult } from '../../tools/tool.js';
 import type {
   ProjectPatch,
@@ -31,6 +28,11 @@ import {
   type WorkspaceChangeSet,
 } from '../../workspace/change-set.js';
 import { TurnDiffTracker } from '../../workspace/turn-diff.js';
+import {
+  checkWorkflowProject,
+  readWorkflowProjectSnapshot,
+  type AgentWorkflowContext,
+} from '../workflow-context.js';
 
 export interface SourceEditGeneration {
   content: string;
@@ -59,6 +61,7 @@ export interface SourceEditWorkflowMessages {
 }
 
 export interface SourceEditWorkflowInput {
+  context: AgentWorkflowContext;
   project: ResolvedGeneratedProject;
   session: ProjectSessionState | null;
   userRequest: string;
@@ -153,7 +156,12 @@ export async function runSourceEditWorkflow(
     'READ',
     messages.readingActive,
     `Read ${contextSelection.relevantFiles.length} selected project file(s)`,
-    () => readProjectSnapshot(input.project, contextSelection.relevantFiles),
+    () => readWorkflowProjectSnapshot(
+      input.context,
+      input.project,
+      contextSelection.relevantFiles,
+      input.agent,
+    ),
   );
 
   const modelContext = input.buildModelContext({
@@ -189,9 +197,10 @@ export async function runSourceEditWorkflow(
 
   let repair: OneShotRepairResult;
   try {
-    const initialProjectCheck = await checkProjectTool.execute(
-      {},
-      { projectDirectory: input.project.directory, agent: input.agent },
+    const initialProjectCheck = await checkWorkflowProject(
+      input.context,
+      input.project.directory,
+      input.agent,
     );
 
     if (initialProjectCheck.ok && initialProjectCheck.value.status === 'FAIL') {
@@ -206,7 +215,9 @@ export async function runSourceEditWorkflow(
       selectedContextFiles: contextSelection.relevantFiles,
       availableFiles,
       initialCheck: initialProjectCheck,
-      readFiles: async (paths) => (await readProjectSnapshot(input.project, paths)).files,
+      readFiles: async (paths) => (
+        await readWorkflowProjectSnapshot(input.context, input.project, paths, input.agent)
+      ).files,
       requestRepair: input.requestRepair,
       parsePatch: input.repairParsePatch ?? parseProjectPatch,
       applyChanges: async (repairPatch) => {
@@ -214,11 +225,11 @@ export async function runSourceEditWorkflow(
         turnDiff.record(changeSet);
         return changeSet;
       },
-      checkProject: () =>
-        checkProjectTool.execute(
-          {},
-          { projectDirectory: input.project.directory, agent: input.agent },
-        ),
+      checkProject: () => checkWorkflowProject(
+        input.context,
+        input.project.directory,
+        input.agent,
+      ),
     });
   } catch (error) {
     input.agent.emit(
