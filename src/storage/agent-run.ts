@@ -12,7 +12,7 @@ import { readAgentRunTurnDiff } from './agent-run-turn-diff.js';
 import { getYakableDatabase } from './database.js';
 
 export type AgentRunKind = 'CREATE' | 'EDIT';
-export type AgentRunStatus = 'RUNNING' | 'COMPLETED' | 'FAILED';
+export type AgentRunStatus = 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 
 export interface AgentRunChangeView extends WorkspaceFileChange {
   ordinal: number;
@@ -52,6 +52,11 @@ export interface FailAgentRunInput {
   completedAt?: string;
 }
 
+export interface CancelAgentRunInput {
+  summary?: string;
+  completedAt?: string;
+}
+
 interface AgentRunRow {
   id: string;
   project_id: string;
@@ -87,7 +92,7 @@ function isAgentRunKind(value: string): value is AgentRunKind {
 }
 
 function isAgentRunStatus(value: string): value is AgentRunStatus {
-  return value === 'RUNNING' || value === 'COMPLETED' || value === 'FAILED';
+  return value === 'RUNNING' || value === 'COMPLETED' || value === 'FAILED' || value === 'CANCELLED';
 }
 
 function runFromRow(row: AgentRunRow): AgentRunRecord {
@@ -152,9 +157,9 @@ export function completeAgentRun(runId: string, input: CompleteAgentRunInput = {
     UPDATE agent_runs
     SET
       status = CASE WHEN status = 'RUNNING' THEN 'COMPLETED' ELSE status END,
-      model = COALESCE(?, model),
-      summary = COALESCE(?, summary),
-      completed_at = COALESCE(completed_at, ?)
+      model = CASE WHEN status = 'CANCELLED' THEN model ELSE COALESCE(?, model) END,
+      summary = CASE WHEN status = 'CANCELLED' THEN summary ELSE COALESCE(?, summary) END,
+      completed_at = CASE WHEN status = 'CANCELLED' THEN completed_at ELSE COALESCE(completed_at, ?) END
     WHERE id = ?
   `).run(model ?? null, summary ?? null, completedAt, runId);
 }
@@ -167,8 +172,28 @@ export function failAgentRun(runId: string, input: FailAgentRunInput = {}): void
     UPDATE agent_runs
     SET
       status = CASE WHEN status = 'RUNNING' THEN 'FAILED' ELSE status END,
-      summary = COALESCE(?, summary),
-      completed_at = COALESCE(completed_at, ?)
+      summary = CASE WHEN status = 'CANCELLED' THEN summary ELSE COALESCE(?, summary) END,
+      completed_at = CASE WHEN status = 'CANCELLED' THEN completed_at ELSE COALESCE(completed_at, ?) END
+    WHERE id = ?
+  `).run(summary ?? null, completedAt, runId);
+}
+
+export function cancelAgentRun(runId: string, input: CancelAgentRunInput = {}): void {
+  const summary = optionalText(input.summary, MAX_SUMMARY_LENGTH);
+  const completedAt = input.completedAt ?? new Date().toISOString();
+
+  getYakableDatabase().prepare(`
+    UPDATE agent_runs
+    SET
+      status = CASE WHEN status IN ('RUNNING', 'FAILED') THEN 'CANCELLED' ELSE status END,
+      summary = CASE
+        WHEN status IN ('RUNNING', 'FAILED') THEN COALESCE(?, summary)
+        ELSE summary
+      END,
+      completed_at = CASE
+        WHEN status IN ('RUNNING', 'FAILED') THEN COALESCE(completed_at, ?)
+        ELSE completed_at
+      END
     WHERE id = ?
   `).run(summary ?? null, completedAt, runId);
 }

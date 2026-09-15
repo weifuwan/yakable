@@ -6,6 +6,11 @@ import { PROJECT_EDIT_SYSTEM_PROMPT } from '../editing/edit-prompt.js';
 import { PROJECT_REPAIR_SYSTEM_PROMPT } from '../editing/repair-prompt.js';
 import { VISUAL_REPAIR_SYSTEM_PROMPT } from '../editing/visual-repair-prompt.js';
 import { PROJECT_GENERATION_SYSTEM_PROMPT } from '../generation/prompt.js';
+import {
+  currentOperationSignal,
+  operationCancellationError,
+  throwIfOperationCancelled,
+} from '../operation-cancellation.js';
 import { PLAN_ARTIFACT_SYSTEM_PROMPT } from '../planning/plan-artifact-prompt.js';
 import { UI_PLANNER_SYSTEM_PROMPT } from '../planning/ui-planner-prompt.js';
 import { BUILD_INTENT_SYSTEM_PROMPT } from '../prompt-intelligence/build-intent-prompt.js';
@@ -110,7 +115,13 @@ async function requestStructuredGeneration(
     throw new Error('DEEPSEEK_API_KEY is required. Copy .env.example to .env and add your key.');
   }
 
+  throwIfOperationCancelled();
   const config = resolveDeepSeekRequestConfig();
+  const operationSignal = currentOperationSignal();
+  const timeoutSignal = AbortSignal.timeout(config.requestTimeoutMs);
+  const requestSignal = operationSignal
+    ? AbortSignal.any([operationSignal, timeoutSignal])
+    : timeoutSignal;
   let response: Response;
 
   try {
@@ -131,10 +142,13 @@ async function requestStructuredGeneration(
         max_tokens: config.maxTokens,
         stream: false,
       }),
-      signal: AbortSignal.timeout(config.requestTimeoutMs),
+      signal: requestSignal,
     });
   } catch (error) {
-    if (isTimeoutError(error)) {
+    if (operationSignal?.aborted) {
+      throw operationCancellationError(operationSignal.reason);
+    }
+    if (isTimeoutError(error) || timeoutSignal.aborted) {
       const seconds = Math.round(config.requestTimeoutMs / 1000);
       throw new Error(
         `DeepSeek request timed out after ${seconds} seconds during ${capabilityLabel}. ` +
@@ -145,7 +159,18 @@ async function requestStructuredGeneration(
     throw error;
   }
 
-  const rawBody = await response.text();
+  throwIfOperationCancelled();
+  let rawBody: string;
+  try {
+    rawBody = await response.text();
+  } catch (error) {
+    if (operationSignal?.aborted) {
+      throw operationCancellationError(operationSignal.reason);
+    }
+    throw error;
+  }
+  throwIfOperationCancelled();
+
   let payload: DeepSeekChatResponse;
 
   try {

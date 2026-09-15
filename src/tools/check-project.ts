@@ -3,6 +3,12 @@ import { mkdtemp, realpath, rm, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
+import {
+  currentOperationSignal,
+  isOperationCancelled,
+  operationCancellationError,
+  throwIfOperationCancelled,
+} from '../operation-cancellation.js';
 import type { Tool, ToolContext, ToolResult } from './tool.js';
 
 export const CHECK_PROJECT_TIMEOUT_MS = 120_000;
@@ -76,6 +82,9 @@ async function runNodeCli(
   args: string[],
   cwd: string,
 ): Promise<ProjectCheckCommandResult> {
+  const operationSignal = currentOperationSignal();
+  throwIfOperationCancelled(operationSignal);
+
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [scriptPath, ...args], {
       cwd,
@@ -88,6 +97,7 @@ async function runNodeCli(
     let stderr = Buffer.alloc(0);
     let outputTruncated = false;
     let timedOut = false;
+    let settled = false;
 
     child.stdout.on('data', (chunk: Buffer) => {
       const next = appendBounded(stdout, chunk);
@@ -100,23 +110,49 @@ async function runNodeCli(
       outputTruncated ||= next.truncated;
     });
 
+    const onAbort = () => {
+      child.kill();
+    };
     const timeout = setTimeout(() => {
       timedOut = true;
       child.kill();
     }, CHECK_PROJECT_TIMEOUT_MS);
+    const cleanup = () => {
+      clearTimeout(timeout);
+      operationSignal?.removeEventListener('abort', onAbort);
+    };
+    const settle = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      callback();
+    };
+
+    if (operationSignal?.aborted) onAbort();
+    else operationSignal?.addEventListener('abort', onAbort, { once: true });
 
     child.once('error', (error) => {
-      clearTimeout(timeout);
-      reject(error);
+      settle(() => {
+        if (operationSignal?.aborted) {
+          reject(operationCancellationError(operationSignal.reason));
+          return;
+        }
+        reject(error);
+      });
     });
     child.once('close', (exitCode) => {
-      clearTimeout(timeout);
-      resolve({
-        exitCode,
-        stdout: stdout.toString('utf8'),
-        stderr: stderr.toString('utf8'),
-        timedOut,
-        outputTruncated,
+      settle(() => {
+        if (operationSignal?.aborted) {
+          reject(operationCancellationError(operationSignal.reason));
+          return;
+        }
+        resolve({
+          exitCode,
+          stdout: stdout.toString('utf8'),
+          stderr: stderr.toString('utf8'),
+          timedOut,
+          outputTruncated,
+        });
       });
     });
   });
@@ -131,11 +167,13 @@ export const defaultProjectCheckRunner: ProjectCheckRunner = async (
   phase,
   projectDirectory,
 ) => {
+  throwIfOperationCancelled();
   const toolchainRoot = process.cwd();
 
   if (phase === 'typecheck') {
     const tscScript = path.join(toolchainRoot, 'node_modules', 'typescript', 'bin', 'tsc');
     await assertFile(tscScript, 'the Yakable TypeScript toolchain');
+    throwIfOperationCancelled();
     return runNodeCli(
       tscScript,
       ['--noEmit', '-p', path.join(projectDirectory, 'tsconfig.json')],
@@ -145,6 +183,7 @@ export const defaultProjectCheckRunner: ProjectCheckRunner = async (
 
   const viteScript = path.join(toolchainRoot, 'node_modules', 'vite', 'bin', 'vite.js');
   await assertFile(viteScript, 'the Yakable Vite toolchain');
+  throwIfOperationCancelled();
   const outputDirectory = await mkdtemp(path.join(os.tmpdir(), 'yakable-check-build-'));
   try {
     return await runNodeCli(
@@ -239,13 +278,17 @@ export async function checkProjectDirectory(
   projectDirectory: string,
   runner: ProjectCheckRunner = defaultProjectCheckRunner,
 ): Promise<ToolResult<CheckProjectOutput>> {
+  throwIfOperationCancelled();
   const projectRoot = await realpath(projectDirectory).catch(() => null);
+  throwIfOperationCancelled();
   if (!projectRoot) return failure('PROJECT_NOT_FOUND', `Project directory does not exist: ${projectDirectory}`);
 
   try {
     await assertFile(path.join(projectRoot, 'tsconfig.json'), 'tsconfig.json');
     await assertFile(path.join(projectRoot, 'index.html'), 'index.html');
+    throwIfOperationCancelled();
   } catch (error) {
+    if (isOperationCancelled(error)) throw error;
     return failure('INVALID_PROJECT', error instanceof Error ? error.message : String(error));
   }
 
@@ -254,11 +297,13 @@ export async function checkProjectDirectory(
   try {
     typecheck = await runner('typecheck', projectRoot);
   } catch (error) {
+    if (isOperationCancelled(error)) throw error;
     return failure(
       'CHECK_EXECUTION_FAILED',
       `Project typecheck could not run: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
+  throwIfOperationCancelled();
   checks.push(stepFromResult('typecheck', typecheck));
 
   if (checks[0]!.status === 'FAIL') {
@@ -280,11 +325,13 @@ export async function checkProjectDirectory(
   try {
     build = await runner('build', projectRoot);
   } catch (error) {
+    if (isOperationCancelled(error)) throw error;
     return failure(
       'CHECK_EXECUTION_FAILED',
       `Project build check could not run: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
+  throwIfOperationCancelled();
   checks.push(stepFromResult('build', build));
 
   if (checks[1]!.status === 'FAIL') {
@@ -355,6 +402,7 @@ export const checkProjectTool: Tool<unknown, CheckProjectOutput> = {
   description: 'Run bounded TypeScript and Vite build health checks for the current frontend project.',
 
   async execute(input: unknown, context: ToolContext): Promise<ToolResult<CheckProjectOutput>> {
+    throwIfOperationCancelled();
     if (input !== undefined && (typeof input !== 'object' || input === null || Array.isArray(input))) {
       return failure('INVALID_INPUT', 'check_project accepts an empty object input.');
     }
@@ -365,6 +413,7 @@ export const checkProjectTool: Tool<unknown, CheckProjectOutput> = {
       'TypeScript typecheck and Vite production build',
     );
     const result = await checkProjectDirectory(context.projectDirectory);
+    throwIfOperationCancelled();
     emitStructuredCheckItems(context, result);
     if (toolCall) {
       context.agent!.completeToolCall(

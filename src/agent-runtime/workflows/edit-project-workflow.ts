@@ -18,6 +18,7 @@ import {
 } from '../../editing/project-context.js';
 import type { OneShotRepairResult } from '../../editing/repair.js';
 import { requestProjectPatch, requestProjectRepair } from '../../model/deepseek.js';
+import { throwIfOperationCancelled } from '../../operation-cancellation.js';
 import { readProjectSession } from '../../projects/project-session.js';
 import type { AgentProtocolItem } from '../../protocol/agent-protocol.js';
 import { resolveGeneratedProject } from '../../runtime/runtime.js';
@@ -72,6 +73,7 @@ export async function runEditProjectWorkflow(
   followUpRequest: string,
   options: EditProjectWorkflowOptions = {},
 ): Promise<EditProjectWorkflowResult> {
+  throwIfOperationCancelled();
   const request = followUpRequest.trim();
   if (!request) throw new Error('A follow-up edit request is required.');
   if (request.length > MAX_FOLLOW_UP_LENGTH) {
@@ -79,8 +81,10 @@ export async function runEditProjectWorkflow(
   }
 
   const project = await resolveGeneratedProject(projectInput);
+  throwIfOperationCancelled();
   const userEdit = extractUserEditContext(request);
   const session = await readProjectSession(project.directory);
+  throwIfOperationCancelled();
   const agentRun = createAgentRun({
     projectId: project.id,
     kind: 'EDIT',
@@ -100,31 +104,39 @@ export async function runEditProjectWorkflow(
       agent,
       turnDiff,
       async resolveContext({ userRequest, visualSelections }) {
+        throwIfOperationCancelled();
         const editIntent = await resolveEditIntentDelta({
           userRequest,
           baselineDesignIntent: session?.designIntent ?? null,
           visualSelections,
         });
+        throwIfOperationCancelled();
         const availableFiles = await listProjectContextFiles(project.directory);
+        throwIfOperationCancelled();
         const initialContextSelection = await selectProjectContextFiles(
           { userRequest, visualSelections, editIntent: editIntent.delta },
           availableFiles,
         );
+        throwIfOperationCancelled();
         const contextSelection = await resolveProjectContextSearch(
           project.directory,
           userRequest,
           availableFiles,
           initialContextSelection,
         );
+        throwIfOperationCancelled();
         return { editIntent, availableFiles, contextSelection };
       },
       buildModelContext({ snapshot, editIntent }) {
+        throwIfOperationCancelled();
         return buildProjectEditContext(snapshot, request, session, editIntent.delta);
       },
       requestPatch: requestProjectPatch,
       parsePatch: parseProjectPatch,
-      validatePatch: ({ patch, contextSelection }) =>
-        assertPatchUsesSelectedContext(project, patch, contextSelection.relevantFiles),
+      validatePatch: ({ patch, contextSelection }) => {
+        throwIfOperationCancelled();
+        return assertPatchUsesSelectedContext(project, patch, contextSelection.relevantFiles);
+      },
       requestRepair: requestProjectRepair,
     });
   } catch (error) {
@@ -132,7 +144,9 @@ export async function runEditProjectWorkflow(
     throw error;
   }
 
+  throwIfOperationCancelled();
   await persistTurnDiff(agentRun.id, turnDiff);
+  throwIfOperationCancelled();
 
   return {
     projectId: project.id,

@@ -15,6 +15,10 @@ import {
   type RepairGeneration,
 } from '../../editing/repair.js';
 import {
+  isOperationCancelled,
+  throwIfOperationCancelled,
+} from '../../operation-cancellation.js';
+import {
   runAgentStage,
   type AgentProtocolRecorder,
 } from '../../protocol/agent-recorder.js';
@@ -129,6 +133,7 @@ function messagesFor(
 export async function runSourceEditWorkflow(
   input: SourceEditWorkflowInput,
 ): Promise<SourceEditWorkflowResult> {
+  throwIfOperationCancelled();
   const messages = messagesFor(input.messages);
   const turnDiff = input.turnDiff ?? new TurnDiffTracker();
   const changeManager = createProjectChangeManager(input.project);
@@ -146,6 +151,7 @@ export async function runSourceEditWorkflow(
         visualSelections: input.visualSelections,
       }),
   );
+  throwIfOperationCancelled();
 
   const { editIntent, availableFiles, contextSelection } = prepared;
   const snapshot = await runAgentStage(
@@ -155,6 +161,7 @@ export async function runSourceEditWorkflow(
     `Read ${contextSelection.relevantFiles.length} selected project file(s)`,
     () => readProjectSnapshot(input.project, contextSelection.relevantFiles),
   );
+  throwIfOperationCancelled();
 
   const modelContext = input.buildModelContext({
     snapshot,
@@ -171,17 +178,21 @@ export async function runSourceEditWorkflow(
     messages.editingCompleted,
     async () => {
       const generation = await input.requestPatch(modelContext);
+      throwIfOperationCancelled();
       const patch = input.parsePatch(generation.content);
       await input.validatePatch?.({
         project: input.project,
         patch,
         contextSelection,
       });
+      throwIfOperationCancelled();
       const initialChangeSet = await applyProjectChanges(changeManager, patch, input.agent);
+      throwIfOperationCancelled();
       turnDiff.record(initialChangeSet);
       return { generation, patch, initialChangeSet };
     },
   );
+  throwIfOperationCancelled();
 
   const { generation, patch, initialChangeSet } = edited;
   const initialChangedFiles = workspaceChangedPaths(initialChangeSet);
@@ -193,6 +204,7 @@ export async function runSourceEditWorkflow(
       {},
       { projectDirectory: input.project.directory, agent: input.agent },
     );
+    throwIfOperationCancelled();
 
     if (initialProjectCheck.ok && initialProjectCheck.value.status === 'FAIL') {
       input.agent.emit('REPAIR', 'ACTIVE', messages.repairActive);
@@ -206,29 +218,48 @@ export async function runSourceEditWorkflow(
       selectedContextFiles: contextSelection.relevantFiles,
       availableFiles,
       initialCheck: initialProjectCheck,
-      readFiles: async (paths) => (await readProjectSnapshot(input.project, paths)).files,
-      requestRepair: input.requestRepair,
+      readFiles: async (paths) => {
+        throwIfOperationCancelled();
+        const files = (await readProjectSnapshot(input.project, paths)).files;
+        throwIfOperationCancelled();
+        return files;
+      },
+      requestRepair: async (context) => {
+        const result = await input.requestRepair(context);
+        throwIfOperationCancelled();
+        return result;
+      },
       parsePatch: input.repairParsePatch ?? parseProjectPatch,
       applyChanges: async (repairPatch) => {
+        throwIfOperationCancelled();
         const changeSet = await applyProjectChanges(changeManager, repairPatch, input.agent);
+        throwIfOperationCancelled();
         turnDiff.record(changeSet);
         return changeSet;
       },
-      checkProject: () =>
-        checkProjectTool.execute(
+      checkProject: async () => {
+        throwIfOperationCancelled();
+        const result = await checkProjectTool.execute(
           {},
           { projectDirectory: input.project.directory, agent: input.agent },
-        ),
+        );
+        throwIfOperationCancelled();
+        return result;
+      },
     });
+    throwIfOperationCancelled();
   } catch (error) {
     input.agent.emit(
       'CHECK',
       'FAILED',
-      `Project health check failed to complete: ${error instanceof Error ? error.message : String(error)}`,
+      isOperationCancelled(error)
+        ? 'Stopped by user'
+        : `Project health check failed to complete: ${error instanceof Error ? error.message : String(error)}`,
     );
     throw error;
   }
 
+  throwIfOperationCancelled();
   if (repair.attempted) {
     input.agent.emit(
       'REPAIR',
@@ -256,6 +287,7 @@ export async function runSourceEditWorkflow(
     );
   }
 
+  throwIfOperationCancelled();
   return {
     project: input.project,
     session: input.session,

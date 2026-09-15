@@ -79,13 +79,18 @@ export function upsertAgentRunItem(
     `).run(normalizedRunId, item.id, sequence, item.type, itemJson);
 
     // Tool/check failures can be recoverable observations. Only a failed progress
-    // state is authoritative for the final run outcome.
+    // state is authoritative for the final run outcome. A user stop is a distinct
+    // terminal state, not an Agent failure.
     if (item.type === 'progress' && item.status === 'FAILED') {
+      const terminalStatus = /^stopped by user\.?$/i.test(item.message.trim())
+        ? 'CANCELLED'
+        : 'FAILED';
       database.prepare(`
         UPDATE agent_runs
-        SET status = 'FAILED', summary = COALESCE(summary, ?), completed_at = COALESCE(completed_at, ?)
+        SET status = ?, summary = COALESCE(summary, ?), completed_at = COALESCE(completed_at, ?)
         WHERE id = ? AND status = 'RUNNING'
       `).run(
+        terminalStatus,
         item.message.slice(0, MAX_RUN_SUMMARY_LENGTH),
         item.completedAt ?? item.startedAt,
         normalizedRunId,
