@@ -114,7 +114,7 @@ test('reads only the selected project context files', async () => {
   }
 });
 
-test('includes original intent and recent accepted edits in follow-up context', async () => {
+test('includes original intent and bounded accepted-edit continuity in follow-up context', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'yakable-edit-continuity-'));
   try {
     const project = await createFixture(tempRoot);
@@ -142,7 +142,8 @@ test('includes original intent and recent accepted edits in follow-up context', 
       followUpRequest: string;
       continuity: {
         originalProductRequest: string;
-        recentEdits: Array<{ userRequest: string }>;
+        compactedHistory: string | null;
+        recentMessages: Array<{ role: string; content: string }>;
       };
       project: { files: Array<{ path: string }> };
     };
@@ -152,7 +153,11 @@ test('includes original intent and recent accepted edits in follow-up context', 
       context.continuity.originalProductRequest,
       'Build a restrained developer tool landing page',
     );
-    assert.equal(context.continuity.recentEdits[0]?.userRequest, 'Remove all shadows');
+    assert.equal(context.continuity.compactedHistory, null);
+    assert.deepEqual(context.continuity.recentMessages, [
+      { role: 'user', content: 'Remove all shadows' },
+      { role: 'assistant', content: 'Removed shadows\nChanged files: src/styles.css' },
+    ]);
     assert.deepEqual(context.project.files.map((file) => file.path), ['src/App.tsx']);
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
