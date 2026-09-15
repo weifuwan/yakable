@@ -55,6 +55,19 @@ export type {
 } from './conversation-context.js';
 
 export {
+  MODEL_REQUEST_MESSAGE_OVERHEAD_TOKENS,
+  MODEL_REQUEST_REPLY_PRIMING_TOKENS,
+  assertModelRequestWithinBudget,
+  estimateModelRequestTokens,
+} from './model-request-budget.js';
+export type {
+  ModelRequestBudgetInput,
+  ModelRequestBudgetMessage,
+  ModelRequestBudgetResult,
+  ModelRequestMessageRole,
+} from './model-request-budget.js';
+
+export {
   CONTEXT_TOKEN_ESTIMATOR_VERSION,
   estimateTextTokens,
   truncateTextToEstimatedTokens,
