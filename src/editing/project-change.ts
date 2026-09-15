@@ -1,6 +1,7 @@
 import { stat } from 'node:fs/promises';
 import path from 'node:path';
 
+import type { AgentProtocolRecorder } from '../protocol/agent-recorder.js';
 import type { ResolvedGeneratedProject } from '../runtime/runtime.js';
 import type { GeneratedFile, ProjectPatch } from '../types.js';
 import {
@@ -125,9 +126,19 @@ export function createProjectChangeManager(
   return new WorkspaceChangeManager(project.directory);
 }
 
-export function applyProjectChanges(
+export async function applyProjectChanges(
   manager: WorkspaceChangeManager,
   patch: ProjectPatch,
+  agent?: AgentProtocolRecorder,
 ): Promise<WorkspaceChangeSet> {
-  return manager.apply(patch.summary, workspaceMutationsFromFiles(patch.changes));
+  const changeSet = await manager.apply(patch.summary, workspaceMutationsFromFiles(patch.changes));
+  agent?.fileChange({
+    changeSetId: changeSet.id,
+    summary: changeSet.summary,
+    files: changeSet.files.map((file) => ({
+      path: file.path,
+      changeType: file.type,
+    })),
+  });
+  return changeSet;
 }
