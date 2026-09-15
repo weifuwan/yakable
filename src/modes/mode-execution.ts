@@ -1,5 +1,7 @@
 import {
+  checkWorkflowProject,
   createDefaultAgentRuntime,
+  readWorkflowProjectSnapshot,
   type ApprovedPlanWorkflowOptions,
   type ApprovedPlanWorkflowResult,
   type UnifiedEditRunResult,
@@ -67,10 +69,22 @@ export async function repairGeneratedProjectVisualInMode(
   generatedRoot?: string,
 ): Promise<VisualRepairResult> {
   return runModeCapability(mode, 'repair-source', async () => {
+    const workflow = agentRuntime.createWorkflowContext(mode);
     const { changeSet: _changeSet, ...result } = await repairGeneratedProjectVisual(
       projectInput,
       input,
-      { generatedRoot },
+      {
+        generatedRoot,
+        modelClient: workflow.modelClient,
+        readFiles: async (project, paths, agent) => (
+          await readWorkflowProjectSnapshot(workflow, project, paths, agent)
+        ).files,
+        checkProject: (project, agent) => checkWorkflowProject(
+          workflow,
+          project.directory,
+          agent,
+        ),
+      },
     );
     return result;
   });
