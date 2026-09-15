@@ -155,7 +155,7 @@ test('persists generation context, structured agent items, and successful edits 
     const reopened = await readProjectSession(projectDirectory);
     assert.equal(reopened?.productRequest, 'Build a clean developer tool landing page');
     assert.equal(reopened?.edits[0]?.assistantSummary, 'Removed card shadows');
-    assert.equal(reopened?.visualSelections, undefined);
+    assert.equal(reopened?.edits[0]?.visualSelections?.[0]?.line, 18);
     assert.equal(reopened?.updatedAt, '2026-09-14T02:05:00.000Z');
 
     const conversation = await readProjectConversation(projectDirectory);
