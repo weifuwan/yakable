@@ -14,10 +14,12 @@ import {
   type ProjectCreationStatus,
 } from "./create-project";
 import { FrontendAgentActivity } from "./components/FrontendAgentActivity";
-import { BuildingWorkspace } from "./pages/BuildingWorkspace";
-import { Dashboard } from "./pages/Dashboard";
-import type { ActiveProject } from "./pages/Workspace";
-import { WorkspaceShell } from "./pages/WorkspaceShell";
+import { Dashboard } from "./pages/dashboard";
+import {
+  BuildingWorkspace,
+  WorkspaceShell,
+  type ActiveProject,
+} from "./pages/workspace";
 import { projectTitle } from "./utils/project";
 
 const PROJECTS_CHANGED_EVENT = "yakable:projects-changed";
