@@ -1,25 +1,15 @@
 import { randomUUID } from 'node:crypto';
 
 import type { FrontendAgentEvent } from '../editing/frontend-agent.js';
+import type { WorkspaceTurnDiff } from '../workspace/turn-diff.js';
+import { readAgentRunTurnDiff } from './agent-run-turn-diff.js';
 import { getYakableDatabase } from './database.js';
 
 export type AgentRunKind = 'CREATE' | 'EDIT';
 export type AgentRunStatus = 'RUNNING' | 'COMPLETED' | 'FAILED';
-export type AgentRunFileChangeType = 'ADDED' | 'MODIFIED' | 'DELETED';
 
 export interface AgentRunEventRecord extends FrontendAgentEvent {
   sequence: number;
-}
-
-export interface AgentRunFileChangeInput {
-  path: string;
-  beforeContent: string | null;
-  afterContent: string | null;
-}
-
-export interface AgentRunFileChangeRecord extends AgentRunFileChangeInput {
-  ordinal: number;
-  type: AgentRunFileChangeType;
 }
 
 export interface AgentRunRecord {
@@ -33,7 +23,7 @@ export interface AgentRunRecord {
   startedAt: string;
   completedAt?: string;
   events: AgentRunEventRecord[];
-  changes: AgentRunFileChangeRecord[];
+  turnDiff: WorkspaceTurnDiff | null;
 }
 
 export interface CreateAgentRunInput {
@@ -70,21 +60,11 @@ interface AgentEventRow {
   iteration: number | null;
 }
 
-interface AgentFileChangeRow {
-  ordinal: number;
-  path: string;
-  change_type: string;
-  before_content: string | null;
-  after_content: string | null;
-}
-
 const MAX_PROJECT_ID_LENGTH = 240;
 const MAX_PROMPT_LENGTH = 12_000;
 const MAX_MODEL_LENGTH = 200;
 const MAX_SUMMARY_LENGTH = 2_000;
 const MAX_RUNS_PER_PROJECT = 100;
-const MAX_CHANGE_PATH_LENGTH = 240;
-const MAX_CHANGE_CONTENT_BYTES = 250_000;
 
 function normalizedText(value: string, maxLength: number, label: string): string {
   const normalized = value.trim();
@@ -98,36 +78,12 @@ function optionalText(value: string | undefined, maxLength: number): string | un
   return normalized ? normalized.slice(0, maxLength) : undefined;
 }
 
-function normalizedContent(value: string | null, label: string): string | null {
-  if (value === null) return null;
-  if (typeof value !== 'string') throw new Error(`${label} must be a string or null.`);
-  const bytes = Buffer.byteLength(value, 'utf8');
-  if (bytes > MAX_CHANGE_CONTENT_BYTES) {
-    throw new Error(`${label} is too large (${bytes} bytes; max ${MAX_CHANGE_CONTENT_BYTES}).`);
-  }
-  return value;
-}
-
 function isAgentRunKind(value: string): value is AgentRunKind {
   return value === 'CREATE' || value === 'EDIT';
 }
 
 function isAgentRunStatus(value: string): value is AgentRunStatus {
   return value === 'RUNNING' || value === 'COMPLETED' || value === 'FAILED';
-}
-
-function isAgentRunFileChangeType(value: string): value is AgentRunFileChangeType {
-  return value === 'ADDED' || value === 'MODIFIED' || value === 'DELETED';
-}
-
-function classifyFileChange(
-  beforeContent: string | null,
-  afterContent: string | null,
-): AgentRunFileChangeType | null {
-  if (beforeContent === afterContent) return null;
-  if (beforeContent === null) return 'ADDED';
-  if (afterContent === null) return 'DELETED';
-  return 'MODIFIED';
 }
 
 function eventFromRow(row: AgentEventRow): AgentRunEventRecord {
@@ -142,19 +98,6 @@ function eventFromRow(row: AgentEventRow): AgentRunEventRecord {
   };
 }
 
-function fileChangeFromRow(row: AgentFileChangeRow): AgentRunFileChangeRecord {
-  if (!isAgentRunFileChangeType(row.change_type)) {
-    throw new Error(`Stored agent file change ${row.path} contains an unsupported change type.`);
-  }
-  return {
-    ordinal: row.ordinal,
-    path: row.path,
-    type: row.change_type,
-    beforeContent: row.before_content,
-    afterContent: row.after_content,
-  };
-}
-
 function eventsForRun(runId: string): AgentRunEventRecord[] {
   const rows = getYakableDatabase().prepare(`
     SELECT sequence, state, status, message, at, iteration
@@ -163,16 +106,6 @@ function eventsForRun(runId: string): AgentRunEventRecord[] {
     ORDER BY sequence ASC
   `).all(runId) as unknown as AgentEventRow[];
   return rows.map(eventFromRow);
-}
-
-function fileChangesForRun(runId: string): AgentRunFileChangeRecord[] {
-  const rows = getYakableDatabase().prepare(`
-    SELECT ordinal, path, change_type, before_content, after_content
-    FROM agent_file_changes
-    WHERE run_id = ?
-    ORDER BY ordinal ASC, id ASC
-  `).all(runId) as unknown as AgentFileChangeRow[];
-  return rows.map(fileChangeFromRow);
 }
 
 function runFromRow(row: AgentRunRow): AgentRunRecord {
@@ -190,7 +123,7 @@ function runFromRow(row: AgentRunRow): AgentRunRecord {
     startedAt: row.started_at,
     ...(row.completed_at ? { completedAt: row.completed_at } : {}),
     events: eventsForRun(row.id),
-    changes: fileChangesForRun(row.id),
+    turnDiff: readAgentRunTurnDiff(row.id),
   };
 }
 
@@ -214,7 +147,7 @@ export function createAgentRun(input: CreateAgentRunInput): AgentRunRecord {
     prompt,
     startedAt,
     events: [],
-    changes: [],
+    turnDiff: null,
   };
 }
 
@@ -259,74 +192,6 @@ export function appendAgentRunEvent(
   }
 
   return { ...event, sequence: next.sequence };
-}
-
-export function recordAgentRunFileChanges(
-  runId: string,
-  changes: AgentRunFileChangeInput[],
-): AgentRunFileChangeRecord[] {
-  if (!runId.trim()) throw new Error('Agent run id is required for file changes.');
-  if (!Array.isArray(changes) || changes.length === 0) return fileChangesForRun(runId);
-
-  const database = getYakableDatabase();
-  database.exec('BEGIN IMMEDIATE');
-  try {
-    for (const input of changes) {
-      const filePath = normalizedText(input.path, MAX_CHANGE_PATH_LENGTH, 'Agent file change path');
-      const beforeContent = normalizedContent(input.beforeContent, `Before content for ${filePath}`);
-      const afterContent = normalizedContent(input.afterContent, `After content for ${filePath}`);
-
-      const existing = database.prepare(`
-        SELECT ordinal, before_content
-        FROM agent_file_changes
-        WHERE run_id = ? AND path = ?
-      `).get(runId, filePath) as unknown as { ordinal: number; before_content: string | null } | undefined;
-
-      if (existing) {
-        const type = classifyFileChange(existing.before_content, afterContent);
-        if (!type) {
-          database.prepare('DELETE FROM agent_file_changes WHERE run_id = ? AND path = ?')
-            .run(runId, filePath);
-          continue;
-        }
-        database.prepare(`
-          UPDATE agent_file_changes
-          SET change_type = ?, after_content = ?
-          WHERE run_id = ? AND path = ?
-        `).run(type, afterContent, runId, filePath);
-        continue;
-      }
-
-      const type = classifyFileChange(beforeContent, afterContent);
-      if (!type) continue;
-      const next = database.prepare(`
-        SELECT COALESCE(MAX(ordinal), 0) + 1 AS ordinal
-        FROM agent_file_changes
-        WHERE run_id = ?
-      `).get(runId) as unknown as { ordinal: number };
-
-      database.prepare(`
-        INSERT INTO agent_file_changes (
-          run_id, ordinal, path, change_type, before_content, after_content
-        ) VALUES (?, ?, ?, ?, ?, ?)
-      `).run(runId, next.ordinal, filePath, type, beforeContent, afterContent);
-    }
-    database.exec('COMMIT');
-  } catch (error) {
-    database.exec('ROLLBACK');
-    throw error;
-  }
-
-  return fileChangesForRun(runId);
-}
-
-export function recordAgentRunFileChange(
-  runId: string,
-  change: AgentRunFileChangeInput,
-): AgentRunFileChangeRecord | null {
-  const filePath = normalizedText(change.path, MAX_CHANGE_PATH_LENGTH, 'Agent file change path');
-  const changes = recordAgentRunFileChanges(runId, [{ ...change, path: filePath }]);
-  return changes.find((item) => item.path === filePath) ?? null;
 }
 
 export function completeAgentRun(runId: string, input: CompleteAgentRunInput = {}): void {
