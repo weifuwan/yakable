@@ -74,21 +74,22 @@ function initializeSchema(database: DatabaseSync): void {
     CREATE INDEX IF NOT EXISTS idx_agent_runs_project_started
       ON agent_runs(project_id, started_at DESC, id DESC);
 
-    CREATE TABLE IF NOT EXISTS agent_events (
+    DROP TABLE IF EXISTS agent_events;
+
+    CREATE TABLE IF NOT EXISTS agent_items (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       run_id TEXT NOT NULL,
+      item_id TEXT NOT NULL,
       sequence INTEGER NOT NULL,
-      state TEXT NOT NULL,
-      status TEXT NOT NULL,
-      message TEXT NOT NULL,
-      at TEXT NOT NULL,
-      iteration INTEGER,
+      type TEXT NOT NULL,
+      item_json TEXT NOT NULL,
       FOREIGN KEY (run_id) REFERENCES agent_runs(id) ON DELETE CASCADE,
+      UNIQUE (run_id, item_id),
       UNIQUE (run_id, sequence)
     );
 
-    CREATE INDEX IF NOT EXISTS idx_agent_events_run_sequence
-      ON agent_events(run_id, sequence);
+    CREATE INDEX IF NOT EXISTS idx_agent_items_run_sequence
+      ON agent_items(run_id, sequence, id);
 
     DROP TABLE IF EXISTS agent_file_changes;
 

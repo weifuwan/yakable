@@ -27,10 +27,7 @@ import {
   type ProjectSnapshot,
 } from '../editing/project-context.js';
 import { runOneShotRepair, type OneShotRepairResult } from '../editing/repair.js';
-import {
-  assertModeCapability,
-  type YakableMode,
-} from '../modes/mode-contract.js';
+import { assertModeCapability, type YakableMode } from '../modes/mode-contract.js';
 import { requestProjectPatch, requestProjectRepair } from '../model/deepseek.js';
 import {
   appendProjectEditHistory,
@@ -78,26 +75,15 @@ export interface ApprovedPlanBuildResult {
 }
 
 export type ApprovedPlanPatchResult =
-  | {
-      status: 'APPLIED';
-      summary: string;
-      deviations: [];
-      patch: ProjectPatch;
-    }
-  | {
-      status: 'BLOCKED';
-      summary: string;
-      deviations: string[];
-    };
+  | { status: 'APPLIED'; summary: string; deviations: []; patch: ProjectPatch }
+  | { status: 'BLOCKED'; summary: string; deviations: string[] };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function readDeviations(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    throw new Error('Approved Plan Build output deviations must be an array.');
-  }
+  if (!Array.isArray(value)) throw new Error('Approved Plan Build output deviations must be an array.');
   const deviations: string[] = [];
   for (const [index, item] of value.entries()) {
     if (typeof item !== 'string') {
@@ -110,9 +96,7 @@ function readDeviations(value: unknown): string[] {
       );
     }
     if (!deviations.includes(text)) deviations.push(text);
-    if (deviations.length > 8) {
-      throw new Error('Approved Plan Build may report at most 8 deviations.');
-    }
+    if (deviations.length > 8) throw new Error('Approved Plan Build may report at most 8 deviations.');
   }
   return deviations;
 }
@@ -133,7 +117,6 @@ export function parseApprovedPlanPatch(rawContent: string): ApprovedPlanPatchRes
     throw new Error('Approved Plan Build status must be APPLIED or BLOCKED.');
   }
   const deviations = readDeviations(value.deviations ?? []);
-
   if (value.status === 'BLOCKED') {
     if (deviations.length === 0) {
       throw new Error('Blocked Approved Plan Build must report at least one concrete deviation.');
@@ -143,10 +126,7 @@ export function parseApprovedPlanPatch(rawContent: string): ApprovedPlanPatchRes
     }
     return { status: 'BLOCKED', summary, deviations };
   }
-
-  if (deviations.length > 0) {
-    throw new Error('Applied Approved Plan Build cannot contain deviations.');
-  }
+  if (deviations.length > 0) throw new Error('Applied Approved Plan Build cannot contain deviations.');
   const patch = parseProjectPatch(JSON.stringify({ summary, changes: value.changes }));
   return { status: 'APPLIED', summary, deviations: [], patch };
 }
@@ -194,10 +174,7 @@ export function buildApprovedPlanEditContext(
           recentEdits,
         }
       : null,
-    project: {
-      id: snapshot.id,
-      files: snapshot.files,
-    },
+    project: { id: snapshot.id, files: snapshot.files },
   });
 }
 
@@ -206,9 +183,7 @@ function attachApprovedPlanToRepairRequest(
   approvedPlan: ApprovedPlanExecutionContract,
 ): string {
   const parsed: unknown = JSON.parse(repairContext);
-  if (!isRecord(parsed)) {
-    throw new Error('One-shot repair context must be a JSON object.');
-  }
+  if (!isRecord(parsed)) throw new Error('One-shot repair context must be a JSON object.');
   return JSON.stringify({ ...parsed, approvedPlan });
 }
 
@@ -248,11 +223,7 @@ export async function buildProjectFromApprovedPlan(
       });
       const availableFiles = await listProjectContextFiles(project.directory);
       const initialSelection = await selectProjectContextFiles(
-        {
-          userRequest: executionRequest,
-          visualSelections: [],
-          editIntent: editIntent.delta,
-        },
+        { userRequest: executionRequest, visualSelections: [], editIntent: editIntent.delta },
         availableFiles,
       );
       const searchedSelection = await resolveProjectContextSearch(
@@ -302,12 +273,8 @@ export async function buildProjectFromApprovedPlan(
           result.deviations,
         );
       }
-      await assertPatchUsesSelectedContext(
-        project,
-        result.patch,
-        contextSelection.relevantFiles,
-      );
-      const initialChangeSet = await applyProjectChanges(changeManager, result.patch);
+      await assertPatchUsesSelectedContext(project, result.patch, contextSelection.relevantFiles);
+      const initialChangeSet = await applyProjectChanges(changeManager, result.patch, agent);
       return { generation, patch: result.patch, initialChangeSet };
     },
   );
@@ -320,7 +287,7 @@ export async function buildProjectFromApprovedPlan(
   try {
     const initialProjectCheck = await checkProjectTool.execute(
       {},
-      { projectDirectory: project.directory },
+      { projectDirectory: project.directory, agent },
     );
     repair = await runOneShotRepair({
       projectId: project.id,
@@ -334,9 +301,9 @@ export async function buildProjectFromApprovedPlan(
       requestRepair: (repairContext) =>
         requestProjectRepair(attachApprovedPlanToRepairRequest(repairContext, executionPlan)),
       parsePatch: parseProjectPatch,
-      applyChanges: (repairPatch) => applyProjectChanges(changeManager, repairPatch),
+      applyChanges: (repairPatch) => applyProjectChanges(changeManager, repairPatch, agent),
       checkProject: () =>
-        checkProjectTool.execute({}, { projectDirectory: project.directory }),
+        checkProjectTool.execute({}, { projectDirectory: project.directory, agent }),
     });
   } catch (error) {
     agent.emit(
@@ -382,6 +349,7 @@ export async function buildProjectFromApprovedPlan(
     );
   }
 
+  agent.message(patch.summary);
   return {
     projectId: project.id,
     projectDirectory: project.directory,

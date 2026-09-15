@@ -1,17 +1,18 @@
 import { randomUUID } from 'node:crypto';
 
-import type { FrontendAgentEvent } from '../editing/frontend-agent.js';
+import type { AgentProtocolItem } from '../protocol/agent-protocol.js';
 import type { WorkspaceFileChange } from '../workspace/change-set.js';
 import type { WorkspaceTurnDiff } from '../workspace/turn-diff.js';
+import {
+  listAgentRunItems,
+  upsertAgentRunItem,
+  type AgentRunItemRecord,
+} from './agent-run-item.js';
 import { readAgentRunTurnDiff } from './agent-run-turn-diff.js';
 import { getYakableDatabase } from './database.js';
 
 export type AgentRunKind = 'CREATE' | 'EDIT';
 export type AgentRunStatus = 'RUNNING' | 'COMPLETED' | 'FAILED';
-
-export interface AgentRunEventRecord extends FrontendAgentEvent {
-  sequence: number;
-}
 
 export interface AgentRunChangeView extends WorkspaceFileChange {
   ordinal: number;
@@ -27,9 +28,9 @@ export interface AgentRunRecord {
   summary?: string;
   startedAt: string;
   completedAt?: string;
-  events: AgentRunEventRecord[];
+  items: AgentProtocolItem[];
   turnDiff: WorkspaceTurnDiff | null;
-  /** Current dashboard projection; source of truth is turnDiff. */
+  /** Dashboard projection; source of truth is turnDiff. */
   changes: AgentRunChangeView[];
 }
 
@@ -58,15 +59,6 @@ interface AgentRunRow {
   completed_at: string | null;
 }
 
-interface AgentEventRow {
-  sequence: number;
-  state: FrontendAgentEvent['state'];
-  status: FrontendAgentEvent['status'];
-  message: string;
-  at: string;
-  iteration: number | null;
-}
-
 const MAX_PROJECT_ID_LENGTH = 240;
 const MAX_PROMPT_LENGTH = 12_000;
 const MAX_MODEL_LENGTH = 200;
@@ -93,28 +85,6 @@ function isAgentRunStatus(value: string): value is AgentRunStatus {
   return value === 'RUNNING' || value === 'COMPLETED' || value === 'FAILED';
 }
 
-function eventFromRow(row: AgentEventRow): AgentRunEventRecord {
-  return {
-    version: 1,
-    sequence: row.sequence,
-    state: row.state,
-    status: row.status,
-    message: row.message,
-    at: row.at,
-    ...(row.iteration === 0 || row.iteration === 1 ? { iteration: row.iteration } : {}),
-  };
-}
-
-function eventsForRun(runId: string): AgentRunEventRecord[] {
-  const rows = getYakableDatabase().prepare(`
-    SELECT sequence, state, status, message, at, iteration
-    FROM agent_events
-    WHERE run_id = ?
-    ORDER BY sequence ASC
-  `).all(runId) as unknown as AgentEventRow[];
-  return rows.map(eventFromRow);
-}
-
 function runFromRow(row: AgentRunRow): AgentRunRecord {
   if (!isAgentRunKind(row.kind) || !isAgentRunStatus(row.status)) {
     throw new Error(`Stored agent run ${row.id} contains an unsupported kind or status.`);
@@ -130,12 +100,9 @@ function runFromRow(row: AgentRunRow): AgentRunRecord {
     ...(row.summary ? { summary: row.summary } : {}),
     startedAt: row.started_at,
     ...(row.completed_at ? { completedAt: row.completed_at } : {}),
-    events: eventsForRun(row.id),
+    items: listAgentRunItems(row.id).map((record) => record.item),
     turnDiff,
-    changes: turnDiff?.files.map((file, index) => ({
-      ...file,
-      ordinal: index + 1,
-    })) ?? [],
+    changes: turnDiff?.files.map((file, index) => ({ ...file, ordinal: index + 1 })) ?? [],
   };
 }
 
@@ -158,7 +125,7 @@ export function createAgentRun(input: CreateAgentRunInput): AgentRunRecord {
     status: 'RUNNING',
     prompt,
     startedAt,
-    events: [],
+    items: [],
     turnDiff: null,
     changes: [],
   };
@@ -166,45 +133,9 @@ export function createAgentRun(input: CreateAgentRunInput): AgentRunRecord {
 
 export function appendAgentRunEvent(
   runId: string,
-  event: FrontendAgentEvent,
-): AgentRunEventRecord {
-  const database = getYakableDatabase();
-  const next = database.prepare(`
-    SELECT COALESCE(MAX(sequence), 0) + 1 AS sequence
-    FROM agent_events
-    WHERE run_id = ?
-  `).get(runId) as unknown as { sequence: number };
-
-  database.exec('BEGIN IMMEDIATE');
-  try {
-    database.prepare(`
-      INSERT INTO agent_events (
-        run_id, sequence, state, status, message, at, iteration
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      runId,
-      next.sequence,
-      event.state,
-      event.status,
-      event.message,
-      event.at,
-      event.iteration ?? null,
-    );
-
-    if (event.status === 'FAILED') {
-      database.prepare(`
-        UPDATE agent_runs
-        SET status = 'FAILED', summary = COALESCE(summary, ?), completed_at = COALESCE(completed_at, ?)
-        WHERE id = ? AND status = 'RUNNING'
-      `).run(event.message.slice(0, MAX_SUMMARY_LENGTH), event.at, runId);
-    }
-    database.exec('COMMIT');
-  } catch (error) {
-    database.exec('ROLLBACK');
-    throw error;
-  }
-
-  return { ...event, sequence: next.sequence };
+  item: AgentProtocolItem,
+): AgentRunItemRecord {
+  return upsertAgentRunItem(runId, item);
 }
 
 export function completeAgentRun(runId: string, input: CompleteAgentRunInput = {}): void {
@@ -232,10 +163,7 @@ export function readAgentRun(runId: string): AgentRunRecord | null {
   return row ? runFromRow(row) : null;
 }
 
-export function listProjectAgentRuns(
-  projectId: string,
-  limit = 40,
-): AgentRunRecord[] {
+export function listProjectAgentRuns(projectId: string, limit = 40): AgentRunRecord[] {
   const normalizedProjectId = normalizedText(
     projectId,
     MAX_PROJECT_ID_LENGTH,

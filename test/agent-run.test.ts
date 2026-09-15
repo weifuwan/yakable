@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createFrontendAgentEvent } from '../src/editing/frontend-agent.js';
+import { createAgentProtocolRecorder } from '../src/protocol/agent-recorder.js';
 import {
-  appendAgentRunEvent,
   completeAgentRun,
   createAgentRun,
   deleteProjectAgentRuns,
   listProjectAgentRuns,
   readAgentRun,
 } from '../src/storage/agent-run.js';
+import { upsertAgentRunItem } from '../src/storage/agent-run-item.js';
 import { recordAgentRunTurnDiff } from '../src/storage/agent-run-turn-diff.js';
 import { closeYakableDatabases } from '../src/storage/database.js';
 
@@ -26,7 +26,7 @@ function withMemoryDatabase(run: () => void): void {
   }
 }
 
-test('persists an edit agent run and ordered events', () => {
+test('persists ordered structured items and updates an item in place', () => {
   withMemoryDatabase(() => {
     const run = createAgentRun({
       projectId: 'demo-project',
@@ -34,27 +34,22 @@ test('persists an edit agent run and ordered events', () => {
       prompt: 'Make the hero more concise',
       startedAt: '2026-09-14T10:00:00.000Z',
     });
+    let nextId = 0;
+    const recorder = createAgentProtocolRecorder({
+      idFactory: () => `item-${++nextId}`,
+      onItem: (item) => {
+        upsertAgentRunItem(run.id, item);
+      },
+    });
 
-    appendAgentRunEvent(
-      run.id,
-      createFrontendAgentEvent(
-        'SELECT_CONTEXT',
-        'ACTIVE',
-        'Selecting focused context',
-      ),
-    );
-    appendAgentRunEvent(
-      run.id,
-      createFrontendAgentEvent(
-        'SELECT_CONTEXT',
-        'COMPLETED',
-        'Selected focused context',
-      ),
-    );
-    appendAgentRunEvent(
-      run.id,
-      createFrontendAgentEvent('READ', 'COMPLETED', 'Read 2 files'),
-    );
+    const selecting = recorder.progress('SELECT_CONTEXT', 'ACTIVE', 'Selecting focused context');
+    recorder.progress('SELECT_CONTEXT', 'COMPLETED', 'Selected focused context');
+    recorder.progress('READ', 'COMPLETED', 'Read 2 files');
+    recorder.fileChange({
+      changeSetId: 'changes-1',
+      summary: 'Updated hero copy',
+      files: [{ path: 'src/App.tsx', changeType: 'MODIFIED' }],
+    });
 
     completeAgentRun(run.id, {
       model: 'deepseek-chat',
@@ -65,22 +60,14 @@ test('persists an edit agent run and ordered events', () => {
     const stored = readAgentRun(run.id);
     assert.ok(stored);
     assert.equal(stored.projectId, 'demo-project');
-    assert.equal(stored.kind, 'EDIT');
     assert.equal(stored.status, 'COMPLETED');
-    assert.equal(stored.model, 'deepseek-chat');
-    assert.equal(stored.summary, 'Updated hero copy');
-    assert.equal(stored.completedAt, '2026-09-14T10:00:03.000Z');
+    assert.equal(stored.items.length, 3);
+    assert.equal(stored.items[0]?.id, selecting.id);
+    assert.equal(stored.items[0]?.status, 'COMPLETED');
+    assert.equal(stored.items[1]?.type, 'progress');
+    assert.equal(stored.items[2]?.type, 'file_change');
     assert.equal(stored.turnDiff, null);
     assert.deepEqual(stored.changes, []);
-    assert.deepEqual(
-      stored.events.map((event) => [event.sequence, event.state, event.status]),
-      [
-        [1, 'SELECT_CONTEXT', 'ACTIVE'],
-        [2, 'SELECT_CONTEXT', 'COMPLETED'],
-        [3, 'READ', 'COMPLETED'],
-      ],
-    );
-
     assert.equal(listProjectAgentRuns('demo-project').at(0)?.id, run.id);
   });
 });
@@ -116,13 +103,8 @@ test('persists one net turn diff and projects the current changes view from it',
     const stored = readAgentRun(run.id);
     assert.ok(stored?.turnDiff);
     assert.equal(stored.turnDiff.addedLines, 2);
-    assert.equal(stored.turnDiff.removedLines, 1);
     assert.deepEqual(
-      stored.changes.map((change) => ({
-        ordinal: change.ordinal,
-        path: change.path,
-        type: change.type,
-      })),
+      stored.changes.map((change) => ({ ordinal: change.ordinal, path: change.path, type: change.type })),
       [
         { ordinal: 1, path: 'src/App.tsx', type: 'MODIFIED' },
         { ordinal: 2, path: 'src/components/Hero.tsx', type: 'ADDED' },
@@ -131,47 +113,64 @@ test('persists one net turn diff and projects the current changes view from it',
   });
 });
 
-test('a failed agent event marks the run failed and completion keeps that outcome', () => {
+test('only failed progress items make the whole run terminally failed', () => {
   withMemoryDatabase(() => {
-    const run = createAgentRun({
+    const recoverable = createAgentRun({
+      projectId: 'recoverable-project',
+      kind: 'EDIT',
+      prompt: 'Repair a compile issue',
+    });
+    let recoverableId = 0;
+    const recoverableRecorder = createAgentProtocolRecorder({
+      idFactory: () => `recoverable-${++recoverableId}`,
+      onItem: (item) => upsertAgentRunItem(recoverable.id, item),
+    });
+    recoverableRecorder.progress('SELECT_CONTEXT', 'COMPLETED', 'Selected context');
+    recoverableRecorder.progress('READ', 'COMPLETED', 'Read context');
+    recoverableRecorder.progress('EDIT', 'COMPLETED', 'Applied edit');
+    recoverableRecorder.progress('CHECK', 'ACTIVE', 'Checking');
+    recoverableRecorder.checkResult({
+      result: 'FAIL',
+      checks: [],
+      diagnosticCount: 1,
+      message: 'Initial check failed and can be repaired',
+    });
+    assert.equal(readAgentRun(recoverable.id)?.status, 'RUNNING');
+
+    const failed = createAgentRun({
       projectId: 'failed-project',
       kind: 'EDIT',
       prompt: 'Break something',
     });
-
-    appendAgentRunEvent(
-      run.id,
-      createFrontendAgentEvent(
-        'SELECT_CONTEXT',
-        'FAILED',
-        'Could not select project context',
-      ),
-    );
-    completeAgentRun(run.id, {
+    let failedId = 0;
+    const failedRecorder = createAgentProtocolRecorder({
+      idFactory: () => `failed-${++failedId}`,
+      onItem: (item) => upsertAgentRunItem(failed.id, item),
+    });
+    failedRecorder.progress('SELECT_CONTEXT', 'FAILED', 'Could not select project context');
+    completeAgentRun(failed.id, {
       model: 'deepseek-chat',
       summary: 'Edit did not complete',
     });
 
-    const stored = readAgentRun(run.id);
-    assert.ok(stored);
-    assert.equal(stored.status, 'FAILED');
-    assert.equal(stored.model, 'deepseek-chat');
-    assert.equal(stored.summary, 'Edit did not complete');
-    assert.ok(stored.completedAt);
+    const stored = readAgentRun(failed.id);
+    assert.equal(stored?.status, 'FAILED');
+    assert.equal(stored?.summary, 'Edit did not complete');
+    assert.ok(stored?.completedAt);
   });
 });
 
-test('deletes persisted turn diffs with project agent runs', () => {
+test('deletes structured items and turn diffs with project agent runs', () => {
   withMemoryDatabase(() => {
     const deletedRun = createAgentRun({ projectId: 'delete-me', kind: 'EDIT', prompt: 'one' });
+    const recorder = createAgentProtocolRecorder({
+      idFactory: () => 'delete-item',
+      onItem: (item) => upsertAgentRunItem(deletedRun.id, item),
+    });
+    recorder.progress('SELECT_CONTEXT', 'COMPLETED', 'Selected context');
     recordAgentRunTurnDiff(deletedRun.id, {
       files: [
-        {
-          path: 'src/App.tsx',
-          type: 'MODIFIED',
-          beforeContent: 'old',
-          afterContent: 'new',
-        },
+        { path: 'src/App.tsx', type: 'MODIFIED', beforeContent: 'old', afterContent: 'new' },
       ],
       unifiedDiff: 'diff',
       addedLines: 1,

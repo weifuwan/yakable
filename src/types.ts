@@ -1,3 +1,5 @@
+import type { AgentProtocolItem } from './protocol/agent-protocol.js';
+
 export type ProjectTemplate = 'website' | 'app';
 
 export type BuildIntentRoute = 'CREATE' | 'CHAT' | 'CLARIFY';
@@ -213,34 +215,7 @@ export interface ProjectEditHistoryItem {
 
 export type ProjectAgentRunKind = 'CREATE' | 'EDIT';
 export type ProjectAgentRunStatus = 'RUNNING' | 'COMPLETED' | 'FAILED';
-export type ProjectAgentState =
-  | 'ROUTE'
-  | 'UNDERSTAND'
-  | 'DESIGN'
-  | 'TEMPLATE'
-  | 'GENERATE'
-  | 'WRITE'
-  | 'SELECT_CONTEXT'
-  | 'READ'
-  | 'EDIT'
-  | 'CHECK'
-  | 'RUNTIME'
-  | 'OBSERVE'
-  | 'CRITIQUE'
-  | 'REPAIR'
-  | 'DONE';
-export type ProjectAgentStepStatus = 'ACTIVE' | 'COMPLETED' | 'SKIPPED' | 'FAILED';
 export type ProjectAgentFileChangeType = 'ADDED' | 'MODIFIED' | 'DELETED';
-
-export interface ProjectAgentEvent {
-  version: 1;
-  sequence: number;
-  state: ProjectAgentState;
-  status: ProjectAgentStepStatus;
-  message: string;
-  at: string;
-  iteration?: 0 | 1;
-}
 
 export interface ProjectAgentFileChange {
   path: string;
@@ -266,7 +241,7 @@ export interface ProjectAgentRun {
   summary?: string;
   startedAt: string;
   completedAt?: string;
-  events: ProjectAgentEvent[];
+  items: AgentProtocolItem[];
   turnDiff: ProjectAgentTurnDiff | null;
 }
 

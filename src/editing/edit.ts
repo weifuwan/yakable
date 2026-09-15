@@ -32,11 +32,8 @@ import {
   readProjectSession,
 } from '../projects/project-session.js';
 import { resolveGeneratedProject } from '../runtime/runtime.js';
-import {
-  appendAgentRunEvent,
-  completeAgentRun,
-  createAgentRun,
-} from '../storage/agent-run.js';
+import { completeAgentRun, createAgentRun } from '../storage/agent-run.js';
+import { upsertAgentRunItem } from '../storage/agent-run-item.js';
 import { recordAgentRunTurnDiff } from '../storage/agent-run-turn-diff.js';
 import { checkProjectTool, type CheckProjectOutput } from '../tools/check-project.js';
 import type { ToolResult } from '../tools/tool.js';
@@ -97,13 +94,13 @@ export async function editGeneratedProject(
     prompt: userEdit.userRequest,
   });
   const agent = createFrontendAgentRecorder({
-    onEvent(event) {
+    onEvent(item) {
       try {
-        appendAgentRunEvent(agentRun.id, event);
+        upsertAgentRunItem(agentRun.id, item);
       } catch (error) {
-        console.warn('[Yakable Agent] Agent event could not be persisted.', error);
+        console.warn('[Yakable Agent] Agent item could not be persisted.', error);
       }
-      options.onEvent?.(event);
+      options.onEvent?.(item);
     },
   });
 
@@ -120,10 +117,7 @@ export async function editGeneratedProject(
       });
       const availableFiles = await listProjectContextFiles(project.directory);
       const initialContextSelection = await selectProjectContextFiles(
-        {
-          ...userEdit,
-          editIntent: editIntent.delta,
-        },
+        { ...userEdit, editIntent: editIntent.delta },
         availableFiles,
       );
       const contextSelection = await resolveProjectContextSearch(
@@ -155,7 +149,7 @@ export async function editGeneratedProject(
       const generation = await requestProjectPatch(editContext);
       const patch = parseProjectPatch(generation.content);
       await assertPatchUsesSelectedContext(project, patch, contextSelection.relevantFiles);
-      const initialChangeSet = await applyProjectChanges(changeManager, patch);
+      const initialChangeSet = await applyProjectChanges(changeManager, patch, agent);
       turnDiff.record(initialChangeSet);
       return { generation, patch, initialChangeSet };
     },
@@ -169,7 +163,7 @@ export async function editGeneratedProject(
   try {
     const initialProjectCheck = await checkProjectTool.execute(
       {},
-      { projectDirectory: project.directory },
+      { projectDirectory: project.directory, agent },
     );
 
     repair = await runOneShotRepair({
@@ -184,12 +178,12 @@ export async function editGeneratedProject(
       requestRepair: requestProjectRepair,
       parsePatch: parseProjectPatch,
       applyChanges: async (repairPatch) => {
-        const changeSet = await applyProjectChanges(changeManager, repairPatch);
+        const changeSet = await applyProjectChanges(changeManager, repairPatch, agent);
         turnDiff.record(changeSet);
         return changeSet;
       },
       checkProject: () =>
-        checkProjectTool.execute({}, { projectDirectory: project.directory }),
+        checkProjectTool.execute({}, { projectDirectory: project.directory, agent }),
     });
   } catch (error) {
     agent.emit(
@@ -234,6 +228,7 @@ export async function editGeneratedProject(
     console.warn('[Yakable Edit] Source update succeeded but conversation history could not be persisted.', error);
   }
 
+  agent.message(patch.summary);
   await persistTurnDiff(agentRun.id, turnDiff);
   completeAgentRun(agentRun.id, {
     model: generation.model,

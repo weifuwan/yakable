@@ -124,9 +124,7 @@ async function runNodeCli(
 
 async function assertFile(filePath: string, label: string): Promise<void> {
   const info = await stat(filePath).catch(() => null);
-  if (!info?.isFile()) {
-    throw new Error(`Project check requires ${label}: ${filePath}`);
-  }
+  if (!info?.isFile()) throw new Error(`Project check requires ${label}: ${filePath}`);
 }
 
 export const defaultProjectCheckRunner: ProjectCheckRunner = async (
@@ -162,7 +160,6 @@ export const defaultProjectCheckRunner: ProjectCheckRunner = async (
 function normalizeDiagnosticPath(projectDirectory: string, candidate: string): string | undefined {
   const cleaned = candidate.trim().replace(/^file:\s*/i, '');
   if (!cleaned) return undefined;
-
   const absolute = path.isAbsolute(cleaned) ? cleaned : path.resolve(projectDirectory, cleaned);
   const relative = path.relative(projectDirectory, absolute);
   if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
@@ -189,11 +186,10 @@ export function parseProjectCheckDiagnostics(
   for (const line of lines) {
     const typeScript = line.match(/^(.+?)\((\d+),(\d+)\):\s+error\s+(TS\d+):\s+(.+)$/);
     if (typeScript) {
+      const normalizedPath = normalizeDiagnosticPath(projectDirectory, typeScript[1]!);
       diagnostics.push({
         phase,
-        ...(normalizeDiagnosticPath(projectDirectory, typeScript[1]!)
-          ? { path: normalizeDiagnosticPath(projectDirectory, typeScript[1]!) }
-          : {}),
+        ...(normalizedPath ? { path: normalizedPath } : {}),
         line: Number(typeScript[2]),
         column: Number(typeScript[3]),
         code: typeScript[4],
@@ -202,11 +198,10 @@ export function parseProjectCheckDiagnostics(
     } else {
       const located = line.match(/^(.+?\.(?:ts|tsx|js|jsx|css|html)):(\d+):(\d+)\s*(.*)$/i);
       if (located) {
+        const normalizedPath = normalizeDiagnosticPath(projectDirectory, located[1]!);
         diagnostics.push({
           phase,
-          ...(normalizeDiagnosticPath(projectDirectory, located[1]!)
-            ? { path: normalizeDiagnosticPath(projectDirectory, located[1]!) }
-            : {}),
+          ...(normalizedPath ? { path: normalizedPath } : {}),
           line: Number(located[2]),
           column: Number(located[3]),
           message: boundedMessage(located[4] || line),
@@ -215,7 +210,6 @@ export function parseProjectCheckDiagnostics(
         diagnostics.push({ phase, message: boundedMessage(line) });
       }
     }
-
     if (diagnostics.length >= CHECK_PROJECT_MAX_DIAGNOSTICS) break;
   }
 
@@ -225,7 +219,6 @@ export function parseProjectCheckDiagnostics(
       if (diagnostics.length >= CHECK_PROJECT_MAX_DIAGNOSTICS) break;
     }
   }
-
   return diagnostics;
 }
 
@@ -247,9 +240,7 @@ export async function checkProjectDirectory(
   runner: ProjectCheckRunner = defaultProjectCheckRunner,
 ): Promise<ToolResult<CheckProjectOutput>> {
   const projectRoot = await realpath(projectDirectory).catch(() => null);
-  if (!projectRoot) {
-    return failure('PROJECT_NOT_FOUND', `Project directory does not exist: ${projectDirectory}`);
-  }
+  if (!projectRoot) return failure('PROJECT_NOT_FOUND', `Project directory does not exist: ${projectDirectory}`);
 
   try {
     await assertFile(path.join(projectRoot, 'tsconfig.json'), 'tsconfig.json');
@@ -259,7 +250,6 @@ export async function checkProjectDirectory(
   }
 
   const checks: ProjectCheckStep[] = [];
-
   let typecheck: ProjectCheckCommandResult;
   try {
     typecheck = await runner('typecheck', projectRoot);
@@ -314,12 +304,50 @@ export async function checkProjectDirectory(
 
   return {
     ok: true,
-    value: {
-      status: 'PASS',
-      checks,
-      diagnostics: [],
-    },
+    value: { status: 'PASS', checks, diagnostics: [] },
   };
+}
+
+function commandLabel(phase: ProjectCheckPhase): string {
+  return phase === 'typecheck' ? 'tsc --noEmit -p tsconfig.json' : 'vite build';
+}
+
+function emitStructuredCheckItems(
+  context: ToolContext,
+  result: ToolResult<CheckProjectOutput>,
+): void {
+  const agent = context.agent;
+  if (!agent) return;
+
+  if (!result.ok) {
+    agent.checkResult({
+      result: 'ERROR',
+      checks: [],
+      diagnosticCount: 0,
+      message: result.error.message,
+    });
+    return;
+  }
+
+  for (const check of result.value.checks) {
+    agent.commandExecution({
+      command: commandLabel(check.phase),
+      phase: check.phase,
+      status: check.status === 'PASS' ? 'COMPLETED' : 'FAILED',
+      message: `${check.phase} ${check.status.toLowerCase()}`,
+      exitCode: check.exitCode,
+      timedOut: check.timedOut,
+      outputTruncated: check.outputTruncated,
+    });
+  }
+  agent.checkResult({
+    result: result.value.status,
+    checks: result.value.checks,
+    diagnosticCount: result.value.diagnostics.length,
+    message: result.value.status === 'PASS'
+      ? 'Project health checks passed'
+      : `Project health checks failed with ${result.value.diagnostics.length} diagnostic(s)`,
+  });
 }
 
 export const checkProjectTool: Tool<unknown, CheckProjectOutput> = {
@@ -330,6 +358,26 @@ export const checkProjectTool: Tool<unknown, CheckProjectOutput> = {
     if (input !== undefined && (typeof input !== 'object' || input === null || Array.isArray(input))) {
       return failure('INVALID_INPUT', 'check_project accepts an empty object input.');
     }
-    return checkProjectDirectory(context.projectDirectory);
+
+    const toolCall = context.agent?.startToolCall(
+      'check_project',
+      'Running project health checks',
+      'TypeScript typecheck and Vite production build',
+    );
+    const result = await checkProjectDirectory(context.projectDirectory);
+    emitStructuredCheckItems(context, result);
+    if (toolCall) {
+      context.agent!.completeToolCall(
+        toolCall.id,
+        result.ok && result.value.status === 'PASS' ? 'COMPLETED' : 'FAILED',
+        result.ok
+          ? `Project health check ${result.value.status.toLowerCase()}`
+          : result.error.message,
+        result.ok
+          ? `${result.value.checks.length} command(s), ${result.value.diagnostics.length} diagnostic(s)`
+          : result.error.code,
+      );
+    }
+    return result;
   },
 };

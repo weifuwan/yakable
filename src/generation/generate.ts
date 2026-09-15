@@ -30,10 +30,8 @@ import {
   writeGeneratedProjectFromBase,
 } from '../projects/project.js';
 import { initializeProjectSession } from '../projects/project-session.js';
-import {
-  appendAgentRunEvent,
-  createAgentRun,
-} from '../storage/agent-run.js';
+import { createAgentRun } from '../storage/agent-run.js';
+import { upsertAgentRunItem } from '../storage/agent-run-item.js';
 import { recordAgentRunTurnDiff } from '../storage/agent-run-turn-diff.js';
 import { checkProjectTool } from '../tools/check-project.js';
 import type {
@@ -129,9 +127,7 @@ export async function generateProject(
   options: GenerateProjectOptions = {},
 ): Promise<GenerationResult> {
   const normalizedPrompt = prompt.trim();
-  if (!normalizedPrompt) {
-    throw new Error('A product prompt is required.');
-  }
+  if (!normalizedPrompt) throw new Error('A product prompt is required.');
   if (normalizedPrompt.length > 12_000) {
     throw new Error('Prompt is too long. Project generation accepts at most 12,000 characters.');
   }
@@ -141,15 +137,15 @@ export async function generateProject(
 
   let agentRunId: string | undefined;
   const agent = createFrontendAgentRecorder({
-    onEvent(event) {
+    onEvent(item) {
       if (agentRunId) {
         try {
-          appendAgentRunEvent(agentRunId, event);
+          upsertAgentRunItem(agentRunId, item);
         } catch (error) {
-          console.warn('[Yakable Agent] Create event could not be persisted.', error);
+          console.warn('[Yakable Agent] Create item could not be persisted.', error);
         }
       }
-      options.onEvent?.(event);
+      options.onEvent?.(item);
     },
   });
 
@@ -160,9 +156,7 @@ export async function generateProject(
     (decision) => `Routed the request to ${decision.route} with ${decision.confidence} confidence`,
     async () => options.buildIntent ?? classifyBuildIntent(normalizedPrompt),
   );
-  if (buildIntent.route !== 'CREATE') {
-    throw new BuildIntentGateError(buildIntent);
-  }
+  if (buildIntent.route !== 'CREATE') throw new BuildIntentGateError(buildIntent);
 
   const intent = await runFrontendAgentStage(
     agent,
@@ -218,7 +212,6 @@ export async function generateProject(
     async () => {
       let generation = await requestProjectCode(generationRequest);
       let project: GeneratedProject;
-
       try {
         project = parseProjectGeneration(generation.content, template);
       } catch (firstFailure) {
@@ -235,7 +228,6 @@ export async function generateProject(
           );
         }
       }
-
       return { generation, project };
     },
   );
@@ -249,6 +241,11 @@ export async function generateProject(
     () => writeGeneratedProjectFromBase(normalizedPrompt, project),
   );
   const { outputDirectory, changeSet: initialChangeSet } = written;
+  agent.fileChange({
+    changeSetId: initialChangeSet.id,
+    summary: initialChangeSet.summary,
+    files: initialChangeSet.files.map((file) => ({ path: file.path, changeType: file.type })),
+  });
   const turnDiff = new TurnDiffTracker();
   turnDiff.record(initialChangeSet);
 
@@ -265,9 +262,7 @@ export async function generateProject(
       prompt: normalizedPrompt,
     });
     agentRunId = run.id;
-    for (const event of agent.snapshot()) {
-      appendAgentRunEvent(run.id, event);
-    }
+    for (const item of agent.snapshot()) upsertAgentRunItem(run.id, item);
   }
 
   if (options.verifyProject) {
@@ -279,17 +274,13 @@ export async function generateProject(
     agent.emit('CHECK', 'ACTIVE', 'Checking TypeScript and production build health');
     const initialCheck = await checkProjectTool.execute(
       {},
-      { projectDirectory: outputDirectory },
+      { projectDirectory: outputDirectory, agent },
     );
 
     if (initialCheck.ok && initialCheck.value.status === 'PASS') {
       agent.emit('CHECK', 'COMPLETED', 'TypeScript and production build checks passed');
     } else if (!initialCheck.ok) {
-      agent.emit(
-        'CHECK',
-        'FAILED',
-        `Project health check could not run: ${initialCheck.error.message}`,
-      );
+      agent.emit('CHECK', 'FAILED', `Project health check could not run: ${initialCheck.error.message}`);
     } else {
       agent.emit('REPAIR', 'ACTIVE', 'Applying one bounded build repair');
       const availableFiles = await listProjectContextFiles(outputDirectory);
@@ -306,12 +297,12 @@ export async function generateProject(
         requestRepair: requestProjectRepair,
         parsePatch: parseProjectPatch,
         applyChanges: async (patch) => {
-          const changeSet = await applyProjectChanges(changeManager, patch);
+          const changeSet = await applyProjectChanges(changeManager, patch, agent);
           turnDiff.record(changeSet);
           return changeSet;
         },
         checkProject: () =>
-          checkProjectTool.execute({}, { projectDirectory: outputDirectory }),
+          checkProjectTool.execute({}, { projectDirectory: outputDirectory, agent }),
       });
 
       if (repair.status === 'REPAIRED') {
@@ -338,6 +329,7 @@ export async function generateProject(
     }
   }
 
+  agent.message(project.summary);
   await persistTurnDiff(agentRunId, turnDiff);
 
   return {

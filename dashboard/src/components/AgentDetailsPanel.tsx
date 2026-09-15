@@ -1,38 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 
+import type {
+  AgentItemStatus,
+  AgentProgressState,
+  AgentProtocolItem,
+} from "../../../src/protocol/agent-protocol";
+
 export type AgentRunKind = "CREATE" | "EDIT";
 export type AgentRunStatus = "RUNNING" | "COMPLETED" | "FAILED";
-export type AgentStepStatus = "ACTIVE" | "COMPLETED" | "SKIPPED" | "FAILED";
 export type AgentFileChangeType = "ADDED" | "MODIFIED" | "DELETED";
-export type AgentState =
-  | "ROUTE"
-  | "UNDERSTAND"
-  | "DESIGN"
-  | "TEMPLATE"
-  | "GENERATE"
-  | "WRITE"
-  | "SELECT_CONTEXT"
-  | "READ"
-  | "EDIT"
-  | "CHECK"
-  | "RUNTIME"
-  | "OBSERVE"
-  | "CRITIQUE"
-  | "REPAIR"
-  | "DONE";
-
-export interface AgentTimelineEvent {
-  version: 1;
-  sequence: number;
-  state: AgentState;
-  status: AgentStepStatus;
-  message: string;
-  at: string;
-  iteration?: 0 | 1;
-}
 
 export interface AgentFileChangeView {
-  ordinal: number;
   path: string;
   type: AgentFileChangeType;
   beforeContent: string | null;
@@ -49,15 +27,20 @@ export interface AgentRunView {
   summary?: string;
   startedAt: string;
   completedAt?: string;
-  events: AgentTimelineEvent[];
-  changes?: AgentFileChangeView[];
+  items: AgentProtocolItem[];
+  turnDiff?: {
+    files: AgentFileChangeView[];
+    unifiedDiff: string;
+    addedLines: number;
+    removedLines: number;
+  } | null;
 }
 
 interface ConversationLike {
   messages?: Array<{ agentRun?: AgentRunView }>;
 }
 
-const STATE_LABELS: Record<AgentState, string> = {
+const STATE_LABELS: Record<AgentProgressState, string> = {
   ROUTE: "Route request",
   UNDERSTAND: "Understand request",
   DESIGN: "Design direction",
@@ -83,7 +66,7 @@ export function extractAgentRunsFromConversation(conversation: unknown): AgentRu
   const runs = new Map<string, AgentRunView>();
   for (const message of messages) {
     const run = message?.agentRun;
-    if (!run?.id || !Array.isArray(run.events)) continue;
+    if (!run?.id || !Array.isArray(run.items)) continue;
     runs.set(run.id, run);
   }
 
@@ -121,62 +104,14 @@ function formatClock(value: string): string {
   }).format(date);
 }
 
-type TimelineItem = {
-  key: string;
-  state: AgentState;
-  status: AgentStepStatus;
-  startedAt: string;
-  completedAt?: string;
-  activeMessage?: string;
-  message: string;
-  iteration?: 0 | 1;
-};
-
-function timelineItems(events: AgentTimelineEvent[]): TimelineItem[] {
-  const ordered = [...events].sort((left, right) => left.sequence - right.sequence);
-  const items: TimelineItem[] = [];
-
-  for (let index = 0; index < ordered.length; index += 1) {
-    const event = ordered[index]!;
-    if (event.status === "ACTIVE") {
-      const next = ordered[index + 1];
-      if (next && next.state === event.state && next.status !== "ACTIVE") {
-        items.push({
-          key: `${event.sequence}-${next.sequence}`,
-          state: event.state,
-          status: next.status,
-          startedAt: event.at,
-          completedAt: next.at,
-          activeMessage: event.message,
-          message: next.message,
-          ...(event.iteration === undefined ? {} : { iteration: event.iteration }),
-        });
-        index += 1;
-        continue;
-      }
-    }
-
-    items.push({
-      key: String(event.sequence),
-      state: event.state,
-      status: event.status,
-      startedAt: event.at,
-      message: event.message,
-      ...(event.iteration === undefined ? {} : { iteration: event.iteration }),
-    });
-  }
-
-  return items;
-}
-
-function statusDot(status: AgentStepStatus): string {
+function statusDot(status: AgentItemStatus): string {
   if (status === "FAILED") return "bg-rose-500 ring-rose-100";
   if (status === "ACTIVE") return "animate-pulse bg-blue-500 ring-blue-100";
   if (status === "SKIPPED") return "bg-black/25 ring-black/[0.04]";
   return "bg-emerald-500 ring-emerald-100";
 }
 
-function statusText(status: AgentStepStatus): string {
+function statusText(status: AgentItemStatus): string {
   if (status === "FAILED") return "text-rose-700";
   if (status === "ACTIVE") return "text-blue-700";
   if (status === "SKIPPED") return "text-black/40";
@@ -187,6 +122,40 @@ function runLabel(run: AgentRunView): string {
   const prefix = run.kind === "CREATE" ? "Build" : "Edit";
   const prompt = run.prompt.replace(/\s+/g, " ").trim();
   return `${prefix} · ${prompt.length > 54 ? `${prompt.slice(0, 53)}…` : prompt}`;
+}
+
+function itemTitle(item: AgentProtocolItem): string {
+  if (item.type === "progress") return STATE_LABELS[item.state];
+  if (item.type === "tool_call") return `Tool · ${item.toolName}`;
+  if (item.type === "file_change") return "File change";
+  if (item.type === "command_execution") return `Command · ${item.phase ?? "execution"}`;
+  if (item.type === "check_result") return `Check · ${item.result}`;
+  return "Agent message";
+}
+
+function itemDetails(item: AgentProtocolItem): string[] {
+  if (item.type === "tool_call") {
+    return [item.inputSummary, item.outputSummary].filter((value): value is string => Boolean(value));
+  }
+  if (item.type === "file_change") {
+    return item.files.map((file) => `${file.changeType[0]}  ${file.path}`);
+  }
+  if (item.type === "command_execution") {
+    return [
+      item.command,
+      item.exitCode === undefined ? undefined : `exit ${item.exitCode ?? "null"}`,
+      item.timedOut ? "timed out" : undefined,
+      item.outputTruncated ? "output truncated" : undefined,
+    ].filter((value): value is string => Boolean(value));
+  }
+  if (item.type === "check_result") {
+    return [
+      ...item.checks.map((check) => `${check.phase}: ${check.status}`),
+      item.diagnosticCount ? `${item.diagnosticCount} diagnostic(s)` : undefined,
+    ].filter((value): value is string => Boolean(value));
+  }
+  if (item.type === "agent_message") return [item.content];
+  return item.iteration === undefined ? [] : [`iteration ${item.iteration}`];
 }
 
 function fileName(filePath: string): string {
@@ -205,179 +174,21 @@ function changeBadgeClass(type: AgentFileChangeType): string {
   return "bg-amber-50 text-amber-700 ring-amber-600/10";
 }
 
-type DiffLine = {
-  type: "context" | "add" | "remove";
-  text: string;
-  oldLine?: number;
-  newLine?: number;
-};
-
-type DiffRenderRow = DiffLine | { type: "skip"; count: number; key: string };
-
-function contentLines(content: string | null): string[] {
-  if (content === null || content.length === 0) return [];
-  const normalized = content.replace(/\r\n/g, "\n");
-  const lines = normalized.split("\n");
-  if (normalized.endsWith("\n")) lines.pop();
-  return lines;
+function lineCount(content: string | null): number {
+  if (!content) return 0;
+  return content.replace(/\r\n/g, "\n").split("\n").length;
 }
 
-function fallbackLineDiff(before: string[], after: string[]): DiffLine[] {
-  let prefix = 0;
-  while (prefix < before.length && prefix < after.length && before[prefix] === after[prefix]) {
-    prefix += 1;
-  }
-
-  let suffix = 0;
-  while (
-    suffix < before.length - prefix &&
-    suffix < after.length - prefix &&
-    before[before.length - 1 - suffix] === after[after.length - 1 - suffix]
-  ) {
-    suffix += 1;
-  }
-
-  const result: DiffLine[] = [];
-  let oldLine = 1;
-  let newLine = 1;
-  for (let index = 0; index < prefix; index += 1) {
-    result.push({ type: "context", text: before[index]!, oldLine: oldLine++, newLine: newLine++ });
-  }
-  for (let index = prefix; index < before.length - suffix; index += 1) {
-    result.push({ type: "remove", text: before[index]!, oldLine: oldLine++ });
-  }
-  for (let index = prefix; index < after.length - suffix; index += 1) {
-    result.push({ type: "add", text: after[index]!, newLine: newLine++ });
-  }
-  for (let index = 0; index < suffix; index += 1) {
-    result.push({
-      type: "context",
-      text: before[before.length - suffix + index]!,
-      oldLine: oldLine++,
-      newLine: newLine++,
-    });
-  }
-  return result;
-}
-
-function buildLineDiff(beforeContent: string | null, afterContent: string | null): DiffLine[] {
-  const before = contentLines(beforeContent);
-  const after = contentLines(afterContent);
-  const cells = (before.length + 1) * (after.length + 1);
-  if (cells > 120_000) return fallbackLineDiff(before, after);
-
-  const matrix = Array.from(
-    { length: before.length + 1 },
-    () => new Uint32Array(after.length + 1),
-  );
-
-  for (let left = before.length - 1; left >= 0; left -= 1) {
-    for (let right = after.length - 1; right >= 0; right -= 1) {
-      matrix[left]![right] = before[left] === after[right]
-        ? matrix[left + 1]![right + 1]! + 1
-        : Math.max(matrix[left + 1]![right]!, matrix[left]![right + 1]!);
-    }
-  }
-
-  const result: DiffLine[] = [];
-  let left = 0;
-  let right = 0;
-  let oldLine = 1;
-  let newLine = 1;
-
-  while (left < before.length || right < after.length) {
-    if (left < before.length && right < after.length && before[left] === after[right]) {
-      result.push({ type: "context", text: before[left]!, oldLine: oldLine++, newLine: newLine++ });
-      left += 1;
-      right += 1;
-      continue;
-    }
-
-    const removeScore = left < before.length ? matrix[left + 1]![right]! : -1;
-    const addScore = right < after.length ? matrix[left]![right + 1]! : -1;
-    if (left < before.length && (right >= after.length || removeScore >= addScore)) {
-      result.push({ type: "remove", text: before[left]!, oldLine: oldLine++ });
-      left += 1;
-    } else if (right < after.length) {
-      result.push({ type: "add", text: after[right]!, newLine: newLine++ });
-      right += 1;
-    }
-  }
-
-  return result;
-}
-
-function compactDiff(lines: DiffLine[], contextSize = 3): DiffRenderRow[] {
-  const changed = lines
-    .map((line, index) => (line.type === "context" ? -1 : index))
-    .filter((index) => index >= 0);
-  if (!changed.length) return lines;
-
-  const visible = new Set<number>();
-  for (const index of changed) {
-    for (
-      let current = Math.max(0, index - contextSize);
-      current <= Math.min(lines.length - 1, index + contextSize);
-      current += 1
-    ) {
-      visible.add(current);
-    }
-  }
-
-  const result: DiffRenderRow[] = [];
-  let index = 0;
-  while (index < lines.length) {
-    if (visible.has(index)) {
-      result.push(lines[index]!);
-      index += 1;
-      continue;
-    }
-    const start = index;
-    while (index < lines.length && !visible.has(index)) index += 1;
-    result.push({ type: "skip", count: index - start, key: `skip-${start}-${index}` });
-  }
-  return result;
-}
-
-function diffStats(change: AgentFileChangeView): { added: number; removed: number } {
-  const lines = buildLineDiff(change.beforeContent, change.afterContent);
-  return {
-    added: lines.filter((line) => line.type === "add").length,
-    removed: lines.filter((line) => line.type === "remove").length,
-  };
-}
-
-function DiffRow({ row }: { row: DiffRenderRow }) {
-  if (row.type === "skip") {
-    return (
-      <div className="grid grid-cols-[42px_42px_20px_minmax(0,1fr)] border-y border-black/[0.05] bg-[#f8f8f6] text-[10px] text-black/35">
-        <span />
-        <span />
-        <span className="py-1.5 text-center">···</span>
-        <span className="py-1.5">{row.count} unchanged lines</span>
-      </div>
-    );
-  }
-
-  const background = row.type === "add"
-    ? "bg-emerald-50/80"
-    : row.type === "remove"
-      ? "bg-rose-50/80"
-      : "bg-white";
-  const marker = row.type === "add" ? "+" : row.type === "remove" ? "−" : " ";
-  const markerColor = row.type === "add"
-    ? "text-emerald-700"
-    : row.type === "remove"
-      ? "text-rose-700"
-      : "text-black/20";
-
+function SourcePane({ title, content }: { title: string; content: string | null }) {
   return (
-    <div className={`grid min-h-6 grid-cols-[42px_42px_20px_minmax(0,1fr)] font-mono text-[11px] leading-6 ${background}`}>
-      <span className="select-none border-r border-black/[0.045] pr-2 text-right text-black/25">{row.oldLine ?? ""}</span>
-      <span className="select-none border-r border-black/[0.045] pr-2 text-right text-black/25">{row.newLine ?? ""}</span>
-      <span className={`select-none text-center font-semibold ${markerColor}`}>{marker}</span>
-      <span className="overflow-x-visible whitespace-pre pr-4 text-[#3b3b38]">{row.text || " "}</span>
-    </div>
+    <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="shrink-0 border-b border-black/[0.06] bg-[#fafaf8] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.09em] text-black/38">
+        {title}
+      </div>
+      <pre className="min-h-0 flex-1 overflow-auto whitespace-pre p-3 font-mono text-[11px] leading-5 text-[#3b3b38]">
+        {content ?? "∅"}
+      </pre>
+    </section>
   );
 }
 
@@ -395,41 +206,12 @@ export function AgentDetailsPanel({
   const [activeTab, setActiveTab] = useState<"timeline" | "changes">("timeline");
   const [selectedChangePath, setSelectedChangePath] = useState<string | null>(null);
   const selectedRun = runs.find((run) => run.id === selectedRunId) ?? runs[0] ?? null;
-  const items = useMemo(
-    () => (selectedRun ? timelineItems(selectedRun.events) : []),
-    [selectedRun],
-  );
+  const items = selectedRun?.items ?? [];
   const changes = useMemo(
-    () => [...(selectedRun?.changes ?? [])].sort((left, right) => left.ordinal - right.ordinal),
-    [selectedRun],
+    () => [...(selectedRun?.turnDiff?.files ?? [])],
+    [selectedRun?.turnDiff],
   );
   const selectedChange = changes.find((change) => change.path === selectedChangePath) ?? changes[0] ?? null;
-  const selectedDiff = useMemo(
-    () => selectedChange ? buildLineDiff(selectedChange.beforeContent, selectedChange.afterContent) : [],
-    [selectedChange],
-  );
-  const renderedDiff = useMemo(() => compactDiff(selectedDiff), [selectedDiff]);
-  const selectedStats = useMemo(
-    () => selectedChange
-      ? {
-          added: selectedDiff.filter((line) => line.type === "add").length,
-          removed: selectedDiff.filter((line) => line.type === "remove").length,
-        }
-      : { added: 0, removed: 0 },
-    [selectedChange, selectedDiff],
-  );
-  const runStats = useMemo(
-    () => changes.reduce(
-      (total, change) => {
-        const stats = diffStats(change);
-        total.added += stats.added;
-        total.removed += stats.removed;
-        return total;
-      },
-      { added: 0, removed: 0 },
-    ),
-    [changes],
-  );
   const runDuration = selectedRun
     ? formatDuration(millisecondsBetween(selectedRun.startedAt, selectedRun.completedAt))
     : "";
@@ -466,7 +248,7 @@ export function AgentDetailsPanel({
             type="button"
             onClick={() => setActiveTab("timeline")}
           >
-            Timeline
+            Items{items.length ? ` ${items.length}` : ""}
           </button>
           <button
             className={`rounded-full px-3 py-1 transition ${activeTab === "changes" ? "bg-white text-black/75 shadow-[0_1px_2px_rgba(15,23,42,0.06)]" : "text-black/42 hover:text-black/65"}`}
@@ -476,10 +258,10 @@ export function AgentDetailsPanel({
             Changes{changes.length ? ` ${changes.length}` : ""}
           </button>
         </div>
-        {activeTab === "changes" && changes.length ? (
+        {activeTab === "changes" && selectedRun?.turnDiff ? (
           <span className="text-[11px] font-medium">
-            <span className="text-emerald-700">+{runStats.added}</span>
-            <span className="ml-1.5 text-rose-700">−{runStats.removed}</span>
+            <span className="text-emerald-700">+{selectedRun.turnDiff.addedLines}</span>
+            <span className="ml-1.5 text-rose-700">−{selectedRun.turnDiff.removedLines}</span>
           </span>
         ) : runDuration ? (
           <span className="text-[11px] text-black/42">{runDuration}</span>
@@ -516,9 +298,7 @@ export function AgentDetailsPanel({
               </div>
             </div>
             <p className="mb-0 mt-2 text-sm leading-6 text-black/72">{selectedRun.prompt}</p>
-            {selectedRun.model ? (
-              <div className="mt-2 text-[11px] text-black/38">{selectedRun.model}</div>
-            ) : null}
+            {selectedRun.model ? <div className="mt-2 text-[11px] text-black/38">{selectedRun.model}</div> : null}
           </div>
 
           <div className="relative pl-6">
@@ -526,21 +306,22 @@ export function AgentDetailsPanel({
             <div className="space-y-5">
               {items.map((item) => {
                 const duration = formatDuration(millisecondsBetween(item.startedAt, item.completedAt));
+                const details = itemDetails(item);
                 return (
-                  <article key={item.key} className="relative">
+                  <article key={item.id} className="relative">
                     <span className={`absolute -left-6 top-1.5 h-3.5 w-3.5 rounded-full border-2 border-white ring-4 ${statusDot(item.status)}`} aria-hidden="true" />
                     <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                          <strong className="text-[13px] font-semibold text-black/78">{STATE_LABELS[item.state]}</strong>
-                          {item.iteration === 1 ? (
-                            <span className="rounded-full bg-black/[0.045] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-black/40">retry</span>
-                          ) : null}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <strong className="text-[13px] font-semibold text-black/78">{itemTitle(item)}</strong>
+                          <span className="rounded-full bg-black/[0.045] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-black/38">{item.type.replace("_", " ")}</span>
                         </div>
-                        {item.activeMessage && item.activeMessage !== item.message ? (
-                          <p className="mb-0 mt-1 text-xs leading-5 text-black/46">{item.activeMessage}</p>
-                        ) : null}
                         <p className={`mb-0 mt-1 text-xs leading-5 ${statusText(item.status)}`}>{item.message}</p>
+                        {details.length ? (
+                          <div className="mt-1.5 space-y-0.5 font-mono text-[10px] leading-4 text-black/38">
+                            {details.map((detail, index) => <div key={`${item.id}-${index}`} className="truncate">{detail}</div>)}
+                          </div>
+                        ) : null}
                       </div>
                       <div className="shrink-0 text-right text-[10px] leading-4 text-black/32">
                         {duration ? <div>{duration}</div> : null}
@@ -552,23 +333,13 @@ export function AgentDetailsPanel({
               })}
             </div>
           </div>
-
-          {selectedRun.summary ? (
-            <div className="mt-6 rounded-2xl border border-black/[0.07] bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-black/38">Result</div>
-              <p className="mb-0 mt-2 text-xs leading-5 text-black/62">{selectedRun.summary}</p>
-            </div>
-          ) : null}
         </div>
       ) : selectedRun && activeTab === "changes" ? (
         changes.length ? (
           <div className="flex min-h-0 flex-1 overflow-hidden">
-            <aside className="w-[210px] shrink-0 overflow-y-auto border-r border-black/[0.06] bg-[#fafaf8] py-2">
-              <div className="px-3 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-black/35">
-                Files changed
-              </div>
+            <aside className="w-[220px] shrink-0 overflow-y-auto border-r border-black/[0.06] bg-[#fafaf8] py-2">
+              <div className="px-3 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-black/35">Turn diff</div>
               {changes.map((change) => {
-                const stats = diffStats(change);
                 const active = selectedChange?.path === change.path;
                 return (
                   <button
@@ -583,10 +354,6 @@ export function AgentDetailsPanel({
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[11px] font-semibold text-black/68">{fileName(change.path)}</span>
                       <span className="mt-0.5 block truncate text-[9px] text-black/32">{change.path}</span>
-                      <span className="mt-1 block text-[9px] font-medium">
-                        <span className="text-emerald-700">+{stats.added}</span>
-                        <span className="ml-1.5 text-rose-700">−{stats.removed}</span>
-                      </span>
                     </span>
                   </button>
                 );
@@ -598,45 +365,23 @@ export function AgentDetailsPanel({
                 <>
                   <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-black/[0.06] px-3.5">
                     <div className="min-w-0 truncate font-mono text-[11px] font-semibold text-black/62">{selectedChange.path}</div>
-                    <div className="shrink-0 text-[10px] font-medium">
-                      <span className="text-emerald-700">+{selectedStats.added}</span>
-                      <span className="ml-1.5 text-rose-700">−{selectedStats.removed}</span>
+                    <div className="shrink-0 text-[10px] text-black/35">
+                      {lineCount(selectedChange.beforeContent)} → {lineCount(selectedChange.afterContent)} lines
                     </div>
                   </div>
-                  <div className="min-h-0 flex-1 overflow-auto bg-white">
-                    {renderedDiff.length ? (
-                      <div className="min-w-max py-2">
-                        {renderedDiff.map((row, index) => (
-                          <DiffRow
-                            key={row.type === "skip" ? row.key : `${index}-${row.type}-${row.oldLine ?? ""}-${row.newLine ?? ""}`}
-                            row={row}
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="flex h-full items-center justify-center px-6 text-center text-xs text-black/38">
-                        This file changed but contains no displayable text lines.
-                      </div>
-                    )}
+                  <div className="flex min-h-0 flex-1 divide-x divide-black/[0.06] overflow-hidden">
+                    <SourcePane title="Before" content={selectedChange.beforeContent} />
+                    <SourcePane title="After" content={selectedChange.afterContent} />
                   </div>
                 </>
               ) : null}
             </section>
           </div>
         ) : (
-          <div className="flex min-h-0 flex-1 items-center justify-center px-8 text-center">
-            <div className="max-w-sm">
-              <div className="text-sm font-medium text-black/58">No persisted source diff</div>
-              <p className="mb-0 mt-2 text-xs leading-5 text-black/38">
-                Runs completed before Changes persistence was added can still be inspected in Timeline.
-              </p>
-            </div>
-          </div>
+          <div className="grid min-h-0 flex-1 place-items-center px-6 text-center text-sm text-black/38">No source changes for this run.</div>
         )
       ) : (
-        <div className="flex min-h-0 flex-1 items-center justify-center px-8 text-center text-sm text-black/42">
-          No persisted agent run is available for this project yet.
-        </div>
+        <div className="grid min-h-0 flex-1 place-items-center px-6 text-center text-sm text-black/38">No Agent run selected.</div>
       )}
     </div>
   );
