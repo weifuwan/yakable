@@ -201,6 +201,7 @@ export function BuildingWorkspace({
   creation,
   readyProject,
   error,
+  onRetry,
   onPreviewReady,
   onNavigate,
 }: {
@@ -209,18 +210,36 @@ export function BuildingWorkspace({
   creation: ProjectCreationStatus;
   readyProject: ActiveProject | null;
   error: string;
+  onRetry: () => Promise<void>;
   onPreviewReady: () => void;
   onNavigate: (path: string) => void;
 }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState("");
   const steps = buildCreationSteps(creation);
   const latestMessage = latestCreationMessage(creation);
   const changedFiles = creationChangedFileCount(creation);
-  const preview = creationPreviewCopy(creation.project.status, error);
-  const failed = Boolean(error) || creation.project.status === "FAILED";
+  const preview = creationPreviewCopy(creation.project.status, error || retryError);
+  const failed = Boolean(error) || Boolean(retryError) || creation.project.status === "FAILED";
   const activeStep = steps.find((step) => step.status === "active");
   const pathname = projectPath(projectId);
   const buildReady = Boolean(readyProject);
+
+  async function retryBuild() {
+    if (retrying) return;
+    setRetrying(true);
+    setRetryError("");
+    try {
+      await onRetry();
+    } catch (caught) {
+      setRetryError(
+        caught instanceof Error ? caught.message : "Yakable could not retry this build.",
+      );
+    } finally {
+      setRetrying(false);
+    }
+  }
 
   return (
     <div className="flex h-screen min-h-screen overflow-hidden bg-[#f5f6f6] font-sans text-[#20201e] antialiased">
@@ -303,7 +322,7 @@ export function BuildingWorkspace({
                       : activeStep?.label || preview.title}
                 </div>
                 <p className={`mb-0 mt-1 text-[12px] leading-5 ${failed ? "text-rose-700/75" : "text-black/45"}`}>
-                  {error || latestMessage || preview.detail}
+                  {retryError || error || latestMessage || preview.detail}
                 </p>
 
                 <div className="mt-5 rounded-2xl border border-black/[0.07] bg-[#fbfbfa] px-4 py-3.5">
@@ -334,15 +353,45 @@ export function BuildingWorkspace({
                     {changedFiles} {changedFiles === 1 ? "file" : "files"} prepared so far
                   </div>
                 ) : null}
+
+                {failed ? (
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <button
+                      className="inline-flex h-8 items-center gap-2 rounded-lg bg-[#20201e] px-3 text-xs font-semibold text-white transition hover:bg-black disabled:cursor-wait disabled:opacity-60"
+                      type="button"
+                      disabled={retrying}
+                      onClick={() => void retryBuild()}
+                    >
+                      {retrying ? (
+                        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                      ) : (
+                        <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M15.5 8A6 6 0 1 0 16 11" />
+                          <path d="M15.5 4v4h-4" />
+                        </svg>
+                      )}
+                      {retrying ? "Retrying…" : "Retry build"}
+                    </button>
+                    <button
+                      className="inline-flex h-8 items-center rounded-lg border border-black/[0.09] bg-white px-3 text-xs font-medium text-black/55 transition hover:bg-black/[0.025] hover:text-black/75"
+                      type="button"
+                      onClick={() => onNavigate("/dashboard")}
+                    >
+                      Back to dashboard
+                    </button>
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>
 
           <div className="shrink-0 border-t border-black/[0.06] p-3">
             <div className="flex h-11 items-center rounded-xl border border-black/[0.08] bg-[#fafaf9] px-3 text-xs text-black/28">
-              {buildReady
-                ? "Opening the editor…"
-                : "Continue editing once the first preview is ready…"}
+              {failed
+                ? "Retry the build to start a fresh create run."
+                : buildReady
+                  ? "Opening the editor…"
+                  : "Continue editing once the first preview is ready…"}
               <span className="ml-auto grid h-7 w-7 place-items-center rounded-full bg-black/[0.05] text-black/22">
                 <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M10 15V5M6.5 8.5 10 5l3.5 3.5" />

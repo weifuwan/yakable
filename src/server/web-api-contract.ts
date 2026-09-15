@@ -83,6 +83,11 @@ export interface WebCreateProjectStatus {
   } | null;
 }
 
+export interface WebCreateRecoveryResult {
+  failedProjectIds: string[];
+  runtimePendingProjectIds: string[];
+}
+
 export interface RuntimeSession {
   url: string;
   metadata: ProjectMetadata;
@@ -98,6 +103,7 @@ export interface WebApiServices {
     buildIntent: BuildIntentDecision,
   ): Promise<WebCreateProjectBootstrap>;
   readCreateStatus?(projectId: string): Promise<WebCreateProjectStatus | null>;
+  reconcileInterruptedCreates?(): Promise<WebCreateRecoveryResult>;
   generate(
     prompt: string,
     buildIntent: BuildIntentDecision,

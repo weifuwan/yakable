@@ -10,6 +10,7 @@ import {
 import {
   bootstrapProject,
   readProjectCreationStatus,
+  retryProjectCreation,
   watchProjectCreation,
   type ProjectCreationStatus,
 } from "./create-project";
@@ -303,6 +304,21 @@ export default function App() {
     return result.decision;
   }
 
+  async function handleRetryCreate(projectId: string): Promise<void> {
+    const result = await retryProjectCreation(projectId);
+    setActiveProject(null);
+    setPreviewProject(null);
+    setProjectError("");
+    setCreationStatus({
+      project: {
+        ...result.project,
+        activeRunId: result.run.id,
+      },
+      run: result.run,
+    });
+    navigate(projectPath(result.project.id));
+  }
+
   async function handleOpen(projectId: string) {
     setActiveProject(null);
     setPreviewProject(null);
@@ -343,6 +359,7 @@ export default function App() {
             creation={buildingCreation}
             readyProject={readyPreview}
             error={projectError}
+            onRetry={() => handleRetryCreate(route.projectId)}
             onPreviewReady={() => handlePreviewReady(route.projectId)}
             onNavigate={handleWorkspaceNavigate}
           />
