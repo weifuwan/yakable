@@ -12,6 +12,7 @@ import {
   workspaceMutationsFromFiles,
   type WorkspaceChangeSet,
 } from '../workspace/index.js';
+import { initializeWorkspaceGitBaseline } from '../workspace/git-baseline.js';
 import {
   createProjectMetadata,
   normalizeProjectRoutes,
@@ -40,6 +41,7 @@ export interface ParseGeneratedProjectOptions {
 
 export interface WrittenGeneratedProject {
   outputDirectory: string;
+  baselineCommit: string;
   changeSet: WorkspaceChangeSet;
 }
 
@@ -222,6 +224,7 @@ export async function writeGeneratedProject(
   await mkdir(outputDirectory);
 
   try {
+    const baseline = await initializeWorkspaceGitBaseline(outputDirectory);
     const changeSet = await new WorkspaceChangeManager(outputDirectory).apply(
       project.summary,
       workspaceMutationsFromFiles(project.files),
@@ -234,7 +237,11 @@ export async function writeGeneratedProject(
         updatedAt: createdAt,
       }),
     );
-    return { outputDirectory, changeSet };
+    return {
+      outputDirectory,
+      baselineCommit: baseline.commit,
+      changeSet,
+    };
   } catch (error) {
     await rm(outputDirectory, { recursive: true, force: true }).catch(() => undefined);
     throw error;
@@ -269,7 +276,11 @@ export async function writeGeneratedProjectFromBase(
         updatedAt: createdAt,
       }),
     );
-    return { outputDirectory: created.directory, changeSet };
+    return {
+      outputDirectory: created.directory,
+      baselineCommit: created.baselineCommit,
+      changeSet,
+    };
   } catch (error) {
     await rm(created.directory, { recursive: true, force: true }).catch(() => undefined);
     throw error;
