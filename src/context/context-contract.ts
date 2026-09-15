@@ -36,33 +36,33 @@ export interface ContextJsonObject {
 }
 
 export interface ContextBuildRequest {
-  operation: ContextOperation;
-  request: string;
-  projectInput?: string;
-  metadata?: ContextJsonObject;
+  readonly operation: ContextOperation;
+  readonly request: string;
+  readonly projectInput?: string;
+  readonly metadata?: ContextJsonObject;
 }
 
 export interface ContextContribution {
-  id: string;
-  kind: ContextSectionKind;
-  priority: ContextPriority;
-  pinned?: boolean;
-  content: ContextJsonValue;
-  metadata?: ContextJsonObject;
+  readonly id: string;
+  readonly kind: ContextSectionKind;
+  readonly priority: ContextPriority;
+  readonly pinned?: boolean;
+  readonly content: ContextJsonValue;
+  readonly metadata?: ContextJsonObject;
 }
 
 export interface ContextSection extends ContextContribution {
-  source: string;
-  pinned: boolean;
+  readonly source: string;
+  readonly pinned: boolean;
 }
 
 export interface ContextSnapshot {
-  version: typeof CONTEXT_SNAPSHOT_VERSION;
-  operation: ContextOperation;
-  request: string;
-  projectInput?: string;
-  metadata?: ContextJsonObject;
-  sections: readonly ContextSection[];
-  budget: ContextBudget;
-  createdAt: string;
+  readonly version: typeof CONTEXT_SNAPSHOT_VERSION;
+  readonly operation: ContextOperation;
+  readonly request: string;
+  readonly projectInput?: string;
+  readonly metadata?: ContextJsonObject;
+  readonly sections: readonly ContextSection[];
+  readonly budget: ContextBudget;
+  readonly createdAt: string;
 }
