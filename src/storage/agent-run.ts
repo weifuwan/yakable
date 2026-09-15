@@ -185,7 +185,7 @@ export function cancelAgentRun(runId: string, input: CancelAgentRunInput = {}): 
   getYakableDatabase().prepare(`
     UPDATE agent_runs
     SET
-      status = CASE WHEN status = 'RUNNING' THEN 'CANCELLED' ELSE status END,
+      status = CASE WHEN status IN ('RUNNING', 'FAILED') THEN 'CANCELLED' ELSE status END,
       summary = COALESCE(?, summary),
       completed_at = COALESCE(completed_at, ?)
     WHERE id = ?
