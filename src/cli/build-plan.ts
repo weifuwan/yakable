@@ -1,10 +1,20 @@
 import 'dotenv/config';
 
 import { buildProjectFromApprovedPlan } from '../planning/approved-plan-build.js';
+import type { AgentProtocolItem } from '../protocol/agent-protocol.js';
 
 function usage(): never {
   console.error('Usage: npm run build:plan -- generated/<project-id>');
   process.exit(1);
+}
+
+function itemLabel(item: AgentProtocolItem): string {
+  if (item.type === 'progress') return item.state;
+  if (item.type === 'tool_call') return `tool:${item.toolName}`;
+  if (item.type === 'file_change') return 'file_change';
+  if (item.type === 'command_execution') return `command:${item.phase ?? 'run'}`;
+  if (item.type === 'check_result') return `check:${item.result}`;
+  return 'agent_message';
 }
 
 const [projectInput, ...rest] = process.argv.slice(2);
@@ -13,8 +23,8 @@ if (!projectInput || rest.length > 0) usage();
 try {
   console.log('Yakable: Build From Approved Plan');
   const result = await buildProjectFromApprovedPlan(projectInput, {
-    onEvent(event) {
-      console.log(`[${event.state}] ${event.status}: ${event.message}`);
+    onEvent(item) {
+      console.log(`[${itemLabel(item)}] ${item.status}: ${item.message}`);
     },
   });
 
