@@ -13,6 +13,7 @@ import {
 } from '../editing/visual-repair.js';
 import type { AgentProtocolItem } from '../protocol/agent-protocol.js';
 import { parsePageObservation, type PageObservation } from '../runtime/page-observation.js';
+import { resolveGeneratedProject } from '../runtime/runtime.js';
 import { completeAgentRun } from '../storage/agent-run.js';
 import { readAgentRunTurnDiff, recordAgentRunTurnDiff } from '../storage/agent-run-turn-diff.js';
 import {
@@ -107,12 +108,15 @@ interface PersistedEditRunState {
   repair?: VisualRepairResult;
 }
 
+type EditRunBaseState = Omit<PersistedEditRunState, 'iteration' | 'pendingToolCallId'>;
+type AgentItemListener = (item: AgentProtocolItem) => void;
+
 export interface BeginUnifiedEditRunOptions extends EditGeneratedProjectOptions {
-  onItem?: (item: AgentProtocolItem) => void;
+  onItem?: AgentItemListener;
 }
 
 export interface ContinueUnifiedEditRunOptions {
-  onItem?: (item: AgentProtocolItem) => void;
+  onItem?: AgentItemListener;
 }
 
 function healthyProjectCheck(check: ToolResult<CheckProjectOutput>): boolean {
@@ -128,7 +132,7 @@ function publicRepair(result: VisualRepairExecutionResult): VisualRepairResult {
   return repair;
 }
 
-function stateFromEdit(edit: EditProjectResult): Omit<PersistedEditRunState, 'iteration' | 'pendingToolCallId'> {
+function stateFromEdit(edit: EditProjectResult): EditRunBaseState {
   return {
     version: 1,
     runId: edit.agentRunId,
@@ -145,7 +149,7 @@ function stateFromEdit(edit: EditProjectResult): Omit<PersistedEditRunState, 'it
 }
 
 function resultFromState(
-  state: PersistedEditRunState | Omit<PersistedEditRunState, 'iteration' | 'pendingToolCallId'>,
+  state: PersistedEditRunState | EditRunBaseState,
   status: UnifiedEditRunStatus,
   extra: Pick<UnifiedEditRunResult, 'clientTool' | 'visualFeedback'> = {},
 ): UnifiedEditRunResult {
@@ -165,15 +169,16 @@ function resultFromState(
   };
 }
 
+async function projectDirectory(projectId: string): Promise<string> {
+  return (await resolveGeneratedProject(projectId)).directory;
+}
+
 async function persistHistory(state: Pick<
   PersistedEditRunState,
   'projectId' | 'userRequest' | 'summary' | 'changedFiles' | 'model' | 'visualSelections'
 >): Promise<void> {
   try {
-    const project = await import('../runtime/runtime.js').then(({ resolveGeneratedProject }) =>
-      resolveGeneratedProject(state.projectId),
-    );
-    await appendProjectEditHistory(project.directory, {
+    await appendProjectEditHistory(await projectDirectory(state.projectId), {
       userRequest: state.userRequest,
       assistantSummary: state.summary,
       changedFiles: state.changedFiles,
@@ -186,10 +191,10 @@ async function persistHistory(state: Pick<
 }
 
 async function finalizeRun(
-  state: PersistedEditRunState | Omit<PersistedEditRunState, 'iteration' | 'pendingToolCallId'>,
+  state: PersistedEditRunState | EditRunBaseState,
   status: 'COMPLETED' | 'FAILED',
   feedback: UnifiedVisualFeedbackResult,
-  onItem?: (item: AgentProtocolItem) => void,
+  onItem?: AgentItemListener,
 ): Promise<UnifiedEditRunResult> {
   const agent = createPersistedAgentRecorder(state.runId, onItem);
   await persistHistory(state);
@@ -210,9 +215,9 @@ async function finalizeRun(
 }
 
 function requestObservation(
-  state: Omit<PersistedEditRunState, 'iteration' | 'pendingToolCallId'> & Partial<Pick<PersistedEditRunState, 'initialObservation' | 'initialCritique' | 'repair'>>,
+  state: EditRunBaseState,
   iteration: 0 | 1,
-  onItem?: (item: AgentProtocolItem) => void,
+  onItem?: AgentItemListener,
 ): UnifiedEditRunResult {
   const agent = createPersistedAgentRecorder(state.runId, onItem);
   agent.progress(
@@ -247,9 +252,10 @@ export async function beginUnifiedEditRun(
   followUpRequest: string,
   options: BeginUnifiedEditRunOptions = {},
 ): Promise<UnifiedEditRunResult> {
+  const onItem = options.onItem ?? options.onEvent;
   const edit = await editGeneratedProject(projectInput, followUpRequest, {
     onRunCreated: options.onRunCreated,
-    onEvent: options.onItem ?? options.onEvent,
+    onEvent: onItem,
   });
   const state = stateFromEdit(edit);
 
@@ -261,11 +267,11 @@ export async function beginUnifiedEditRun(
         status: 'SKIPPED',
         error: 'Visual feedback skipped because the edited project is not code-healthy.',
       },
-      options.onItem,
+      onItem,
     );
   }
 
-  return requestObservation(state, 0, options.onItem);
+  return requestObservation(state, 0, onItem);
 }
 
 function validateClientToolResult(
@@ -339,11 +345,7 @@ export async function continueUnifiedEditRun(
       : 'Running the final bounded design critique',
     state.iteration,
   );
-  const session = await readProjectSession(
-    await import('../runtime/runtime.js').then(async ({ resolveGeneratedProject }) =>
-      (await resolveGeneratedProject(state.projectId)).directory,
-    ),
-  );
+  const session = await readProjectSession(await projectDirectory(state.projectId));
   const critique = await critiqueDesign({
     baselineDesignIntent: session?.designIntent ?? null,
     editIntent: state.editIntent.delta,
@@ -434,7 +436,7 @@ export async function continueUnifiedEditRun(
   turnDiff.record(repairExecution.changeSet);
   recordAgentRunTurnDiff(runId, await turnDiff.snapshot());
 
-  const repairedState = {
+  const repairedState: EditRunBaseState = {
     ...state,
     changedFiles: mergeChangedFiles(state.changedFiles, repairExecution.changedFiles),
     initialObservation: observation,
