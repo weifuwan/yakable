@@ -29,6 +29,7 @@ import { readAgentRun } from '../storage/agent-run.js';
 import {
   beginProjectBuildLifecycle,
   failProjectLifecycle,
+  listActiveProjectLifecycles,
   readProjectLifecycle,
   transitionProjectLifecycle,
 } from '../storage/project-lifecycle.js';
@@ -46,6 +47,8 @@ import type {
 } from './web-api-contract.js';
 
 const CONVERSATION_PROJECT_NAME_MAX = 56;
+const INTERRUPTED_CREATE_MESSAGE =
+  'This build was interrupted because Yakable restarted before generation finished. Retry the build to continue.';
 const EMPTY_CONVERSATION_APP = `export default function App() {
   return <main className="min-h-screen bg-white" aria-label="Empty project preview" />;
 }\n`;
@@ -202,6 +205,22 @@ export function createDefaultWebApiServices(
 
     async readCreateStatus(projectId) {
       return readCreateProjectStatus(projectId);
+    },
+
+    async reconcileInterruptedCreates() {
+      const failedProjectIds: string[] = [];
+      const runtimePendingProjectIds: string[] = [];
+
+      for (const lifecycle of listActiveProjectLifecycles()) {
+        if (lifecycle.status === 'STARTING_RUNTIME') {
+          runtimePendingProjectIds.push(lifecycle.projectId);
+          continue;
+        }
+        failProjectLifecycle(lifecycle.projectId, INTERRUPTED_CREATE_MESSAGE);
+        failedProjectIds.push(lifecycle.projectId);
+      }
+
+      return { failedProjectIds, runtimePendingProjectIds };
     },
 
     async generate(prompt, buildIntent, onAgentItem, reservation) {
