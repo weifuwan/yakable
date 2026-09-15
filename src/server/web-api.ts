@@ -175,7 +175,10 @@ function creationStatusFromBootstrap(bootstrap: WebCreateProjectBootstrap): WebC
       ...bootstrap.project,
       activeRunId: bootstrap.run.id,
     },
-    run: bootstrap.run,
+    run: {
+      ...bootstrap.run,
+      items: [],
+    },
   };
 }
 
