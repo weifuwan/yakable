@@ -1,6 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import type { ModelClient } from '../model/model-client.js';
 import {
   assertModeCapability,
   type YakableMode,
@@ -25,6 +26,7 @@ export const PLAN_HISTORY_DIRECTORY = '.yakable/plans';
 export interface ReplanProjectOptions {
   mode?: YakableMode;
   generatedRoot?: string;
+  modelClient?: ModelClient;
 }
 
 export interface ReplanProjectResult extends PlanArtifactRun {
@@ -149,12 +151,12 @@ export async function replanProjectPlan(
     throw new Error('Re-plan requires an existing Plan Artifact. Draft the first plan before re-planning.');
   }
 
-  // Preserve the exact superseded revision before draftProjectPlan replaces plan.json.
   await archivePlanRevisionInDirectory(project.directory, previousPlan, mode);
 
   const next = await draftProjectPlan(projectInput, userRequest, {
     mode,
     generatedRoot: options.generatedRoot,
+    modelClient: options.modelClient,
   });
   if (next.plan.revision !== previousPlan.revision + 1) {
     throw new Error(
@@ -188,9 +190,7 @@ export async function readProjectPlanDiff(
   const toPlan = toRevision === current.revision
     ? current
     : await readArchivedPlanRevisionInDirectory(project.directory, toRevision, mode);
-  if (!toPlan) {
-    throw new Error(`Plan revision ${toRevision} is not available.`);
-  }
+  if (!toPlan) throw new Error(`Plan revision ${toRevision} is not available.`);
 
   const defaultFrom = toRevision > 1 ? toRevision - 1 : null;
   const fromRevision = options.fromRevision === undefined
