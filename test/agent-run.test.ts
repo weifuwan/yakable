@@ -161,7 +161,7 @@ test('only failed progress items make the whole run terminally failed', () => {
   });
 });
 
-test('persists explicit cancellation even when a stopped progress item was marked failed first', () => {
+test('persists a user stop as cancelled and keeps the cancelled metadata terminal', () => {
   withMemoryDatabase(() => {
     const run = createAgentRun({
       projectId: 'cancelled-project',
@@ -174,7 +174,7 @@ test('persists explicit cancellation even when a stopped progress item was marke
     });
 
     recorder.progress('SELECT_CONTEXT', 'FAILED', 'Stopped by user.');
-    assert.equal(readAgentRun(run.id)?.status, 'FAILED');
+    assert.equal(readAgentRun(run.id)?.status, 'CANCELLED');
 
     cancelAgentRun(run.id, { summary: 'Stopped by user.' });
     completeAgentRun(run.id, { summary: 'This must not turn the run into completed.' });
