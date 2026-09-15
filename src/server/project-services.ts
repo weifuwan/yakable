@@ -14,6 +14,9 @@ import {
   touchManagedProject,
   updateManagedProject,
 } from '../projects/project-actions.js';
+import {
+  createGeneratedProjectIdentity,
+} from '../projects/project.js';
 import { readProjectMetadata } from '../projects/project-metadata.js';
 import {
   appendProjectEditHistory,
@@ -22,7 +25,9 @@ import {
   writeProjectSession,
 } from '../projects/project-session.js';
 import { resolveGeneratedProject, startGeneratedProject } from '../runtime/runtime.js';
+import { readAgentRun } from '../storage/agent-run.js';
 import {
+  beginProjectBuildLifecycle,
   failProjectLifecycle,
   readProjectLifecycle,
   transitionProjectLifecycle,
@@ -35,6 +40,8 @@ import {
 } from '../workspace/index.js';
 import type {
   WebApiServices,
+  WebCreateProjectBootstrap,
+  WebCreateProjectStatus,
   WebGeneratedProject,
 } from './web-api-contract.js';
 
@@ -109,6 +116,73 @@ async function createConversationProject(
   };
 }
 
+function bootstrapCreateProject(
+  prompt: string,
+  decision: BuildIntentDecision,
+): WebCreateProjectBootstrap {
+  if (decision.route !== 'CREATE') {
+    throw new Error(`Async project bootstrap requires CREATE intent, received ${decision.route}.`);
+  }
+
+  const identity = createGeneratedProjectIdentity(prompt);
+  const lifecycle = beginProjectBuildLifecycle({
+    projectId: identity.projectId,
+    prompt,
+    createdAt: identity.createdAt,
+  });
+
+  return {
+    reservation: {
+      projectId: lifecycle.project.projectId,
+      agentRunId: lifecycle.run.id,
+      createdAt: lifecycle.project.createdAt,
+    },
+    project: {
+      id: lifecycle.project.projectId,
+      name: projectNameFromId(lifecycle.project.projectId),
+      prompt: lifecycle.project.prompt,
+      status: lifecycle.project.status,
+      createdAt: lifecycle.project.createdAt,
+      updatedAt: lifecycle.project.updatedAt,
+    },
+    run: {
+      id: lifecycle.run.id,
+      status: lifecycle.run.status,
+      startedAt: lifecycle.run.startedAt,
+    },
+  };
+}
+
+function readCreateProjectStatus(projectId: string): WebCreateProjectStatus | null {
+  const lifecycle = readProjectLifecycle(projectId);
+  if (!lifecycle) return null;
+
+  const run = lifecycle.activeRunId ? readAgentRun(lifecycle.activeRunId) : null;
+  return {
+    project: {
+      id: lifecycle.projectId,
+      name: projectNameFromId(lifecycle.projectId),
+      prompt: lifecycle.prompt,
+      status: lifecycle.status,
+      ...(lifecycle.activeRunId ? { activeRunId: lifecycle.activeRunId } : {}),
+      ...(lifecycle.failureMessage ? { failureMessage: lifecycle.failureMessage } : {}),
+      createdAt: lifecycle.createdAt,
+      updatedAt: lifecycle.updatedAt,
+    },
+    run: run
+      ? {
+          id: run.id,
+          status: run.status,
+          ...(run.model ? { model: run.model } : {}),
+          ...(run.summary ? { summary: run.summary } : {}),
+          startedAt: run.startedAt,
+          ...(run.completedAt ? { completedAt: run.completedAt } : {}),
+          items: run.items,
+        }
+      : null,
+  };
+}
+
 export function createDefaultWebApiServices(
   generatedRoot = path.resolve(process.cwd(), 'generated'),
   agentRuntime: AgentRuntime = createDefaultAgentRuntime(),
@@ -122,8 +196,19 @@ export function createDefaultWebApiServices(
       return classifyBuildIntent(prompt);
     },
 
-    async generate(prompt, buildIntent, onAgentItem) {
+    async bootstrapCreate(prompt, buildIntent) {
+      return bootstrapCreateProject(prompt, buildIntent);
+    },
+
+    async readCreateStatus(projectId) {
+      return readCreateProjectStatus(projectId);
+    },
+
+    async generate(prompt, buildIntent, onAgentItem, reservation) {
       if (buildIntent.route !== 'CREATE') {
+        if (reservation) {
+          throw new Error('A reserved project lifecycle can only execute CREATE intent.');
+        }
         return createConversationProject(prompt, buildIntent, generatedRoot);
       }
       const result = await agentRuntime.createProject(prompt, {
@@ -131,6 +216,7 @@ export function createDefaultWebApiServices(
         onEvent: onAgentItem,
         verifyProject: true,
         persistAgentRun: true,
+        ...(reservation ? { projectLifecycle: reservation } : {}),
       });
       const id = path.basename(result.outputDirectory);
       return {
