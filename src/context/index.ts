@@ -31,3 +31,39 @@ export type {
   ContextProvider,
   ContextProviderResult,
 } from './context-builder.js';
+
+export {
+  MAX_CONTEXT_SEARCH_QUERY_LENGTH,
+  MAX_EDIT_CONTEXT_FILES,
+  MAX_PROJECT_CONTEXT_CANDIDATES,
+  buildProjectContextSelectionRequest,
+  fallbackEditContextFiles,
+  parseProjectContextSelection,
+  selectMappedVisualContextFiles,
+  selectProjectContextFiles,
+} from './project-context-selection.js';
+export type {
+  EditContextSelection,
+  EditContextSelectionInput,
+  EditContextSelectionSource,
+} from './project-context-selection.js';
+
+export {
+  rankProjectSearchFiles,
+  resolveProjectContextSearch,
+} from './project-context-search.js';
+
+export {
+  buildProjectEditContext,
+  extractUserEditContext,
+  extractUserEditRequest,
+  listProjectContextFiles,
+  readProjectSnapshot,
+  resolveProjectEditContext,
+} from './project-context.js';
+export type {
+  ProjectSnapshot,
+  ResolvedProjectEditContext,
+  ResolveProjectEditContextInput,
+  UserEditContext,
+} from './project-context.js';
