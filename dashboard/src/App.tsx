@@ -5,10 +5,12 @@ import {
   startProjectRuntime,
   type BuildIntentDecision,
   type ProjectListItem,
+  type RuntimeProject,
 } from "./api";
 import {
   bootstrapProject,
   readProjectCreationStatus,
+  watchProjectCreation,
   type ProjectCreationStatus,
 } from "./create-project";
 import { FrontendAgentActivity } from "./components/FrontendAgentActivity";
@@ -19,7 +21,7 @@ import { WorkspaceShell } from "./pages/WorkspaceShell";
 import { projectTitle } from "./utils/project";
 
 const PROJECTS_CHANGED_EVENT = "yakable:projects-changed";
-const CREATE_STATUS_POLL_MS = 500;
+const CREATE_FALLBACK_POLL_MS = 800;
 
 const dashboardPaths = new Set([
   "/dashboard",
@@ -77,10 +79,27 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+function activeProjectFromRuntime(projectId: string, runtime: RuntimeProject): ActiveProject {
+  return {
+    id: projectId,
+    title: runtime.name || projectTitle(projectId),
+    previewUrl: runtime.previewUrl,
+    template: runtime.template,
+    routes: runtime.routes,
+    summary: runtime.session?.initialSummary,
+    conversation: runtime.conversation,
+  };
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
 export default function App() {
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeProject, setActiveProject] = useState<ActiveProject | null>(null);
+  const [previewProject, setPreviewProject] = useState<ActiveProject | null>(null);
   const [projectLoading, setProjectLoading] = useState(false);
   const [projectError, setProjectError] = useState("");
   const [creationStatus, setCreationStatus] = useState<ProjectCreationStatus | null>(null);
@@ -140,6 +159,7 @@ export default function App() {
 
     if (currentRoute.kind !== "project") {
       setActiveProject(null);
+      setPreviewProject(null);
       setProjectLoading(false);
       setProjectError("");
       setCreationStatus(null);
@@ -147,57 +167,100 @@ export default function App() {
     }
 
     if (activeProject?.id === currentRoute.projectId) {
+      setPreviewProject(null);
       setProjectLoading(false);
       setCreationStatus(null);
       return;
     }
 
     let cancelled = false;
+    const abortController = new AbortController();
+    setPreviewProject(null);
     setProjectLoading(true);
     setProjectError("");
+
+    async function pollUntilReady(initial: ProjectCreationStatus): Promise<RuntimeProject> {
+      let creation = initial;
+      while (!cancelled && creation.project.status !== "READY") {
+        if (creation.project.status === "FAILED") {
+          throw new Error(
+            creation.project.failureMessage || "Yakable could not build this project.",
+          );
+        }
+        await delay(CREATE_FALLBACK_POLL_MS);
+        if (cancelled) throw new DOMException("Project navigation cancelled.", "AbortError");
+        const next = await readProjectCreationStatus(currentRoute.projectId);
+        if (!next) {
+          throw new Error("Yakable lost the project creation state before it became ready.");
+        }
+        creation = next;
+        setCreationStatus(next);
+      }
+      if (cancelled) throw new DOMException("Project navigation cancelled.", "AbortError");
+      return startProjectRuntime(currentRoute.projectId);
+    }
 
     async function openProject() {
       let creation = await readProjectCreationStatus(currentRoute.projectId);
       if (cancelled) return;
       setCreationStatus(creation);
 
-      while (creation && creation.project.status !== "READY") {
+      if (creation) {
         if (creation.project.status === "FAILED") {
           throw new Error(
             creation.project.failureMessage || "Yakable could not build this project.",
           );
         }
 
-        await delay(CREATE_STATUS_POLL_MS);
-        if (cancelled) return;
+        let runtime: RuntimeProject | null = null;
+        if (creation.project.status === "READY") {
+          runtime = await startProjectRuntime(currentRoute.projectId);
+        } else {
+          try {
+            runtime = await watchProjectCreation(currentRoute.projectId, {
+              initialStatus: creation,
+              signal: abortController.signal,
+              onStatus(status) {
+                if (!cancelled) {
+                  creation = status;
+                  setCreationStatus(status);
+                }
+              },
+            });
+          } catch (error) {
+            if (cancelled || isAbortError(error)) return;
 
-        creation = await readProjectCreationStatus(currentRoute.projectId);
-        if (!creation) {
-          throw new Error("Yakable lost the project creation state before it became ready.");
+            const latest = await readProjectCreationStatus(currentRoute.projectId).catch(() => null);
+            if (latest) {
+              creation = latest;
+              setCreationStatus(latest);
+              if (latest.project.status === "FAILED") {
+                throw new Error(
+                  latest.project.failureMessage ||
+                    (error instanceof Error ? error.message : "Yakable could not build this project."),
+                );
+              }
+            }
+            console.warn("[Yakable Create] Live stream disconnected; falling back to status polling.", error);
+          }
         }
-        setCreationStatus(creation);
+
+        if (cancelled) return;
+        runtime ??= await pollUntilReady(creation);
+        if (cancelled) return;
+        setPreviewProject(activeProjectFromRuntime(currentRoute.projectId, runtime));
+        return;
       }
 
-      if (cancelled) return;
       const runtime = await startProjectRuntime(currentRoute.projectId);
       if (cancelled) return;
-
-      setActiveProject({
-        id: currentRoute.projectId,
-        title: runtime.name || projectTitle(currentRoute.projectId),
-        previewUrl: runtime.previewUrl,
-        template: runtime.template,
-        routes: runtime.routes,
-        summary: runtime.session?.initialSummary,
-        conversation: runtime.conversation,
-      });
-      setCreationStatus(null);
+      setActiveProject(activeProjectFromRuntime(currentRoute.projectId, runtime));
       void reloadProjects().catch((error) => console.error(error));
     }
 
     void openProject()
       .catch((error) => {
-        if (cancelled) return;
+        if (cancelled || isAbortError(error)) return;
         setProjectError(
           error instanceof Error ? error.message : "Unable to start project runtime.",
         );
@@ -208,6 +271,7 @@ export default function App() {
 
     return () => {
       cancelled = true;
+      abortController.abort();
     };
   }, [pathname, activeProject?.id]);
 
@@ -226,6 +290,7 @@ export default function App() {
     }
 
     setActiveProject(null);
+    setPreviewProject(null);
     setProjectError("");
     setCreationStatus({
       project: {
@@ -240,6 +305,7 @@ export default function App() {
 
   async function handleOpen(projectId: string) {
     setActiveProject(null);
+    setPreviewProject(null);
     setCreationStatus(null);
     setProjectError("");
     navigate(projectPath(projectId));
@@ -247,8 +313,17 @@ export default function App() {
 
   function handleWorkspaceNavigate(path: string) {
     setProjectError("");
+    setPreviewProject(null);
     setCreationStatus(null);
     navigate(path);
+  }
+
+  function handlePreviewReady(projectId: string) {
+    if (!previewProject || previewProject.id !== projectId) return;
+    setActiveProject(previewProject);
+    setPreviewProject(null);
+    setCreationStatus(null);
+    void reloadProjects().catch((error) => console.error(error));
   }
 
   if (route.kind === "project") {
@@ -256,6 +331,8 @@ export default function App() {
       activeProject?.id !== route.projectId && creationStatus?.project.id === route.projectId
         ? creationStatus
         : null;
+    const readyPreview =
+      previewProject?.id === route.projectId ? previewProject : null;
 
     return (
       <>
@@ -264,7 +341,9 @@ export default function App() {
             projectId={route.projectId}
             projects={projects}
             creation={buildingCreation}
+            readyProject={readyPreview}
             error={projectError}
+            onPreviewReady={() => handlePreviewReady(route.projectId)}
             onNavigate={handleWorkspaceNavigate}
           />
         ) : (
