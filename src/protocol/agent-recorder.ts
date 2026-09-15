@@ -25,6 +25,12 @@ export interface AgentProtocolRecorder {
     message: string,
     iteration?: 0 | 1,
   ): AgentProgressItem;
+  emit(
+    state: AgentProgressState,
+    status: AgentItemStatus,
+    message: string,
+    iteration?: 0 | 1,
+  ): AgentProgressItem;
   startToolCall(toolName: string, message: string, inputSummary?: string): AgentToolCallItem;
   completeToolCall(
     itemId: string,
@@ -90,10 +96,10 @@ function defaultIdFactory(): string {
   return `agent-item-${Date.now()}-${fallbackId}`;
 }
 
-function assertProgressTransition(
+export function assertAgentProgressTransition(
   previousState: AgentProgressState | null,
   nextState: AgentProgressState,
-  repairCount: number,
+  repairCount = 0,
 ): void {
   if (previousState === null) {
     if (!START_STATES.has(nextState)) {
@@ -148,37 +154,15 @@ export function createAgentProtocolRecorder(
     return null;
   };
 
-  return {
-    progress(state, status, message, iteration) {
-      const timestamp = now().toISOString();
-      if (status === 'ACTIVE') {
-        assertProgressTransition(currentState, state, repairCount);
-        if (state !== currentState && state === 'REPAIR') repairCount += 1;
-        currentState = state;
-        return publish({
-          version: AGENT_PROTOCOL_VERSION,
-          id: idFactory(),
-          type: 'progress',
-          status,
-          state,
-          startedAt: timestamp,
-          message: normalized(message, 'Agent progress message'),
-          ...(iteration === undefined ? {} : { iteration }),
-        });
-      }
-
-      const active = activeProgress(state);
-      if (active) {
-        return publish({
-          ...active,
-          status,
-          completedAt: timestamp,
-          message: normalized(message, 'Agent progress message'),
-          ...(iteration === undefined ? {} : { iteration }),
-        });
-      }
-
-      assertProgressTransition(currentState, state, repairCount);
+  const progress = (
+    state: AgentProgressState,
+    status: AgentItemStatus,
+    message: string,
+    iteration?: 0 | 1,
+  ): AgentProgressItem => {
+    const timestamp = now().toISOString();
+    if (status === 'ACTIVE') {
+      assertAgentProgressTransition(currentState, state, repairCount);
       if (state !== currentState && state === 'REPAIR') repairCount += 1;
       currentState = state;
       return publish({
@@ -188,11 +172,41 @@ export function createAgentProtocolRecorder(
         status,
         state,
         startedAt: timestamp,
+        message: normalized(message, 'Agent progress message'),
+        ...(iteration === undefined ? {} : { iteration }),
+      });
+    }
+
+    const active = activeProgress(state);
+    if (active) {
+      return publish({
+        ...active,
+        status,
         completedAt: timestamp,
         message: normalized(message, 'Agent progress message'),
         ...(iteration === undefined ? {} : { iteration }),
       });
-    },
+    }
+
+    assertAgentProgressTransition(currentState, state, repairCount);
+    if (state !== currentState && state === 'REPAIR') repairCount += 1;
+    currentState = state;
+    return publish({
+      version: AGENT_PROTOCOL_VERSION,
+      id: idFactory(),
+      type: 'progress',
+      status,
+      state,
+      startedAt: timestamp,
+      completedAt: timestamp,
+      message: normalized(message, 'Agent progress message'),
+      ...(iteration === undefined ? {} : { iteration }),
+    });
+  };
+
+  return {
+    progress,
+    emit: progress,
 
     startToolCall(toolName, message, inputSummary) {
       return publish({
