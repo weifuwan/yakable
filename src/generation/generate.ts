@@ -34,7 +34,7 @@ import {
   appendAgentRunEvent,
   createAgentRun,
 } from '../storage/agent-run.js';
-import { recordAgentRunChangeSet } from '../storage/agent-run-change-set.js';
+import { recordAgentRunTurnDiff } from '../storage/agent-run-turn-diff.js';
 import { checkProjectTool } from '../tools/check-project.js';
 import type {
   BuildIntentDecision,
@@ -43,6 +43,7 @@ import type {
   ProjectTemplate,
 } from '../types.js';
 import { workspaceChangedPaths } from '../workspace/change-set.js';
+import { TurnDiffTracker } from '../workspace/turn-diff.js';
 import { normalizeModelJsonObject } from './model-output.js';
 import { buildTemplateGenerationRequest, selectProjectTemplate } from './template.js';
 
@@ -76,6 +77,15 @@ function parseProjectGeneration(content: string, template: ProjectTemplate): Gen
     mode: 'base-overlay',
     expectedTemplate: template,
   });
+}
+
+async function persistTurnDiff(runId: string | undefined, tracker: TurnDiffTracker): Promise<void> {
+  if (!runId) return;
+  try {
+    recordAgentRunTurnDiff(runId, await tracker.snapshot());
+  } catch (error) {
+    console.warn('[Yakable Agent] Create turn diff could not be persisted.', error);
+  }
 }
 
 export function buildProjectGenerationRecoveryRequest(
@@ -239,6 +249,8 @@ export async function generateProject(
     () => writeGeneratedProjectFromBase(normalizedPrompt, project),
   );
   const { outputDirectory, changeSet: initialChangeSet } = written;
+  const turnDiff = new TurnDiffTracker();
+  turnDiff.record(initialChangeSet);
 
   await initializeProjectSession(outputDirectory, {
     productRequest: normalizedPrompt,
@@ -255,11 +267,6 @@ export async function generateProject(
     agentRunId = run.id;
     for (const event of agent.snapshot()) {
       appendAgentRunEvent(run.id, event);
-    }
-    try {
-      recordAgentRunChangeSet(run.id, initialChangeSet);
-    } catch (error) {
-      console.warn('[Yakable Agent] Initial create change set could not be persisted.', error);
     }
   }
 
@@ -300,13 +307,7 @@ export async function generateProject(
         parsePatch: parseProjectPatch,
         applyChanges: async (patch) => {
           const changeSet = await applyProjectChanges(changeManager, patch);
-          if (agentRunId) {
-            try {
-              recordAgentRunChangeSet(agentRunId, changeSet);
-            } catch (error) {
-              console.warn('[Yakable Agent] Create repair change set could not be persisted.', error);
-            }
-          }
+          turnDiff.record(changeSet);
           return changeSet;
         },
         checkProject: () =>
@@ -336,6 +337,8 @@ export async function generateProject(
       }
     }
   }
+
+  await persistTurnDiff(agentRunId, turnDiff);
 
   return {
     project,
