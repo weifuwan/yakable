@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
 
 import {
-  createProject,
   listProjects,
   startProjectRuntime,
   type BuildIntentDecision,
   type ProjectListItem,
 } from "./api";
+import {
+  bootstrapProject,
+  readProjectCreationStatus,
+} from "./create-project";
 import { FrontendAgentActivity } from "./components/FrontendAgentActivity";
 import { Dashboard } from "./pages/Dashboard";
 import type { ActiveProject } from "./pages/Workspace";
@@ -14,6 +17,7 @@ import { WorkspaceShell } from "./pages/WorkspaceShell";
 import { projectTitle } from "./utils/project";
 
 const PROJECTS_CHANGED_EVENT = "yakable:projects-changed";
+const CREATE_STATUS_POLL_MS = 500;
 
 const dashboardPaths = new Set([
   "/dashboard",
@@ -65,6 +69,10 @@ function canonicalPath(route: AppRoute): string {
 
 function normalizePath(pathname: string): string {
   return canonicalPath(resolveAppRoute(pathname));
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 export default function App() {
@@ -143,19 +151,43 @@ export default function App() {
     setProjectLoading(true);
     setProjectError("");
 
-    void startProjectRuntime(currentRoute.projectId)
-      .then((runtime) => {
+    async function openProject() {
+      let creation = await readProjectCreationStatus(currentRoute.projectId);
+      if (cancelled) return;
+
+      while (creation && creation.project.status !== "READY") {
+        if (creation.project.status === "FAILED") {
+          throw new Error(
+            creation.project.failureMessage || "Yakable could not build this project.",
+          );
+        }
+
+        await delay(CREATE_STATUS_POLL_MS);
         if (cancelled) return;
-        setActiveProject({
-          id: currentRoute.projectId,
-          title: runtime.name || projectTitle(currentRoute.projectId),
-          previewUrl: runtime.previewUrl,
-          template: runtime.template,
-          routes: runtime.routes,
-          summary: runtime.session?.initialSummary,
-          conversation: runtime.conversation,
-        });
-      })
+
+        creation = await readProjectCreationStatus(currentRoute.projectId);
+        if (!creation) {
+          throw new Error("Yakable lost the project creation state before it became ready.");
+        }
+      }
+
+      if (cancelled) return;
+      const runtime = await startProjectRuntime(currentRoute.projectId);
+      if (cancelled) return;
+
+      setActiveProject({
+        id: currentRoute.projectId,
+        title: runtime.name || projectTitle(currentRoute.projectId),
+        previewUrl: runtime.previewUrl,
+        template: runtime.template,
+        routes: runtime.routes,
+        summary: runtime.session?.initialSummary,
+        conversation: runtime.conversation,
+      });
+      void reloadProjects().catch((error) => console.error(error));
+    }
+
+    void openProject()
       .catch((error) => {
         if (cancelled) return;
         setProjectError(
@@ -180,26 +212,14 @@ export default function App() {
   }
 
   async function handleCreate(prompt: string): Promise<BuildIntentDecision> {
-    const result = await createProject(prompt);
-
-    if (!result.project || !result.previewUrl) {
-      throw new Error("Yakable created the conversation but did not return a project runtime.");
+    const result = await bootstrapProject(prompt);
+    if (!result.accepted) {
+      return result.decision;
     }
 
-    const nextProject: ActiveProject = {
-      id: result.project.id,
-      title: result.project.name || projectTitle(result.project.id),
-      previewUrl: result.previewUrl,
-      summary: result.project.summary,
-      model: result.project.model,
-      template: result.project.template,
-      routes: result.project.routes,
-      conversation: result.project.conversation,
-    };
-
-    setActiveProject(nextProject);
+    setActiveProject(null);
+    setProjectError("");
     navigate(projectPath(result.project.id));
-    void reloadProjects();
     return result.decision;
   }
 
