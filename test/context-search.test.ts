@@ -107,6 +107,7 @@ test('uses deterministic fallback when a requested search finds no context', asy
 
 test('resolves the common project edit context path inside the context layer', async () => {
   const root = await createFixture();
+  let checkpoints = 0;
 
   try {
     const resolved = await resolveProjectEditContext({
@@ -122,11 +123,15 @@ test('resolves the common project edit context path inside the context layer', a
           selector: 'h1',
         },
       ],
+      assertActive() {
+        checkpoints += 1;
+      },
     });
 
     assert.ok(resolved.availableFiles.includes('src/components/Hero.tsx'));
     assert.equal(resolved.contextSelection.source, 'visual');
     assert.deepEqual(resolved.contextSelection.relevantFiles, ['src/components/Hero.tsx']);
+    assert.equal(checkpoints, 4);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
