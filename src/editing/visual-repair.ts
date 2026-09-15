@@ -1,4 +1,5 @@
 import { requestVisualRepair } from '../model/deepseek.js';
+import type { AgentProtocolRecorder } from '../protocol/agent-recorder.js';
 import type { PageObservation } from '../runtime/page-observation.js';
 import { resolveGeneratedProject } from '../runtime/runtime.js';
 import { checkProjectTool, type CheckProjectOutput } from '../tools/check-project.js';
@@ -38,6 +39,10 @@ export interface VisualRepairResult {
   error?: string;
 }
 
+export interface VisualRepairExecutionResult extends VisualRepairResult {
+  changeSet?: WorkspaceChangeSet;
+}
+
 export interface VisualRepairGeneration {
   content: string;
   model: string;
@@ -51,6 +56,11 @@ export interface VisualRepairProjectInput {
   pageObservation: PageObservation;
   initialChangedFiles: string[];
   selectedContextFiles: string[];
+}
+
+export interface RepairGeneratedProjectVisualOptions {
+  generatedRoot?: string;
+  agent?: AgentProtocolRecorder;
 }
 
 export interface RunVisualRepairInput extends VisualRepairProjectInput {
@@ -142,7 +152,7 @@ export function buildVisualRepairRequest(
     baselineDesignIntent,
     editIntent,
     critique,
-    pageObservation,
+    pageObservation: inputObservation(pageObservation),
     project: {
       id: projectId,
       files,
@@ -155,6 +165,10 @@ export function buildVisualRepairRequest(
     );
   }
   return request;
+}
+
+function inputObservation(observation: PageObservation): PageObservation {
+  return observation;
 }
 
 export function assertVisualRepairPatchUsesContext(
@@ -185,7 +199,7 @@ function checkExecutionFailure(error: unknown): ToolResult<CheckProjectOutput> {
 
 export async function runVisualRepairOnce(
   input: RunVisualRepairInput,
-): Promise<VisualRepairResult> {
+): Promise<VisualRepairExecutionResult> {
   validateUserRequest(input.userRequest);
 
   if (input.critique.status === 'PASS') {
@@ -274,6 +288,7 @@ export async function runVisualRepairOnce(
       changedFiles,
       projectCheck,
       rolledBack: false,
+      changeSet,
       ...(model ? { model } : {}),
       ...(summary ? { summary } : {}),
     };
@@ -299,6 +314,7 @@ export async function runVisualRepairOnce(
     changedFiles,
     projectCheck,
     rolledBack,
+    changeSet,
     ...(model ? { model } : {}),
     ...(summary ? { summary } : {}),
     error: rollbackError
@@ -310,9 +326,9 @@ export async function runVisualRepairOnce(
 export async function repairGeneratedProjectVisual(
   projectInput: string,
   input: VisualRepairProjectInput,
-  generatedRoot?: string,
-): Promise<VisualRepairResult> {
-  const project = await resolveGeneratedProject(projectInput, generatedRoot);
+  options: RepairGeneratedProjectVisualOptions = {},
+): Promise<VisualRepairExecutionResult> {
+  const project = await resolveGeneratedProject(projectInput, options.generatedRoot);
   const availableFiles = await listProjectContextFiles(project.directory);
   const changeManager = createProjectChangeManager(project);
 
@@ -323,8 +339,9 @@ export async function repairGeneratedProjectVisual(
     readFiles: async (paths) => (await readProjectSnapshot(project, paths)).files,
     requestRepair: requestVisualRepair,
     parsePatch: parseProjectPatch,
-    applyChanges: (patch) => applyProjectChanges(changeManager, patch),
-    checkProject: () => checkProjectTool.execute({}, { projectDirectory: project.directory }),
+    applyChanges: (patch) => applyProjectChanges(changeManager, patch, options.agent),
+    checkProject: () =>
+      checkProjectTool.execute({}, { projectDirectory: project.directory, agent: options.agent }),
     rollback: (changeSet) => changeManager.rollback(changeSet),
   });
 }
