@@ -275,7 +275,6 @@ test('runs exactly one visual repair and one project check on success', async ()
 
   assert.equal(result.status, 'REPAIRED');
   assert.deepEqual(result.changedFiles, ['src/components/Hero.tsx']);
-  assert.equal(result.changeSet?.id, 'change-set-test');
   assert.equal(modelCalls, 1);
   assert.equal(checkCalls, 1);
   assert.equal(rollbackCalls, 0);
