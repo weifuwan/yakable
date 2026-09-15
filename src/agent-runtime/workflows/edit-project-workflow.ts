@@ -112,6 +112,7 @@ export async function runEditProjectWorkflow(
           userRequest,
           visualSelections,
           editIntent: editIntent.delta,
+          assertActive: throwIfOperationCancelled,
         });
         throwIfOperationCancelled();
         return { editIntent, availableFiles, contextSelection };
