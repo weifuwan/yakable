@@ -40,12 +40,9 @@ export function WorkspaceResizer({
     }
   }
 
-  const maskImage =
-    "linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.15) 5%, rgba(0,0,0,0.5) 11%, black 18%, black 82%, rgba(0,0,0,0.5) 89%, rgba(0,0,0,0.15) 95%, transparent 100%)";
-
   return (
     <div
-      className="group/resize-handle absolute inset-y-0 z-30 flex w-3 -translate-x-1/2 cursor-col-resize touch-none items-center justify-center outline-none max-[900px]:hidden"
+      className="group/resize-handle absolute inset-y-0 z-30 w-3 -translate-x-1/2 cursor-col-resize touch-none outline-none max-[900px]:hidden"
       style={{ left: `${chatWidth}%` }}
       role="separator"
       aria-label="Resize chat and preview panels"
@@ -64,21 +61,12 @@ export function WorkspaceResizer({
       onKeyDown={handleKeyDown}
     >
       <span
-        className={`pointer-events-none absolute inset-y-3 left-1/2 w-[7px] -translate-x-1/2 rounded-full transition-[opacity,filter] duration-200 ${
+        aria-hidden="true"
+        className={`pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors duration-100 ${
           isResizing
-            ? "opacity-100"
-            : "opacity-70 group-hover/resize-handle:opacity-100 group-focus-visible/resize-handle:opacity-100"
+            ? "bg-[#4b73ff]"
+            : "bg-transparent group-hover/resize-handle:bg-black/[0.16] group-focus-visible/resize-handle:bg-[#4b73ff]/70"
         }`}
-        style={{
-          backgroundImage: isResizing
-            ? "linear-gradient(to right, rgba(75,115,255,0.16) 0 3px, rgba(47,111,237,0.92) 3px 4px, rgba(75,115,255,0.16) 4px 7px)"
-            : "linear-gradient(to right, rgba(75,115,255,0.08) 0 3px, rgba(70,76,84,0.68) 3px 4px, rgba(75,115,255,0.08) 4px 7px)",
-          WebkitMaskImage: maskImage,
-          maskImage,
-          filter: isResizing
-            ? "drop-shadow(0 0 5px rgba(75,115,255,0.32))"
-            : "drop-shadow(0 0 3px rgba(75,115,255,0.14))",
-        }}
       />
     </div>
   );
