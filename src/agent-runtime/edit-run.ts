@@ -2,11 +2,6 @@ import path from 'node:path';
 
 import type { EditContextSelection } from '../editing/context-selection.js';
 import { critiqueDesign, type DesignCriticRun } from '../editing/design-critic.js';
-import {
-  editGeneratedProject,
-  type EditGeneratedProjectOptions,
-  type EditProjectResult,
-} from '../editing/edit.js';
 import type { EditIntentResolution } from '../editing/edit-intent.js';
 import {
   repairGeneratedProjectVisual,
@@ -32,6 +27,16 @@ import type { ToolResult } from '../tools/tool.js';
 import type { ProjectVisualSelection } from '../types.js';
 import { TurnDiffTracker } from '../workspace/turn-diff.js';
 import { createPersistedAgentRecorder } from './persisted-recorder.js';
+import {
+  checkWorkflowProject,
+  readWorkflowProjectSnapshot,
+  type AgentWorkflowContext,
+} from './workflow-context.js';
+import {
+  runEditProjectWorkflow,
+  type EditProjectWorkflowOptions,
+  type EditProjectWorkflowResult,
+} from './workflows/edit-project-workflow.js';
 
 export type AgentClientToolName = 'observe_preview';
 
@@ -114,7 +119,7 @@ interface PersistedEditRunState {
 type EditRunBaseState = Omit<PersistedEditRunState, 'iteration' | 'pendingToolCallId'>;
 type AgentItemListener = (item: AgentProtocolItem) => void;
 
-export interface BeginUnifiedEditRunOptions extends EditGeneratedProjectOptions {
+export interface BeginUnifiedEditRunOptions extends EditProjectWorkflowOptions {
   onItem?: AgentItemListener;
 }
 
@@ -135,7 +140,7 @@ function publicRepair(result: VisualRepairExecutionResult): VisualRepairResult {
   return repair;
 }
 
-function stateFromEdit(edit: EditProjectResult): EditRunBaseState {
+function stateFromEdit(edit: EditProjectWorkflowResult): EditRunBaseState {
   return {
     version: 1,
     runId: edit.agentRunId,
@@ -257,12 +262,13 @@ function requestObservation(
 }
 
 export async function beginUnifiedEditRun(
+  context: AgentWorkflowContext,
   projectInput: string,
   followUpRequest: string,
   options: BeginUnifiedEditRunOptions = {},
 ): Promise<UnifiedEditRunResult> {
   const onItem = options.onItem ?? options.onEvent;
-  const edit = await editGeneratedProject(projectInput, followUpRequest, {
+  const edit = await runEditProjectWorkflow(context, projectInput, followUpRequest, {
     onRunCreated: options.onRunCreated,
     onEvent: onItem,
   });
@@ -296,6 +302,7 @@ function validateClientToolResult(
 }
 
 export async function continueUnifiedEditRun(
+  context: AgentWorkflowContext,
   runId: string,
   toolResult: AgentClientToolResult,
   options: ContinueUnifiedEditRunOptions = {},
@@ -361,7 +368,7 @@ export async function continueUnifiedEditRun(
       baselineDesignIntent: session?.designIntent ?? null,
       editIntent: state.editIntent.delta,
       pageObservation: observation,
-    });
+    }, context.modelClient);
     agent.progress(
       'CRITIQUE',
       'COMPLETED',
@@ -415,6 +422,15 @@ export async function continueUnifiedEditRun(
       {
         generatedRoot: path.dirname(state.projectDirectory),
         agent,
+        modelClient: context.modelClient,
+        readFiles: async (project, paths, recorder) => (
+          await readWorkflowProjectSnapshot(context, project, paths, recorder)
+        ).files,
+        checkProject: (project, recorder) => checkWorkflowProject(
+          context,
+          project.directory,
+          recorder,
+        ),
       },
     );
     const repair = publicRepair(repairExecution);
