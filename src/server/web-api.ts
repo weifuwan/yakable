@@ -29,6 +29,7 @@ export type {
   WebCreateProjectBootstrap,
   WebCreateProjectReservation,
   WebCreateProjectStatus,
+  WebCreateRecoveryResult,
   WebGeneratedProject,
   WebProjectListItem,
   WebProjectMessageResult,
@@ -262,6 +263,43 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
     }
   }
 
+  async function recoverInterruptedRuntime(projectId: string): Promise<void> {
+    if (!services.readCreateStatus) return;
+    const status = await services.readCreateStatus(projectId);
+    if (!status || status.project.status !== 'STARTING_RUNTIME') return;
+
+    const runId = status.run?.id;
+    const onAgentItem = (item: AgentProtocolItem) => {
+      if (runId) publishCreationRecord(projectId, { type: 'agent-item', runId, item });
+    };
+    const agent = runId ? createPersistedAgentRecorder(runId, onAgentItem) : null;
+    agent?.progress('RUNTIME', 'ACTIVE', 'Resuming the generated project runtime after restart');
+
+    try {
+      const runtime = await ensureRuntime(projectId);
+      agent?.progress('RUNTIME', 'COMPLETED', 'Recovered the generated project runtime');
+      agent?.progress('DONE', 'COMPLETED', 'Create pipeline recovered after restart');
+      if (runId) {
+        completeAgentRun(runId, {
+          ...(status.run?.model ? { model: status.run.model } : {}),
+          summary: status.run?.summary ?? 'Create pipeline recovered after restart.',
+        });
+      }
+      await publishCreationSnapshot(projectId);
+      publishCreationRecord(projectId, {
+        type: 'ready',
+        runtime: await runtimePayload(projectId, runtime, services),
+      });
+    } catch (error) {
+      const normalized = error instanceof Error ? error : new Error(String(error));
+      agent?.progress('RUNTIME', 'FAILED', `Runtime recovery failed: ${normalized.message}`);
+      agent?.progress('DONE', 'FAILED', 'Create pipeline could not recover after restart');
+      await publishCreationSnapshot(projectId).catch(() => null);
+      publishCreationRecord(projectId, { type: 'failed', error: normalized.message });
+      console.error(`[Yakable API] Runtime recovery failed for ${projectId}.`, normalized);
+    }
+  }
+
   function launchBackgroundCreate(
     prompt: string,
     decision: BuildIntentDecision,
@@ -421,6 +459,44 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
           writeNdjson(response, { type: 'error', error: normalized.message });
         }
         response.end();
+        return;
+      }
+
+      const retryCreationRoute = url.pathname.match(/^\/api\/projects\/([^/]+)\/creation\/retry$/);
+      if (method === 'POST' && retryCreationRoute) {
+        if (!services.readCreateStatus || !services.bootstrapCreate) {
+          throw new Error('Async project creation retry is not available.');
+        }
+        const projectId = assertProjectId(retryCreationRoute[1] ?? '');
+        const previous = await services.readCreateStatus(projectId);
+        if (!previous) {
+          sendJson(response, 404, { error: `Project creation state does not exist: ${projectId}` });
+          return;
+        }
+        if (previous.project.status !== 'FAILED') {
+          sendJson(response, 409, {
+            error: 'Only a failed project creation can be retried.',
+            projectId,
+            status: previous.project.status,
+          });
+          return;
+        }
+
+        const decision: BuildIntentDecision = {
+          version: 1,
+          route: 'CREATE',
+          confidence: 'high',
+          message: 'Retrying project creation.',
+        };
+        const bootstrap = await services.bootstrapCreate(previous.project.prompt, decision);
+        sendJson(response, 202, {
+          accepted: true,
+          retryOf: projectId,
+          decision,
+          project: bootstrap.project,
+          run: bootstrap.run,
+        });
+        launchBackgroundCreate(previous.project.prompt, decision, bootstrap);
         return;
       }
 
@@ -594,6 +670,13 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
   return {
     server,
     async listen(port = DEFAULT_API_PORT, host = DEFAULT_API_HOST) {
+      if (services.reconcileInterruptedCreates) {
+        const recovery = await services.reconcileInterruptedCreates();
+        for (const projectId of recovery.runtimePendingProjectIds) {
+          await recoverInterruptedRuntime(projectId);
+        }
+      }
+
       await new Promise<void>((resolve, reject) => {
         const onError = (error: Error) => {
           server.off('listening', onListening);
