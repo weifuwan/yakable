@@ -2,7 +2,6 @@ import {
   selectProjectContextFiles,
   type EditContextSelection,
 } from '../../editing/context-selection.js';
-import { resolveProjectContextSearch } from '../../editing/context-search.js';
 import {
   resolveEditIntentDelta,
   type EditIntentResolution,
@@ -17,7 +16,7 @@ import {
   listProjectContextFiles,
 } from '../../editing/project-context.js';
 import type { OneShotRepairResult } from '../../editing/repair.js';
-import { requestProjectPatch, requestProjectRepair } from '../../model/deepseek.js';
+import { requestProjectPatch, requestProjectRepair } from '../../model/capabilities.js';
 import { readProjectSession } from '../../projects/project-session.js';
 import type { AgentProtocolItem } from '../../protocol/agent-protocol.js';
 import { resolveGeneratedProject } from '../../runtime/runtime.js';
@@ -32,6 +31,10 @@ import type {
 import type { WorkspaceChangeSet } from '../../workspace/change-set.js';
 import { TurnDiffTracker } from '../../workspace/turn-diff.js';
 import { createPersistedAgentRecorder } from '../persisted-recorder.js';
+import {
+  resolveWorkflowContextSearch,
+  type AgentWorkflowContext,
+} from '../workflow-context.js';
 import { runSourceEditWorkflow } from './source-edit-workflow.js';
 
 const MAX_FOLLOW_UP_LENGTH = 8_000;
@@ -68,6 +71,7 @@ async function persistTurnDiff(runId: string, turnDiff: TurnDiffTracker): Promis
 }
 
 export async function runEditProjectWorkflow(
+  context: AgentWorkflowContext,
   projectInput: string,
   followUpRequest: string,
   options: EditProjectWorkflowOptions = {},
@@ -93,6 +97,7 @@ export async function runEditProjectWorkflow(
   let result: Awaited<ReturnType<typeof runSourceEditWorkflow>>;
   try {
     result = await runSourceEditWorkflow({
+      context,
       project,
       session,
       userRequest: userEdit.userRequest,
@@ -104,28 +109,31 @@ export async function runEditProjectWorkflow(
           userRequest,
           baselineDesignIntent: session?.designIntent ?? null,
           visualSelections,
-        });
+        }, context.modelClient);
         const availableFiles = await listProjectContextFiles(project.directory);
         const initialContextSelection = await selectProjectContextFiles(
           { userRequest, visualSelections, editIntent: editIntent.delta },
           availableFiles,
+          context.modelClient,
         );
-        const contextSelection = await resolveProjectContextSearch(
+        const contextSelection = await resolveWorkflowContextSearch(
+          context,
           project.directory,
           userRequest,
           availableFiles,
           initialContextSelection,
+          agent,
         );
         return { editIntent, availableFiles, contextSelection };
       },
       buildModelContext({ snapshot, editIntent }) {
         return buildProjectEditContext(snapshot, request, session, editIntent.delta);
       },
-      requestPatch: requestProjectPatch,
+      requestPatch: (modelContext) => requestProjectPatch(context.modelClient, modelContext),
       parsePatch: parseProjectPatch,
       validatePatch: ({ patch, contextSelection }) =>
         assertPatchUsesSelectedContext(project, patch, contextSelection.relevantFiles),
-      requestRepair: requestProjectRepair,
+      requestRepair: (repairContext) => requestProjectRepair(context.modelClient, repairContext),
     });
   } catch (error) {
     await persistTurnDiff(agentRun.id, turnDiff);
