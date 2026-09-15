@@ -25,14 +25,6 @@ export interface FrontendAgentProgressOptions {
   onEvent?: (item: AgentProtocolItem) => void;
 }
 
-let standaloneItemId = 0;
-function nextStandaloneItemId(): string {
-  const cryptoValue = globalThis.crypto?.randomUUID?.();
-  if (cryptoValue) return cryptoValue;
-  standaloneItemId += 1;
-  return `agent-progress-${Date.now()}-${standaloneItemId}`;
-}
-
 export function createFrontendAgentEvent(
   state: FrontendAgentState,
   status: FrontendAgentStepStatus,
@@ -42,7 +34,7 @@ export function createFrontendAgentEvent(
   const timestamp = new Date().toISOString();
   return {
     version: AGENT_PROTOCOL_VERSION,
-    id: nextStandaloneItemId(),
+    id: `progress:${state}:${iteration ?? 0}`,
     type: 'progress',
     state,
     status,
