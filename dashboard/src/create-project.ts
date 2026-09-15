@@ -1,4 +1,12 @@
-import type { BuildIntentDecision } from './api';
+export type BuildIntentRoute = 'CREATE' | 'CHAT' | 'CLARIFY';
+export type BuildIntentConfidence = 'high' | 'medium';
+
+export interface BuildIntentDecision {
+  version: 1;
+  route: BuildIntentRoute;
+  confidence: BuildIntentConfidence;
+  message: string;
+}
 
 export type ProjectLifecycleStatus =
   | 'CREATING'
