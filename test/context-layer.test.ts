@@ -84,6 +84,8 @@ test('builds a deterministic snapshot from bounded context providers', async () 
   assert.equal(snapshot.projectInput, 'generated/example');
   assert.equal(snapshot.createdAt, '2026-09-15T00:00:00.000Z');
   assert.equal(snapshot.budget.maxInputTokens, 112_000);
+  assert.equal(snapshot.usage.overBudget, false);
+  assert.ok(snapshot.usage.estimatedInputTokens > 0);
   assert.deepEqual(snapshot.sections, [
     {
       id: 'project',
@@ -105,6 +107,31 @@ test('builds a deterministic snapshot from bounded context providers', async () 
       content: 'User asked to keep the existing layout.',
     },
   ]);
+});
+
+test('rejects a Context snapshot that exceeds its estimated input budget', async () => {
+  const builder = new ContextBuilder({
+    budget: createContextBudget({
+      maxContextTokens: 120,
+      reservedOutputTokens: 20,
+    }),
+    providers: [
+      {
+        id: 'large-project',
+        provide: () => ({
+          id: 'project',
+          kind: 'PROJECT',
+          priority: 'HIGH',
+          content: 'x'.repeat(1_000),
+        }),
+      },
+    ],
+  });
+
+  await assert.rejects(
+    builder.build({ operation: 'EDIT', request: 'Change the card' }),
+    /Context snapshot exceeds its Context budget/,
+  );
 });
 
 test('rejects ambiguous provider and section identifiers', async () => {

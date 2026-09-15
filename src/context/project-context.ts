@@ -5,10 +5,15 @@ import type { EditIntentDelta } from '../editing/edit-intent.js';
 import type { ResolvedGeneratedProject } from '../runtime/runtime.js';
 import { readProjectFileTool } from '../tools/read-project-file.js';
 import type {
+  DesignIntentIR,
   GeneratedFile,
   ProjectSessionState,
   ProjectVisualSelection,
 } from '../types.js';
+import {
+  buildConversationContext,
+  type ConversationContextMessage,
+} from './conversation-context.js';
 import { resolveProjectContextSearch } from './project-context-search.js';
 import {
   MAX_EDIT_CONTEXT_FILES,
@@ -18,7 +23,6 @@ import {
 } from './project-context-selection.js';
 
 const MAX_CONTEXT_TOTAL_BYTES = 800_000;
-const MAX_HISTORY_CONTEXT = 12;
 const MAX_VISUAL_SELECTIONS = 20;
 const SKIPPED_DIRECTORIES = new Set(['node_modules', 'dist', '.git', '.yakable']);
 const EXCLUDED_CONTEXT_FILES = new Set([
@@ -65,6 +69,13 @@ export interface ResolveProjectEditContextInput {
 export interface ResolvedProjectEditContext {
   availableFiles: string[];
   contextSelection: EditContextSelection;
+}
+
+export interface ProjectContinuityContext {
+  originalProductRequest: string | null;
+  designIntent: DesignIntentIR | null;
+  compactedHistory: string | null;
+  recentMessages: readonly ConversationContextMessage[];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -291,28 +302,40 @@ export function extractUserEditRequest(request: string): string {
   return extractUserEditContext(request).userRequest;
 }
 
+export function buildProjectContinuityContext(
+  session: ProjectSessionState,
+): ProjectContinuityContext {
+  const historyMessages: ConversationContextMessage[] = [];
+  for (const edit of session.edits) {
+    historyMessages.push({ role: 'user', content: edit.userRequest });
+    const changedFiles = edit.changedFiles.length
+      ? `\nChanged files: ${edit.changedFiles.join(', ')}`
+      : '';
+    historyMessages.push({
+      role: 'assistant',
+      content: `${edit.assistantSummary}${changedFiles}`,
+    });
+  }
+
+  const history = buildConversationContext(historyMessages);
+  return {
+    originalProductRequest: session.productRequest ?? null,
+    designIntent: session.designIntent ?? null,
+    compactedHistory: history.compactedHistory,
+    recentMessages: history.messages,
+  };
+}
+
 export function buildProjectEditContext(
   snapshot: ProjectSnapshot,
   followUpRequest: string,
   session: ProjectSessionState | null,
   editIntent: EditIntentDelta | null = null,
 ): string {
-  const recentEdits = session?.edits.slice(-MAX_HISTORY_CONTEXT).map((edit) => ({
-    userRequest: edit.userRequest,
-    assistantSummary: edit.assistantSummary,
-    changedFiles: edit.changedFiles,
-  })) ?? [];
-
   return JSON.stringify({
     followUpRequest,
     editIntent,
-    continuity: session
-      ? {
-          originalProductRequest: session.productRequest ?? null,
-          designIntent: session.designIntent ?? null,
-          recentEdits,
-        }
-      : null,
+    continuity: session ? buildProjectContinuityContext(session) : null,
     project: {
       id: snapshot.id,
       files: snapshot.files,

@@ -1,4 +1,7 @@
-import type { ContextBudget } from './context-budget.js';
+import type {
+  ContextBudget,
+  ContextBudgetUsage,
+} from './context-budget.js';
 
 export const CONTEXT_SNAPSHOT_VERSION = 1 as const;
 
@@ -64,5 +67,6 @@ export interface ContextSnapshot {
   readonly metadata?: ContextJsonObject;
   readonly sections: readonly ContextSection[];
   readonly budget: ContextBudget;
+  readonly usage: ContextBudgetUsage;
   readonly createdAt: string;
 }

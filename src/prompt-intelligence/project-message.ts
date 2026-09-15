@@ -22,6 +22,13 @@ export interface ProjectMessageIntentInput {
   recentConversation: readonly ConversationContextMessage[];
 }
 
+export interface ProjectMessageContextInput {
+  userInput: string;
+  hasGeneratedUi: boolean;
+  recentConversation: readonly ConversationContextMessage[];
+  compactedHistory: string | null;
+}
+
 interface DeepSeekChatResponse {
   choices?: Array<{
     message?: {
@@ -141,22 +148,26 @@ export function detectObviousProjectMessageIntent(
   return null;
 }
 
-function normalizedInput(input: ProjectMessageIntentInput): ProjectMessageIntentInput {
+export function buildProjectMessageContextInput(
+  input: ProjectMessageIntentInput,
+): ProjectMessageContextInput {
   const userInput = input.userInput.trim();
   if (!userInput) throw new Error('A project message is required.');
   if (userInput.length > MAX_USER_INPUT) {
     throw new Error(`Project message is too long (max ${MAX_USER_INPUT} characters).`);
   }
 
+  const context = buildConversationContext(input.recentConversation);
   return {
     userInput,
     hasGeneratedUi: input.hasGeneratedUi,
-    recentConversation: buildConversationContext(input.recentConversation).messages,
+    recentConversation: context.messages,
+    compactedHistory: context.compactedHistory,
   };
 }
 
 async function requestProjectMessageDecision(
-  input: ProjectMessageIntentInput,
+  input: ProjectMessageContextInput,
 ): Promise<ProjectMessageDecision> {
   const apiKey = process.env.DEEPSEEK_API_KEY?.trim();
   if (!apiKey) {
@@ -214,7 +225,7 @@ async function requestProjectMessageDecision(
 export async function classifyProjectMessageIntent(
   input: ProjectMessageIntentInput,
 ): Promise<ProjectMessageDecision> {
-  const normalized = normalizedInput(input);
+  const normalized = buildProjectMessageContextInput(input);
   const routed = detectObviousProjectMessageIntent(normalized) ?? await requestProjectMessageDecision(normalized);
 
   if (routed.route === 'CHAT' || routed.route === 'CLARIFY') {
@@ -223,6 +234,7 @@ export async function classifyProjectMessageIntent(
       userInput: normalized.userInput,
       hasGeneratedUi: normalized.hasGeneratedUi,
       recentConversation: normalized.recentConversation,
+      compactedHistory: normalized.compactedHistory,
     });
     return {
       ...routed,
