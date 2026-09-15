@@ -179,6 +179,10 @@ export function createAgentProtocolRecorder(
 
     const active = activeProgress(state);
     if (active) {
+      if (state !== currentState) {
+        assertAgentProgressTransition(currentState, state, repairCount);
+        currentState = state;
+      }
       return publish({
         ...active,
         status,
