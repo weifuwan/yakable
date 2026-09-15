@@ -1,6 +1,6 @@
 import 'dotenv/config';
 
-import { buildProjectFromApprovedPlan } from '../planning/approved-plan-build.js';
+import { createDefaultAgentRuntime } from '../agent-runtime/agent-runtime.js';
 import type { AgentProtocolItem } from '../protocol/agent-protocol.js';
 
 function usage(): never {
@@ -20,15 +20,18 @@ function itemLabel(item: AgentProtocolItem): string {
 const [projectInput, ...rest] = process.argv.slice(2);
 if (!projectInput || rest.length > 0) usage();
 
+const agentRuntime = createDefaultAgentRuntime();
+
 try {
   console.log('Yakable: Build From Approved Plan');
-  const result = await buildProjectFromApprovedPlan(projectInput, {
+  const result = await agentRuntime.executeApprovedPlan(projectInput, {
     onEvent(item) {
       console.log(`[${itemLabel(item)}] ${item.status}: ${item.message}`);
     },
   });
 
-  console.log(`\nPlan revision: ${result.executionPlan.source.revision}`);
+  console.log(`\nAgent run: ${result.agentRunId}`);
+  console.log(`Plan revision: ${result.executionPlan.source.revision}`);
   console.log(`Plan fingerprint: ${result.executionPlan.source.fingerprint}`);
   console.log(`Model: ${result.model}`);
   console.log(`Changed files: ${result.changedFiles.length}`);

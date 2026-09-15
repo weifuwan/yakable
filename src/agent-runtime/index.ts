@@ -5,7 +5,8 @@ export {
 export type {
   AgentRuntimeContextInput,
   AgentRuntimeDependencies,
-  GenerateProjectExecutor,
+  ApprovedPlanExecutor,
+  CreateProjectExecutor,
 } from './agent-runtime.js';
 export {
   beginUnifiedEditRun,
@@ -38,3 +39,4 @@ export type {
   RoutedTool,
   ToolRouteOptions,
 } from './tool-router.js';
+export * from './workflows/index.js';

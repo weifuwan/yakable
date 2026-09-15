@@ -12,6 +12,7 @@ import {
 } from '../src/modes/mode-contract.js';
 import {
   beginEditRunInMode,
+  executeApprovedPlanInMode,
   runModeCapability,
 } from '../src/modes/mode-execution.js';
 import type { BuildIntentDecision } from '../src/types.js';
@@ -97,6 +98,13 @@ test('mode-aware project edit rejects PLAN before resolving or reading a project
   await assert.rejects(
     beginEditRunInMode('PLAN', 'project-that-does-not-exist', 'Change the Hero'),
     /PLAN mode does not allow edit-source/,
+  );
+});
+
+test('approved plan execution rejects PLAN before resolving or reading a project', async () => {
+  await assert.rejects(
+    executeApprovedPlanInMode('PLAN', 'project-that-does-not-exist'),
+    /PLAN mode does not allow execute-plan/,
   );
 });
 
