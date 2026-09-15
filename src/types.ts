@@ -230,6 +230,7 @@ export type ProjectAgentState =
   | 'REPAIR'
   | 'DONE';
 export type ProjectAgentStepStatus = 'ACTIVE' | 'COMPLETED' | 'SKIPPED' | 'FAILED';
+export type ProjectAgentFileChangeType = 'ADDED' | 'MODIFIED' | 'DELETED';
 
 export interface ProjectAgentEvent {
   version: 1;
@@ -239,6 +240,14 @@ export interface ProjectAgentEvent {
   message: string;
   at: string;
   iteration?: 0 | 1;
+}
+
+export interface ProjectAgentFileChange {
+  ordinal: number;
+  path: string;
+  type: ProjectAgentFileChangeType;
+  beforeContent: string | null;
+  afterContent: string | null;
 }
 
 export interface ProjectAgentRun {
@@ -252,6 +261,7 @@ export interface ProjectAgentRun {
   startedAt: string;
   completedAt?: string;
   events: ProjectAgentEvent[];
+  changes: ProjectAgentFileChange[];
 }
 
 export interface ProjectConversationMessage {
