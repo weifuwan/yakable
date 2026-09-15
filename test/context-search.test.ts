@@ -9,6 +9,7 @@ import {
   resolveProjectContextSearch,
 } from '../src/context/project-context-search.js';
 import type { EditContextSelection } from '../src/context/project-context-selection.js';
+import { resolveProjectEditContext } from '../src/context/project-context.js';
 
 const availableFiles = [
   'src/App.tsx',
@@ -99,6 +100,33 @@ test('uses deterministic fallback when a requested search finds no context', asy
     assert.equal(resolved.source, 'fallback');
     assert.ok(resolved.relevantFiles.includes('src/components/Hero.tsx'));
     assert.ok(resolved.relevantFiles.length > 0);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('resolves the common project edit context path inside the context layer', async () => {
+  const root = await createFixture();
+
+  try {
+    const resolved = await resolveProjectEditContext({
+      projectDirectory: root,
+      userRequest: 'Make this heading larger',
+      visualSelections: [
+        {
+          file: 'src/components/Hero.tsx',
+          line: 1,
+          column: 1,
+          tagName: 'h1',
+          text: 'Build faster',
+          selector: 'h1',
+        },
+      ],
+    });
+
+    assert.ok(resolved.availableFiles.includes('src/components/Hero.tsx'));
+    assert.equal(resolved.contextSelection.source, 'visual');
+    assert.deepEqual(resolved.contextSelection.relevantFiles, ['src/components/Hero.tsx']);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
