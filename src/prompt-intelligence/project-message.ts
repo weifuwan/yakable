@@ -3,6 +3,7 @@ import {
   buildConversationContext,
   type ConversationContextMessage,
 } from '../context/conversation-context.js';
+import { assertModelRequestWithinBudget } from '../context/model-request-budget.js';
 import { resolveDeepSeekRequestConfig } from '../model/deepseek.js';
 import { PROJECT_MESSAGE_INTENT_SYSTEM_PROMPT } from './project-message-prompt.js';
 
@@ -175,6 +176,18 @@ async function requestProjectMessageDecision(
   }
 
   const config = resolveDeepSeekRequestConfig();
+  const messages = [
+    { role: 'system' as const, content: PROJECT_MESSAGE_INTENT_SYSTEM_PROMPT },
+    { role: 'user' as const, content: JSON.stringify(input, null, 2) },
+  ];
+  const maxOutputTokens = Math.min(config.maxTokens, 2_048);
+  assertModelRequestWithinBudget({
+    messages,
+    maxContextTokens: config.contextWindowTokens,
+    reservedOutputTokens: maxOutputTokens,
+    label: 'Project Message Router model request',
+  });
+
   let response: Response;
 
   try {
@@ -186,13 +199,10 @@ async function requestProjectMessageDecision(
       },
       body: JSON.stringify({
         model: config.model,
-        messages: [
-          { role: 'system', content: PROJECT_MESSAGE_INTENT_SYSTEM_PROMPT },
-          { role: 'user', content: JSON.stringify(input, null, 2) },
-        ],
+        messages,
         response_format: { type: 'json_object' },
         thinking: { type: config.thinkingMode },
-        max_tokens: Math.min(config.maxTokens, 2_048),
+        max_tokens: maxOutputTokens,
         stream: false,
       }),
       signal: AbortSignal.timeout(config.requestTimeoutMs),
