@@ -1,3 +1,5 @@
+import type { AgentProtocolItem } from '../../src/protocol/agent-protocol';
+
 export type BuildIntentRoute = 'CREATE' | 'CHAT' | 'CLARIFY';
 export type BuildIntentConfidence = 'high' | 'medium';
 
@@ -35,7 +37,7 @@ export interface ProjectCreationRun {
   summary?: string;
   startedAt: string;
   completedAt?: string;
-  items?: unknown[];
+  items?: AgentProtocolItem[];
 }
 
 export interface ProjectCreationStatus {
