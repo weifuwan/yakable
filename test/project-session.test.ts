@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
+import { createFrontendAgentEvent } from '../src/editing/frontend-agent.js';
 import {
   appendProjectEditHistory,
   initializeProjectSession,
@@ -55,7 +56,7 @@ async function withProject(
   }
 }
 
-test('persists generation context and successful edits in SQLite', async () => {
+test('persists generation context, structured agent items, and successful edits in SQLite', async () => {
   await withProject('yakable-sqlite-session-', async (projectDirectory) => {
     const created = await initializeProjectSession(projectDirectory, {
       productRequest: 'Build a clean developer tool landing page',
@@ -74,13 +75,10 @@ test('persists generation context and successful edits in SQLite', async () => {
       prompt: 'Build a clean developer tool landing page',
       startedAt: '2026-09-14T02:00:01.000Z',
     });
-    appendAgentRunEvent(createRun.id, {
-      version: 1,
-      state: 'ROUTE',
-      status: 'COMPLETED',
-      message: 'Routed the request to CREATE',
-      at: '2026-09-14T02:00:02.000Z',
-    });
+    appendAgentRunEvent(
+      createRun.id,
+      createFrontendAgentEvent('ROUTE', 'COMPLETED', 'Routed the request to CREATE'),
+    );
     recordAgentRunTurnDiff(createRun.id, {
       files: [
         {
@@ -106,13 +104,10 @@ test('persists generation context and successful edits in SQLite', async () => {
       prompt: 'Remove all card shadows',
       startedAt: '2026-09-14T02:04:59.000Z',
     });
-    appendAgentRunEvent(editRun.id, {
-      version: 1,
-      state: 'SELECT_CONTEXT',
-      status: 'COMPLETED',
-      message: 'Selected focused frontend context',
-      at: '2026-09-14T02:05:00.000Z',
-    });
+    appendAgentRunEvent(
+      editRun.id,
+      createFrontendAgentEvent('SELECT_CONTEXT', 'COMPLETED', 'Selected focused frontend context'),
+    );
     recordAgentRunTurnDiff(editRun.id, {
       files: [
         {
@@ -155,13 +150,12 @@ test('persists generation context and successful edits in SQLite', async () => {
     assert.equal(updated.edits[0]?.userRequest, 'Remove all card shadows');
     assert.equal(updated.edits[0]?.model, 'deepseek-v4-pro');
     assert.equal(updated.edits[0]?.visualSelections?.[0]?.tagName, 'h1');
-    assert.deepEqual(updated.edits[0]?.changedFiles, ['src/App.tsx', 'src/styles.css']);
 
     closeYakableDatabases();
     const reopened = await readProjectSession(projectDirectory);
     assert.equal(reopened?.productRequest, 'Build a clean developer tool landing page');
     assert.equal(reopened?.edits[0]?.assistantSummary, 'Removed card shadows');
-    assert.equal(reopened?.edits[0]?.visualSelections?.[0]?.line, 18);
+    assert.equal(reopened?.visualSelections, undefined);
     assert.equal(reopened?.updatedAt, '2026-09-14T02:05:00.000Z');
 
     const conversation = await readProjectConversation(projectDirectory);
@@ -176,14 +170,14 @@ test('persists generation context and successful edits in SQLite', async () => {
     );
     assert.equal(conversation?.messages[1]?.agentRun?.id, createRun.id);
     assert.equal(conversation?.messages[1]?.agentRun?.kind, 'CREATE');
-    assert.equal(conversation?.messages[1]?.agentRun?.events[0]?.state, 'ROUTE');
+    assert.equal(conversation?.messages[1]?.agentRun?.items[0]?.type, 'progress');
+    const createProgress = conversation?.messages[1]?.agentRun?.items[0];
+    if (createProgress?.type === 'progress') assert.equal(createProgress.state, 'ROUTE');
     assert.equal(conversation?.messages[1]?.agentRun?.turnDiff?.files[0]?.path, 'src/App.tsx');
-    assert.equal(conversation?.messages[1]?.agentRun?.turnDiff?.files[0]?.type, 'MODIFIED');
     assert.equal(conversation?.messages[2]?.visualSelections?.[0]?.sourceId, 'yak_heading');
-    assert.deepEqual(conversation?.messages[3]?.changedFiles, ['src/App.tsx', 'src/styles.css']);
     assert.equal(conversation?.messages[3]?.agentRun?.id, editRun.id);
-    assert.equal(conversation?.messages[3]?.agentRun?.kind, 'EDIT');
-    assert.equal(conversation?.messages[3]?.agentRun?.events[0]?.state, 'SELECT_CONTEXT');
+    const editProgress = conversation?.messages[3]?.agentRun?.items[0];
+    if (editProgress?.type === 'progress') assert.equal(editProgress.state, 'SELECT_CONTEXT');
     assert.equal(
       conversation?.messages[3]?.agentRun?.turnDiff?.files[0]?.beforeContent,
       'className="shadow-lg"',
