@@ -214,7 +214,7 @@ export default function App() {
   async function handleCreate(prompt: string): Promise<BuildIntentDecision> {
     const result = await bootstrapProject(prompt);
     if (!result.accepted) {
-      throw new Error(result.decision.message);
+      return result.decision;
     }
 
     setActiveProject(null);
