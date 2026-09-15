@@ -33,6 +33,17 @@ export type {
 } from './context-builder.js';
 
 export {
+  CONVERSATION_CONTEXT_MAX_MESSAGE_CHARS,
+  CONVERSATION_CONTEXT_MAX_MESSAGES,
+  CONVERSATION_CONTEXT_VERSION,
+  buildConversationContext,
+} from './conversation-context.js';
+export type {
+  ConversationContext,
+  ConversationContextMessage,
+} from './conversation-context.js';
+
+export {
   MAX_CONTEXT_SEARCH_QUERY_LENGTH,
   MAX_EDIT_CONTEXT_FILES,
   MAX_PROJECT_CONTEXT_CANDIDATES,
