@@ -1,5 +1,6 @@
 import {
   createAgentRun,
+  failAgentRun,
   type AgentRunRecord,
 } from './agent-run.js';
 import { getYakableDatabase } from './database.js';
@@ -216,9 +217,13 @@ export function failProjectLifecycle(
       : typeof failure === 'string'
         ? failure
         : 'Project creation failed.';
-  return transitionProjectLifecycle(projectId, 'FAILED', {
+  const failed = transitionProjectLifecycle(projectId, 'FAILED', {
     failureMessage: message,
   });
+  if (failed.activeRunId) {
+    failAgentRun(failed.activeRunId, { summary: failed.failureMessage });
+  }
+  return failed;
 }
 
 export function deleteProjectLifecycle(projectId: string): void {
