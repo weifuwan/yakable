@@ -1,6 +1,6 @@
 import 'dotenv/config';
 
-import { generateProject } from '../generation/generate.js';
+import { createDefaultAgentRuntime } from '../agent-runtime/agent-runtime.js';
 import { BuildIntentGateError } from '../prompt-intelligence/build-intent.js';
 
 function usage(): never {
@@ -13,11 +13,13 @@ if (!prompt) {
   usage();
 }
 
+const agentRuntime = createDefaultAgentRuntime();
+
 try {
   console.log('Yakable: Generate project');
   console.log('Checking build intent, then generating source; no build or preview will run.');
 
-  const result = await generateProject(prompt);
+  const result = await agentRuntime.createProject(prompt);
 
   console.log(`Build Intent: ${result.buildIntent.route} · ${result.buildIntent.confidence}`);
   console.log(
