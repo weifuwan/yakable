@@ -25,14 +25,32 @@ export interface FrontendAgentProgressOptions {
   onEvent?: (item: AgentProtocolItem) => void;
 }
 
+let standaloneItemId = 0;
+function nextStandaloneItemId(): string {
+  const cryptoValue = globalThis.crypto?.randomUUID?.();
+  if (cryptoValue) return cryptoValue;
+  standaloneItemId += 1;
+  return `agent-progress-${Date.now()}-${standaloneItemId}`;
+}
+
 export function createFrontendAgentEvent(
   state: FrontendAgentState,
   status: FrontendAgentStepStatus,
   message: string,
   iteration?: 0 | 1,
 ): AgentProgressItem {
-  const recorder = createAgentProtocolRecorder();
-  return recorder.progress(state, status, message, iteration);
+  const timestamp = new Date().toISOString();
+  return {
+    version: AGENT_PROTOCOL_VERSION,
+    id: nextStandaloneItemId(),
+    type: 'progress',
+    state,
+    status,
+    startedAt: timestamp,
+    ...(status === 'ACTIVE' ? {} : { completedAt: timestamp }),
+    message: message.trim().replace(/\s+/g, ' ').slice(0, 1_000),
+    ...(iteration === undefined ? {} : { iteration }),
+  };
 }
 
 export function createFrontendAgentRecorder(
