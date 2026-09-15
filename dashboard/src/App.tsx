@@ -9,8 +9,10 @@ import {
 import {
   bootstrapProject,
   readProjectCreationStatus,
+  type ProjectCreationStatus,
 } from "./create-project";
 import { FrontendAgentActivity } from "./components/FrontendAgentActivity";
+import { BuildingWorkspace } from "./pages/BuildingWorkspace";
 import { Dashboard } from "./pages/Dashboard";
 import type { ActiveProject } from "./pages/Workspace";
 import { WorkspaceShell } from "./pages/WorkspaceShell";
@@ -81,6 +83,7 @@ export default function App() {
   const [activeProject, setActiveProject] = useState<ActiveProject | null>(null);
   const [projectLoading, setProjectLoading] = useState(false);
   const [projectError, setProjectError] = useState("");
+  const [creationStatus, setCreationStatus] = useState<ProjectCreationStatus | null>(null);
   const [pathname, setPathname] = useState(() =>
     normalizePath(window.location.pathname),
   );
@@ -139,11 +142,13 @@ export default function App() {
       setActiveProject(null);
       setProjectLoading(false);
       setProjectError("");
+      setCreationStatus(null);
       return;
     }
 
     if (activeProject?.id === currentRoute.projectId) {
       setProjectLoading(false);
+      setCreationStatus(null);
       return;
     }
 
@@ -154,6 +159,7 @@ export default function App() {
     async function openProject() {
       let creation = await readProjectCreationStatus(currentRoute.projectId);
       if (cancelled) return;
+      setCreationStatus(creation);
 
       while (creation && creation.project.status !== "READY") {
         if (creation.project.status === "FAILED") {
@@ -169,6 +175,7 @@ export default function App() {
         if (!creation) {
           throw new Error("Yakable lost the project creation state before it became ready.");
         }
+        setCreationStatus(creation);
       }
 
       if (cancelled) return;
@@ -184,6 +191,7 @@ export default function App() {
         summary: runtime.session?.initialSummary,
         conversation: runtime.conversation,
       });
+      setCreationStatus(null);
       void reloadProjects().catch((error) => console.error(error));
     }
 
@@ -219,31 +227,55 @@ export default function App() {
 
     setActiveProject(null);
     setProjectError("");
+    setCreationStatus({
+      project: {
+        ...result.project,
+        activeRunId: result.run.id,
+      },
+      run: result.run,
+    });
     navigate(projectPath(result.project.id));
     return result.decision;
   }
 
   async function handleOpen(projectId: string) {
     setActiveProject(null);
+    setCreationStatus(null);
     setProjectError("");
     navigate(projectPath(projectId));
   }
 
   function handleWorkspaceNavigate(path: string) {
     setProjectError("");
+    setCreationStatus(null);
     navigate(path);
   }
 
   if (route.kind === "project") {
+    const buildingCreation =
+      activeProject?.id !== route.projectId && creationStatus?.project.id === route.projectId
+        ? creationStatus
+        : null;
+
     return (
       <>
-        <WorkspaceShell
-          project={activeProject}
-          projectId={route.projectId}
-          projects={projects}
-          error={projectError}
-          onNavigate={handleWorkspaceNavigate}
-        />
+        {buildingCreation ? (
+          <BuildingWorkspace
+            projectId={route.projectId}
+            projects={projects}
+            creation={buildingCreation}
+            error={projectError}
+            onNavigate={handleWorkspaceNavigate}
+          />
+        ) : (
+          <WorkspaceShell
+            project={activeProject}
+            projectId={route.projectId}
+            projects={projects}
+            error={projectError}
+            onNavigate={handleWorkspaceNavigate}
+          />
+        )}
         <FrontendAgentActivity />
       </>
     );
