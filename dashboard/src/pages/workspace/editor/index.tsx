@@ -8,6 +8,10 @@ import {
 
 import { editProject, type ProjectRoute } from "../../../api";
 import { getCurrentPreviewSelections } from "../../../visual-edit-context";
+import {
+  resolvePreviewHeaderMode,
+  restoredChatWidth,
+} from "./adaptive-header";
 import { ChatComposer, ChatTimeline } from "./ChatPanel";
 import { EditorHeader } from "./EditorHeader";
 import { PreviewInteractionToolbar } from "./PreviewInteractionToolbar";
@@ -40,11 +44,40 @@ export function Workspace({
   const [busy, setBusy] = useState(false);
   const [chatWidth, setChatWidth] = useState(DEFAULT_CHAT_WIDTH);
   const [isResizing, setIsResizing] = useState(false);
+  const [panelsWidth, setPanelsWidth] = useState(0);
   const panelsRef = useRef<HTMLDivElement>(null);
   const previewUrl = buildPreviewUrl(runtimeUrl, currentRoute);
+  const previewWidth =
+    panelsWidth > 0
+      ? panelsWidth * (1 - chatWidth / 100)
+      : Number.POSITIVE_INFINITY;
+  const previewHeaderMode = resolvePreviewHeaderMode(previewWidth);
   const [messages, setMessages] = useState<ChatMessage[]>(() =>
     conversationMessages(project.conversation, project.summary),
   );
+
+  useEffect(() => {
+    const panels = panelsRef.current;
+    if (!panels) return;
+
+    function updatePanelsWidth() {
+      setPanelsWidth(panels.getBoundingClientRect().width);
+    }
+
+    updatePanelsWidth();
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", updatePanelsWidth);
+      return () => window.removeEventListener("resize", updatePanelsWidth);
+    }
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      setPanelsWidth(entry?.contentRect.width ?? panels.getBoundingClientRect().width);
+    });
+    observer.observe(panels);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!isResizing) return;
@@ -145,6 +178,11 @@ export function Workspace({
     setRuntimeUrl(url.toString());
   }
 
+  function restorePreviewToolbar() {
+    const width = panelsRef.current?.getBoundingClientRect().width ?? panelsWidth;
+    setChatWidth(restoredChatWidth(width));
+  }
+
   return (
     <div
       className="flex h-screen flex-col overflow-hidden bg-[#f6f6f4] font-sans text-[#252522] antialiased"
@@ -158,6 +196,8 @@ export function Workspace({
         routes={routes}
         currentRoute={currentRoute}
         onRouteChange={setCurrentRoute}
+        previewHeaderMode={previewHeaderMode}
+        onRestorePreview={restorePreviewToolbar}
       />
 
       <div

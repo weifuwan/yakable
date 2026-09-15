@@ -1,6 +1,9 @@
 import { useState, type KeyboardEvent, type ReactNode } from "react";
+import type { PreviewHeaderMode } from "./adaptive-header";
 
 type ViewKey = "preview" | "files" | "code" | "more";
+type PrimaryViewKey = Exclude<ViewKey, "more">;
+type VisiblePreviewHeaderMode = Exclude<PreviewHeaderMode, "collapsed">;
 
 type ViewTab = {
   key: ViewKey;
@@ -12,6 +15,12 @@ type ViewTab = {
   collapsedPaddingLeft: number;
   collapsedPaddingRight: number;
   icon: ReactNode;
+};
+
+type TabMetrics = {
+  width: number;
+  paddingLeft: number;
+  paddingRight: number;
 };
 
 const tabs: ViewTab[] = [
@@ -71,33 +80,80 @@ const tabs: ViewTab[] = [
     collapsedPaddingRight: 4,
     icon: (
       <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4 shrink-0" aria-hidden="true">
-        <path d="M19.6025 15.364C19.9538 15.1445 20.4162 15.2511 20.6357 15.6023C20.8553 15.9535 20.7486 16.416 20.3975 16.6355L13.457 20.9734C12.5655 21.5304 11.4345 21.5304 10.543 20.9734L3.60254 16.6355C3.25136 16.416 3.14474 15.9535 3.36426 15.6023C3.58381 15.2511 4.04624 15.1445 4.39746 15.364L11.3379 19.701C11.7432 19.9542 12.2568 19.9542 12.6621 19.701L19.6025 15.364ZM19.6025 11.364C19.9538 11.1445 20.4162 11.2511 20.6357 11.6023C20.8553 11.9535 20.7486 12.416 20.3975 12.6355L13.457 16.9734C12.5655 17.5304 11.4345 17.5304 10.543 16.9734L3.60254 12.6355C3.25136 12.416 3.14474 11.9535 3.36426 11.6023C3.58381 11.2511 4.04624 11.1445 4.39746 11.364L11.3379 15.701C11.7432 15.9542 12.2568 15.9542 12.6621 15.701L19.6025 11.364ZM11.6963 2.31424C11.9217 2.21433 12.1846 2.23098 12.3975 2.36404L20.3975 7.36404C20.6167 7.5011 20.75 7.74123 20.75 7.99978C20.75 8.25834 20.6167 8.49846 20.3975 8.63553L12.3975 13.6355C12.1543 13.7875 11.8457 13.7875 11.6025 13.6355L3.60254 8.63553C3.38331 8.49846 3.25 8.25834 3.25 7.99978C3.25 7.74123 3.38331 7.5011 3.60254 7.36404L11.6025 2.36404L11.6963 2.31424ZM5.41406 7.99978L12 12.115L18.585 7.99978L12 3.88357L5.41406 7.99978Z" />
+        <path d="M12 17.25C12.9665 17.25 13.75 18.0335 13.75 19C13.75 19.9665 12.9665 20.75 12 20.75C11.0335 20.75 10.25 19.9665 10.25 19C10.25 18.0335 11.0335 17.25 12 17.25ZM12 10.25C12.9665 10.25 13.75 11.0335 13.75 12C13.75 12.9665 12.9665 13.75 12 13.75C11.0335 13.75 10.25 12.9665 10.25 12C10.25 11.0335 11.0335 10.25 12 10.25ZM12 3.25C12.9665 3.25 13.75 4.0335 13.75 5C13.75 5.9665 12.9665 6.75 12 6.75C11.0335 6.75 10.25 5.9665 10.25 5C10.25 4.0335 11.0335 3.25 12 3.25Z" />
       </svg>
     ),
   },
 ];
 
-export function ViewSwitcher() {
+const moreTab = tabs.find((tab) => tab.key === "more")!;
+
+function metricsForTab(
+  tab: ViewTab,
+  active: boolean,
+  mode: VisiblePreviewHeaderMode,
+): TabMetrics {
+  if (mode === "tight") {
+    if (tab.key === "more") {
+      return { width: 29, paddingLeft: 3, paddingRight: 4 };
+    }
+    return { width: 36, paddingLeft: 10, paddingRight: 4 };
+  }
+
+  if (mode === "compact" && tab.key === "more") {
+    return { width: 29, paddingLeft: 3, paddingRight: 4 };
+  }
+
+  return active
+    ? {
+        width: tab.activeWidth,
+        paddingLeft: tab.activePaddingLeft,
+        paddingRight: tab.activePaddingRight,
+      }
+    : {
+        width: tab.collapsedWidth,
+        paddingLeft: tab.collapsedPaddingLeft,
+        paddingRight: tab.collapsedPaddingRight,
+      };
+}
+
+export function ViewSwitcher({
+  mode = "full",
+}: {
+  mode?: VisiblePreviewHeaderMode;
+}) {
   const [activeView, setActiveView] = useState<ViewKey>("preview");
-  const activeIndex = tabs.findIndex((tab) => tab.key === activeView);
-  const tabWidths = tabs.map((tab) =>
-    tab.key === activeView ? tab.activeWidth : tab.collapsedWidth,
+  const [lastPrimaryView, setLastPrimaryView] = useState<PrimaryViewKey>("preview");
+
+  const primaryTab = tabs.find((tab) => tab.key === lastPrimaryView)!;
+  const visibleTabs = mode === "full" ? tabs : [primaryTab, moreTab];
+  const activeIndex = Math.max(
+    0,
+    visibleTabs.findIndex((tab) => tab.key === activeView),
   );
-  const pillLeft = tabWidths
+  const tabMetrics = visibleTabs.map((tab) =>
+    metricsForTab(tab, tab.key === activeView, mode),
+  );
+  const pillLeft = tabMetrics
     .slice(0, activeIndex)
-    .reduce((total, width) => total + width, 0);
-  const pillWidth = Math.max(tabWidths[activeIndex] - 2, 0);
-  const trackWidth = tabWidths.reduce((total, width) => total + width, 0);
+    .reduce((total, metrics) => total + metrics.width, 0);
+  const pillWidth = Math.max(tabMetrics[activeIndex].width - 2, 0);
+  const trackWidth = tabMetrics.reduce((total, metrics) => total + metrics.width, 0);
+
+  function selectView(nextView: ViewKey) {
+    setActiveView(nextView);
+    if (nextView !== "more") setLastPrimaryView(nextView);
+  }
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     let nextIndex = activeIndex;
-    if (event.key === "ArrowRight") nextIndex = (activeIndex + 1) % tabs.length;
-    else if (event.key === "ArrowLeft") nextIndex = (activeIndex - 1 + tabs.length) % tabs.length;
+    if (event.key === "ArrowRight") nextIndex = (activeIndex + 1) % visibleTabs.length;
+    else if (event.key === "ArrowLeft") nextIndex = (activeIndex - 1 + visibleTabs.length) % visibleTabs.length;
     else if (event.key === "Home") nextIndex = 0;
-    else if (event.key === "End") nextIndex = tabs.length - 1;
+    else if (event.key === "End") nextIndex = visibleTabs.length - 1;
     else return;
     event.preventDefault();
-    setActiveView(tabs[nextIndex].key);
+    selectView(visibleTabs[nextIndex].key);
   }
 
   return (
@@ -124,11 +180,14 @@ export function ViewSwitcher() {
               transition: "width 340ms cubic-bezier(0.32, 0.72, 0, 1)",
             }}
           >
-            {tabs.map((tab, index) => {
+            {visibleTabs.map((tab, index) => {
               const active = tab.key === activeView;
-              const width = active ? tab.activeWidth : tab.collapsedWidth;
-              const paddingLeft = active ? tab.activePaddingLeft : tab.collapsedPaddingLeft;
-              const paddingRight = active ? tab.activePaddingRight : tab.collapsedPaddingRight;
+              const metrics = tabMetrics[index];
+              const showLabel =
+                active &&
+                mode !== "tight" &&
+                (mode === "full" || tab.key !== "more");
+
               return (
                 <div key={tab.key} className="contents">
                   <button
@@ -137,23 +196,30 @@ export function ViewSwitcher() {
                     aria-selected={active}
                     aria-label={tab.label}
                     tabIndex={active ? 0 : -1}
-                    onClick={() => setActiveView(tab.key)}
-                    className={`relative z-10 flex h-7 shrink-0 items-center overflow-hidden rounded-full whitespace-nowrap border-0 bg-transparent outline-none transition-[width,padding,color,transform] active:scale-[0.97] ${active ? "cursor-default text-[#0044D2]" : "cursor-pointer text-[#727272] hover:text-[#262626]"}`}
+                    onClick={() => selectView(tab.key)}
+                    className={`relative z-10 flex h-7 shrink-0 items-center overflow-hidden rounded-full whitespace-nowrap border-0 bg-transparent outline-none transition-[width,padding,color,transform] active:scale-[0.97] ${
+                      active
+                        ? "cursor-default text-[#0044D2]"
+                        : "cursor-pointer text-[#727272] hover:text-[#262626]"
+                    }`}
                     style={{
-                      width,
-                      paddingLeft,
-                      paddingRight,
-                      transition: "width 340ms cubic-bezier(0.32, 0.72, 0, 1), padding-left 340ms cubic-bezier(0.32, 0.72, 0, 1), padding-right 340ms cubic-bezier(0.32, 0.72, 0, 1), color 150ms ease-out, transform 120ms ease-out",
+                      width: metrics.width,
+                      paddingLeft: metrics.paddingLeft,
+                      paddingRight: metrics.paddingRight,
+                      transition:
+                        "width 340ms cubic-bezier(0.32, 0.72, 0, 1), padding-left 340ms cubic-bezier(0.32, 0.72, 0, 1), padding-right 340ms cubic-bezier(0.32, 0.72, 0, 1), color 150ms ease-out, transform 120ms ease-out",
                     }}
                   >
-                    <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center">{tab.icon}</span>
+                    <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center">
+                      {tab.icon}
+                    </span>
                     <span
                       className="inline-block shrink-0 select-none overflow-hidden text-ellipsis whitespace-nowrap text-sm font-[450]"
                       style={{
-                        opacity: active ? 1 : 0,
-                        marginLeft: active ? 4 : 0,
-                        maxWidth: active ? 180 : 0,
-                        transition: active
+                        opacity: showLabel ? 1 : 0,
+                        marginLeft: showLabel ? 4 : 0,
+                        maxWidth: showLabel ? 180 : 0,
+                        transition: showLabel
                           ? "opacity 220ms ease-out 80ms, margin-left 340ms cubic-bezier(0.32,0.72,0,1), max-width 340ms cubic-bezier(0.32,0.72,0,1)"
                           : "opacity 80ms ease-out, margin-left 340ms cubic-bezier(0.32,0.72,0,1), max-width 340ms cubic-bezier(0.32,0.72,0,1)",
                       }}
@@ -161,14 +227,18 @@ export function ViewSwitcher() {
                       {tab.label}
                     </span>
                   </button>
-                  {index < tabs.length - 1 ? (
+                  {index < visibleTabs.length - 1 ? (
                     <span
                       aria-hidden="true"
                       className="pointer-events-none absolute top-1/2 h-3 w-px -translate-y-1/2 bg-black/[0.10]"
                       style={{
-                        left: tabWidths.slice(0, index + 1).reduce((total, currentWidth) => total + currentWidth, 0),
-                        opacity: activeIndex === index || activeIndex === index + 1 ? 0 : 1,
-                        transition: "left 340ms cubic-bezier(0.32, 0.72, 0, 1), opacity 80ms ease-out",
+                        left: tabMetrics
+                          .slice(0, index + 1)
+                          .reduce((total, current) => total + current.width, 0),
+                        opacity:
+                          activeIndex === index || activeIndex === index + 1 ? 0 : 1,
+                        transition:
+                          "left 340ms cubic-bezier(0.32, 0.72, 0, 1), opacity 80ms ease-out",
                       }}
                     />
                   ) : null}
