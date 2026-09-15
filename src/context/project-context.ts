@@ -59,6 +59,7 @@ export interface ResolveProjectEditContextInput {
   userRequest: string;
   visualSelections: ProjectVisualSelection[];
   editIntent?: EditIntentDelta;
+  assertActive?: () => void;
 }
 
 export interface ResolvedProjectEditContext {
@@ -132,7 +133,9 @@ export async function listProjectContextFiles(projectDirectory: string): Promise
 export async function resolveProjectEditContext(
   input: ResolveProjectEditContextInput,
 ): Promise<ResolvedProjectEditContext> {
+  input.assertActive?.();
   const availableFiles = await listProjectContextFiles(input.projectDirectory);
+  input.assertActive?.();
   const initialSelection = await selectProjectContextFiles(
     {
       userRequest: input.userRequest,
@@ -141,12 +144,14 @@ export async function resolveProjectEditContext(
     },
     availableFiles,
   );
+  input.assertActive?.();
   const contextSelection = await resolveProjectContextSearch(
     input.projectDirectory,
     input.userRequest,
     availableFiles,
     initialSelection,
   );
+  input.assertActive?.();
   return { availableFiles, contextSelection };
 }
 
