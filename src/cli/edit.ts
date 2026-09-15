@@ -1,6 +1,6 @@
 import 'dotenv/config';
 
-import { editGeneratedProject } from '../editing/edit.js';
+import { createDefaultAgentRuntime } from '../agent-runtime/agent-runtime.js';
 
 function usage(): never {
   console.error(
@@ -16,11 +16,13 @@ if (!projectInput || !followUpRequest) {
   usage();
 }
 
+const agentRuntime = createDefaultAgentRuntime();
+
 try {
   console.log('Yakable: Frontend Agent v0');
   console.log('Running the bounded frontend edit states before browser observation.');
 
-  const result = await editGeneratedProject(projectInput, followUpRequest, {
+  const result = await agentRuntime.editProject(projectInput, followUpRequest, {
     onEvent(event) {
       console.log(`[${event.state}] ${event.status}: ${event.message}`);
     },
