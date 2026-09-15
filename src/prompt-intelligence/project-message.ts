@@ -1,6 +1,9 @@
 import { generateProjectChatReply } from '../conversation/project-chat.js';
+import {
+  buildConversationContext,
+  type ConversationContextMessage,
+} from '../context/conversation-context.js';
 import { resolveDeepSeekRequestConfig } from '../model/deepseek.js';
-import type { ProjectConversationMessage } from '../types.js';
 import { PROJECT_MESSAGE_INTENT_SYSTEM_PROMPT } from './project-message-prompt.js';
 
 export type ProjectMessageRoute = 'CHAT' | 'CLARIFY' | 'BUILD' | 'EDIT';
@@ -16,7 +19,7 @@ export interface ProjectMessageDecision {
 export interface ProjectMessageIntentInput {
   userInput: string;
   hasGeneratedUi: boolean;
-  recentConversation: Array<Pick<ProjectConversationMessage, 'role' | 'content'>>;
+  recentConversation: readonly ConversationContextMessage[];
 }
 
 interface DeepSeekChatResponse {
@@ -31,8 +34,6 @@ interface DeepSeekChatResponse {
 }
 
 const MAX_USER_INPUT = 8_000;
-const MAX_RECENT_MESSAGES = 10;
-const MAX_RECENT_MESSAGE_LENGTH = 1_500;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -150,13 +151,7 @@ function normalizedInput(input: ProjectMessageIntentInput): ProjectMessageIntent
   return {
     userInput,
     hasGeneratedUi: input.hasGeneratedUi,
-    recentConversation: input.recentConversation
-      .slice(-MAX_RECENT_MESSAGES)
-      .map((message) => ({
-        role: message.role,
-        content: message.content.trim().slice(0, MAX_RECENT_MESSAGE_LENGTH),
-      }))
-      .filter((message) => message.content.length > 0),
+    recentConversation: buildConversationContext(input.recentConversation).messages,
   };
 }
 
