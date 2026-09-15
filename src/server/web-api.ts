@@ -1,11 +1,17 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
-import type {
-  AgentClientToolResult,
-  UnifiedEditRunResult,
+import {
+  cancelUnifiedEditRun,
+  type AgentClientToolResult,
+  type UnifiedEditRunResult,
 } from '../agent-runtime/edit-run.js';
 import { createPersistedAgentRecorder } from '../agent-runtime/persisted-recorder.js';
+import {
+  isOperationCancelled,
+  OperationCancelledError,
+  withOperationCancellation,
+} from '../operation-cancellation.js';
 import type { AgentProtocolItem } from '../protocol/agent-protocol.js';
 import type { ProjectUpdate } from '../projects/project-actions.js';
 import { completeAgentRun, readAgentRun } from '../storage/agent-run.js';
@@ -52,6 +58,11 @@ export interface YakableApiServer {
   server: Server;
   listen(port?: number, host?: string): Promise<string>;
   close(): Promise<void>;
+}
+
+interface RequestCancellation {
+  signal: AbortSignal;
+  dispose(): void;
 }
 
 function assertProjectId(value: string): string {
@@ -155,6 +166,7 @@ function startNdjson(response: ServerResponse): void {
 }
 
 function writeNdjson(response: ServerResponse, value: unknown): void {
+  if (response.writableEnded || response.destroyed) return;
   response.write(`${JSON.stringify(value)}\n`);
 }
 
@@ -162,6 +174,31 @@ function isClientError(error: Error): boolean {
   return /required|invalid|too large|too long|does not exist|missing|must|not valid json|pending|waiting|unsupported/i.test(
     error.message,
   );
+}
+
+function requestCancellation(
+  request: IncomingMessage,
+  response: ServerResponse,
+): RequestCancellation {
+  const controller = new AbortController();
+  const abort = () => {
+    if (controller.signal.aborted || response.writableEnded) return;
+    controller.abort(new OperationCancelledError());
+  };
+  const onRequestAborted = () => abort();
+  const onResponseClose = () => abort();
+
+  request.once('aborted', onRequestAborted);
+  response.once('close', onResponseClose);
+  if (request.aborted || response.destroyed) abort();
+
+  return {
+    signal: controller.signal,
+    dispose() {
+      request.off('aborted', onRequestAborted);
+      response.off('close', onResponseClose);
+    },
+  };
 }
 
 function addRevision(url: string): string {
@@ -425,27 +462,46 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
         return;
       }
 
+      const cancelRunRoute = url.pathname.match(/^\/api\/agent-runs\/([^/]+)\/cancel$/);
+      if (method === 'POST' && cancelRunRoute) {
+        const runId = decodeURIComponent(cancelRunRoute[1] ?? '').trim();
+        if (!runId) throw new Error('Agent run id is required.');
+        const cancelled = cancelUnifiedEditRun(runId);
+        sendJson(response, 200, { ok: true, runId, cancelled });
+        return;
+      }
+
       const continuationRoute = url.pathname.match(/^\/api\/agent-runs\/([^/]+)\/client-tool-result$/);
       if (method === 'POST' && continuationRoute) {
         const runId = decodeURIComponent(continuationRoute[1] ?? '').trim();
         if (!runId) throw new Error('Agent run id is required.');
         const body = await readJsonBody(request);
+        const cancellation = requestCancellation(request, response);
         startNdjson(response);
         try {
-          const result = await services.continueEditRun(
-            runId,
-            readClientToolResult(body),
-            (item) => writeNdjson(response, { type: 'agent-item', item }),
+          const result = await withOperationCancellation(cancellation.signal, () =>
+            services.continueEditRun(
+              runId,
+              readClientToolResult(body),
+              (item) => writeNdjson(response, { type: 'agent-item', item }),
+            ),
           );
+          if (cancellation.signal.aborted) throw new OperationCancelledError();
           writeNdjson(response, {
             type: result.status === 'WAITING_FOR_CLIENT_TOOL' ? 'await-client-tool' : 'result',
             result: await editRunPayload(result),
           });
         } catch (error) {
-          const normalized = error instanceof Error ? error : new Error('Unknown Agent continuation failure.');
-          writeNdjson(response, { type: 'error', error: normalized.message });
+          if (isOperationCancelled(error) || cancellation.signal.aborted) {
+            cancelUnifiedEditRun(runId);
+          } else {
+            const normalized = error instanceof Error ? error : new Error('Unknown Agent continuation failure.');
+            writeNdjson(response, { type: 'error', error: normalized.message });
+          }
+        } finally {
+          cancellation.dispose();
+          if (!response.writableEnded && !response.destroyed) response.end();
         }
-        response.end();
         return;
       }
 
@@ -608,38 +664,77 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
         const body = await readJsonBody(request);
         if (action === 'message') {
           if (!services.message) throw new Error('Project message routing is not available.');
-          sendJson(response, 200, await services.message(projectId, readPrompt(body)));
+          const cancellation = requestCancellation(request, response);
+          try {
+            const result = await withOperationCancellation(cancellation.signal, () =>
+              services.message!(projectId, readPrompt(body)),
+            );
+            if (cancellation.signal.aborted) throw new OperationCancelledError();
+            if (!response.destroyed) sendJson(response, 200, result);
+          } catch (error) {
+            if (isOperationCancelled(error) || cancellation.signal.aborted) {
+              if (!response.headersSent && !response.destroyed) {
+                sendJson(response, 499, { error: 'Stopped by user.' });
+              }
+            } else {
+              throw error;
+            }
+          } finally {
+            cancellation.dispose();
+          }
           return;
         }
 
         const prompt = readPrompt(body);
+        const cancellation = requestCancellation(request, response);
         startNdjson(response);
+        let runId = '';
         try {
-          let runId = '';
-          const result = await services.beginEditRun(
-            projectId,
-            prompt,
-            (createdRunId) => {
-              runId = createdRunId;
-              writeNdjson(response, { type: 'run-started', runId: createdRunId });
-            },
-            (item) => writeNdjson(response, { type: 'agent-item', item }),
+          const result = await withOperationCancellation(cancellation.signal, () =>
+            services.beginEditRun(
+              projectId,
+              prompt,
+              (createdRunId) => {
+                runId = createdRunId;
+                writeNdjson(response, { type: 'run-started', runId: createdRunId });
+              },
+              (item) => writeNdjson(response, { type: 'agent-item', item }),
+            ),
           );
-          if (!runId) writeNdjson(response, { type: 'run-started', runId: result.runId });
+          if (cancellation.signal.aborted) throw new OperationCancelledError();
+          if (!runId) {
+            runId = result.runId;
+            writeNdjson(response, { type: 'run-started', runId: result.runId });
+          }
           writeNdjson(response, {
             type: result.status === 'WAITING_FOR_CLIENT_TOOL' ? 'await-client-tool' : 'result',
             result: await editRunPayload(result),
           });
         } catch (error) {
-          const normalized = error instanceof Error ? error : new Error('Unknown agent edit failure.');
-          writeNdjson(response, { type: 'error', error: normalized.message });
+          if (isOperationCancelled(error) || cancellation.signal.aborted) {
+            if (runId) cancelUnifiedEditRun(runId);
+          } else {
+            const normalized = error instanceof Error ? error : new Error('Unknown agent edit failure.');
+            writeNdjson(response, { type: 'error', error: normalized.message });
+          }
+        } finally {
+          cancellation.dispose();
+          if (!response.writableEnded && !response.destroyed) response.end();
         }
-        response.end();
         return;
       }
 
       sendJson(response, 404, { error: 'Not found.' });
     } catch (error) {
+      if (isOperationCancelled(error)) {
+        if (!response.headersSent && !response.destroyed) {
+          sendJson(response, 499, { error: 'Stopped by user.' });
+        } else if (!response.writableEnded && !response.destroyed) {
+          response.end();
+        }
+        return;
+      }
+
       const normalized = error instanceof Error ? error : new Error('Unknown API failure.');
       console.error('[Yakable API]', normalized);
       if (!response.headersSent) {
