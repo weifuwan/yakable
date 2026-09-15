@@ -1,6 +1,7 @@
 import {
   AGENT_PROGRESS_STATES,
   parseAgentProtocolItem,
+  type AgentItemStatus,
   type AgentProgressItem,
   type AgentProgressState,
   type AgentProtocolItem,
@@ -9,6 +10,7 @@ import {
 
 export const FRONTEND_AGENT_STATES = AGENT_PROGRESS_STATES;
 export type FrontendAgentState = AgentProgressState;
+export type FrontendAgentStepStatus = AgentItemStatus;
 export type FrontendAgentEvent = AgentProtocolItem;
 export interface FrontendAgentProgressDetail extends AgentProtocolItemUpdateDetail {}
 
