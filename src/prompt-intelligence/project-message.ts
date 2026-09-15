@@ -1,7 +1,8 @@
 import { generateProjectChatReply } from '../conversation/project-chat.js';
-import { resolveDeepSeekRequestConfig } from '../model/deepseek.js';
+import { requestProjectMessageDecision } from '../model/capabilities.js';
+import { defaultModelClient } from '../model/default-client.js';
+import type { ModelClient } from '../model/model-client.js';
 import type { ProjectConversationMessage } from '../types.js';
-import { PROJECT_MESSAGE_INTENT_SYSTEM_PROMPT } from './project-message-prompt.js';
 
 export type ProjectMessageRoute = 'CHAT' | 'CLARIFY' | 'BUILD' | 'EDIT';
 export type ProjectMessageConfidence = 'high' | 'medium';
@@ -19,17 +20,6 @@ export interface ProjectMessageIntentInput {
   recentConversation: Array<Pick<ProjectConversationMessage, 'role' | 'content'>>;
 }
 
-interface DeepSeekChatResponse {
-  choices?: Array<{
-    message?: {
-      content?: string | null;
-    };
-  }>;
-  error?: {
-    message?: string;
-  };
-}
-
 const MAX_USER_INPUT = 8_000;
 const MAX_RECENT_MESSAGES = 10;
 const MAX_RECENT_MESSAGE_LENGTH = 1_500;
@@ -39,9 +29,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function readRoute(value: unknown): ProjectMessageRoute {
-  if (value === 'CHAT' || value === 'CLARIFY' || value === 'BUILD' || value === 'EDIT') {
-    return value;
-  }
+  if (value === 'CHAT' || value === 'CLARIFY' || value === 'BUILD' || value === 'EDIT') return value;
   throw new Error('Project Message Router returned an invalid route.');
 }
 
@@ -64,11 +52,9 @@ export function parseProjectMessageDecision(raw: string): ProjectMessageDecision
   } catch {
     throw new Error('Project Message Router returned invalid JSON.');
   }
-
   if (!isRecord(parsed) || parsed.version !== 1) {
     throw new Error('Project Message Router returned an unsupported decision version.');
   }
-
   return {
     version: 1,
     route: readRoute(parsed.route),
@@ -78,65 +64,26 @@ export function parseProjectMessageDecision(raw: string): ProjectMessageDecision
 }
 
 function fastChatDecision(message: string): ProjectMessageDecision {
-  return {
-    version: 1,
-    route: 'CHAT',
-    confidence: 'high',
-    message,
-  };
+  return { version: 1, route: 'CHAT', confidence: 'high', message };
 }
 
 export function detectObviousProjectMessageIntent(
   input: Pick<ProjectMessageIntentInput, 'userInput'>,
 ): ProjectMessageDecision | null {
   const normalized = input.userInput.trim();
-  const compact = normalized
-    .toLowerCase()
-    .replace(/[!！,.，。?？~～\s]+$/u, '')
-    .trim();
+  const compact = normalized.toLowerCase().replace(/[!！,.，。?？~～\s]+$/u, '').trim();
 
   const acknowledgements = new Set([
-    'good',
-    'great',
-    'nice',
-    'cool',
-    'ok',
-    'okay',
-    'thanks',
-    'thank you',
-    'got it',
-    '好的',
-    '好',
-    '可以',
-    '行',
-    '不错',
-    '很好',
-    '明白了',
-    '知道了',
-    '谢谢',
+    'good', 'great', 'nice', 'cool', 'ok', 'okay', 'thanks', 'thank you', 'got it',
+    '好的', '好', '可以', '行', '不错', '很好', '明白了', '知道了', '谢谢',
   ]);
-
-  if (acknowledgements.has(compact)) {
-    return fastChatDecision('Acknowledgement; no UI change requested.');
-  }
+  if (acknowledgements.has(compact)) return fastChatDecision('Acknowledgement; no UI change requested.');
 
   const greetings = new Set(['hi', 'hello', 'hey', '你好', '您好', '嗨', '哈喽']);
-  if (greetings.has(compact)) {
-    return fastChatDecision('Greeting; no UI change requested.');
-  }
+  if (greetings.has(compact)) return fastChatDecision('Greeting; no UI change requested.');
 
-  const identityQuestions = new Set([
-    'who are you',
-    'what are you',
-    '你是谁',
-    '你是誰',
-    '你是什么',
-    '你是什麼',
-  ]);
-  if (identityQuestions.has(compact)) {
-    return fastChatDecision('Identity question; no UI change requested.');
-  }
-
+  const identityQuestions = new Set(['who are you', 'what are you', '你是谁', '你是誰', '你是什么', '你是什麼']);
+  if (identityQuestions.has(compact)) return fastChatDecision('Identity question; no UI change requested.');
   return null;
 }
 
@@ -146,7 +93,6 @@ function normalizedInput(input: ProjectMessageIntentInput): ProjectMessageIntent
   if (userInput.length > MAX_USER_INPUT) {
     throw new Error(`Project message is too long (max ${MAX_USER_INPUT} characters).`);
   }
-
   return {
     userInput,
     hasGeneratedUi: input.hasGeneratedUi,
@@ -160,67 +106,16 @@ function normalizedInput(input: ProjectMessageIntentInput): ProjectMessageIntent
   };
 }
 
-async function requestProjectMessageDecision(
-  input: ProjectMessageIntentInput,
-): Promise<ProjectMessageDecision> {
-  const apiKey = process.env.DEEPSEEK_API_KEY?.trim();
-  if (!apiKey) {
-    throw new Error('DEEPSEEK_API_KEY is required. Copy .env.example to .env and add your key.');
-  }
-
-  const config = resolveDeepSeekRequestConfig();
-  let response: Response;
-
-  try {
-    response = await fetch(`${config.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: config.model,
-        messages: [
-          { role: 'system', content: PROJECT_MESSAGE_INTENT_SYSTEM_PROMPT },
-          { role: 'user', content: JSON.stringify(input, null, 2) },
-        ],
-        response_format: { type: 'json_object' },
-        thinking: { type: config.thinkingMode },
-        max_tokens: Math.min(config.maxTokens, 2_048),
-        stream: false,
-      }),
-      signal: AbortSignal.timeout(config.requestTimeoutMs),
-    });
-  } catch (error) {
-    if (error instanceof Error && /abort|timeout|timed out/i.test(`${error.name} ${error.message}`)) {
-      throw new Error('Project Message Router timed out. Please try again.');
-    }
-    throw error;
-  }
-
-  const rawBody = await response.text();
-  let payload: DeepSeekChatResponse;
-  try {
-    payload = JSON.parse(rawBody) as DeepSeekChatResponse;
-  } catch {
-    throw new Error(`DeepSeek returned a non-JSON response during Project Message Router (${response.status}).`);
-  }
-
-  if (!response.ok) {
-    const message = payload.error?.message?.trim();
-    throw new Error(message ? `DeepSeek API error: ${message}` : `DeepSeek API error: HTTP ${response.status}`);
-  }
-
-  const content = payload.choices?.[0]?.message?.content?.trim();
-  if (!content) throw new Error('Project Message Router returned an empty response.');
-  return parseProjectMessageDecision(content);
-}
-
 export async function classifyProjectMessageIntent(
   input: ProjectMessageIntentInput,
+  modelClient: ModelClient = defaultModelClient,
 ): Promise<ProjectMessageDecision> {
   const normalized = normalizedInput(input);
-  const routed = detectObviousProjectMessageIntent(normalized) ?? await requestProjectMessageDecision(normalized);
+  const obvious = detectObviousProjectMessageIntent(normalized);
+  const routed = obvious ?? parseProjectMessageDecision((await requestProjectMessageDecision(
+    modelClient,
+    JSON.stringify(normalized, null, 2),
+  )).content);
 
   if (routed.route === 'CHAT' || routed.route === 'CLARIFY') {
     const reply = await generateProjectChatReply({
@@ -228,11 +123,8 @@ export async function classifyProjectMessageIntent(
       userInput: normalized.userInput,
       hasGeneratedUi: normalized.hasGeneratedUi,
       recentConversation: normalized.recentConversation,
-    });
-    return {
-      ...routed,
-      message: reply.message,
-    };
+    }, modelClient);
+    return { ...routed, message: reply.message };
   }
 
   return routed;
