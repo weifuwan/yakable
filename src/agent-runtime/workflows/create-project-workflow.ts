@@ -5,10 +5,7 @@ import {
   createProjectChangeManager,
   parseProjectPatch,
 } from '../../editing/project-change.js';
-import {
-  listProjectContextFiles,
-  readProjectSnapshot,
-} from '../../editing/project-context.js';
+import { listProjectContextFiles } from '../../editing/project-context.js';
 import type { FrontendAgentProgressOptions } from '../../editing/frontend-agent.js';
 import { runOneShotRepair } from '../../editing/repair.js';
 import { normalizeModelJsonObject } from '../../generation/model-output.js';
@@ -16,7 +13,7 @@ import {
   buildTemplateGenerationRequest,
   selectProjectTemplate,
 } from '../../generation/template.js';
-import { requestProjectCode, requestProjectRepair } from '../../model/deepseek.js';
+import { requestProjectCode, requestProjectRepair } from '../../model/capabilities.js';
 import { assertModeCapability, type YakableMode } from '../../modes/mode-contract.js';
 import {
   BuildIntentGateError,
@@ -38,7 +35,6 @@ import {
 import { createAgentRun } from '../../storage/agent-run.js';
 import { upsertAgentRunItem } from '../../storage/agent-run-item.js';
 import { recordAgentRunTurnDiff } from '../../storage/agent-run-turn-diff.js';
-import { checkProjectTool } from '../../tools/check-project.js';
 import type {
   BuildIntentDecision,
   GeneratedProject,
@@ -47,6 +43,11 @@ import type {
 } from '../../types.js';
 import { workspaceChangedPaths } from '../../workspace/change-set.js';
 import { TurnDiffTracker } from '../../workspace/turn-diff.js';
+import {
+  checkWorkflowProject,
+  readWorkflowProjectSnapshot,
+  type AgentWorkflowContext,
+} from '../workflow-context.js';
 
 const PROJECT_GENERATION_MAX_ATTEMPTS = 2;
 
@@ -117,6 +118,7 @@ export function buildProjectGenerationRecoveryRequest(
 }
 
 export async function runCreateProjectWorkflow(
+  context: AgentWorkflowContext,
   prompt: string,
   options: CreateProjectWorkflowOptions = {},
 ): Promise<GenerationResult> {
@@ -126,7 +128,7 @@ export async function runCreateProjectWorkflow(
     throw new Error('Prompt is too long. Project generation accepts at most 12,000 characters.');
   }
 
-  const mode = options.mode ?? 'BUILD';
+  const mode = options.mode ?? context.mode;
   assertModeCapability(mode, 'generate-source');
 
   let agentRunId: string | undefined;
@@ -148,7 +150,7 @@ export async function runCreateProjectWorkflow(
     'ROUTE',
     'Classifying the request for Build mode',
     (decision) => `Routed the request to ${decision.route} with ${decision.confidence} confidence`,
-    async () => options.buildIntent ?? classifyBuildIntent(normalizedPrompt),
+    async () => options.buildIntent ?? classifyBuildIntent(normalizedPrompt, context.modelClient),
   );
   if (buildIntent.route !== 'CREATE') throw new BuildIntentGateError(buildIntent);
 
@@ -157,7 +159,7 @@ export async function runCreateProjectWorkflow(
     'UNDERSTAND',
     'Understanding the requested product and page structure',
     (result) => `Understood ${result.productType} as a ${result.pageType} experience`,
-    () => analyzePromptIntent(normalizedPrompt),
+    () => analyzePromptIntent(normalizedPrompt, context.modelClient),
   );
 
   const semanticExpansion = await runAgentStage(
@@ -165,7 +167,7 @@ export async function runCreateProjectWorkflow(
     'UNDERSTAND',
     'Expanding conservative product defaults from the request',
     (result) => `Resolved ${result.defaults.length} product default(s) and ${result.assumptions.length} assumption(s)`,
-    () => expandPromptSemantics(normalizedPrompt, intent),
+    () => expandPromptSemantics(normalizedPrompt, intent, context.modelClient),
   );
 
   const design = await runAgentStage(
@@ -178,6 +180,7 @@ export async function runCreateProjectWorkflow(
         normalizedPrompt,
         intent,
         semanticExpansion,
+        context.modelClient,
       );
       const designIntent = buildDesignIntent(intent, semanticExpansion, tasteTranslation);
       return { tasteTranslation, designIntent };
@@ -204,13 +207,14 @@ export async function runCreateProjectWorkflow(
     'Generating the project-owned frontend layer',
     (result) => `Generated ${result.project.files.length} project-owned file(s)`,
     async () => {
-      let generation = await requestProjectCode(generationRequest);
+      let generation = await requestProjectCode(context.modelClient, generationRequest);
       let project: GeneratedProject;
       try {
         project = parseProjectGeneration(generation.content, template);
       } catch (firstFailure) {
         try {
           generation = await requestProjectCode(
+            context.modelClient,
             buildProjectGenerationRecoveryRequest(generationRequest, firstFailure),
           );
           project = parseProjectGeneration(generation.content, template);
@@ -266,10 +270,7 @@ export async function runCreateProjectWorkflow(
     };
     const changeManager = createProjectChangeManager(resolvedProject);
     agent.emit('CHECK', 'ACTIVE', 'Checking TypeScript and production build health');
-    const initialCheck = await checkProjectTool.execute(
-      {},
-      { projectDirectory: outputDirectory, agent },
-    );
+    const initialCheck = await checkWorkflowProject(context, outputDirectory, agent);
 
     if (initialCheck.ok && initialCheck.value.status === 'PASS') {
       agent.emit('CHECK', 'COMPLETED', 'TypeScript and production build checks passed');
@@ -287,16 +288,17 @@ export async function runCreateProjectWorkflow(
         selectedContextFiles: initialChangedFiles,
         availableFiles,
         initialCheck,
-        readFiles: async (paths) => (await readProjectSnapshot(resolvedProject, paths)).files,
-        requestRepair: requestProjectRepair,
+        readFiles: async (paths) => (
+          await readWorkflowProjectSnapshot(context, resolvedProject, paths, agent)
+        ).files,
+        requestRepair: (repairContext) => requestProjectRepair(context.modelClient, repairContext),
         parsePatch: parseProjectPatch,
         applyChanges: async (patch) => {
           const changeSet = await applyProjectChanges(changeManager, patch, agent);
           turnDiff.record(changeSet);
           return changeSet;
         },
-        checkProject: () =>
-          checkProjectTool.execute({}, { projectDirectory: outputDirectory, agent }),
+        checkProject: () => checkWorkflowProject(context, outputDirectory, agent),
       });
 
       agent.emit(
