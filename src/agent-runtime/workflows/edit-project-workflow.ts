@@ -1,8 +1,9 @@
 import {
-  selectProjectContextFiles,
-  type EditContextSelection,
-} from '../../editing/context-selection.js';
-import { resolveProjectContextSearch } from '../../editing/context-search.js';
+  buildProjectEditContext,
+  extractUserEditContext,
+  resolveProjectEditContext,
+} from '../../context/project-context.js';
+import type { EditContextSelection } from '../../context/project-context-selection.js';
 import {
   resolveEditIntentDelta,
   type EditIntentResolution,
@@ -11,11 +12,6 @@ import {
   assertPatchUsesSelectedContext,
   parseProjectPatch,
 } from '../../editing/project-change.js';
-import {
-  buildProjectEditContext,
-  extractUserEditContext,
-  listProjectContextFiles,
-} from '../../editing/project-context.js';
 import type { OneShotRepairResult } from '../../editing/repair.js';
 import { requestProjectPatch, requestProjectRepair } from '../../model/deepseek.js';
 import { throwIfOperationCancelled } from '../../operation-cancellation.js';
@@ -111,19 +107,13 @@ export async function runEditProjectWorkflow(
           visualSelections,
         });
         throwIfOperationCancelled();
-        const availableFiles = await listProjectContextFiles(project.directory);
-        throwIfOperationCancelled();
-        const initialContextSelection = await selectProjectContextFiles(
-          { userRequest, visualSelections, editIntent: editIntent.delta },
-          availableFiles,
-        );
-        throwIfOperationCancelled();
-        const contextSelection = await resolveProjectContextSearch(
-          project.directory,
+        const { availableFiles, contextSelection } = await resolveProjectEditContext({
+          projectDirectory: project.directory,
           userRequest,
-          availableFiles,
-          initialContextSelection,
-        );
+          visualSelections,
+          editIntent: editIntent.delta,
+          assertActive: throwIfOperationCancelled,
+        });
         throwIfOperationCancelled();
         return { editIntent, availableFiles, contextSelection };
       },
