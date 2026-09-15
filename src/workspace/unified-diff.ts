@@ -44,10 +44,9 @@ function manualDeletedDiff(change: WorkspaceFileChange): string {
 }
 
 function normalizeTempDiff(raw: string, relativePath: string): string {
-  const escaped = relativePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return raw
-    .replace(new RegExp(`a/before/${escaped}`, 'g'), `a/${relativePath}`)
-    .replace(new RegExp(`b/after/${escaped}`, 'g'), `b/${relativePath}`)
+    .split(`a/before/${relativePath}`).join(`a/${relativePath}`)
+    .split(`b/after/${relativePath}`).join(`b/${relativePath}`)
     .trim();
 }
 
