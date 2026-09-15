@@ -236,6 +236,11 @@ interface ProjectMessageRoutingResult {
   conversation: ProjectConversation | null;
 }
 
+export interface EditProjectOptions {
+  signal?: AbortSignal;
+  onRunStarted?: (runId: string) => void;
+}
+
 type AgentEditStreamRecord =
   | { type: 'run-started'; runId: string }
   | { type: 'agent-item'; item: unknown }
@@ -244,6 +249,39 @@ type AgentEditStreamRecord =
   | { type: 'error'; error: string };
 
 const PREVIEW_RELOAD_TIMEOUT_MS = 8_000;
+
+function abortError(signal?: AbortSignal): Error {
+  const reason = signal?.reason;
+  if (reason instanceof Error) return reason;
+  const error = new Error(typeof reason === 'string' && reason.trim() ? reason : 'Stopped by user.');
+  error.name = 'AbortError';
+  return error;
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw abortError(signal);
+}
+
+function abortable<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return promise;
+  throwIfAborted(signal);
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const cleanup = () => signal.removeEventListener('abort', onAbort);
+    const settle = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      callback();
+    };
+    const onAbort = () => settle(() => reject(abortError(signal)));
+    signal.addEventListener('abort', onAbort, { once: true });
+    promise.then(
+      (value) => settle(() => resolve(value)),
+      (error) => settle(() => reject(error)),
+    );
+  });
+}
 
 async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
   const response = await fetch(input, {
@@ -299,7 +337,9 @@ async function consumeNdjson<T>(
   response: Response,
   consumeLine: (line: string) => void,
   getResult: () => T | null,
+  signal?: AbortSignal,
 ): Promise<T> {
+  throwIfAborted(signal);
   if (!response.ok) {
     const payload = (await response.json().catch(() => ({}))) as { error?: string };
     throw new Error(payload.error || `Yakable API failed with HTTP ${response.status}.`);
@@ -310,7 +350,9 @@ async function consumeNdjson<T>(
   const decoder = new TextDecoder();
   let buffer = '';
   while (true) {
+    throwIfAborted(signal);
     const chunk = await reader.read();
+    throwIfAborted(signal);
     buffer += decoder.decode(chunk.value ?? new Uint8Array(), { stream: !chunk.done });
     let newline = buffer.indexOf('\n');
     while (newline !== -1) {
@@ -322,25 +364,38 @@ async function consumeNdjson<T>(
     if (chunk.done) break;
   }
   if (buffer.trim()) consumeLine(buffer);
+  throwIfAborted(signal);
   const result = getResult();
   if (!result) throw new Error('Agent stream ended without a result.');
   return result;
 }
 
-async function requestAgentEdit(projectId: string, prompt: string): Promise<EditedProject> {
+async function requestAgentEdit(
+  projectId: string,
+  prompt: string,
+  options: EditProjectOptions,
+): Promise<EditedProject> {
   let runId = '';
   let result: EditedProject | null = null;
+  const rememberRunId = (nextRunId: string) => {
+    if (!nextRunId || nextRunId === runId) return;
+    runId = nextRunId;
+    options.onRunStarted?.(nextRunId);
+  };
+
+  throwIfAborted(options.signal);
   const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}/agent-edit`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ prompt }),
+    signal: options.signal,
   });
   return consumeNdjson(
     response,
     (line) => {
       const record = parseAgentEditStreamRecord(line);
       if (record.type === 'run-started') {
-        runId = record.runId;
+        rememberRunId(record.runId);
       } else if (record.type === 'agent-item') {
         if (!runId) throw new Error('Agent item arrived before the server run id.');
         publishFrontendAgentEvent(runId, parseFrontendAgentEvent(record.item));
@@ -348,10 +403,11 @@ async function requestAgentEdit(projectId: string, prompt: string): Promise<Edit
         throw new Error(record.error);
       } else {
         result = record.result;
-        runId ||= record.result.runId;
+        rememberRunId(record.result.runId);
       }
     },
     () => result,
+    options.signal,
   );
 }
 
@@ -364,12 +420,15 @@ async function continueAgentEdit(
     output?: PreviewPageObservation;
     error?: string;
   },
+  signal?: AbortSignal,
 ): Promise<EditedProject> {
   let result: EditedProject | null = null;
+  throwIfAborted(signal);
   const response = await fetch(`/api/agent-runs/${encodeURIComponent(runId)}/client-tool-result`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(toolResult),
+    signal,
   });
   return consumeNdjson(
     response,
@@ -384,6 +443,7 @@ async function continueAgentEdit(
       }
     },
     () => result,
+    signal,
   );
 }
 
@@ -392,21 +452,35 @@ export async function listProjects(): Promise<ProjectListItem[]> {
   return result.projects;
 }
 
-export function startProjectRuntime(projectId: string): Promise<RuntimeProject> {
+export function startProjectRuntime(
+  projectId: string,
+  signal?: AbortSignal,
+): Promise<RuntimeProject> {
   return requestJson(`/api/projects/${encodeURIComponent(projectId)}/runtime`, {
     method: 'POST',
     body: '{}',
+    signal,
   });
 }
 
 function routeProjectMessage(
   projectId: string,
   prompt: string,
+  signal?: AbortSignal,
 ): Promise<ProjectMessageRoutingResult> {
   return requestJson(`/api/projects/${encodeURIComponent(projectId)}/message`, {
     method: 'POST',
     body: JSON.stringify({ prompt }),
+    signal,
   });
+}
+
+export async function cancelAgentRun(runId: string): Promise<void> {
+  if (!runId.trim()) return;
+  await requestJson<{ ok: true; runId: string; cancelled: boolean }>(
+    `/api/agent-runs/${encodeURIComponent(runId)}/cancel`,
+    { method: 'POST', body: '{}' },
+  );
 }
 
 function currentPreviewFrame(): HTMLIFrameElement | null {
@@ -429,12 +503,15 @@ function reloadPreviewFrame(
   frame: HTMLIFrameElement,
   runtimeUrl: string,
   timeoutMs = PREVIEW_RELOAD_TIMEOUT_MS,
+  signal?: AbortSignal,
 ): Promise<void> {
+  throwIfAborted(signal);
   const nextUrl = preservePreviewRoute(runtimeUrl, frame);
   return new Promise((resolve, reject) => {
     let settled = false;
     const cleanup = () => {
       frame.removeEventListener('load', onLoad);
+      signal?.removeEventListener('abort', onAbort);
       window.clearTimeout(timeout);
     };
     const settle = (callback: () => void) => {
@@ -444,21 +521,27 @@ function reloadPreviewFrame(
       callback();
     };
     const onLoad = () => settle(resolve);
+    const onAbort = () => settle(() => reject(abortError(signal)));
     const timeout = window.setTimeout(() => {
       settle(() => reject(new Error('Preview reload timed out before observation.')));
     }, timeoutMs);
     frame.addEventListener('load', onLoad);
+    signal?.addEventListener('abort', onAbort, { once: true });
     frame.src = nextUrl;
   });
 }
 
-async function executeClientTool(step: EditedProject): Promise<{
+async function executeClientTool(
+  step: EditedProject,
+  signal?: AbortSignal,
+): Promise<{
   toolCallId: string;
   toolName: 'observe_preview';
   status: 'COMPLETED' | 'FAILED';
   output?: PreviewPageObservation;
   error?: string;
 }> {
+  throwIfAborted(signal);
   const request = step.clientTool;
   if (!request || request.toolName !== 'observe_preview') {
     throw new Error('Server requested an unsupported client tool.');
@@ -475,8 +558,10 @@ async function executeClientTool(step: EditedProject): Promise<{
   }
 
   try {
-    await reloadPreviewFrame(frame, step.previewUrl);
-    const observation = await requestPreviewPageObservation(frame);
+    await reloadPreviewFrame(frame, step.previewUrl, PREVIEW_RELOAD_TIMEOUT_MS, signal);
+    throwIfAborted(signal);
+    const observation = await abortable(requestPreviewPageObservation(frame), signal);
+    throwIfAborted(signal);
     return {
       toolCallId: request.toolCallId,
       toolName: 'observe_preview',
@@ -484,6 +569,7 @@ async function executeClientTool(step: EditedProject): Promise<{
       output: observation,
     };
   } catch (error) {
+    if (signal?.aborted) throw abortError(signal);
     return {
       toolCallId: request.toolCallId,
       toolName: 'observe_preview',
@@ -497,7 +583,9 @@ export async function editProject(
   projectId: string,
   prompt: string,
   selections: PreviewSelection[] = getCurrentPreviewSelections(),
+  options: EditProjectOptions = {},
 ): Promise<ProjectMessageResult> {
+  throwIfAborted(options.signal);
   const routed: ProjectMessageRoutingResult = selections.length
     ? {
         decision: {
@@ -508,10 +596,12 @@ export async function editProject(
         },
         conversation: null,
       }
-    : await routeProjectMessage(projectId, prompt);
+    : await routeProjectMessage(projectId, prompt, options.signal);
 
+  throwIfAborted(options.signal);
   if (routed.decision.route === 'CHAT' || routed.decision.route === 'CLARIFY') {
-    const runtime = await startProjectRuntime(projectId);
+    const runtime = await startProjectRuntime(projectId, options.signal);
+    throwIfAborted(options.signal);
     const frame = currentPreviewFrame();
     return {
       ...runtime,
@@ -549,11 +639,14 @@ export async function editProject(
 
   const visualEditPrompt = buildVisualEditPrompt(prompt, selections);
   try {
-    let step = await requestAgentEdit(projectId, visualEditPrompt);
+    let step = await requestAgentEdit(projectId, visualEditPrompt, options);
     while (step.status === 'WAITING_FOR_CLIENT_TOOL') {
-      const toolResult = await executeClientTool(step);
-      step = await continueAgentEdit(step.runId, toolResult);
+      throwIfAborted(options.signal);
+      const toolResult = await executeClientTool(step, options.signal);
+      throwIfAborted(options.signal);
+      step = await continueAgentEdit(step.runId, toolResult, options.signal);
     }
+    throwIfAborted(options.signal);
     return {
       ...step,
       route: routed.decision.route,
