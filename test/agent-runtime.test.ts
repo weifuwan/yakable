@@ -4,6 +4,7 @@ import test from 'node:test';
 import { AgentRuntime } from '../src/agent-runtime/agent-runtime.js';
 import { createAgentRunContext } from '../src/agent-runtime/run-context.js';
 import { ToolRouter } from '../src/agent-runtime/tool-router.js';
+import { readWorkflowProjectSnapshot } from '../src/agent-runtime/workflow-context.js';
 import type { ApprovedPlanWorkflowResult } from '../src/agent-runtime/workflows/approved-plan-workflow.js';
 import type { ModelClient } from '../src/model/model-client.js';
 import type { Tool } from '../src/tools/tool.js';
@@ -74,6 +75,33 @@ test('ToolRouter exposes and executes tools according to mode capabilities', asy
     { projectDirectory: '/tmp/project' },
   );
   assert.deepEqual(allowed, { ok: true, value: 'applied' });
+});
+
+test('workflow project reads execute through the injected ToolRouter', async () => {
+  const calls: string[] = [];
+  const readTool: Tool<unknown, { path: string; content: string; bytes: number }> = {
+    name: 'read_project_file',
+    description: 'Fixture project reader.',
+    async execute(input) {
+      const path = (input as { path: string }).path;
+      calls.push(path);
+      return {
+        ok: true,
+        value: { path, content: 'export default 1;', bytes: 17 },
+      };
+    },
+  };
+  const router = new ToolRouter().register(readTool, { capability: 'read-project' });
+  const runtime = new AgentRuntime({ modelClient, toolRouter: router });
+
+  const snapshot = await readWorkflowProjectSnapshot(
+    runtime.createWorkflowContext('BUILD'),
+    { id: 'fixture', directory: '/does/not/need/to/exist' },
+    ['src/App.tsx'],
+  );
+
+  assert.deepEqual(calls, ['src/App.tsx']);
+  assert.equal(snapshot.files[0]?.content, 'export default 1;');
 });
 
 test('AgentRuntime passes the authoritative model and tool dependencies into workflows', async () => {
