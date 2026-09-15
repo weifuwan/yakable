@@ -1,4 +1,6 @@
-import { requestBuildIntent } from '../model/deepseek.js';
+import { requestBuildIntent } from '../model/capabilities.js';
+import { defaultModelClient } from '../model/default-client.js';
+import type { ModelClient } from '../model/model-client.js';
 import type {
   BuildIntentConfidence,
   BuildIntentDecision,
@@ -37,15 +39,7 @@ export function detectObviousBuildIntent(prompt: string): BuildIntentDecision | 
   const lower = normalized.toLowerCase();
 
   const greetings = new Set([
-    'hi',
-    'hello',
-    'hey',
-    'yo',
-    '你好',
-    '您好',
-    '嗨',
-    '哈喽',
-    '哈啰',
+    'hi', 'hello', 'hey', 'yo', '你好', '您好', '嗨', '哈喽', '哈啰',
   ]);
   const greetingKey = lower.replace(/[!！,.，。?？\s]+$/u, '').trim();
   if (greetings.has(greetingKey)) {
@@ -64,8 +58,7 @@ export function detectObviousBuildIntent(prompt: string): BuildIntentDecision | 
       version: 1,
       route: 'CLARIFY',
       confidence: 'high',
-      message:
-        'Do you want me to create a Hello World page? If yes, try: “Create a Hello World page.”',
+      message: 'Do you want me to create a Hello World page? If yes, try: “Create a Hello World page.”',
     };
   }
 
@@ -92,11 +85,12 @@ export function parseBuildIntentDecision(raw: string): BuildIntentDecision {
   };
 }
 
-export async function classifyBuildIntent(prompt: string): Promise<BuildIntentDecision> {
+export async function classifyBuildIntent(
+  prompt: string,
+  modelClient: ModelClient = defaultModelClient,
+): Promise<BuildIntentDecision> {
   const normalizedPrompt = prompt.trim();
-  if (!normalizedPrompt) {
-    throw new Error('A prompt is required for Build Intent Gate.');
-  }
+  if (!normalizedPrompt) throw new Error('A prompt is required for Build Intent Gate.');
   if (normalizedPrompt.length > MAX_PROMPT_LENGTH) {
     throw new Error('Prompt is too long. Build Intent Gate accepts at most 12,000 characters.');
   }
@@ -105,6 +99,7 @@ export async function classifyBuildIntent(prompt: string): Promise<BuildIntentDe
   if (obvious) return obvious;
 
   const generation = await requestBuildIntent(
+    modelClient,
     JSON.stringify({ userInput: normalizedPrompt }, null, 2),
   );
   return parseBuildIntentDecision(generation.content);
