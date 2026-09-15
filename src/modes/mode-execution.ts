@@ -1,5 +1,7 @@
 import {
   createDefaultAgentRuntime,
+  type ApprovedPlanWorkflowOptions,
+  type ApprovedPlanWorkflowResult,
   type UnifiedEditRunResult,
 } from '../agent-runtime/index.js';
 import type { EditGeneratedProjectOptions } from '../editing/edit.js';
@@ -45,6 +47,16 @@ export function beginEditRunInMode(
 ): Promise<UnifiedEditRunResult> {
   return runModeCapability(mode, 'edit-source', () =>
     agentRuntime.beginEditRun(projectInput, followUpRequest, options, mode),
+  );
+}
+
+export function executeApprovedPlanInMode(
+  mode: YakableMode,
+  projectInput: string,
+  options: Omit<ApprovedPlanWorkflowOptions, 'mode'> = {},
+): Promise<ApprovedPlanWorkflowResult> {
+  return runModeCapability(mode, 'execute-plan', () =>
+    agentRuntime.executeApprovedPlan(projectInput, { ...options, mode }),
   );
 }
 
