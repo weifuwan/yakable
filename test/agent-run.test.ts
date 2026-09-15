@@ -181,7 +181,7 @@ test('persists explicit cancellation even when a stopped progress item was marke
 
     const stored = readAgentRun(run.id);
     assert.equal(stored?.status, 'CANCELLED');
-    assert.equal(stored?.summary, 'This must not turn the run into completed.');
+    assert.equal(stored?.summary, 'Stopped by user.');
     assert.ok(stored?.completedAt);
   });
 });
