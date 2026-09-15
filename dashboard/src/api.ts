@@ -193,24 +193,6 @@ export interface VisualFeedbackResult {
   error?: string;
 }
 
-export interface CreatedProject {
-  id: string;
-  name: string;
-  summary: string;
-  model: string;
-  template: ProjectTemplate;
-  routes: ProjectRoute[];
-  agentRunId?: string;
-  session: ProjectSession | null;
-  conversation: ProjectConversation | null;
-}
-
-export interface CreateProjectResult {
-  decision: BuildIntentDecision;
-  project?: CreatedProject;
-  previewUrl?: string;
-}
-
 export interface RuntimeProject {
   projectId: string;
   name: string;
@@ -254,11 +236,6 @@ interface ProjectMessageRoutingResult {
   conversation: ProjectConversation | null;
 }
 
-type AgentCreateStreamRecord =
-  | { type: 'agent-item'; item: unknown }
-  | { type: 'result'; result: CreateProjectResult }
-  | { type: 'error'; error: string };
-
 type AgentEditStreamRecord =
   | { type: 'run-started'; runId: string }
   | { type: 'agent-item'; item: unknown }
@@ -267,7 +244,6 @@ type AgentEditStreamRecord =
   | { type: 'error'; error: string };
 
 const PREVIEW_RELOAD_TIMEOUT_MS = 8_000;
-let nextCreateRunId = 1;
 
 async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
   const response = await fetch(input, {
@@ -295,18 +271,6 @@ function parseRecord(line: string): Record<string, unknown> {
     if (error instanceof SyntaxError) throw new Error('Agent stream returned invalid JSON.');
     throw error;
   }
-}
-
-function parseAgentCreateStreamRecord(line: string): AgentCreateStreamRecord {
-  const record = parseRecord(line);
-  if (record.type === 'agent-item') return { type: 'agent-item', item: record.item };
-  if (record.type === 'result' && record.result && typeof record.result === 'object') {
-    return { type: 'result', result: record.result as CreateProjectResult };
-  }
-  if (record.type === 'error' && typeof record.error === 'string') {
-    return { type: 'error', error: record.error };
-  }
-  throw new Error('Create Agent stream returned an unknown record type.');
 }
 
 function parseAgentEditStreamRecord(line: string): AgentEditStreamRecord {
@@ -361,30 +325,6 @@ async function consumeNdjson<T>(
   const result = getResult();
   if (!result) throw new Error('Agent stream ended without a result.');
   return result;
-}
-
-async function requestAgentCreate(prompt: string): Promise<CreateProjectResult> {
-  const liveRunId = `create-${Date.now()}-${nextCreateRunId++}`;
-  let result: CreateProjectResult | null = null;
-  const response = await fetch('/api/projects/agent-create', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt }),
-  });
-  return consumeNdjson(
-    response,
-    (line) => {
-      const record = parseAgentCreateStreamRecord(line);
-      if (record.type === 'agent-item') {
-        publishFrontendAgentEvent(liveRunId, parseFrontendAgentEvent(record.item));
-      } else if (record.type === 'error') {
-        throw new Error(record.error);
-      } else {
-        result = record.result;
-      }
-    },
-    () => result,
-  );
 }
 
 async function requestAgentEdit(projectId: string, prompt: string): Promise<EditedProject> {
@@ -450,10 +390,6 @@ async function continueAgentEdit(
 export async function listProjects(): Promise<ProjectListItem[]> {
   const result = await requestJson<{ projects: ProjectListItem[] }>('/api/projects');
   return result.projects;
-}
-
-export function createProject(prompt: string): Promise<CreateProjectResult> {
-  return requestAgentCreate(prompt);
 }
 
 export function startProjectRuntime(projectId: string): Promise<RuntimeProject> {

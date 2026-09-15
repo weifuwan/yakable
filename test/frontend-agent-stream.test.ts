@@ -140,31 +140,6 @@ function progressStates(items: Array<Record<string, unknown>>): string[] {
     .map((item) => `${item.state}:${item.status}`);
 }
 
-test('agent-create streams structured items before the final project result', async () => {
-  const api = createYakableApiServer({ services: services() });
-  const baseUrl = await api.listen(0);
-  try {
-    const response = await fetch(`${baseUrl}/api/projects/agent-create`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: 'Build a SaaS landing page' }),
-    });
-    const streamed = records(await response.text());
-    assert.deepEqual(progressStates(streamed), [
-      'ROUTE:COMPLETED',
-      'UNDERSTAND:COMPLETED',
-      'DESIGN:COMPLETED',
-      'TEMPLATE:COMPLETED',
-      'GENERATE:COMPLETED',
-      'WRITE:COMPLETED',
-      'CHECK:COMPLETED',
-    ]);
-    assert.equal(streamed.at(-1)?.type, 'result');
-  } finally {
-    await api.close();
-  }
-});
-
 test('agent-edit returns the server run id and waits for the browser client tool', async () => {
   const api = createYakableApiServer({ services: services() });
   const baseUrl = await api.listen(0);

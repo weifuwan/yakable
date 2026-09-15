@@ -151,7 +151,7 @@ function asyncCreateServices() {
   };
 }
 
-test('async create bootstrap returns project and run before generation finishes', async () => {
+test('project bootstrap returns a project shell and create lifecycle before generation finishes', async () => {
   const fixture = asyncCreateServices();
   const api = createYakableApiServer({ services: fixture.services });
   const baseUrl = await api.listen(0);
@@ -164,18 +164,23 @@ test('async create bootstrap returns project and run before generation finishes'
     });
 
     assert.equal(response.status, 202);
-    const accepted = await response.json() as {
-      accepted: boolean;
+    const result = await response.json() as {
       decision: BuildIntentDecision;
-      project: { id: string; status: string };
-      run: { id: string; status: string };
+      project: { id: string; name: string };
+      creation: {
+        project: { id: string; status: string; activeRunId?: string };
+        run: { id: string; status: string; items: unknown[] };
+      };
     };
-    assert.equal(accepted.accepted, true);
-    assert.equal(accepted.decision.route, 'CREATE');
-    assert.equal(accepted.project.id, 'async-project-2026-09-15-test');
-    assert.equal(accepted.project.status, 'CREATING');
-    assert.equal(accepted.run.id, 'async-create-run');
-    assert.equal(accepted.run.status, 'RUNNING');
+    assert.equal(result.decision.route, 'CREATE');
+    assert.equal(result.project.id, 'async-project-2026-09-15-test');
+    assert.equal(result.project.name, 'Async Project');
+    assert.equal(result.creation.project.id, result.project.id);
+    assert.equal(result.creation.project.status, 'CREATING');
+    assert.equal(result.creation.project.activeRunId, 'async-create-run');
+    assert.equal(result.creation.run.id, 'async-create-run');
+    assert.equal(result.creation.run.status, 'RUNNING');
+    assert.deepEqual(result.creation.run.items, []);
     assert.equal(fixture.generationStarted(), true);
     assert.equal(fixture.generationFinished(), false);
 
@@ -209,44 +214,69 @@ test('async create bootstrap returns project and run before generation finishes'
   }
 });
 
-test('async bootstrap does not reserve a project for CHAT intent', async () => {
-  const fixture = asyncCreateServices();
-  let bootstrapCalled = false;
-  const services: WebApiServices = {
-    ...fixture.services,
-    async gateBuildIntent() {
-      return {
-        version: 1,
-        route: 'CHAT',
-        confidence: 'high',
-        message: 'Tell me what you want to build.',
-      };
-    },
-    async bootstrapCreate() {
-      bootstrapCalled = true;
-      throw new Error('bootstrapCreate should not be called for CHAT intent.');
-    },
-  };
-
-  const api = createYakableApiServer({ services });
-  const baseUrl = await api.listen(0);
-  try {
-    const response = await fetch(`${baseUrl}/api/projects/bootstrap`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: 'hello' }),
-    });
-    assert.equal(response.status, 200);
-    const result = await response.json() as {
-      accepted: boolean;
-      decision: { route: string };
+for (const route of ['CHAT', 'CLARIFY'] as const) {
+  test(`project bootstrap creates a conversation project for ${route} intent`, async () => {
+    const fixture = asyncCreateServices();
+    let bootstrapCalled = false;
+    let conversationCreated = false;
+    const services: WebApiServices = {
+      ...fixture.services,
+      async gateBuildIntent() {
+        return {
+          version: 1,
+          route,
+          confidence: 'high',
+          message: route === 'CHAT'
+            ? 'Tell me what you want to build.'
+            : 'What would you like me to build?',
+        };
+      },
+      async bootstrapCreate() {
+        bootstrapCalled = true;
+        throw new Error('CREATE lifecycle should not be reserved for conversation-only intent.');
+      },
+      async generate(prompt, decision, _onAgentItem, reservation) {
+        assert.equal(prompt, route === 'CHAT' ? 'hello' : 'Todo App');
+        assert.equal(decision.route, route);
+        assert.equal(reservation, undefined);
+        conversationCreated = true;
+        return {
+          id: `${route.toLowerCase()}-project`,
+          name: route === 'CHAT' ? 'Hello' : 'Todo App',
+          summary: decision.message,
+          model: 'build-intent',
+          template: metadata.template,
+          routes: metadata.routes,
+          session: null,
+          conversation: null,
+        };
+      },
     };
-    assert.equal(result.accepted, false);
-    assert.equal(result.decision.route, 'CHAT');
-    assert.equal(bootstrapCalled, false);
-    assert.equal(fixture.generationStarted(), false);
-  } finally {
-    fixture.releaseGeneration();
-    await api.close();
-  }
-});
+
+    const api = createYakableApiServer({ services });
+    const baseUrl = await api.listen(0);
+    try {
+      const prompt = route === 'CHAT' ? 'hello' : 'Todo App';
+      const response = await fetch(`${baseUrl}/api/projects/bootstrap`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      });
+      assert.equal(response.status, 201);
+      const result = await response.json() as {
+        decision: { route: string };
+        project: { id: string; name: string };
+        creation: unknown;
+      };
+      assert.equal(result.decision.route, route);
+      assert.equal(result.project.id, `${route.toLowerCase()}-project`);
+      assert.equal(result.creation, null);
+      assert.equal(bootstrapCalled, false);
+      assert.equal(conversationCreated, true);
+      assert.equal(fixture.generationStarted(), false);
+    } finally {
+      fixture.releaseGeneration();
+      await api.close();
+    }
+  });
+}

@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import {
   listProjects,
   startProjectRuntime,
-  type BuildIntentDecision,
   type ProjectListItem,
   type RuntimeProject,
 } from "./api";
@@ -284,24 +283,14 @@ export default function App() {
     setPathname(nextPath);
   }
 
-  async function handleCreate(prompt: string): Promise<BuildIntentDecision> {
+  async function handleCreate(prompt: string): Promise<void> {
     const result = await bootstrapProject(prompt);
-    if (!result.accepted) {
-      return result.decision;
-    }
 
     setActiveProject(null);
     setPreviewProject(null);
     setProjectError("");
-    setCreationStatus({
-      project: {
-        ...result.project,
-        activeRunId: result.run.id,
-      },
-      run: result.run,
-    });
+    setCreationStatus(result.creation);
     navigate(projectPath(result.project.id));
-    return result.decision;
   }
 
   async function handleRetryCreate(projectId: string): Promise<void> {

@@ -169,6 +169,19 @@ function addRevision(url: string): string {
   return `${url}${separator}revision=${Date.now()}`;
 }
 
+function creationStatusFromBootstrap(bootstrap: WebCreateProjectBootstrap): WebCreateProjectStatus {
+  return {
+    project: {
+      ...bootstrap.project,
+      activeRunId: bootstrap.run.id,
+    },
+    run: {
+      ...bootstrap.run,
+      items: [],
+    },
+  };
+}
+
 async function runtimePayload(
   projectId: string,
   runtime: RuntimeSession,
@@ -382,59 +395,33 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
         const prompt = readPrompt(body);
         const decision = await services.gateBuildIntent(prompt);
 
-        if (decision.route !== 'CREATE') {
-          sendJson(response, 200, {
-            accepted: false,
+        if (decision.route === 'CREATE') {
+          if (!services.bootstrapCreate) {
+            throw new Error('Async project bootstrap is not available.');
+          }
+
+          const bootstrap = await services.bootstrapCreate(prompt, decision);
+          sendJson(response, 202, {
             decision,
+            project: {
+              id: bootstrap.project.id,
+              name: bootstrap.project.name,
+            },
+            creation: creationStatusFromBootstrap(bootstrap),
           });
+          launchBackgroundCreate(prompt, decision, bootstrap);
           return;
         }
-        if (!services.bootstrapCreate) {
-          throw new Error('Async project bootstrap is not available.');
-        }
 
-        const bootstrap = await services.bootstrapCreate(prompt, decision);
-        sendJson(response, 202, {
-          accepted: true,
-          decision,
-          project: bootstrap.project,
-          run: bootstrap.run,
-        });
-        launchBackgroundCreate(prompt, decision, bootstrap);
-        return;
-      }
-
-      if (method === 'POST' && url.pathname === '/api/projects/agent-create') {
-        const body = await readJsonBody(request);
-        const prompt = readPrompt(body);
-        startNdjson(response);
-        try {
-          const decision = await services.gateBuildIntent(prompt);
-          const project = await services.generate(prompt, decision, (item) => {
-            writeNdjson(response, { type: 'agent-item', item });
-          });
-          const runtime = await ensureGeneratedRuntime(project, (item) => {
-            writeNdjson(response, { type: 'agent-item', item });
-          });
-          writeNdjson(response, {
-            type: 'result',
-            result: { decision, project, previewUrl: addRevision(runtime.url) },
-          });
-        } catch (error) {
-          const normalized = error instanceof Error ? error : new Error('Unknown create agent failure.');
-          writeNdjson(response, { type: 'error', error: normalized.message });
-        }
-        response.end();
-        return;
-      }
-
-      if (method === 'POST' && url.pathname === '/api/projects') {
-        const body = await readJsonBody(request);
-        const prompt = readPrompt(body);
-        const decision = await services.gateBuildIntent(prompt);
         const project = await services.generate(prompt, decision);
-        const runtime = await ensureGeneratedRuntime(project);
-        sendJson(response, 201, { decision, project, previewUrl: addRevision(runtime.url) });
+        sendJson(response, 201, {
+          decision,
+          project: {
+            id: project.id,
+            name: project.name,
+          },
+          creation: null,
+        });
         return;
       }
 
@@ -490,7 +477,6 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
         };
         const bootstrap = await services.bootstrapCreate(previous.project.prompt, decision);
         sendJson(response, 202, {
-          accepted: true,
           retryOf: projectId,
           decision,
           project: bootstrap.project,
