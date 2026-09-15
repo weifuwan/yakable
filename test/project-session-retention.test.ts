@@ -5,6 +5,10 @@ import path from 'node:path';
 import test from 'node:test';
 
 import {
+  CONVERSATION_CONTEXT_HISTORY_MAX_TOKENS,
+  buildConversationContext,
+} from '../src/context/conversation-context.js';
+import {
   appendProjectEditHistory,
   readProjectConversation,
   readProjectSession,
@@ -30,14 +34,14 @@ async function withProject(
   }
 }
 
-test('persists more than forty project edits so Context can compact them later', async () => {
+test('persists long project history while Context keeps one bounded model view', async () => {
   await withProject(async (projectDirectory) => {
     for (let index = 1; index <= 60; index += 1) {
       await appendProjectEditHistory(projectDirectory, {
         userRequest: `Request ${index}`,
         assistantSummary: `Summary ${index}`,
         changedFiles: [],
-        createdAt: `2026-09-15T${String(Math.floor((index - 1) / 60)).padStart(2, '0')}:${String((index - 1) % 60).padStart(2, '0')}:00.000Z`,
+        createdAt: `2026-09-15T00:${String((index - 1) % 60).padStart(2, '0')}:00.000Z`,
       });
     }
 
@@ -50,5 +54,18 @@ test('persists more than forty project edits so Context can compact them later',
     assert.equal(conversation?.messages.length, 120);
     assert.equal(conversation?.messages[0]?.content, 'Request 1');
     assert.equal(conversation?.messages.at(-1)?.content, 'Summary 60');
+
+    const context = buildConversationContext(
+      conversation?.messages.map((message) => ({
+        role: message.role,
+        content: message.content,
+      })) ?? [],
+    );
+    assert.ok(context.compactedHistory);
+    assert.ok(context.compactedMessageCount > 0);
+    assert.ok(context.droppedMessageCount > 0);
+    assert.equal(context.messages.at(-1)?.content, 'Summary 60');
+    assert.ok(context.estimatedHistoryTokens <= CONVERSATION_CONTEXT_HISTORY_MAX_TOKENS);
+    assert.equal(context.budgetUsage.overBudget, false);
   });
 });
