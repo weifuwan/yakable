@@ -17,9 +17,9 @@ import {
   listProjectContextFiles,
 } from '../../editing/project-context.js';
 import type { OneShotRepairResult } from '../../editing/repair.js';
-import type { FrontendAgentEvent, FrontendAgentProgressOptions } from '../../editing/frontend-agent.js';
 import { requestProjectPatch, requestProjectRepair } from '../../model/deepseek.js';
 import { readProjectSession } from '../../projects/project-session.js';
+import type { AgentProtocolItem } from '../../protocol/agent-protocol.js';
 import { resolveGeneratedProject } from '../../runtime/runtime.js';
 import { createAgentRun } from '../../storage/agent-run.js';
 import { recordAgentRunTurnDiff } from '../../storage/agent-run-turn-diff.js';
@@ -30,6 +30,7 @@ import type {
   ProjectVisualSelection,
 } from '../../types.js';
 import type { WorkspaceChangeSet } from '../../workspace/change-set.js';
+import { TurnDiffTracker } from '../../workspace/turn-diff.js';
 import { createPersistedAgentRecorder } from '../persisted-recorder.js';
 import { runSourceEditWorkflow } from './source-edit-workflow.js';
 
@@ -49,12 +50,21 @@ export interface EditProjectWorkflowResult {
   repair: OneShotRepairResult;
   projectCheck: ToolResult<CheckProjectOutput>;
   agentRunId: string;
-  agentTrace: FrontendAgentEvent[];
+  agentTrace: AgentProtocolItem[];
   session: ProjectSessionState | null;
 }
 
-export interface EditProjectWorkflowOptions extends FrontendAgentProgressOptions {
+export interface EditProjectWorkflowOptions {
+  onEvent?: (item: AgentProtocolItem) => void;
   onRunCreated?: (runId: string) => void;
+}
+
+async function persistTurnDiff(runId: string, turnDiff: TurnDiffTracker): Promise<void> {
+  try {
+    recordAgentRunTurnDiff(runId, await turnDiff.snapshot());
+  } catch (error) {
+    console.warn('[Yakable Agent] Agent turn diff could not be persisted.', error);
+  }
 }
 
 export async function runEditProjectWorkflow(
@@ -78,47 +88,51 @@ export async function runEditProjectWorkflow(
   });
   options.onRunCreated?.(agentRun.id);
   const agent = createPersistedAgentRecorder(agentRun.id, options.onEvent);
+  const turnDiff = new TurnDiffTracker();
 
-  const result = await runSourceEditWorkflow({
-    project,
-    session,
-    userRequest: userEdit.userRequest,
-    visualSelections: userEdit.visualSelections,
-    agent,
-    async resolveContext({ userRequest, visualSelections }) {
-      const editIntent = await resolveEditIntentDelta({
-        userRequest,
-        baselineDesignIntent: session?.designIntent ?? null,
-        visualSelections,
-      });
-      const availableFiles = await listProjectContextFiles(project.directory);
-      const initialContextSelection = await selectProjectContextFiles(
-        { userRequest, visualSelections, editIntent: editIntent.delta },
-        availableFiles,
-      );
-      const contextSelection = await resolveProjectContextSearch(
-        project.directory,
-        userRequest,
-        availableFiles,
-        initialContextSelection,
-      );
-      return { editIntent, availableFiles, contextSelection };
-    },
-    buildModelContext({ snapshot, editIntent }) {
-      return buildProjectEditContext(snapshot, request, session, editIntent.delta);
-    },
-    requestPatch: requestProjectPatch,
-    parsePatch: parseProjectPatch,
-    validatePatch: ({ patch, contextSelection }) =>
-      assertPatchUsesSelectedContext(project, patch, contextSelection.relevantFiles),
-    requestRepair: requestProjectRepair,
-  });
-
+  let result: Awaited<ReturnType<typeof runSourceEditWorkflow>>;
   try {
-    recordAgentRunTurnDiff(agentRun.id, await result.turnDiff.snapshot());
+    result = await runSourceEditWorkflow({
+      project,
+      session,
+      userRequest: userEdit.userRequest,
+      visualSelections: userEdit.visualSelections,
+      agent,
+      turnDiff,
+      async resolveContext({ userRequest, visualSelections }) {
+        const editIntent = await resolveEditIntentDelta({
+          userRequest,
+          baselineDesignIntent: session?.designIntent ?? null,
+          visualSelections,
+        });
+        const availableFiles = await listProjectContextFiles(project.directory);
+        const initialContextSelection = await selectProjectContextFiles(
+          { userRequest, visualSelections, editIntent: editIntent.delta },
+          availableFiles,
+        );
+        const contextSelection = await resolveProjectContextSearch(
+          project.directory,
+          userRequest,
+          availableFiles,
+          initialContextSelection,
+        );
+        return { editIntent, availableFiles, contextSelection };
+      },
+      buildModelContext({ snapshot, editIntent }) {
+        return buildProjectEditContext(snapshot, request, session, editIntent.delta);
+      },
+      requestPatch: requestProjectPatch,
+      parsePatch: parseProjectPatch,
+      validatePatch: ({ patch, contextSelection }) =>
+        assertPatchUsesSelectedContext(project, patch, contextSelection.relevantFiles),
+      requestRepair: requestProjectRepair,
+    });
   } catch (error) {
-    console.warn('[Yakable Agent] Agent turn diff could not be persisted.', error);
+    await persistTurnDiff(agentRun.id, turnDiff);
+    throw error;
   }
+
+  await persistTurnDiff(agentRun.id, turnDiff);
 
   return {
     projectId: project.id,
