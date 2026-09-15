@@ -4,7 +4,13 @@ import {
   assertModeCapability,
   type YakableMode,
 } from '../modes/mode-contract.js';
-import type { GenerationResult } from '../types.js';
+import { classifyBuildIntent } from '../prompt-intelligence/build-intent.js';
+import {
+  classifyProjectMessageIntent,
+  type ProjectMessageDecision,
+  type ProjectMessageIntentInput,
+} from '../prompt-intelligence/project-message.js';
+import type { BuildIntentDecision, GenerationResult } from '../types.js';
 import {
   beginUnifiedEditRun,
   continueUnifiedEditRun,
@@ -20,6 +26,10 @@ import {
 } from './run-context.js';
 import { createDefaultToolRouter, type ToolRouter } from './tool-router.js';
 import {
+  createAgentWorkflowContext,
+  type AgentWorkflowContext,
+} from './workflow-context.js';
+import {
   runApprovedPlanWorkflow,
   type ApprovedPlanWorkflowOptions,
   type ApprovedPlanWorkflowResult,
@@ -30,11 +40,13 @@ import {
 } from './workflows/create-project-workflow.js';
 
 export type CreateProjectExecutor = (
+  context: AgentWorkflowContext,
   prompt: string,
   options?: CreateProjectWorkflowOptions,
 ) => Promise<GenerationResult>;
 
 export type ApprovedPlanExecutor = (
+  context: AgentWorkflowContext,
   projectInput: string,
   options?: ApprovedPlanWorkflowOptions,
 ) => Promise<ApprovedPlanWorkflowResult>;
@@ -83,6 +95,22 @@ export class AgentRuntime {
     });
   }
 
+  createWorkflowContext(mode: YakableMode = 'BUILD'): AgentWorkflowContext {
+    return createAgentWorkflowContext({
+      mode,
+      modelClient: this.modelClient,
+      toolRouter: this.toolRouter,
+    });
+  }
+
+  classifyBuildIntent(prompt: string): Promise<BuildIntentDecision> {
+    return classifyBuildIntent(prompt, this.modelClient);
+  }
+
+  classifyProjectMessage(input: ProjectMessageIntentInput): Promise<ProjectMessageDecision> {
+    return classifyProjectMessageIntent(input, this.modelClient);
+  }
+
   async createProject(
     prompt: string,
     options: CreateProjectWorkflowOptions = {},
@@ -93,10 +121,11 @@ export class AgentRuntime {
       mode: options.mode,
     });
     assertModeCapability(context.mode, 'generate-source');
-    return this.createProjectExecutor(context.prompt, {
-      ...options,
-      mode: context.mode,
-    });
+    return this.createProjectExecutor(
+      this.createWorkflowContext(context.mode),
+      context.prompt,
+      { ...options, mode: context.mode },
+    );
   }
 
   async beginEditRun(
@@ -112,7 +141,12 @@ export class AgentRuntime {
       mode,
     });
     assertModeCapability(context.mode, 'edit-source');
-    return beginUnifiedEditRun(context.projectInput!, context.prompt, options);
+    return beginUnifiedEditRun(
+      this.createWorkflowContext(context.mode),
+      context.projectInput!,
+      context.prompt,
+      options,
+    );
   }
 
   continueEditRun(
@@ -120,7 +154,12 @@ export class AgentRuntime {
     toolResult: AgentClientToolResult,
     options: ContinueUnifiedEditRunOptions = {},
   ): Promise<UnifiedEditRunResult> {
-    return continueUnifiedEditRun(runId, toolResult, options);
+    return continueUnifiedEditRun(
+      this.createWorkflowContext('BUILD'),
+      runId,
+      toolResult,
+      options,
+    );
   }
 
   async executeApprovedPlan(
@@ -135,10 +174,11 @@ export class AgentRuntime {
       mode,
     });
     assertModeCapability(context.mode, 'execute-plan');
-    return this.approvedPlanExecutor(context.projectInput!, {
-      ...options,
-      mode: context.mode,
-    });
+    return this.approvedPlanExecutor(
+      this.createWorkflowContext(context.mode),
+      context.projectInput!,
+      { ...options, mode: context.mode },
+    );
   }
 }
 
