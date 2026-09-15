@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { resolveGeneratedProject } from '../runtime/runtime.js';
 import { deleteProjectAgentRuns } from '../storage/agent-run.js';
+import { deleteProjectLifecycle } from '../storage/project-lifecycle.js';
 import type { ProjectMetadata, ProjectTemplate } from '../types.js';
 import { resetWorkspaceGitBaseline } from '../workspace/git-baseline.js';
 import { createProjectMetadata, readProjectMetadata, writeProjectMetadata } from './project-metadata.js';
@@ -158,4 +159,5 @@ export async function deleteManagedProject(
   await rm(project.directory, { recursive: true, force: false });
   await deleteProjectSession(project.directory);
   deleteProjectAgentRuns(projectId);
+  deleteProjectLifecycle(projectId);
 }
