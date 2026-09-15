@@ -5,6 +5,7 @@ import path from 'node:path';
 import { resolveGeneratedProject } from '../runtime/runtime.js';
 import { deleteProjectAgentRuns } from '../storage/agent-run.js';
 import type { ProjectMetadata, ProjectTemplate } from '../types.js';
+import { resetWorkspaceGitBaseline } from '../workspace/git-baseline.js';
 import { createProjectMetadata, readProjectMetadata, writeProjectMetadata } from './project-metadata.js';
 import { cloneProjectSession, deleteProjectSession } from './project-session.js';
 
@@ -141,6 +142,10 @@ export async function remixManagedProject(
   });
   await writeProjectMetadata(destination, nextMetadata);
   await cloneProjectSession(source.directory, destination, createdAt);
+
+  // A remix becomes a new workspace. Its copied working tree is the new baseline,
+  // rather than carrying the source project's accumulated workspace diff forward.
+  await resetWorkspaceGitBaseline(destination);
 
   return projectRecord(remixId, destination, nextMetadata);
 }

@@ -243,11 +243,17 @@ export interface ProjectAgentEvent {
 }
 
 export interface ProjectAgentFileChange {
-  ordinal: number;
   path: string;
   type: ProjectAgentFileChangeType;
   beforeContent: string | null;
   afterContent: string | null;
+}
+
+export interface ProjectAgentTurnDiff {
+  files: ProjectAgentFileChange[];
+  unifiedDiff: string;
+  addedLines: number;
+  removedLines: number;
 }
 
 export interface ProjectAgentRun {
@@ -261,7 +267,7 @@ export interface ProjectAgentRun {
   startedAt: string;
   completedAt?: string;
   events: ProjectAgentEvent[];
-  changes: ProjectAgentFileChange[];
+  turnDiff: ProjectAgentTurnDiff | null;
 }
 
 export interface ProjectConversationMessage {

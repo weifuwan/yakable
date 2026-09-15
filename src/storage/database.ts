@@ -90,20 +90,16 @@ function initializeSchema(database: DatabaseSync): void {
     CREATE INDEX IF NOT EXISTS idx_agent_events_run_sequence
       ON agent_events(run_id, sequence);
 
-    CREATE TABLE IF NOT EXISTS agent_file_changes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      run_id TEXT NOT NULL,
-      ordinal INTEGER NOT NULL,
-      path TEXT NOT NULL,
-      change_type TEXT NOT NULL,
-      before_content TEXT,
-      after_content TEXT,
-      FOREIGN KEY (run_id) REFERENCES agent_runs(id) ON DELETE CASCADE,
-      UNIQUE (run_id, path)
-    );
+    DROP TABLE IF EXISTS agent_file_changes;
 
-    CREATE INDEX IF NOT EXISTS idx_agent_file_changes_run_ordinal
-      ON agent_file_changes(run_id, ordinal, id);
+    CREATE TABLE IF NOT EXISTS agent_turn_diffs (
+      run_id TEXT PRIMARY KEY,
+      files_json TEXT NOT NULL,
+      unified_diff TEXT NOT NULL,
+      added_lines INTEGER NOT NULL,
+      removed_lines INTEGER NOT NULL,
+      FOREIGN KEY (run_id) REFERENCES agent_runs(id) ON DELETE CASCADE
+    );
   `);
 }
 

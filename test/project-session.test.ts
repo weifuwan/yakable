@@ -14,8 +14,8 @@ import {
   appendAgentRunEvent,
   completeAgentRun,
   createAgentRun,
-  recordAgentRunFileChange,
 } from '../src/storage/agent-run.js';
+import { recordAgentRunTurnDiff } from '../src/storage/agent-run-turn-diff.js';
 import { closeYakableDatabases } from '../src/storage/database.js';
 import type { DesignIntentIR } from '../src/types.js';
 
@@ -81,10 +81,18 @@ test('persists generation context and successful edits in SQLite', async () => {
       message: 'Routed the request to CREATE',
       at: '2026-09-14T02:00:02.000Z',
     });
-    recordAgentRunFileChange(createRun.id, {
-      path: 'src/App.tsx',
-      beforeContent: 'export default function App() { return null; }',
-      afterContent: 'export default function App() { return <main />; }',
+    recordAgentRunTurnDiff(createRun.id, {
+      files: [
+        {
+          path: 'src/App.tsx',
+          type: 'MODIFIED',
+          beforeContent: 'export default function App() { return null; }',
+          afterContent: 'export default function App() { return <main />; }',
+        },
+      ],
+      unifiedDiff: 'diff --git a/src/App.tsx b/src/App.tsx',
+      addedLines: 1,
+      removedLines: 1,
     });
     completeAgentRun(createRun.id, {
       model: 'deepseek-v4-pro',
@@ -105,10 +113,18 @@ test('persists generation context and successful edits in SQLite', async () => {
       message: 'Selected focused frontend context',
       at: '2026-09-14T02:05:00.000Z',
     });
-    recordAgentRunFileChange(editRun.id, {
-      path: 'src/App.tsx',
-      beforeContent: 'className="shadow-lg"',
-      afterContent: 'className=""',
+    recordAgentRunTurnDiff(editRun.id, {
+      files: [
+        {
+          path: 'src/App.tsx',
+          type: 'MODIFIED',
+          beforeContent: 'className="shadow-lg"',
+          afterContent: 'className=""',
+        },
+      ],
+      unifiedDiff: 'diff --git a/src/App.tsx b/src/App.tsx',
+      addedLines: 1,
+      removedLines: 1,
     });
     completeAgentRun(editRun.id, {
       model: 'deepseek-v4-pro',
@@ -161,15 +177,21 @@ test('persists generation context and successful edits in SQLite', async () => {
     assert.equal(conversation?.messages[1]?.agentRun?.id, createRun.id);
     assert.equal(conversation?.messages[1]?.agentRun?.kind, 'CREATE');
     assert.equal(conversation?.messages[1]?.agentRun?.events[0]?.state, 'ROUTE');
-    assert.equal(conversation?.messages[1]?.agentRun?.changes[0]?.path, 'src/App.tsx');
-    assert.equal(conversation?.messages[1]?.agentRun?.changes[0]?.type, 'MODIFIED');
+    assert.equal(conversation?.messages[1]?.agentRun?.turnDiff?.files[0]?.path, 'src/App.tsx');
+    assert.equal(conversation?.messages[1]?.agentRun?.turnDiff?.files[0]?.type, 'MODIFIED');
     assert.equal(conversation?.messages[2]?.visualSelections?.[0]?.sourceId, 'yak_heading');
     assert.deepEqual(conversation?.messages[3]?.changedFiles, ['src/App.tsx', 'src/styles.css']);
     assert.equal(conversation?.messages[3]?.agentRun?.id, editRun.id);
     assert.equal(conversation?.messages[3]?.agentRun?.kind, 'EDIT');
     assert.equal(conversation?.messages[3]?.agentRun?.events[0]?.state, 'SELECT_CONTEXT');
-    assert.equal(conversation?.messages[3]?.agentRun?.changes[0]?.beforeContent, 'className="shadow-lg"');
-    assert.equal(conversation?.messages[3]?.agentRun?.changes[0]?.afterContent, 'className=""');
+    assert.equal(
+      conversation?.messages[3]?.agentRun?.turnDiff?.files[0]?.beforeContent,
+      'className="shadow-lg"',
+    );
+    assert.equal(
+      conversation?.messages[3]?.agentRun?.turnDiff?.files[0]?.afterContent,
+      'className=""',
+    );
   });
 });
 

@@ -37,7 +37,7 @@ import {
   completeAgentRun,
   createAgentRun,
 } from '../storage/agent-run.js';
-import { recordAgentRunChangeSet } from '../storage/agent-run-change-set.js';
+import { recordAgentRunTurnDiff } from '../storage/agent-run-turn-diff.js';
 import { checkProjectTool, type CheckProjectOutput } from '../tools/check-project.js';
 import type { ToolResult } from '../tools/tool.js';
 import type { ProjectSessionState } from '../types.js';
@@ -45,6 +45,7 @@ import {
   workspaceChangedPaths,
   type WorkspaceChangeSet,
 } from '../workspace/change-set.js';
+import { TurnDiffTracker } from '../workspace/turn-diff.js';
 
 const MAX_FOLLOW_UP_LENGTH = 8_000;
 
@@ -66,11 +67,11 @@ export interface EditProjectResult {
 
 export interface EditGeneratedProjectOptions extends FrontendAgentProgressOptions {}
 
-function persistChangeSet(runId: string, changeSet: WorkspaceChangeSet): void {
+async function persistTurnDiff(runId: string, tracker: TurnDiffTracker): Promise<void> {
   try {
-    recordAgentRunChangeSet(runId, changeSet);
+    recordAgentRunTurnDiff(runId, await tracker.snapshot());
   } catch (error) {
-    console.warn('[Yakable Agent] Workspace change set could not be persisted.', error);
+    console.warn('[Yakable Agent] Agent turn diff could not be persisted.', error);
   }
 }
 
@@ -87,6 +88,7 @@ export async function editGeneratedProject(
 
   const project = await resolveGeneratedProject(projectInput);
   const changeManager = createProjectChangeManager(project);
+  const turnDiff = new TurnDiffTracker();
   const userEdit = extractUserEditContext(request);
   const session = await readProjectSession(project.directory);
   const agentRun = createAgentRun({
@@ -154,7 +156,7 @@ export async function editGeneratedProject(
       const patch = parseProjectPatch(generation.content);
       await assertPatchUsesSelectedContext(project, patch, contextSelection.relevantFiles);
       const initialChangeSet = await applyProjectChanges(changeManager, patch);
-      persistChangeSet(agentRun.id, initialChangeSet);
+      turnDiff.record(initialChangeSet);
       return { generation, patch, initialChangeSet };
     },
   );
@@ -183,7 +185,7 @@ export async function editGeneratedProject(
       parsePatch: parseProjectPatch,
       applyChanges: async (repairPatch) => {
         const changeSet = await applyProjectChanges(changeManager, repairPatch);
-        persistChangeSet(agentRun.id, changeSet);
+        turnDiff.record(changeSet);
         return changeSet;
       },
       checkProject: () =>
@@ -195,6 +197,7 @@ export async function editGeneratedProject(
       'FAILED',
       `Project health check failed to complete: ${error instanceof Error ? error.message : String(error)}`,
     );
+    await persistTurnDiff(agentRun.id, turnDiff);
     throw error;
   }
 
@@ -231,6 +234,7 @@ export async function editGeneratedProject(
     console.warn('[Yakable Edit] Source update succeeded but conversation history could not be persisted.', error);
   }
 
+  await persistTurnDiff(agentRun.id, turnDiff);
   completeAgentRun(agentRun.id, {
     model: generation.model,
     summary: patch.summary,
