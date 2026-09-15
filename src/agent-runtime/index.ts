@@ -39,4 +39,13 @@ export type {
   RoutedTool,
   ToolRouteOptions,
 } from './tool-router.js';
+export {
+  checkWorkflowProject,
+  createAgentWorkflowContext,
+  createDefaultAgentWorkflowContext,
+  executeWorkflowTool,
+  readWorkflowProjectSnapshot,
+  resolveWorkflowContextSearch,
+} from './workflow-context.js';
+export type { AgentWorkflowContext } from './workflow-context.js';
 export * from './workflows/index.js';
