@@ -13,6 +13,7 @@ import type { PageObservation } from '../src/runtime/page-observation.js';
 import type { CheckProjectOutput } from '../src/tools/check-project.js';
 import type { ToolResult } from '../src/tools/tool.js';
 import type { DesignIntentIR, ProjectPatch } from '../src/types.js';
+import type { WorkspaceChangeSet } from '../src/workspace/change-set.js';
 
 const designIntent: DesignIntentIR = {
   version: 1,
@@ -55,10 +56,7 @@ const observation: PageObservation = {
     scrollY: 0,
     devicePixelRatio: 2,
   },
-  documentSize: {
-    width: 1440,
-    height: 1800,
-  },
+  documentSize: { width: 1440, height: 1800 },
   elements: [
     {
       tagName: 'h1',
@@ -106,11 +104,7 @@ const passedCritique: DesignCriticResult = {
 
 const passCheck: ToolResult<CheckProjectOutput> = {
   ok: true,
-  value: {
-    status: 'PASS',
-    checks: [],
-    diagnostics: [],
-  },
+  value: { status: 'PASS', checks: [], diagnostics: [] },
 };
 
 const failCheck: ToolResult<CheckProjectOutput> = {
@@ -133,6 +127,20 @@ const availableFiles = [
   'src/components/Hero.tsx',
   'src/styles/theme.css',
 ];
+
+function changeSetFromPatch(patch: ProjectPatch): WorkspaceChangeSet {
+  return {
+    id: 'change-set-test',
+    summary: patch.summary,
+    createdAt: '2026-09-15T00:00:00.000Z',
+    files: patch.changes.map((change) => ({
+      path: change.path,
+      type: 'MODIFIED' as const,
+      beforeContent: `// before ${change.path}`,
+      afterContent: change.content,
+    })),
+  };
+}
 
 test('prioritizes source-mapped critic evidence before changed and selected context', () => {
   const files = selectVisualRepairContextFiles(
@@ -207,8 +215,9 @@ test('does nothing when the Design Critic already passes', async () => {
     async readFiles() { calls += 1; return []; },
     async requestRepair() { calls += 1; return { content: '{}', model: 'test-model' }; },
     parsePatch() { calls += 1; throw new Error('should not parse'); },
-    async applyPatch() { calls += 1; return []; },
+    async applyChanges() { calls += 1; throw new Error('should not apply'); },
     async checkProject() { calls += 1; return passCheck; },
+    async rollback() { calls += 1; },
   });
 
   assert.equal(result.status, 'NOT_NEEDED');
@@ -219,6 +228,7 @@ test('does nothing when the Design Critic already passes', async () => {
 test('runs exactly one visual repair and one project check on success', async () => {
   let modelCalls = 0;
   let checkCalls = 0;
+  let rollbackCalls = 0;
 
   const result = await runVisualRepairOnce({
     projectId: 'demo-project',
@@ -251,24 +261,30 @@ test('runs exactly one visual repair and one project check on success', async ()
     parsePatch(raw) {
       return JSON.parse(raw) as ProjectPatch;
     },
-    async applyPatch(patch) {
-      return patch.changes.map((change) => change.path);
+    async applyChanges(patch) {
+      return changeSetFromPatch(patch);
     },
     async checkProject() {
       checkCalls += 1;
       return passCheck;
     },
+    async rollback() {
+      rollbackCalls += 1;
+    },
   });
 
   assert.equal(result.status, 'REPAIRED');
   assert.deepEqual(result.changedFiles, ['src/components/Hero.tsx']);
+  assert.equal(result.changeSet?.id, 'change-set-test');
   assert.equal(modelCalls, 1);
   assert.equal(checkCalls, 1);
+  assert.equal(rollbackCalls, 0);
 });
 
-test('stops after the single repair when the fixed project health check still fails', async () => {
+test('rolls back the ChangeSet when the fixed project health check still fails', async () => {
   let modelCalls = 0;
   let checkCalls = 0;
+  let rolledBackId = '';
 
   const result = await runVisualRepairOnce({
     projectId: 'demo-project',
@@ -296,17 +312,22 @@ test('stops after the single repair when the fixed project health check still fa
     parsePatch(raw) {
       return JSON.parse(raw) as ProjectPatch;
     },
-    async applyPatch(patch) {
-      return patch.changes.map((change) => change.path);
+    async applyChanges(patch) {
+      return changeSetFromPatch(patch);
     },
     async checkProject() {
       checkCalls += 1;
       return failCheck;
     },
+    async rollback(changeSet) {
+      rolledBackId = changeSet.id;
+    },
   });
 
   assert.equal(result.status, 'FAILED');
+  assert.equal(result.rolledBack, true);
+  assert.equal(rolledBackId, 'change-set-test');
   assert.equal(modelCalls, 1);
   assert.equal(checkCalls, 1);
-  assert.match(result.error ?? '', /health check still failed/);
+  assert.match(result.error ?? '', /rolled back/);
 });
