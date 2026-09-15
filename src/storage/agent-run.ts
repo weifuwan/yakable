@@ -157,9 +157,9 @@ export function completeAgentRun(runId: string, input: CompleteAgentRunInput = {
     UPDATE agent_runs
     SET
       status = CASE WHEN status = 'RUNNING' THEN 'COMPLETED' ELSE status END,
-      model = COALESCE(?, model),
-      summary = COALESCE(?, summary),
-      completed_at = COALESCE(completed_at, ?)
+      model = CASE WHEN status = 'CANCELLED' THEN model ELSE COALESCE(?, model) END,
+      summary = CASE WHEN status = 'CANCELLED' THEN summary ELSE COALESCE(?, summary) END,
+      completed_at = CASE WHEN status = 'CANCELLED' THEN completed_at ELSE COALESCE(completed_at, ?) END
     WHERE id = ?
   `).run(model ?? null, summary ?? null, completedAt, runId);
 }
@@ -172,8 +172,8 @@ export function failAgentRun(runId: string, input: FailAgentRunInput = {}): void
     UPDATE agent_runs
     SET
       status = CASE WHEN status = 'RUNNING' THEN 'FAILED' ELSE status END,
-      summary = COALESCE(?, summary),
-      completed_at = COALESCE(completed_at, ?)
+      summary = CASE WHEN status = 'CANCELLED' THEN summary ELSE COALESCE(?, summary) END,
+      completed_at = CASE WHEN status = 'CANCELLED' THEN completed_at ELSE COALESCE(completed_at, ?) END
     WHERE id = ?
   `).run(summary ?? null, completedAt, runId);
 }
@@ -186,8 +186,14 @@ export function cancelAgentRun(runId: string, input: CancelAgentRunInput = {}): 
     UPDATE agent_runs
     SET
       status = CASE WHEN status IN ('RUNNING', 'FAILED') THEN 'CANCELLED' ELSE status END,
-      summary = COALESCE(?, summary),
-      completed_at = COALESCE(completed_at, ?)
+      summary = CASE
+        WHEN status IN ('RUNNING', 'FAILED') THEN COALESCE(?, summary)
+        ELSE summary
+      END,
+      completed_at = CASE
+        WHEN status IN ('RUNNING', 'FAILED') THEN COALESCE(completed_at, ?)
+        ELSE completed_at
+      END
     WHERE id = ?
   `).run(summary ?? null, completedAt, runId);
 }
