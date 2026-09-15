@@ -10,10 +10,13 @@ import {
 } from '../src/context/conversation-context.js';
 
 function conversation(count: number): ConversationContextMessage[] {
-  return Array.from({ length: count }, (_, index) => ({
-    role: index % 2 === 0 ? 'user' : 'assistant',
-    content: ` message-${index + 1} `,
-  }));
+  return Array.from(
+    { length: count },
+    (_, index): ConversationContextMessage => ({
+      role: index % 2 === 0 ? 'user' : 'assistant',
+      content: ` message-${index + 1} `,
+    }),
+  );
 }
 
 test('keeps one shared bounded recent conversation window', () => {
