@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import {
@@ -5,6 +6,7 @@ import {
   listProjectContextFiles,
   parseProjectPatch,
   readProjectSnapshot,
+  type AppliedProjectFileChange,
 } from '../editing/edit.js';
 import {
   createFrontendAgentRecorder,
@@ -27,7 +29,13 @@ import {
   writeGeneratedProjectFromBase,
 } from '../projects/project.js';
 import { initializeProjectSession } from '../projects/project-session.js';
-import { appendAgentRunEvent, createAgentRun } from '../storage/agent-run.js';
+import {
+  appendAgentRunEvent,
+  createAgentRun,
+  recordAgentRunFileChange,
+  recordAgentRunFileChanges,
+  type AgentRunFileChangeInput,
+} from '../storage/agent-run.js';
 import { checkProjectTool } from '../tools/check-project.js';
 import type {
   BuildIntentDecision,
@@ -68,6 +76,25 @@ function parseProjectGeneration(content: string, template: ProjectTemplate): Gen
     mode: 'base-overlay',
     expectedTemplate: template,
   });
+}
+
+async function initialGeneratedFileChanges(
+  project: GeneratedProject,
+): Promise<AgentRunFileChangeInput[]> {
+  const baseRoot = path.resolve(process.cwd(), 'templates', 'base');
+  return Promise.all(
+    project.files.map(async (file) => {
+      const beforeContent = await readFile(
+        path.join(baseRoot, ...file.path.split('/')),
+        'utf8',
+      ).catch(() => null);
+      return {
+        path: file.path,
+        beforeContent,
+        afterContent: file.content,
+      };
+    }),
+  );
 }
 
 export function buildProjectGenerationRecoveryRequest(
@@ -248,7 +275,21 @@ export async function generateProject(
     for (const event of agent.snapshot()) {
       appendAgentRunEvent(run.id, event);
     }
+    try {
+      recordAgentRunFileChanges(run.id, await initialGeneratedFileChanges(project));
+    } catch (error) {
+      console.warn('[Yakable Agent] Initial create file changes could not be persisted.', error);
+    }
   }
+
+  const recordCreateChange = (change: AppliedProjectFileChange) => {
+    if (!agentRunId) return;
+    try {
+      recordAgentRunFileChange(agentRunId, change);
+    } catch (error) {
+      console.warn('[Yakable Agent] Create repair file change could not be persisted.', error);
+    }
+  };
 
   if (options.verifyProject) {
     const resolvedProject = {
@@ -284,7 +325,7 @@ export async function generateProject(
         readFiles: async (paths) => (await readProjectSnapshot(resolvedProject, paths)).files,
         requestRepair: requestProjectRepair,
         parsePatch: parseProjectPatch,
-        applyPatch: (patch) => applyProjectPatch(resolvedProject, patch),
+        applyPatch: (patch) => applyProjectPatch(resolvedProject, patch, recordCreateChange),
         checkProject: () =>
           checkProjectTool.execute({}, { projectDirectory: outputDirectory }),
       });
