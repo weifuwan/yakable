@@ -241,6 +241,13 @@ export interface EditProjectOptions {
   onRunStarted?: (runId: string) => void;
 }
 
+export type EditActivityStatus = 'idle' | 'running' | 'stopping';
+
+export interface EditActivitySnapshot {
+  status: EditActivityStatus;
+  runId: string | null;
+}
+
 type AgentEditStreamRecord =
   | { type: 'run-started'; runId: string }
   | { type: 'agent-item'; item: unknown }
@@ -249,6 +256,29 @@ type AgentEditStreamRecord =
   | { type: 'error'; error: string };
 
 const PREVIEW_RELOAD_TIMEOUT_MS = 8_000;
+const STOPPING_FEEDBACK_MIN_MS = 220;
+const editActivityListeners = new Set<() => void>();
+let editActivitySnapshot: EditActivitySnapshot = { status: 'idle', runId: null };
+let managedEditController: AbortController | null = null;
+let managedEditRunId: string | null = null;
+let managedStopPromise: Promise<void> | null = null;
+let managedStopStartedAt = 0;
+
+export function subscribeEditActivity(listener: () => void): () => void {
+  editActivityListeners.add(listener);
+  return () => editActivityListeners.delete(listener);
+}
+
+export function getEditActivitySnapshot(): EditActivitySnapshot {
+  return editActivitySnapshot;
+}
+
+function publishEditActivity(status: EditActivityStatus, runId = managedEditRunId): void {
+  const next: EditActivitySnapshot = { status, runId };
+  if (editActivitySnapshot.status === next.status && editActivitySnapshot.runId === next.runId) return;
+  editActivitySnapshot = next;
+  for (const listener of editActivityListeners) listener();
+}
 
 function abortError(signal?: AbortSignal): Error {
   const reason = signal?.reason;
@@ -256,6 +286,12 @@ function abortError(signal?: AbortSignal): Error {
   const error = new Error(typeof reason === 'string' && reason.trim() ? reason : 'Stopped by user.');
   error.name = 'AbortError';
   return error;
+}
+
+function isAbortLike(error: unknown, signal?: AbortSignal): boolean {
+  if (signal?.aborted) return true;
+  return error instanceof Error
+    && (error.name === 'AbortError' || error.name === 'OperationCancelledError');
 }
 
 function throwIfAborted(signal?: AbortSignal): void {
@@ -281,6 +317,11 @@ function abortable<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
       (error) => settle(() => reject(error)),
     );
   });
+}
+
+function delay(ms: number): Promise<void> {
+  if (ms <= 0) return Promise.resolve();
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
@@ -483,6 +524,25 @@ export async function cancelAgentRun(runId: string): Promise<void> {
   );
 }
 
+export async function stopActiveEdit(): Promise<void> {
+  const controller = managedEditController;
+  if (!controller || controller.signal.aborted || editActivitySnapshot.status === 'stopping') return;
+
+  managedStopStartedAt = performance.now();
+  publishEditActivity('stopping');
+  const runId = managedEditRunId;
+  managedStopPromise = runId
+    ? cancelAgentRun(runId).catch((error) => {
+        console.warn('[Yakable] Could not persist the stopped Agent run.', error);
+      })
+    : Promise.resolve();
+
+  const reason = new Error('Stopped by user.');
+  reason.name = 'AbortError';
+  controller.abort(reason);
+  await managedStopPromise;
+}
+
 function currentPreviewFrame(): HTMLIFrameElement | null {
   return document.querySelector<HTMLIFrameElement>('iframe[title$=" preview"]');
 }
@@ -579,11 +639,74 @@ async function executeClientTool(
   }
 }
 
-export async function editProject(
+function stoppedConversation(
+  runtime: RuntimeProject,
+  prompt: string,
+): ProjectConversation {
+  const now = new Date().toISOString();
+  const current = runtime.conversation;
+  const existing = current?.messages ?? [];
+  const last = existing.at(-1);
+  const messages = last?.role === 'user' && last.content === prompt
+    ? existing
+    : [
+        ...existing,
+        {
+          id: `stopped-user-${Date.now()}`,
+          role: 'user' as const,
+          content: prompt,
+          createdAt: now,
+        },
+      ];
+  return current
+    ? { ...current, updatedAt: now, messages }
+    : { projectId: runtime.projectId, createdAt: now, updatedAt: now, messages };
+}
+
+async function stoppedEditResult(
   projectId: string,
   prompt: string,
-  selections: PreviewSelection[] = getCurrentPreviewSelections(),
-  options: EditProjectOptions = {},
+  runId: string | null,
+): Promise<ProjectMessageResult> {
+  const runtime = await startProjectRuntime(projectId);
+  return {
+    ...runtime,
+    conversation: stoppedConversation(runtime, prompt),
+    runId: runId ?? '',
+    status: 'FAILED',
+    userRequest: prompt,
+    route: 'EDIT',
+    summary: 'Stopped by user.',
+    model: 'cancelled',
+    changedFiles: [],
+    editIntent: {
+      delta: {
+        version: 1,
+        summary: 'Stopped by user.',
+        scope: 'project',
+        targetHints: [],
+        directives: [],
+        preserve: [],
+      },
+      source: 'fallback',
+      reason: 'The edit was stopped before completion.',
+    },
+    contextSelection: {
+      version: 1,
+      relevantFiles: [],
+      searchQuery: null,
+      reason: 'The edit was stopped before completion.',
+      source: 'fallback',
+    },
+    projectCheck: { ok: true, value: { status: 'PASS' } },
+  };
+}
+
+async function runEditProject(
+  projectId: string,
+  prompt: string,
+  selections: PreviewSelection[],
+  options: EditProjectOptions,
 ): Promise<ProjectMessageResult> {
   throwIfAborted(options.signal);
   const routed: ProjectMessageRoutingResult = selections.length
@@ -638,21 +761,74 @@ export async function editProject(
   }
 
   const visualEditPrompt = buildVisualEditPrompt(prompt, selections);
-  try {
-    let step = await requestAgentEdit(projectId, visualEditPrompt, options);
-    while (step.status === 'WAITING_FOR_CLIENT_TOOL') {
-      throwIfAborted(options.signal);
-      const toolResult = await executeClientTool(step, options.signal);
-      throwIfAborted(options.signal);
-      step = await continueAgentEdit(step.runId, toolResult, options.signal);
-    }
+  let step = await requestAgentEdit(projectId, visualEditPrompt, options);
+  while (step.status === 'WAITING_FOR_CLIENT_TOOL') {
     throwIfAborted(options.signal);
-    return {
-      ...step,
-      route: routed.decision.route,
-    };
+    const toolResult = await executeClientTool(step, options.signal);
+    throwIfAborted(options.signal);
+    step = await continueAgentEdit(step.runId, toolResult, options.signal);
+  }
+  throwIfAborted(options.signal);
+  return {
+    ...step,
+    route: routed.decision.route,
+  };
+}
+
+export async function editProject(
+  projectId: string,
+  prompt: string,
+  selections: PreviewSelection[] = getCurrentPreviewSelections(),
+  options: EditProjectOptions = {},
+): Promise<ProjectMessageResult> {
+  const ownsController = !options.signal;
+  const controller = ownsController ? new AbortController() : null;
+  const signal = options.signal ?? controller!.signal;
+  const callerOnRunStarted = options.onRunStarted;
+
+  if (ownsController) {
+    managedEditController = controller;
+    managedEditRunId = null;
+    managedStopPromise = null;
+    managedStopStartedAt = 0;
+    publishEditActivity('running', null);
+  }
+
+  const managedOptions: EditProjectOptions = {
+    ...options,
+    signal,
+    onRunStarted: (runId) => {
+      callerOnRunStarted?.(runId);
+      if (!ownsController || managedEditController !== controller) return;
+      managedEditRunId = runId;
+      publishEditActivity(signal.aborted ? 'stopping' : 'running', runId);
+      if (signal.aborted) {
+        managedStopPromise = cancelAgentRun(runId).catch((error) => {
+          console.warn('[Yakable] Could not persist the stopped Agent run.', error);
+        });
+      }
+    },
+  };
+
+  try {
+    return await runEditProject(projectId, prompt, selections, managedOptions);
+  } catch (error) {
+    if (!ownsController || !isAbortLike(error, signal)) throw error;
+    await managedStopPromise?.catch(() => undefined);
+    return stoppedEditResult(projectId, prompt, managedEditRunId);
   } finally {
     if (selections.length) clearCurrentPreviewSelections();
+    if (ownsController && managedEditController === controller) {
+      if (signal.aborted && managedStopStartedAt) {
+        const elapsed = performance.now() - managedStopStartedAt;
+        await delay(Math.max(0, STOPPING_FEEDBACK_MIN_MS - elapsed));
+      }
+      managedEditController = null;
+      managedEditRunId = null;
+      managedStopPromise = null;
+      managedStopStartedAt = 0;
+      publishEditActivity('idle', null);
+    }
   }
 }
 
