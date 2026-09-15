@@ -4,14 +4,21 @@ import { resolveGeneratedProject } from '../runtime/runtime.js';
 import { checkProjectTool, type CheckProjectOutput } from '../tools/check-project.js';
 import type { ToolResult } from '../tools/tool.js';
 import type { DesignIntentIR, GeneratedFile, ProjectPatch } from '../types.js';
+import {
+  workspaceChangedPaths,
+  type WorkspaceChangeSet,
+} from '../workspace/change-set.js';
 import type { DesignCriticResult } from './design-critic.js';
 import type { EditIntentDelta } from './edit-intent.js';
 import {
-  applyProjectPatch,
-  listProjectContextFiles,
+  applyProjectChanges,
+  createProjectChangeManager,
   parseProjectPatch,
+} from './project-change.js';
+import {
+  listProjectContextFiles,
   readProjectSnapshot,
-} from './edit.js';
+} from './project-context.js';
 
 export const MAX_VISUAL_REPAIR_CONTEXT_FILES = 12;
 export const MAX_VISUAL_REPAIR_REQUEST_CHARS = 900_000;
@@ -26,6 +33,7 @@ export interface VisualRepairResult {
   changedFiles: string[];
   projectCheck: ToolResult<CheckProjectOutput> | null;
   rolledBack: boolean;
+  changeSet?: WorkspaceChangeSet;
   model?: string;
   summary?: string;
   error?: string;
@@ -52,9 +60,9 @@ export interface RunVisualRepairInput extends VisualRepairProjectInput {
   readFiles(paths: string[]): Promise<GeneratedFile[]>;
   requestRepair(request: string): Promise<VisualRepairGeneration>;
   parsePatch(rawContent: string): ProjectPatch;
-  applyPatch(patch: ProjectPatch): Promise<string[]>;
+  applyChanges(patch: ProjectPatch): Promise<WorkspaceChangeSet>;
   checkProject(): Promise<ToolResult<CheckProjectOutput>>;
-  restoreFiles?(files: GeneratedFile[]): Promise<void>;
+  rollback(changeSet: WorkspaceChangeSet): Promise<void>;
 }
 
 function addUnique(target: string[], value: string, allowed: Set<string>): void {
@@ -95,13 +103,8 @@ export function selectVisualRepairContextFiles(
     }
   }
 
-  for (const file of initialChangedFiles) {
-    addUnique(selected, file, available);
-  }
-
-  for (const file of selectedContextFiles) {
-    addUnique(selected, file, available);
-  }
+  for (const file of initialChangedFiles) addUnique(selected, file, available);
+  for (const file of selectedContextFiles) addUnique(selected, file, available);
 
   return selected.slice(0, MAX_VISUAL_REPAIR_CONTEXT_FILES);
 }
@@ -152,7 +155,6 @@ export function buildVisualRepairRequest(
       `Visual Repair request is too large (max ${MAX_VISUAL_REPAIR_REQUEST_CHARS} characters).`,
     );
   }
-
   return request;
 }
 
@@ -218,13 +220,13 @@ export async function runVisualRepairOnce(
     };
   }
 
+  let changeSet: WorkspaceChangeSet | undefined;
   let changedFiles: string[] = [];
   let model: string | undefined;
   let summary: string | undefined;
-  let originalFiles: GeneratedFile[] = [];
 
   try {
-    originalFiles = await input.readFiles(contextFiles);
+    const files = await input.readFiles(contextFiles);
     const generation = await input.requestRepair(
       buildVisualRepairRequest(
         input.projectId,
@@ -233,14 +235,15 @@ export async function runVisualRepairOnce(
         input.editIntent,
         input.critique,
         input.pageObservation,
-        originalFiles,
+        files,
       ),
     );
     model = generation.model;
 
     const patch = input.parsePatch(generation.content);
     assertVisualRepairPatchUsesContext(patch, contextFiles);
-    changedFiles = await input.applyPatch(patch);
+    changeSet = await input.applyChanges(patch);
+    changedFiles = workspaceChangedPaths(changeSet);
     summary = patch.summary;
   } catch (error) {
     return {
@@ -250,6 +253,7 @@ export async function runVisualRepairOnce(
       changedFiles,
       projectCheck: null,
       rolledBack: false,
+      ...(changeSet ? { changeSet } : {}),
       ...(model ? { model } : {}),
       ...(summary ? { summary } : {}),
       error: error instanceof Error ? error.message : String(error),
@@ -272,6 +276,7 @@ export async function runVisualRepairOnce(
       changedFiles,
       projectCheck,
       rolledBack: false,
+      changeSet,
       ...(model ? { model } : {}),
       ...(summary ? { summary } : {}),
     };
@@ -279,17 +284,11 @@ export async function runVisualRepairOnce(
 
   let rolledBack = false;
   let rollbackError: string | undefined;
-  if (input.restoreFiles && changedFiles.length > 0) {
-    const changed = new Set(changedFiles);
-    const filesToRestore = originalFiles.filter((file) => changed.has(file.path));
-    if (filesToRestore.length > 0) {
-      try {
-        await input.restoreFiles(filesToRestore);
-        rolledBack = true;
-      } catch (error) {
-        rollbackError = error instanceof Error ? error.message : String(error);
-      }
-    }
+  try {
+    await input.rollback(changeSet);
+    rolledBack = true;
+  } catch (error) {
+    rollbackError = error instanceof Error ? error.message : String(error);
   }
 
   const checkError = projectCheck.ok
@@ -303,13 +302,12 @@ export async function runVisualRepairOnce(
     changedFiles,
     projectCheck,
     rolledBack,
+    changeSet,
     ...(model ? { model } : {}),
     ...(summary ? { summary } : {}),
     error: rollbackError
       ? `${checkError} Rollback also failed: ${rollbackError}`
-      : rolledBack
-        ? `${checkError} The visual-repair source changes were rolled back.`
-        : checkError,
+      : `${checkError} The visual-repair ChangeSet was rolled back.`,
   };
 }
 
@@ -320,6 +318,7 @@ export async function repairGeneratedProjectVisual(
 ): Promise<VisualRepairResult> {
   const project = await resolveGeneratedProject(projectInput, generatedRoot);
   const availableFiles = await listProjectContextFiles(project.directory);
+  const changeManager = createProjectChangeManager(project);
 
   return runVisualRepairOnce({
     ...input,
@@ -328,14 +327,8 @@ export async function repairGeneratedProjectVisual(
     readFiles: async (paths) => (await readProjectSnapshot(project, paths)).files,
     requestRepair: requestVisualRepair,
     parsePatch: parseProjectPatch,
-    applyPatch: (patch) => applyProjectPatch(project, patch),
+    applyChanges: (patch) => applyProjectChanges(changeManager, patch),
     checkProject: () => checkProjectTool.execute({}, { projectDirectory: project.directory }),
-    restoreFiles: async (files) => {
-      if (files.length === 0) return;
-      await applyProjectPatch(project, {
-        summary: 'Restore pre-visual-repair source',
-        changes: files,
-      });
-    },
+    rollback: (changeSet) => changeManager.rollback(changeSet),
   });
 }
