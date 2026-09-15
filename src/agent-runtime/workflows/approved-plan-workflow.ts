@@ -2,7 +2,6 @@ import {
   selectProjectContextFiles,
   type EditContextSelection,
 } from '../../editing/context-selection.js';
-import { resolveProjectContextSearch } from '../../editing/context-search.js';
 import {
   resolveEditIntentDelta,
   type EditIntentResolution,
@@ -10,8 +9,8 @@ import {
 import { assertPatchUsesSelectedContext } from '../../editing/project-change.js';
 import { listProjectContextFiles } from '../../editing/project-context.js';
 import type { OneShotRepairResult } from '../../editing/repair.js';
+import { requestProjectPatch, requestProjectRepair } from '../../model/capabilities.js';
 import { assertModeCapability, type YakableMode } from '../../modes/mode-contract.js';
-import { requestProjectPatch, requestProjectRepair } from '../../model/deepseek.js';
 import {
   ApprovedPlanExecutionError,
   buildApprovedPlanExecutionRequest,
@@ -39,6 +38,10 @@ import type { ProjectSessionState } from '../../types.js';
 import type { WorkspaceChangeSet } from '../../workspace/change-set.js';
 import { TurnDiffTracker } from '../../workspace/turn-diff.js';
 import { createPersistedAgentRecorder } from '../persisted-recorder.js';
+import {
+  resolveWorkflowContextSearch,
+  type AgentWorkflowContext,
+} from '../workflow-context.js';
 import { runSourceEditWorkflow } from './source-edit-workflow.js';
 
 export interface ApprovedPlanWorkflowOptions {
@@ -73,10 +76,11 @@ async function persistTurnDiff(runId: string, turnDiff: TurnDiffTracker): Promis
 }
 
 export async function runApprovedPlanWorkflow(
+  context: AgentWorkflowContext,
   projectInput: string,
   options: ApprovedPlanWorkflowOptions = {},
 ): Promise<ApprovedPlanWorkflowResult> {
-  const mode = options.mode ?? 'BUILD';
+  const mode = options.mode ?? context.mode;
   assertModeCapability(mode, 'execute-plan');
   assertModeCapability(mode, 'read-plan');
   assertModeCapability(mode, 'edit-source');
@@ -104,6 +108,7 @@ export async function runApprovedPlanWorkflow(
 
   try {
     const result = await runSourceEditWorkflow({
+      context,
       project,
       session,
       userRequest: executionRequest,
@@ -115,17 +120,20 @@ export async function runApprovedPlanWorkflow(
           userRequest: executionRequest,
           baselineDesignIntent: session?.designIntent ?? null,
           visualSelections: [],
-        });
+        }, context.modelClient);
         const availableFiles = await listProjectContextFiles(project.directory);
         const initialSelection = await selectProjectContextFiles(
           { userRequest: executionRequest, visualSelections: [], editIntent: editIntent.delta },
           availableFiles,
+          context.modelClient,
         );
-        const searchedSelection = await resolveProjectContextSearch(
+        const searchedSelection = await resolveWorkflowContextSearch(
+          context,
           project.directory,
           executionRequest,
           availableFiles,
           initialSelection,
+          agent,
         );
         const contextSelection = mergeApprovedPlanContextSelection(
           searchedSelection,
@@ -143,7 +151,7 @@ export async function runApprovedPlanWorkflow(
           executionPlan,
         );
       },
-      requestPatch: requestProjectPatch,
+      requestPatch: (modelContext) => requestProjectPatch(context.modelClient, modelContext),
       parsePatch(rawContent) {
         const parsed = parseApprovedPlanPatch(rawContent);
         if (parsed.status === 'BLOCKED') {
@@ -158,7 +166,10 @@ export async function runApprovedPlanWorkflow(
       validatePatch: ({ patch, contextSelection }) =>
         assertPatchUsesSelectedContext(project, patch, contextSelection.relevantFiles),
       requestRepair: (repairContext) =>
-        requestProjectRepair(attachApprovedPlanToRepairRequest(repairContext, executionPlan)),
+        requestProjectRepair(
+          context.modelClient,
+          attachApprovedPlanToRepairRequest(repairContext, executionPlan),
+        ),
       messages: {
         selectingActive: `Loading approved Plan revision ${executionPlan.source.revision} and selecting execution context`,
         selectingCompleted: `Selected execution context for approved Plan revision ${executionPlan.source.revision}`,
