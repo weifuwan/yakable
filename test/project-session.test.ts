@@ -10,6 +10,11 @@ import {
   readProjectConversation,
   readProjectSession,
 } from '../src/projects/project-session.js';
+import {
+  appendAgentRunEvent,
+  completeAgentRun,
+  createAgentRun,
+} from '../src/storage/agent-run.js';
 import { closeYakableDatabases } from '../src/storage/database.js';
 import type { DesignIntentIR } from '../src/types.js';
 
@@ -62,6 +67,44 @@ test('persists generation context and successful edits in SQLite', async () => {
     assert.equal(created.designIntent?.designDirection, 'Restrained technical landing page');
     assert.deepEqual(created.edits, []);
 
+    const createRun = createAgentRun({
+      projectId: 'demo-project',
+      kind: 'CREATE',
+      prompt: 'Build a clean developer tool landing page',
+      startedAt: '2026-09-14T02:00:01.000Z',
+    });
+    appendAgentRunEvent(createRun.id, {
+      version: 1,
+      state: 'ROUTE',
+      status: 'COMPLETED',
+      message: 'Routed the request to CREATE',
+      at: '2026-09-14T02:00:02.000Z',
+    });
+    completeAgentRun(createRun.id, {
+      model: 'deepseek-v4-pro',
+      summary: 'Generated the landing page',
+      completedAt: '2026-09-14T02:00:03.000Z',
+    });
+
+    const editRun = createAgentRun({
+      projectId: 'demo-project',
+      kind: 'EDIT',
+      prompt: 'Remove all card shadows',
+      startedAt: '2026-09-14T02:04:59.000Z',
+    });
+    appendAgentRunEvent(editRun.id, {
+      version: 1,
+      state: 'SELECT_CONTEXT',
+      status: 'COMPLETED',
+      message: 'Selected focused frontend context',
+      at: '2026-09-14T02:05:00.000Z',
+    });
+    completeAgentRun(editRun.id, {
+      model: 'deepseek-v4-pro',
+      summary: 'Removed card shadows',
+      completedAt: '2026-09-14T02:05:02.000Z',
+    });
+
     const updated = await appendProjectEditHistory(projectDirectory, {
       userRequest: 'Remove all card shadows',
       assistantSummary: 'Removed card shadows',
@@ -104,8 +147,14 @@ test('persists generation context and successful edits in SQLite', async () => {
         ['assistant', 'Removed card shadows'],
       ],
     );
+    assert.equal(conversation?.messages[1]?.agentRun?.id, createRun.id);
+    assert.equal(conversation?.messages[1]?.agentRun?.kind, 'CREATE');
+    assert.equal(conversation?.messages[1]?.agentRun?.events[0]?.state, 'ROUTE');
     assert.equal(conversation?.messages[2]?.visualSelections?.[0]?.sourceId, 'yak_heading');
     assert.deepEqual(conversation?.messages[3]?.changedFiles, ['src/App.tsx', 'src/styles.css']);
+    assert.equal(conversation?.messages[3]?.agentRun?.id, editRun.id);
+    assert.equal(conversation?.messages[3]?.agentRun?.kind, 'EDIT');
+    assert.equal(conversation?.messages[3]?.agentRun?.events[0]?.state, 'SELECT_CONTEXT');
   });
 });
 

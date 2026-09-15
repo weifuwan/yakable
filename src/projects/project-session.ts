@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 
+import { listProjectAgentRuns, type AgentRunRecord } from '../storage/agent-run.js';
 import { getYakableDatabase } from '../storage/database.js';
 import type {
   DesignIntentIR,
@@ -259,6 +260,25 @@ function insertEdit(projectId: string, edit: ProjectEditHistoryItem): void {
   }
 }
 
+function takeMatchingAgentRun(
+  runs: AgentRunRecord[],
+  usedRunIds: Set<string>,
+  kind: AgentRunRecord['kind'],
+  prompt: string,
+): AgentRunRecord | undefined {
+  const normalizedPrompt = prompt.trim();
+  const exact = runs.find(
+    (run) =>
+      run.kind === kind &&
+      !usedRunIds.has(run.id) &&
+      run.prompt.trim() === normalizedPrompt,
+  );
+  const fallback = runs.find((run) => run.kind === kind && !usedRunIds.has(run.id));
+  const selected = exact ?? fallback;
+  if (selected) usedRunIds.add(selected.id);
+  return selected;
+}
+
 export async function writeProjectSession(
   projectDirectory: string,
   session: ProjectSessionState,
@@ -402,7 +422,12 @@ export async function readProjectConversation(
   const session = sessionFromDatabase(projectId);
   if (!session) return null;
 
+  const runs = [...listProjectAgentRuns(projectId, 100)].sort(
+    (left, right) => left.startedAt.localeCompare(right.startedAt) || left.id.localeCompare(right.id),
+  );
+  const usedRunIds = new Set<string>();
   const messages: ProjectConversationMessage[] = [];
+
   if (session.productRequest) {
     messages.push({
       id: `${projectId}:initial:user`,
@@ -412,11 +437,15 @@ export async function readProjectConversation(
     });
   }
   if (session.initialSummary) {
+    const agentRun = session.productRequest
+      ? takeMatchingAgentRun(runs, usedRunIds, 'CREATE', session.productRequest)
+      : undefined;
     messages.push({
       id: `${projectId}:initial:assistant`,
       role: 'assistant',
       content: session.initialSummary,
       createdAt: session.createdAt,
+      ...(agentRun ? { agentRun } : {}),
     });
   }
 
@@ -428,6 +457,10 @@ export async function readProjectConversation(
       createdAt: edit.createdAt,
       ...(edit.visualSelections?.length ? { visualSelections: edit.visualSelections } : {}),
     });
+
+    const agentRun = edit.changedFiles.length
+      ? takeMatchingAgentRun(runs, usedRunIds, 'EDIT', edit.userRequest)
+      : undefined;
     messages.push({
       id: `${edit.id}:assistant`,
       role: 'assistant',
@@ -435,6 +468,7 @@ export async function readProjectConversation(
       createdAt: edit.createdAt,
       ...(edit.model ? { model: edit.model } : {}),
       ...(edit.changedFiles.length ? { changedFiles: edit.changedFiles } : {}),
+      ...(agentRun ? { agentRun } : {}),
     });
   }
 

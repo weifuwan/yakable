@@ -211,6 +211,49 @@ export interface ProjectEditHistoryItem {
   visualSelections?: ProjectVisualSelection[];
 }
 
+export type ProjectAgentRunKind = 'CREATE' | 'EDIT';
+export type ProjectAgentRunStatus = 'RUNNING' | 'COMPLETED' | 'FAILED';
+export type ProjectAgentState =
+  | 'ROUTE'
+  | 'UNDERSTAND'
+  | 'DESIGN'
+  | 'TEMPLATE'
+  | 'GENERATE'
+  | 'WRITE'
+  | 'SELECT_CONTEXT'
+  | 'READ'
+  | 'EDIT'
+  | 'CHECK'
+  | 'RUNTIME'
+  | 'OBSERVE'
+  | 'CRITIQUE'
+  | 'REPAIR'
+  | 'DONE';
+export type ProjectAgentStepStatus = 'ACTIVE' | 'COMPLETED' | 'SKIPPED' | 'FAILED';
+
+export interface ProjectAgentEvent {
+  version: 1;
+  sequence: number;
+  state: ProjectAgentState;
+  status: ProjectAgentStepStatus;
+  message: string;
+  at: string;
+  iteration?: 0 | 1;
+}
+
+export interface ProjectAgentRun {
+  id: string;
+  projectId: string;
+  kind: ProjectAgentRunKind;
+  status: ProjectAgentRunStatus;
+  prompt: string;
+  model?: string;
+  summary?: string;
+  startedAt: string;
+  completedAt?: string;
+  events: ProjectAgentEvent[];
+}
+
 export interface ProjectConversationMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -219,6 +262,7 @@ export interface ProjectConversationMessage {
   model?: string;
   changedFiles?: string[];
   visualSelections?: ProjectVisualSelection[];
+  agentRun?: ProjectAgentRun;
 }
 
 export interface ProjectConversation {

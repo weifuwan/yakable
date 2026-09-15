@@ -1,8 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { ProjectListItem } from "../api";
+import { startProjectRuntime, type ProjectListItem } from "../api";
+import {
+  AgentDetailsPanel,
+  extractAgentRunsFromConversation,
+  type AgentRunView,
+} from "../components/AgentDetailsPanel";
 import { Sidebar } from "../components/Layout";
 import { Icon } from "../components/ui";
+import { subscribeFrontendAgentProgress } from "../frontend-agent";
 import { projectTitle } from "../utils/project";
 import { Workspace, type ActiveProject } from "./Workspace";
 
@@ -102,8 +108,12 @@ export function WorkspaceShell({
 }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [peekOpen, setPeekOpen] = useState(false);
+  const [agentRuns, setAgentRuns] = useState<AgentRunView[]>([]);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const showPeekTimer = useRef<number | null>(null);
   const hidePeekTimer = useRef<number | null>(null);
+  const refreshSequence = useRef(0);
   const pathname = projectPath(projectId);
   const projectReady = project?.id === projectId;
   const switchingProject = Boolean(project && !projectReady);
@@ -163,14 +173,63 @@ export function WorkspaceShell({
     onNavigate(path);
   }
 
+  async function refreshAgentRuns() {
+    if (!projectReady) return;
+    const sequence = ++refreshSequence.current;
+    try {
+      const runtime = await startProjectRuntime(projectId);
+      if (sequence !== refreshSequence.current) return;
+      const runs = extractAgentRunsFromConversation(runtime.conversation);
+      setAgentRuns(runs);
+      setSelectedRunId((current) => {
+        if (current && runs.some((run) => run.id === current)) return current;
+        return runs[0]?.id ?? null;
+      });
+    } catch (caught) {
+      console.warn("[Yakable Details] Could not refresh persisted agent runs.", caught);
+    }
+  }
+
+  function openDetails() {
+    if (!agentRuns.length) return;
+    setSelectedRunId((current) => current ?? agentRuns[0]!.id);
+    setDetailsOpen(true);
+  }
+
   useEffect(() => {
     if (!sidebarCollapsed) setPeekOpen(false);
   }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    setDetailsOpen(false);
+    setAgentRuns([]);
+    setSelectedRunId(null);
+    if (projectReady) void refreshAgentRuns();
+  }, [projectId, projectReady]);
+
+  useEffect(() => {
+    if (!projectReady) return;
+    let refreshTimer: number | null = null;
+    const unsubscribe = subscribeFrontendAgentProgress(({ event }) => {
+      if (event.state !== "DONE") return;
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => {
+        refreshTimer = null;
+        void refreshAgentRuns();
+      }, 120);
+    });
+
+    return () => {
+      unsubscribe();
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
+    };
+  }, [projectId, projectReady]);
 
   useEffect(
     () => () => {
       clearShowPeekTimer();
       clearHidePeekTimer();
+      refreshSequence.current += 1;
     },
     [],
   );
@@ -269,6 +328,33 @@ export function WorkspaceShell({
             onPeekLeave={schedulePeekClose}
           />
         )}
+
+        {projectReady && agentRuns.length > 0 && !detailsOpen ? (
+          <button
+            className="absolute right-5 top-[58px] z-[65] inline-flex h-8 items-center gap-1.5 rounded-full border border-black/[0.10] bg-white/95 px-3 text-xs font-medium text-black/62 shadow-[0_4px_14px_rgba(15,23,42,0.08)] backdrop-blur transition hover:bg-white hover:text-black/80"
+            type="button"
+            onClick={openDetails}
+            aria-label="Open agent details"
+          >
+            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M4 5.5h16M4 12h16M4 18.5h10" />
+              <circle cx="18" cy="18.5" r="2" />
+            </svg>
+            Details
+            <span className="rounded-full bg-black/[0.05] px-1.5 py-0.5 text-[10px] text-black/42">{agentRuns.length}</span>
+          </button>
+        ) : null}
+
+        {projectReady && detailsOpen ? (
+          <div className="absolute bottom-2 right-2 top-12 z-[75] w-[55%] min-w-[460px] overflow-hidden rounded-2xl border border-black/[0.09] bg-white shadow-[0_12px_38px_rgba(15,23,42,0.14)] max-[900px]:left-2 max-[900px]:w-auto max-[900px]:min-w-0">
+            <AgentDetailsPanel
+              runs={agentRuns}
+              selectedRunId={selectedRunId}
+              onSelectRun={setSelectedRunId}
+              onClose={() => setDetailsOpen(false)}
+            />
+          </div>
+        ) : null}
 
         {switchingProject ? (
           <div className="absolute inset-0 z-40 flex items-center justify-center bg-[#f6f6f4]/35 backdrop-blur-[1px]">
