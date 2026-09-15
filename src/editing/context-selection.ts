@@ -1,6 +1,8 @@
 import path from 'node:path';
 
-import { requestProjectContextSelection } from '../model/deepseek.js';
+import { requestProjectContextSelection } from '../model/capabilities.js';
+import { defaultModelClient } from '../model/default-client.js';
+import type { ModelClient } from '../model/model-client.js';
 import type { ProjectVisualSelection } from '../types.js';
 import type { EditIntentDelta } from './edit-intent.js';
 
@@ -31,13 +33,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function normalizeAvailableFiles(availableFiles: string[]): string[] {
   const files = [...new Set(availableFiles.map((file) => file.trim()).filter(Boolean))].sort();
-  if (files.length === 0) {
-    throw new Error('Project context selection requires at least one available file.');
-  }
+  if (files.length === 0) throw new Error('Project context selection requires at least one available file.');
   if (files.length > MAX_PROJECT_CONTEXT_CANDIDATES) {
-    throw new Error(
-      `Project context selection supports at most ${MAX_PROJECT_CONTEXT_CANDIDATES} candidate files.`,
-    );
+    throw new Error(`Project context selection supports at most ${MAX_PROJECT_CONTEXT_CANDIDATES} candidate files.`);
   }
   return files;
 }
@@ -92,9 +90,7 @@ export function parseProjectContextSelection(
   }
 
   if (files.length > MAX_EDIT_CONTEXT_FILES) {
-    throw new Error(
-      `Project context selector may return at most ${MAX_EDIT_CONTEXT_FILES} files.`,
-    );
+    throw new Error(`Project context selector may return at most ${MAX_EDIT_CONTEXT_FILES} files.`);
   }
 
   let searchQuery: string | null = null;
@@ -115,7 +111,6 @@ export function parseProjectContextSelection(
   }
 
   const reason = typeof value.reason === 'string' ? value.reason.trim().slice(0, 400) : '';
-
   return {
     version: 1,
     relevantFiles: files,
@@ -142,9 +137,7 @@ export function selectMappedVisualContextFiles(
 }
 
 function requestLooksStylingRelated(request: string): boolean {
-  return /(颜色|配色|样式|间距|圆角|阴影|字体|排版|布局|视觉|高级|简洁|密度|color|style|spacing|radius|shadow|font|typography|layout|visual|theme|padding|margin)/i.test(
-    request,
-  );
+  return /(颜色|配色|样式|间距|圆角|阴影|字体|排版|布局|视觉|高级|简洁|密度|color|style|spacing|radius|shadow|font|typography|layout|visual|theme|padding|margin)/i.test(request);
 }
 
 function pathWords(file: string): string[] {
@@ -167,9 +160,7 @@ export function fallbackEditContextFiles(userRequest: string, availableFiles: st
       const lower = file.toLowerCase();
       const base = path.posix.basename(lower, path.posix.extname(lower));
       if (base.length >= 3 && request.includes(base)) score += 10;
-      for (const word of pathWords(file)) {
-        if (request.includes(word)) score += 4;
-      }
+      for (const word of pathWords(file)) if (request.includes(word)) score += 4;
       if (lower.startsWith('src/pages/')) score += 2;
       if (lower.startsWith('src/components/product/')) score += 2;
       if (file === 'src/App.tsx') score += 1;
@@ -181,12 +172,7 @@ export function fallbackEditContextFiles(userRequest: string, availableFiles: st
 
   const selected = ranked.slice(0, FALLBACK_CONTEXT_FILES).map((item) => item.file);
   const preferred = [
-    'src/App.tsx',
-    'src/routes.ts',
-    'src/styles/theme.css',
-    'src/index.css',
-    'src/styles.css',
-    'index.html',
+    'src/App.tsx', 'src/routes.ts', 'src/styles/theme.css', 'src/index.css', 'src/styles.css', 'index.html',
   ];
 
   for (const file of preferred) {
@@ -215,6 +201,7 @@ function fallbackContextQuery(input: EditContextSelectionInput): string {
 export async function selectProjectContextFiles(
   input: EditContextSelectionInput,
   availableFiles: string[],
+  modelClient: ModelClient = defaultModelClient,
 ): Promise<EditContextSelection> {
   const files = normalizeAvailableFiles(availableFiles);
   const visualFiles = selectMappedVisualContextFiles(input.visualSelections, files);
@@ -231,6 +218,7 @@ export async function selectProjectContextFiles(
 
   try {
     const generation = await requestProjectContextSelection(
+      modelClient,
       buildProjectContextSelectionRequest(input, files),
     );
     return {
