@@ -1,3 +1,4 @@
+import { createDefaultAgentWorkflowContext } from '../agent-runtime/workflow-context.js';
 import {
   runEditProjectWorkflow,
   type EditProjectWorkflowOptions,
@@ -12,16 +13,16 @@ export {
   readProjectSnapshot,
 } from './project-context.js';
 
-/**
- * Editing is now an AgentRuntime workflow concern.
- *
- * This module remains the domain-facing edit entrypoint only; it owns no
- * orchestration, persistence, tool execution, repair loop, or diff lifecycle.
- */
+/** Standalone edit facade. AgentRuntime passes its own WorkflowContext directly. */
 export function editGeneratedProject(
   projectInput: string,
   followUpRequest: string,
   options: EditGeneratedProjectOptions = {},
 ): Promise<EditProjectResult> {
-  return runEditProjectWorkflow(projectInput, followUpRequest, options);
+  return runEditProjectWorkflow(
+    createDefaultAgentWorkflowContext('BUILD'),
+    projectInput,
+    followUpRequest,
+    options,
+  );
 }
