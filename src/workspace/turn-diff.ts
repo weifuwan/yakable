@@ -28,6 +28,13 @@ function classifyNetChange(
 export class TurnDiffTracker {
   private readonly files = new Map<string, WorkspaceFileChange>();
 
+  constructor(initial: WorkspaceTurnDiff | readonly WorkspaceFileChange[] | null = null) {
+    const files = Array.isArray(initial) ? initial : initial?.files ?? [];
+    for (const file of files) {
+      this.files.set(file.path, { ...file });
+    }
+  }
+
   record(changeSet: WorkspaceChangeSet): void {
     for (const change of changeSet.files) {
       const existing = this.files.get(change.path);
