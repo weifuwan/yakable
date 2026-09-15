@@ -1,7 +1,7 @@
-import {
-  runApprovedPlanWorkflow,
-  type ApprovedPlanWorkflowOptions,
-  type ApprovedPlanWorkflowResult,
+import { createDefaultAgentRuntime } from '../agent-runtime/agent-runtime.js';
+import type {
+  ApprovedPlanWorkflowOptions,
+  ApprovedPlanWorkflowResult,
 } from '../agent-runtime/workflows/approved-plan-workflow.js';
 
 export {
@@ -15,13 +15,12 @@ export type { ApprovedPlanPatchResult } from './approved-plan-build-contract.js'
 export type BuildFromApprovedPlanOptions = ApprovedPlanWorkflowOptions;
 export type ApprovedPlanBuildResult = ApprovedPlanWorkflowResult;
 
-/**
- * Approved Plan execution is owned by AgentRuntime workflows.
- * Planning keeps only its domain contract and this thin entrypoint.
- */
+const agentRuntime = createDefaultAgentRuntime();
+
+/** Approved Plan execution always enters through AgentRuntime. */
 export function buildProjectFromApprovedPlan(
   projectInput: string,
   options: BuildFromApprovedPlanOptions = {},
 ): Promise<ApprovedPlanBuildResult> {
-  return runApprovedPlanWorkflow(projectInput, options);
+  return agentRuntime.executeApprovedPlan(projectInput, options);
 }
