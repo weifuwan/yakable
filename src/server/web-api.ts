@@ -18,6 +18,7 @@ import type {
   RuntimeSession,
   WebApiServices,
   WebCreateProjectBootstrap,
+  WebCreateProjectStatus,
   WebGeneratedProject,
 } from './web-api-contract.js';
 
@@ -37,6 +38,14 @@ const DEFAULT_API_HOST = '127.0.0.1';
 const DEFAULT_API_PORT = 8787;
 const MAX_JSON_BODY_BYTES = 512_000;
 const PROJECT_ID_PATTERN = /^[a-zA-Z0-9._-]+$/;
+
+type RuntimePayload = Awaited<ReturnType<typeof runtimePayload>>;
+
+type CreationStreamRecord =
+  | { type: 'snapshot'; status: WebCreateProjectStatus }
+  | { type: 'agent-item'; runId: string; item: AgentProtocolItem }
+  | { type: 'ready'; runtime: RuntimePayload }
+  | { type: 'failed'; error: string };
 
 export interface YakableApiServer {
   server: Server;
@@ -180,6 +189,36 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
   const services = options.services ?? createDefaultWebApiServices();
   const runtimes = new Map<string, RuntimeSession>();
   const backgroundCreates = new Map<string, Promise<void>>();
+  const creationSubscribers = new Map<string, Set<(record: CreationStreamRecord) => void>>();
+  const creationStreamResponses = new Set<ServerResponse>();
+
+  function publishCreationRecord(projectId: string, record: CreationStreamRecord): void {
+    const subscribers = creationSubscribers.get(projectId);
+    if (!subscribers?.size) return;
+    for (const subscriber of [...subscribers]) subscriber(record);
+  }
+
+  function subscribeCreation(
+    projectId: string,
+    subscriber: (record: CreationStreamRecord) => void,
+  ): () => void {
+    const current = creationSubscribers.get(projectId) ?? new Set();
+    current.add(subscriber);
+    creationSubscribers.set(projectId, current);
+    return () => {
+      const subscribers = creationSubscribers.get(projectId);
+      if (!subscribers) return;
+      subscribers.delete(subscriber);
+      if (subscribers.size === 0) creationSubscribers.delete(projectId);
+    };
+  }
+
+  async function publishCreationSnapshot(projectId: string): Promise<WebCreateProjectStatus | null> {
+    if (!services.readCreateStatus) return null;
+    const status = await services.readCreateStatus(projectId);
+    if (status) publishCreationRecord(projectId, { type: 'snapshot', status });
+    return status;
+  }
 
   async function ensureRuntime(projectId: string): Promise<RuntimeSession> {
     const current = runtimes.get(projectId);
@@ -229,13 +268,21 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
     bootstrap: WebCreateProjectBootstrap,
   ): void {
     const projectId = bootstrap.project.id;
+    const runId = bootstrap.run.id;
     if (backgroundCreates.has(projectId)) return;
+
+    const onAgentItem = (item: AgentProtocolItem) => {
+      publishCreationRecord(projectId, { type: 'agent-item', runId, item });
+      void publishCreationSnapshot(projectId).catch((error) => {
+        console.warn(`[Yakable API] Could not refresh create snapshot for ${projectId}.`, error);
+      });
+    };
 
     const task = (async () => {
       const project = await services.generate(
         prompt,
         decision,
-        undefined,
+        onAgentItem,
         bootstrap.reservation,
       );
       if (project.id !== projectId) {
@@ -243,11 +290,18 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
           `Async create returned project ${project.id}, expected reserved project ${projectId}.`,
         );
       }
-      await ensureGeneratedRuntime(project);
+      const runtime = await ensureGeneratedRuntime(project, onAgentItem);
+      await publishCreationSnapshot(projectId);
+      publishCreationRecord(projectId, {
+        type: 'ready',
+        runtime: await runtimePayload(projectId, runtime, services),
+      });
     })()
-      .catch((error) => {
+      .catch(async (error) => {
         const normalized = error instanceof Error ? error : new Error(String(error));
         console.error(`[Yakable API] Background create failed for ${projectId}.`, normalized);
+        await publishCreationSnapshot(projectId).catch(() => null);
+        publishCreationRecord(projectId, { type: 'failed', error: normalized.message });
       })
       .finally(() => {
         backgroundCreates.delete(projectId);
@@ -370,6 +424,74 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
         return;
       }
 
+      const creationStreamRoute = url.pathname.match(/^\/api\/projects\/([^/]+)\/creation\/stream$/);
+      if (method === 'GET' && creationStreamRoute) {
+        if (!services.readCreateStatus) {
+          throw new Error('Async project creation status is not available.');
+        }
+        const projectId = assertProjectId(creationStreamRoute[1] ?? '');
+        const initial = await services.readCreateStatus(projectId);
+        if (!initial) {
+          sendJson(response, 404, { error: `Project creation state does not exist: ${projectId}` });
+          return;
+        }
+
+        startNdjson(response);
+        creationStreamResponses.add(response);
+        let unsubscribe = () => undefined;
+        let closed = false;
+
+        const cleanup = () => {
+          if (closed) return;
+          closed = true;
+          unsubscribe();
+          creationStreamResponses.delete(response);
+        };
+        const finish = () => {
+          cleanup();
+          if (!response.writableEnded && !response.destroyed) response.end();
+        };
+        const send = (record: CreationStreamRecord) => {
+          if (closed || response.writableEnded || response.destroyed) return;
+          writeNdjson(response, record);
+          if (record.type === 'ready' || record.type === 'failed') finish();
+        };
+        const sendTerminalIfNeeded = async (status: WebCreateProjectStatus): Promise<boolean> => {
+          if (status.project.status === 'FAILED') {
+            send({
+              type: 'failed',
+              error: status.project.failureMessage || 'Project creation failed.',
+            });
+            return true;
+          }
+          if (status.project.status === 'READY') {
+            const runtime = await ensureRuntime(projectId);
+            send({
+              type: 'ready',
+              runtime: await runtimePayload(projectId, runtime, services),
+            });
+            return true;
+          }
+          return false;
+        };
+
+        request.once('close', cleanup);
+        send({ type: 'snapshot', status: initial });
+        if (await sendTerminalIfNeeded(initial)) return;
+
+        unsubscribe = subscribeCreation(projectId, send);
+        const latest = await services.readCreateStatus(projectId);
+        if (!latest) {
+          send({ type: 'failed', error: `Project creation state disappeared: ${projectId}` });
+          return;
+        }
+        if (latest.project.updatedAt !== initial.project.updatedAt || latest.run?.items.length !== initial.run?.items.length) {
+          send({ type: 'snapshot', status: latest });
+        }
+        await sendTerminalIfNeeded(latest);
+        return;
+      }
+
       const creationStatusRoute = url.pathname.match(/^\/api\/projects\/([^/]+)\/creation$/);
       if (method === 'GET' && creationStatusRoute) {
         if (!services.readCreateStatus) {
@@ -458,7 +580,12 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
     } catch (error) {
       const normalized = error instanceof Error ? error : new Error('Unknown API failure.');
       console.error('[Yakable API]', normalized);
-      sendJson(response, isClientError(normalized) ? 400 : 500, { error: normalized.message });
+      if (!response.headersSent) {
+        sendJson(response, isClientError(normalized) ? 400 : 500, { error: normalized.message });
+      } else if (!response.writableEnded) {
+        writeNdjson(response, { type: 'failed', error: normalized.message });
+        response.end();
+      }
     }
   });
 
@@ -485,6 +612,11 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
       return `http://${host}:${address.port}`;
     },
     async close() {
+      for (const response of [...creationStreamResponses]) {
+        if (!response.writableEnded) response.end();
+      }
+      creationStreamResponses.clear();
+      creationSubscribers.clear();
       await Promise.all([...runtimes.values()].map((runtime) => runtime.close().catch(() => undefined)));
       runtimes.clear();
       if (!server.listening) return;
