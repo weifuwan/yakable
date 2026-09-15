@@ -15,6 +15,14 @@ import {
 } from '../modes/mode-contract.js';
 import type { GenerationResult } from '../types.js';
 import {
+  beginUnifiedEditRun,
+  continueUnifiedEditRun,
+  type AgentClientToolResult,
+  type BeginUnifiedEditRunOptions,
+  type ContinueUnifiedEditRunOptions,
+  type UnifiedEditRunResult,
+} from './edit-run.js';
+import {
   createAgentRunContext,
   type AgentRunContext,
   type AgentRuntimeOperation,
@@ -47,13 +55,6 @@ export interface AgentRuntimeContextInput {
   mode?: YakableMode;
 }
 
-/**
- * Stable execution boundary for Yakable agent workflows.
- *
- * PR1 intentionally delegates to the existing create/edit pipelines so behavior
- * stays unchanged. Later migrations can move orchestration behind this class
- * without changing API, CLI, or mode entry points again.
- */
 export class AgentRuntime {
   readonly modelClient: ModelClient;
   readonly toolRouter: ToolRouter;
@@ -117,6 +118,30 @@ export class AgentRuntime {
       context.prompt,
       options,
     );
+  }
+
+  async beginEditRun(
+    projectInput: string,
+    followUpRequest: string,
+    options: BeginUnifiedEditRunOptions = {},
+    mode: YakableMode = 'BUILD',
+  ): Promise<UnifiedEditRunResult> {
+    const context = this.createContext({
+      operation: 'EDIT',
+      projectInput,
+      prompt: followUpRequest,
+      mode,
+    });
+    assertModeCapability(context.mode, 'edit-source');
+    return beginUnifiedEditRun(context.projectInput!, context.prompt, options);
+  }
+
+  continueEditRun(
+    runId: string,
+    toolResult: AgentClientToolResult,
+    options: ContinueUnifiedEditRunOptions = {},
+  ): Promise<UnifiedEditRunResult> {
+    return continueUnifiedEditRun(runId, toolResult, options);
   }
 }
 
