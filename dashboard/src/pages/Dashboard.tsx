@@ -29,12 +29,17 @@ export function Dashboard({
   const [creating, setCreating] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [createError, setCreateError] = useState("");
+  const [createMessage, setCreateMessage] = useState("");
 
   async function create(prompt: string) {
     setCreating(true);
     setCreateError("");
+    setCreateMessage("");
     try {
-      await onCreate(prompt);
+      const decision = await onCreate(prompt);
+      if (decision.route !== "CREATE") {
+        setCreateMessage(decision.message);
+      }
     } catch (error) {
       setCreateError(
         error instanceof Error
@@ -80,6 +85,16 @@ export function Dashboard({
               Let&apos;s build something.
             </h1>
             <Composer onCreate={create} busy={creating} />
+            {createMessage ? (
+              <div
+                className="mt-3 w-full rounded-xl border border-black/[0.08] bg-white/90 px-4 py-3 text-left shadow-[0_4px_18px_rgba(15,23,42,0.04)]"
+                role="status"
+              >
+                <p className="m-0 text-sm leading-6 text-black/65">
+                  {createMessage}
+                </p>
+              </div>
+            ) : null}
             {createError ? (
               <div
                 className="mt-3 w-full rounded-xl border border-red-200 bg-red-50/90 px-4 py-3 text-left"
