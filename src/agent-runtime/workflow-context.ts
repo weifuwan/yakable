@@ -5,6 +5,7 @@ import {
 } from '../editing/context-selection.js';
 import { rankProjectSearchFiles } from '../editing/context-search.js';
 import type { ProjectSnapshot } from '../editing/project-context.js';
+import { defaultModelClient } from '../model/default-client.js';
 import type { ModelClient } from '../model/model-client.js';
 import type { YakableMode } from '../modes/mode-contract.js';
 import type { AgentProtocolRecorder } from '../protocol/agent-recorder.js';
@@ -14,7 +15,7 @@ import type { ReadProjectFileOutput } from '../tools/read-project-file.js';
 import type { SearchProjectOutput } from '../tools/search-project.js';
 import type { ToolResult } from '../tools/tool.js';
 import type { GeneratedFile } from '../types.js';
-import type { ToolRouter } from './tool-router.js';
+import { createDefaultToolRouter, type ToolRouter } from './tool-router.js';
 
 const MAX_CONTEXT_TOTAL_BYTES = 800_000;
 
@@ -26,6 +27,17 @@ export interface AgentWorkflowContext {
 
 export function createAgentWorkflowContext(input: AgentWorkflowContext): AgentWorkflowContext {
   return { ...input };
+}
+
+/** Standalone/CLI composition root. AgentRuntime always passes its own context explicitly. */
+export function createDefaultAgentWorkflowContext(
+  mode: YakableMode = 'BUILD',
+): AgentWorkflowContext {
+  return {
+    mode,
+    modelClient: defaultModelClient,
+    toolRouter: createDefaultToolRouter(),
+  };
 }
 
 export function executeWorkflowTool<Output>(
