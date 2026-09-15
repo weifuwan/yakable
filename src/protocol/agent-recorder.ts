@@ -1,4 +1,8 @@
 import {
+  throwIfOperationCancelled,
+  isOperationCancelled,
+} from '../operation-cancellation.js';
+import {
   AGENT_PROTOCOL_VERSION,
   type AgentCheckResultItem,
   type AgentCommandExecutionItem,
@@ -334,9 +338,11 @@ export async function runAgentStage<T>(
   completedMessage: string | ((result: T) => string),
   task: () => Promise<T>,
 ): Promise<T> {
+  throwIfOperationCancelled();
   recorder.progress(state, 'ACTIVE', activeMessage);
   try {
     const result = await task();
+    throwIfOperationCancelled();
     recorder.progress(
       state,
       'COMPLETED',
@@ -347,7 +353,9 @@ export async function runAgentStage<T>(
     recorder.progress(
       state,
       'FAILED',
-      `${activeMessage}: ${error instanceof Error ? error.message : String(error)}`,
+      isOperationCancelled(error)
+        ? 'Stopped by user'
+        : `${activeMessage}: ${error instanceof Error ? error.message : String(error)}`,
     );
     throw error;
   }
