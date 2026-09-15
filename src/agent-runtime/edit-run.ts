@@ -13,10 +13,18 @@ import {
   type VisualRepairExecutionResult,
   type VisualRepairResult,
 } from '../editing/visual-repair.js';
+import {
+  isOperationCancelled,
+  throwIfOperationCancelled,
+} from '../operation-cancellation.js';
 import type { AgentProtocolRecorder } from '../protocol/agent-recorder.js';
 import type { AgentProtocolItem } from '../protocol/agent-protocol.js';
 import { parsePageObservation, type PageObservation } from '../runtime/page-observation.js';
-import { completeAgentRun } from '../storage/agent-run.js';
+import {
+  cancelAgentRun,
+  completeAgentRun,
+  readAgentRun,
+} from '../storage/agent-run.js';
 import { readAgentRunTurnDiff, recordAgentRunTurnDiff } from '../storage/agent-run-turn-diff.js';
 import {
   deleteAgentRunState,
@@ -122,6 +130,8 @@ export interface ContinueUnifiedEditRunOptions {
   onItem?: AgentItemListener;
 }
 
+const STOPPED_BY_USER = 'Stopped by user.';
+
 function healthyProjectCheck(check: ToolResult<CheckProjectOutput>): boolean {
   return check.ok && check.value.status === 'PASS';
 }
@@ -196,8 +206,10 @@ async function finalizeRun(
   feedback: UnifiedVisualFeedbackResult,
   onItem?: AgentItemListener,
 ): Promise<UnifiedEditRunResult> {
+  throwIfOperationCancelled();
   const agent = createPersistedAgentRecorder(state.runId, onItem);
   await persistHistory(state);
+  throwIfOperationCancelled();
   agent.message(state.summary);
   agent.progress(
     'DONE',
@@ -223,11 +235,54 @@ function failActiveProgress(agent: AgentProtocolRecorder, message: string): void
   }
 }
 
+function failActiveToolCall(agent: AgentProtocolRecorder, message: string): void {
+  const active = [...agent.snapshot()]
+    .reverse()
+    .find((item) => item.type === 'tool_call' && item.status === 'ACTIVE');
+  if (active?.type === 'tool_call') {
+    agent.completeToolCall(active.id, 'FAILED', message, 'Cancelled by user');
+  }
+}
+
+export function cancelUnifiedEditRun(runId: string, message = STOPPED_BY_USER): boolean {
+  const run = readAgentRun(runId);
+  if (!run) {
+    deleteAgentRunState(runId);
+    return false;
+  }
+  if (run.status !== 'RUNNING') {
+    deleteAgentRunState(runId);
+    return false;
+  }
+
+  const agent = createPersistedAgentRecorder(runId);
+  try {
+    failActiveToolCall(agent, message);
+  } catch {
+    // Cancellation must remain best-effort even if the trace is partially written.
+  }
+  try {
+    failActiveProgress(agent, message);
+  } catch {
+    // Preserve cancellation even if the active progress item cannot be closed.
+  }
+  try {
+    agent.progress('DONE', 'FAILED', message);
+  } catch {
+    // A run cancelled before its first progress item may not have a valid transition to DONE.
+  }
+
+  cancelAgentRun(runId, { summary: message });
+  deleteAgentRunState(runId);
+  return true;
+}
+
 function requestObservation(
   state: EditRunBaseState,
   iteration: 0 | 1,
   onItem?: AgentItemListener,
 ): UnifiedEditRunResult {
+  throwIfOperationCancelled();
   const agent = createPersistedAgentRecorder(state.runId, onItem);
   agent.progress(
     'OBSERVE',
@@ -261,11 +316,13 @@ export async function beginUnifiedEditRun(
   followUpRequest: string,
   options: BeginUnifiedEditRunOptions = {},
 ): Promise<UnifiedEditRunResult> {
+  throwIfOperationCancelled();
   const onItem = options.onItem ?? options.onEvent;
   const edit = await editGeneratedProject(projectInput, followUpRequest, {
     onRunCreated: options.onRunCreated,
     onEvent: onItem,
   });
+  throwIfOperationCancelled();
   const state = stateFromEdit(edit);
 
   if (!healthyProjectCheck(edit.projectCheck)) {
@@ -300,6 +357,7 @@ export async function continueUnifiedEditRun(
   toolResult: AgentClientToolResult,
   options: ContinueUnifiedEditRunOptions = {},
 ): Promise<UnifiedEditRunResult> {
+  throwIfOperationCancelled();
   const state = readAgentRunState<PersistedEditRunState>(runId);
   if (!state || state.version !== 1) {
     throw new Error(`Agent run is not waiting for a client tool result: ${runId}`);
@@ -308,6 +366,7 @@ export async function continueUnifiedEditRun(
 
   const agent = createPersistedAgentRecorder(runId, options.onItem);
   if (toolResult.status === 'FAILED') {
+    throwIfOperationCancelled();
     agent.completeToolCall(
       state.pendingToolCallId,
       'FAILED',
@@ -325,14 +384,17 @@ export async function continueUnifiedEditRun(
 
   let observation: PageObservation;
   try {
+    throwIfOperationCancelled();
     observation = parsePageObservation(toolResult.output);
   } catch (error) {
+    if (isOperationCancelled(error)) throw error;
     const message = error instanceof Error ? error.message : String(error);
     agent.completeToolCall(state.pendingToolCallId, 'FAILED', message, 'Invalid page observation');
     agent.progress('OBSERVE', 'FAILED', message, state.iteration);
     return finalizeRun(state, 'FAILED', { status: 'ERROR', error: message }, options.onItem);
   }
 
+  throwIfOperationCancelled();
   agent.completeToolCall(
     state.pendingToolCallId,
     'COMPLETED',
@@ -348,6 +410,7 @@ export async function continueUnifiedEditRun(
 
   let failureState: EditRunBaseState = state;
   try {
+    throwIfOperationCancelled();
     agent.progress(
       'CRITIQUE',
       'ACTIVE',
@@ -357,11 +420,13 @@ export async function continueUnifiedEditRun(
       state.iteration,
     );
     const session = await readProjectSession(state.projectDirectory);
+    throwIfOperationCancelled();
     const critique = await critiqueDesign({
       baselineDesignIntent: session?.designIntent ?? null,
       editIntent: state.editIntent.delta,
       pageObservation: observation,
     });
+    throwIfOperationCancelled();
     agent.progress(
       'CRITIQUE',
       'COMPLETED',
@@ -400,6 +465,7 @@ export async function continueUnifiedEditRun(
       );
     }
 
+    throwIfOperationCancelled();
     agent.progress('REPAIR', 'ACTIVE', 'Applying one bounded visual repair');
     const repairExecution = await repairGeneratedProjectVisual(
       state.projectDirectory,
@@ -417,6 +483,7 @@ export async function continueUnifiedEditRun(
         agent,
       },
     );
+    throwIfOperationCancelled();
     const repair = publicRepair(repairExecution);
 
     if (
@@ -455,13 +522,16 @@ export async function continueUnifiedEditRun(
     };
     failureState = repairedState;
 
+    throwIfOperationCancelled();
     const turnDiff = new TurnDiffTracker(readAgentRunTurnDiff(runId));
     turnDiff.record(repairExecution.changeSet);
     recordAgentRunTurnDiff(runId, await turnDiff.snapshot());
+    throwIfOperationCancelled();
 
     agent.progress('REPAIR', 'COMPLETED', 'Applied one code-healthy visual repair');
     return requestObservation(repairedState, 1, options.onItem);
   } catch (error) {
+    if (isOperationCancelled(error)) throw error;
     const message = error instanceof Error ? error.message : String(error);
     try {
       failActiveProgress(agent, `Frontend feedback failed: ${message}`);
