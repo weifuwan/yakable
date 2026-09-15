@@ -1,8 +1,8 @@
-import { createDefaultAgentRuntime } from '../agent-runtime/agent-runtime.js';
-import type {
-  EditGeneratedProjectOptions,
-  EditProjectResult,
-} from '../editing/edit.js';
+import {
+  createDefaultAgentRuntime,
+  type UnifiedEditRunResult,
+} from '../agent-runtime/index.js';
+import type { EditGeneratedProjectOptions } from '../editing/edit.js';
 import type {
   VisualRepairProjectInput,
   VisualRepairResult,
@@ -37,14 +37,14 @@ export function generateProjectInMode(
   );
 }
 
-export function editGeneratedProjectInMode(
+export function beginEditRunInMode(
   mode: YakableMode,
   projectInput: string,
   followUpRequest: string,
   options: EditGeneratedProjectOptions = {},
-): Promise<EditProjectResult> {
+): Promise<UnifiedEditRunResult> {
   return runModeCapability(mode, 'edit-source', () =>
-    agentRuntime.editProject(projectInput, followUpRequest, options, mode),
+    agentRuntime.beginEditRun(projectInput, followUpRequest, options, mode),
   );
 }
 
