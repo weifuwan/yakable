@@ -59,13 +59,16 @@ export async function initializeWorkspaceGitBaseline(
     await runGitCommand(root, ['config', 'commit.gpgSign', 'false']);
     await writeInternalExclude(root);
     await runGitCommand(root, ['add', '--all']);
+
+    const hooksPath = path.join(root, '.git', 'yakable-hooks');
+    await mkdir(hooksPath, { recursive: true });
     await runGitCommand(root, [
       '-c',
       'user.name=Yakable',
       '-c',
       'user.email=workspace@yakable.local',
       '-c',
-      'core.hooksPath=',
+      `core.hooksPath=${hooksPath}`,
       'commit',
       '--quiet',
       '--allow-empty',
