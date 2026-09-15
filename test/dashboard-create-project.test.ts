@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   bootstrapProject,
   readProjectCreationStatus,
+  retryProjectCreation,
 } from '../dashboard/src/create-project.js';
 
 const originalFetch = globalThis.fetch;
@@ -99,6 +100,49 @@ test('dashboard create client treats missing lifecycle as an existing ready proj
 
   try {
     assert.equal(await readProjectCreationStatus('existing-project'), null);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('dashboard create client retries a failed creation with a fresh project id', async () => {
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    assert.equal(String(input), '/api/projects/failed-project/creation/retry');
+    assert.equal(init?.method, 'POST');
+    assert.equal(init?.body, '{}');
+    return new Response(
+      JSON.stringify({
+        accepted: true,
+        retryOf: 'failed-project',
+        decision: {
+          version: 1,
+          route: 'CREATE',
+          confidence: 'high',
+          message: 'Retrying project creation.',
+        },
+        project: {
+          id: 'retry-project',
+          name: 'Retry Project',
+          prompt: 'Build a SaaS homepage',
+          status: 'CREATING',
+          createdAt: '2026-09-15T05:30:00.000Z',
+          updatedAt: '2026-09-15T05:30:00.000Z',
+        },
+        run: {
+          id: 'retry-run',
+          status: 'RUNNING',
+          startedAt: '2026-09-15T05:30:00.000Z',
+        },
+      }),
+      { status: 202, headers: { 'Content-Type': 'application/json' } },
+    );
+  }) as typeof fetch;
+
+  try {
+    const retry = await retryProjectCreation('failed-project');
+    assert.equal(retry.retryOf, 'failed-project');
+    assert.equal(retry.project.id, 'retry-project');
+    assert.equal(retry.run.id, 'retry-run');
   } finally {
     globalThis.fetch = originalFetch;
   }
