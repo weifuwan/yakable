@@ -1,3 +1,7 @@
+import {
+  isOperationCancelled,
+  throwIfOperationCancelled,
+} from '../operation-cancellation.js';
 import type { CheckProjectOutput } from '../tools/check-project.js';
 import type { ToolResult } from '../tools/tool.js';
 import type { GeneratedFile, ProjectPatch } from '../types.js';
@@ -144,6 +148,7 @@ function checkExecutionFailure(error: unknown): ToolResult<CheckProjectOutput> {
 export async function runOneShotRepair(
   input: RunOneShotRepairInput,
 ): Promise<OneShotRepairResult> {
+  throwIfOperationCancelled();
   if (!input.initialCheck.ok) {
     return {
       attempted: false,
@@ -181,7 +186,9 @@ export async function runOneShotRepair(
   let repairError: string | undefined;
 
   try {
+    throwIfOperationCancelled();
     const files = await input.readFiles(contextFiles);
+    throwIfOperationCancelled();
     const generation = await input.requestRepair(
       buildOneShotRepairRequest(
         input.projectId,
@@ -191,21 +198,28 @@ export async function runOneShotRepair(
         files,
       ),
     );
+    throwIfOperationCancelled();
     model = generation.model;
 
     const patch = input.parsePatch(generation.content);
     assertRepairPatchUsesContext(patch, contextFiles);
+    throwIfOperationCancelled();
     changeSet = await input.applyChanges(patch);
+    throwIfOperationCancelled();
     changedFiles = workspaceChangedPaths(changeSet);
     summary = patch.summary;
   } catch (error) {
+    if (isOperationCancelled(error)) throw error;
     repairError = error instanceof Error ? error.message : String(error);
   }
 
   let finalCheck: ToolResult<CheckProjectOutput>;
   try {
+    throwIfOperationCancelled();
     finalCheck = await input.checkProject();
+    throwIfOperationCancelled();
   } catch (error) {
+    if (isOperationCancelled(error)) throw error;
     finalCheck = checkExecutionFailure(error);
   }
 
