@@ -1,9 +1,12 @@
 export {
+  assertWithinContextBudget,
   createContextBudget,
+  measureContextBudget,
 } from './context-budget.js';
 export type {
   ContextBudget,
   ContextBudgetInput,
+  ContextBudgetUsage,
 } from './context-budget.js';
 
 export {
@@ -33,8 +36,16 @@ export type {
 } from './context-builder.js';
 
 export {
+  CONVERSATION_CONTEXT_BUDGET,
+  CONVERSATION_CONTEXT_COMPACTED_MAX_TOKENS,
+  CONVERSATION_CONTEXT_COMPACTED_MESSAGE_CHARS,
+  CONVERSATION_CONTEXT_COMPACTED_MESSAGE_MAX_TOKENS,
+  CONVERSATION_CONTEXT_HISTORY_MAX_TOKENS,
   CONVERSATION_CONTEXT_MAX_MESSAGE_CHARS,
   CONVERSATION_CONTEXT_MAX_MESSAGES,
+  CONVERSATION_CONTEXT_MESSAGE_OVERHEAD_TOKENS,
+  CONVERSATION_CONTEXT_NON_HISTORY_RESERVE_TOKENS,
+  CONVERSATION_CONTEXT_RECENT_MAX_TOKENS,
   CONVERSATION_CONTEXT_VERSION,
   buildConversationContext,
 } from './conversation-context.js';
@@ -42,6 +53,13 @@ export type {
   ConversationContext,
   ConversationContextMessage,
 } from './conversation-context.js';
+
+export {
+  CONTEXT_TOKEN_ESTIMATOR_VERSION,
+  estimateTextTokens,
+  truncateTextToEstimatedTokens,
+} from './token-estimator.js';
+export type { TruncatedTextResult } from './token-estimator.js';
 
 export {
   MAX_CONTEXT_SEARCH_QUERY_LENGTH,
