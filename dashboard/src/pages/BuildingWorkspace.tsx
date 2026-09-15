@@ -152,7 +152,7 @@ function PreviewSkeleton({
           {readyProject ? (
             <iframe
               key={readyProject.previewUrl}
-              className={`pointer-events-none absolute inset-x-0 bottom-0 top-9 h-[calc(100%-2.25rem)] w-full border-0 bg-white transition-[opacity,transform] duration-300 ease-out ${
+              className={`pointer-events-none absolute inset-x-0 bottom-0 top-9 h-[calc(100%_-_2.25rem)] w-full border-0 bg-white transition-[opacity,transform] duration-300 ease-out ${
                 previewLoaded ? "scale-100 opacity-100" : "scale-[0.997] opacity-0"
               }`}
               src={readyProject.previewUrl}
