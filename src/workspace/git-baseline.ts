@@ -4,6 +4,7 @@ import path from 'node:path';
 import { runGitCommand } from './git-command.js';
 
 export const YAKABLE_GIT_BASELINE_MESSAGE = 'Initialize Yakable workspace baseline';
+export const YAKABLE_GIT_BASELINE_REF = 'refs/yakable/baseline';
 export const YAKABLE_GIT_EXCLUDES = ['.yakable/', 'node_modules/', 'dist/'] as const;
 
 export interface WorkspaceGitBaseline {
@@ -28,7 +29,11 @@ async function writeInternalExclude(root: string): Promise<void> {
 }
 
 export async function readWorkspaceBaselineCommit(root: string): Promise<string> {
-  const result = await runGitCommand(root, ['rev-parse', '--verify', 'HEAD']);
+  const result = await runGitCommand(root, [
+    'rev-parse',
+    '--verify',
+    YAKABLE_GIT_BASELINE_REF,
+  ]);
   const commit = result.stdout.trim();
   if (!/^[0-9a-f]{40}$/i.test(commit)) {
     throw new Error('Workspace Git baseline did not resolve to a commit SHA.');
@@ -67,6 +72,9 @@ export async function initializeWorkspaceGitBaseline(
       '-m',
       YAKABLE_GIT_BASELINE_MESSAGE,
     ]);
+
+    const head = (await runGitCommand(root, ['rev-parse', '--verify', 'HEAD'])).stdout.trim();
+    await runGitCommand(root, ['update-ref', YAKABLE_GIT_BASELINE_REF, head]);
     return { commit: await readWorkspaceBaselineCommit(root) };
   } catch (error) {
     await rm(path.join(root, '.git'), { recursive: true, force: true }).catch(() => undefined);
