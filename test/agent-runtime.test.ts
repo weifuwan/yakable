@@ -14,6 +14,9 @@ const modelClient: ModelClient = {
   async generateStructured() {
     return { content: '{}', model: 'test-model' };
   },
+  async generateText() {
+    return { content: 'test reply', model: 'test-model' };
+  },
 };
 
 const editTool: Tool<{ value: string }, string> = {
@@ -73,7 +76,7 @@ test('ToolRouter exposes and executes tools according to mode capabilities', asy
   assert.deepEqual(allowed, { ok: true, value: 'applied' });
 });
 
-test('AgentRuntime owns create and approved-plan workflow entry points', async () => {
+test('AgentRuntime passes the authoritative model and tool dependencies into workflows', async () => {
   const calls: string[] = [];
   const generationResult = { marker: 'create-result' } as unknown as GenerationResult;
   const approvedPlanResult = { marker: 'plan-result' } as unknown as ApprovedPlanWorkflowResult;
@@ -83,11 +86,17 @@ test('AgentRuntime owns create and approved-plan workflow entry points', async (
     modelClient,
     toolRouter: router,
     now: () => new Date('2026-09-15T00:00:00.000Z'),
-    async createProject(prompt, options) {
+    async createProject(workflow, prompt, options) {
+      assert.equal(workflow.modelClient, modelClient);
+      assert.equal(workflow.toolRouter, router);
+      assert.equal(workflow.mode, 'BUILD');
       calls.push(`create:${prompt}:${options?.mode}`);
       return generationResult;
     },
-    async executeApprovedPlan(projectInput, options) {
+    async executeApprovedPlan(workflow, projectInput, options) {
+      assert.equal(workflow.modelClient, modelClient);
+      assert.equal(workflow.toolRouter, router);
+      assert.equal(workflow.mode, 'BUILD');
       calls.push(`approved-plan:${projectInput}:${options?.mode}`);
       return approvedPlanResult;
     },
@@ -101,6 +110,10 @@ test('AgentRuntime owns create and approved-plan workflow entry points', async (
   assert.equal(context.startedAt, '2026-09-15T00:00:00.000Z');
   assert.equal(context.modelClientId, 'test-model');
   assert.deepEqual(context.availableTools, [editTool.name]);
+
+  const workflowContext = runtime.createWorkflowContext('BUILD');
+  assert.equal(workflowContext.modelClient, modelClient);
+  assert.equal(workflowContext.toolRouter, router);
 
   assert.equal(await runtime.createProject('  Build a dashboard  '), generationResult);
   assert.equal(await runtime.executeApprovedPlan(' generated/example '), approvedPlanResult);
