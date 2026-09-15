@@ -9,6 +9,8 @@ import {
   deleteProjectAgentRuns,
   listProjectAgentRuns,
   readAgentRun,
+  recordAgentRunFileChange,
+  recordAgentRunFileChanges,
 } from '../src/storage/agent-run.js';
 import { closeYakableDatabases } from '../src/storage/database.js';
 
@@ -69,6 +71,7 @@ test('persists an edit agent run and ordered events', () => {
     assert.equal(stored.model, 'deepseek-chat');
     assert.equal(stored.summary, 'Updated hero copy');
     assert.equal(stored.completedAt, '2026-09-14T10:00:03.000Z');
+    assert.deepEqual(stored.changes, []);
     assert.deepEqual(
       stored.events.map((event) => [event.sequence, event.state, event.status]),
       [
@@ -79,6 +82,74 @@ test('persists an edit agent run and ordered events', () => {
     );
 
     assert.equal(listProjectAgentRuns('demo-project').at(0)?.id, run.id);
+  });
+});
+
+test('aggregates source changes against the original before content', () => {
+  withMemoryDatabase(() => {
+    const run = createAgentRun({
+      projectId: 'diff-project',
+      kind: 'EDIT',
+      prompt: 'Polish the hero',
+    });
+
+    recordAgentRunFileChanges(run.id, [
+      {
+        path: 'src/App.tsx',
+        beforeContent: 'export default function App() { return <h1>Old</h1>; }',
+        afterContent: 'export default function App() { return <h1>New</h1>; }',
+      },
+      {
+        path: 'src/components/Hero.tsx',
+        beforeContent: null,
+        afterContent: 'export function Hero() { return <section />; }',
+      },
+    ]);
+
+    recordAgentRunFileChange(run.id, {
+      path: 'src/App.tsx',
+      beforeContent: 'export default function App() { return <h1>New</h1>; }',
+      afterContent: 'export default function App() { return <h1>Better</h1>; }',
+    });
+
+    const stored = readAgentRun(run.id);
+    assert.ok(stored);
+    assert.deepEqual(
+      stored.changes.map((change) => ({
+        ordinal: change.ordinal,
+        path: change.path,
+        type: change.type,
+        beforeContent: change.beforeContent,
+        afterContent: change.afterContent,
+      })),
+      [
+        {
+          ordinal: 1,
+          path: 'src/App.tsx',
+          type: 'MODIFIED',
+          beforeContent: 'export default function App() { return <h1>Old</h1>; }',
+          afterContent: 'export default function App() { return <h1>Better</h1>; }',
+        },
+        {
+          ordinal: 2,
+          path: 'src/components/Hero.tsx',
+          type: 'ADDED',
+          beforeContent: null,
+          afterContent: 'export function Hero() { return <section />; }',
+        },
+      ],
+    );
+
+    recordAgentRunFileChange(run.id, {
+      path: 'src/App.tsx',
+      beforeContent: 'ignored intermediate value',
+      afterContent: 'export default function App() { return <h1>Old</h1>; }',
+    });
+
+    assert.deepEqual(
+      readAgentRun(run.id)?.changes.map((change) => change.path),
+      ['src/components/Hero.tsx'],
+    );
   });
 });
 
@@ -114,7 +185,12 @@ test('a failed agent event marks the run failed and completion keeps that outcom
 
 test('deletes all persisted runs for a project', () => {
   withMemoryDatabase(() => {
-    createAgentRun({ projectId: 'delete-me', kind: 'EDIT', prompt: 'one' });
+    const deletedRun = createAgentRun({ projectId: 'delete-me', kind: 'EDIT', prompt: 'one' });
+    recordAgentRunFileChange(deletedRun.id, {
+      path: 'src/App.tsx',
+      beforeContent: 'old',
+      afterContent: 'new',
+    });
     createAgentRun({ projectId: 'delete-me', kind: 'EDIT', prompt: 'two' });
     createAgentRun({ projectId: 'keep-me', kind: 'EDIT', prompt: 'three' });
 
