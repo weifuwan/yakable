@@ -78,7 +78,9 @@ export function upsertAgentRunItem(
         item_json = excluded.item_json
     `).run(normalizedRunId, item.id, sequence, item.type, itemJson);
 
-    if (item.status === 'FAILED') {
+    // Tool/check failures can be recoverable observations. Only a failed progress
+    // state is authoritative for the final run outcome.
+    if (item.type === 'progress' && item.status === 'FAILED') {
       database.prepare(`
         UPDATE agent_runs
         SET status = 'FAILED', summary = COALESCE(summary, ?), completed_at = COALESCE(completed_at, ?)
