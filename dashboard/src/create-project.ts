@@ -50,20 +50,16 @@ export interface ProjectCreationStatus {
   run: ProjectCreationRun | null;
 }
 
-export type ProjectBootstrapResult =
-  | {
-      accepted: true;
-      decision: BuildIntentDecision;
-      project: ProjectCreationProject;
-      run: ProjectCreationRun;
-    }
-  | {
-      accepted: false;
-      decision: BuildIntentDecision;
-    };
+export interface ProjectBootstrapResult {
+  decision: BuildIntentDecision;
+  project: {
+    id: string;
+    name: string;
+  };
+  creation: ProjectCreationStatus | null;
+}
 
 export interface ProjectRetryResult {
-  accepted: true;
   retryOf: string;
   decision: BuildIntentDecision;
   project: ProjectCreationProject;
