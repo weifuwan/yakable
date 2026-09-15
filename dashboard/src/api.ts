@@ -1,10 +1,6 @@
 import {
-  createFrontendAgentEvent,
   parseFrontendAgentEvent,
   publishFrontendAgentEvent,
-  type FrontendAgentEvent,
-  type FrontendAgentState,
-  type FrontendAgentStepStatus,
 } from './frontend-agent';
 import {
   requestPreviewPageObservation,
@@ -81,6 +77,7 @@ export interface ProjectConversationMessage {
   model?: string;
   changedFiles?: string[];
   visualSelections?: PersistedVisualSelection[];
+  agentRun?: unknown;
 }
 
 export interface ProjectConversation {
@@ -225,24 +222,31 @@ export interface RuntimeProject {
   conversation: ProjectConversation | null;
 }
 
+export interface AgentClientToolRequest {
+  toolCallId: string;
+  toolName: 'observe_preview';
+  iteration: 0 | 1;
+  message: string;
+}
+
+export type UnifiedEditRunStatus = 'WAITING_FOR_CLIENT_TOOL' | 'COMPLETED' | 'FAILED';
+
 export interface EditedProject extends RuntimeProject {
+  runId: string;
+  status: UnifiedEditRunStatus;
+  userRequest: string;
   summary: string;
   model: string;
   changedFiles: string[];
   editIntent: EditIntentResolution;
   contextSelection: EditContextSelection;
   projectCheck: ProjectCheckResult;
-  agentTrace?: FrontendAgentEvent[];
+  clientTool?: AgentClientToolRequest;
   visualFeedback?: VisualFeedbackResult;
 }
 
-export interface ProjectMessageResult extends RuntimeProject {
+export interface ProjectMessageResult extends EditedProject {
   route: ProjectMessageRoute;
-  summary: string;
-  model: string;
-  changedFiles: string[];
-  agentTrace?: FrontendAgentEvent[];
-  visualFeedback?: VisualFeedbackResult;
 }
 
 interface ProjectMessageRoutingResult {
@@ -250,22 +254,20 @@ interface ProjectMessageRoutingResult {
   conversation: ProjectConversation | null;
 }
 
-interface VisualRepairResponse extends RuntimeProject {
-  visualRepair: VisualRepairResult;
-}
-
 type AgentCreateStreamRecord =
-  | { type: 'agent-event'; event: unknown }
+  | { type: 'agent-item'; item: unknown }
   | { type: 'result'; result: CreateProjectResult }
   | { type: 'error'; error: string };
 
 type AgentEditStreamRecord =
-  | { type: 'agent-event'; event: unknown }
+  | { type: 'run-started'; runId: string }
+  | { type: 'agent-item'; item: unknown }
+  | { type: 'await-client-tool'; result: EditedProject }
   | { type: 'result'; result: EditedProject }
   | { type: 'error'; error: string };
 
 const PREVIEW_RELOAD_TIMEOUT_MS = 8_000;
-let nextAgentRunId = 1;
+let nextCreateRunId = 1;
 
 async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
   const response = await fetch(input, {
@@ -275,7 +277,6 @@ async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
       ...(init?.headers ?? {}),
     },
   });
-
   const payload = (await response.json().catch(() => ({}))) as { error?: string } & T;
   if (!response.ok) {
     throw new Error(payload.error || `Yakable API failed with HTTP ${response.status}.`);
@@ -283,35 +284,22 @@ async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
   return payload;
 }
 
-function publishAgentState(
-  runId: string,
-  state: FrontendAgentState,
-  status: FrontendAgentStepStatus,
-  message: string,
-  iteration?: 0 | 1,
-): void {
-  publishFrontendAgentEvent(
-    runId,
-    createFrontendAgentEvent(state, status, message, iteration),
-  );
-}
-
-function createAgentRunId(projectId: string): string {
-  return `${projectId}-${Date.now()}-${nextAgentRunId++}`;
+function parseRecord(line: string): Record<string, unknown> {
+  try {
+    const value: unknown = JSON.parse(line);
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+      throw new Error('Agent stream returned an invalid record.');
+    }
+    return value as Record<string, unknown>;
+  } catch (error) {
+    if (error instanceof SyntaxError) throw new Error('Agent stream returned invalid JSON.');
+    throw error;
+  }
 }
 
 function parseAgentCreateStreamRecord(line: string): AgentCreateStreamRecord {
-  let value: unknown;
-  try {
-    value = JSON.parse(line);
-  } catch {
-    throw new Error('Create Agent stream returned invalid JSON.');
-  }
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    throw new Error('Create Agent stream returned an invalid record.');
-  }
-  const record = value as Record<string, unknown>;
-  if (record.type === 'agent-event') return { type: 'agent-event', event: record.event };
+  const record = parseRecord(line);
+  if (record.type === 'agent-item') return { type: 'agent-item', item: record.item };
   if (record.type === 'result' && record.result && typeof record.result === 'object') {
     return { type: 'result', result: record.result as CreateProjectResult };
   }
@@ -321,130 +309,142 @@ function parseAgentCreateStreamRecord(line: string): AgentCreateStreamRecord {
   throw new Error('Create Agent stream returned an unknown record type.');
 }
 
-function parseAgentStreamRecord(line: string): AgentEditStreamRecord {
-  let value: unknown;
-  try {
-    value = JSON.parse(line);
-  } catch {
-    throw new Error('Frontend Agent stream returned invalid JSON.');
+function parseAgentEditStreamRecord(line: string): AgentEditStreamRecord {
+  const record = parseRecord(line);
+  if (record.type === 'run-started' && typeof record.runId === 'string') {
+    return { type: 'run-started', runId: record.runId };
   }
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    throw new Error('Frontend Agent stream returned an invalid record.');
-  }
-  const record = value as Record<string, unknown>;
-  if (record.type === 'agent-event') return { type: 'agent-event', event: record.event };
-  if (record.type === 'result' && record.result && typeof record.result === 'object') {
-    return { type: 'result', result: record.result as EditedProject };
+  if (record.type === 'agent-item') return { type: 'agent-item', item: record.item };
+  if (
+    (record.type === 'await-client-tool' || record.type === 'result')
+    && record.result
+    && typeof record.result === 'object'
+  ) {
+    return {
+      type: record.type,
+      result: record.result as EditedProject,
+    };
   }
   if (record.type === 'error' && typeof record.error === 'string') {
     return { type: 'error', error: record.error };
   }
-  throw new Error('Frontend Agent stream returned an unknown record type.');
+  throw new Error('Edit Agent stream returned an unknown record type.');
 }
 
-async function requestAgentCreate(
-  prompt: string,
-  runId: string,
-): Promise<CreateProjectResult> {
+async function consumeNdjson<T>(
+  response: Response,
+  consumeLine: (line: string) => void,
+  getResult: () => T | null,
+): Promise<T> {
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(payload.error || `Yakable API failed with HTTP ${response.status}.`);
+  }
+  if (!response.body) throw new Error('Agent stream is not available in this browser.');
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  while (true) {
+    const chunk = await reader.read();
+    buffer += decoder.decode(chunk.value ?? new Uint8Array(), { stream: !chunk.done });
+    let newline = buffer.indexOf('\n');
+    while (newline !== -1) {
+      const line = buffer.slice(0, newline);
+      buffer = buffer.slice(newline + 1);
+      if (line.trim()) consumeLine(line);
+      newline = buffer.indexOf('\n');
+    }
+    if (chunk.done) break;
+  }
+  if (buffer.trim()) consumeLine(buffer);
+  const result = getResult();
+  if (!result) throw new Error('Agent stream ended without a result.');
+  return result;
+}
+
+async function requestAgentCreate(prompt: string): Promise<CreateProjectResult> {
+  const liveRunId = `create-${Date.now()}-${nextCreateRunId++}`;
+  let result: CreateProjectResult | null = null;
   const response = await fetch('/api/projects/agent-create', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ prompt }),
   });
-
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new Error(payload.error || `Yakable API failed with HTTP ${response.status}.`);
-  }
-  if (!response.body) {
-    throw new Error('Create Agent stream is not available in this browser.');
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let result: CreateProjectResult | null = null;
-
-  const consumeLine = (line: string) => {
-    if (!line.trim()) return;
-    const record = parseAgentCreateStreamRecord(line);
-    if (record.type === 'agent-event') {
-      publishFrontendAgentEvent(runId, parseFrontendAgentEvent(record.event));
-      return;
-    }
-    if (record.type === 'error') throw new Error(record.error);
-    result = record.result;
-  };
-
-  while (true) {
-    const chunk = await reader.read();
-    buffer += decoder.decode(chunk.value ?? new Uint8Array(), { stream: !chunk.done });
-    let newline = buffer.indexOf('\n');
-    while (newline !== -1) {
-      const line = buffer.slice(0, newline);
-      buffer = buffer.slice(newline + 1);
-      consumeLine(line);
-      newline = buffer.indexOf('\n');
-    }
-    if (chunk.done) break;
-  }
-
-  if (buffer.trim()) consumeLine(buffer);
-  if (!result) throw new Error('Create Agent stream ended without a project result.');
-  return result;
+  return consumeNdjson(
+    response,
+    (line) => {
+      const record = parseAgentCreateStreamRecord(line);
+      if (record.type === 'agent-item') {
+        publishFrontendAgentEvent(liveRunId, parseFrontendAgentEvent(record.item));
+      } else if (record.type === 'error') {
+        throw new Error(record.error);
+      } else {
+        result = record.result;
+      }
+    },
+    () => result,
+  );
 }
 
-async function requestAgentEdit(
-  projectId: string,
-  prompt: string,
-  runId: string,
-): Promise<EditedProject> {
+async function requestAgentEdit(projectId: string, prompt: string): Promise<EditedProject> {
+  let runId = '';
+  let result: EditedProject | null = null;
   const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}/agent-edit`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ prompt }),
   });
+  return consumeNdjson(
+    response,
+    (line) => {
+      const record = parseAgentEditStreamRecord(line);
+      if (record.type === 'run-started') {
+        runId = record.runId;
+      } else if (record.type === 'agent-item') {
+        if (!runId) throw new Error('Agent item arrived before the server run id.');
+        publishFrontendAgentEvent(runId, parseFrontendAgentEvent(record.item));
+      } else if (record.type === 'error') {
+        throw new Error(record.error);
+      } else {
+        result = record.result;
+        runId ||= record.result.runId;
+      }
+    },
+    () => result,
+  );
+}
 
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new Error(payload.error || `Yakable API failed with HTTP ${response.status}.`);
-  }
-  if (!response.body) {
-    throw new Error('Frontend Agent stream is not available in this browser.');
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
+async function continueAgentEdit(
+  runId: string,
+  toolResult: {
+    toolCallId: string;
+    toolName: 'observe_preview';
+    status: 'COMPLETED' | 'FAILED';
+    output?: PreviewPageObservation;
+    error?: string;
+  },
+): Promise<EditedProject> {
   let result: EditedProject | null = null;
-
-  const consumeLine = (line: string) => {
-    if (!line.trim()) return;
-    const record = parseAgentStreamRecord(line);
-    if (record.type === 'agent-event') {
-      publishFrontendAgentEvent(runId, parseFrontendAgentEvent(record.event));
-      return;
-    }
-    if (record.type === 'error') throw new Error(record.error);
-    result = record.result;
-  };
-
-  while (true) {
-    const chunk = await reader.read();
-    buffer += decoder.decode(chunk.value ?? new Uint8Array(), { stream: !chunk.done });
-    let newline = buffer.indexOf('\n');
-    while (newline !== -1) {
-      const line = buffer.slice(0, newline);
-      buffer = buffer.slice(newline + 1);
-      consumeLine(line);
-      newline = buffer.indexOf('\n');
-    }
-    if (chunk.done) break;
-  }
-
-  if (buffer.trim()) consumeLine(buffer);
-  if (!result) throw new Error('Frontend Agent stream ended without an edit result.');
-  return result;
+  const response = await fetch(`/api/agent-runs/${encodeURIComponent(runId)}/client-tool-result`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(toolResult),
+  });
+  return consumeNdjson(
+    response,
+    (line) => {
+      const record = parseAgentEditStreamRecord(line);
+      if (record.type === 'agent-item') {
+        publishFrontendAgentEvent(runId, parseFrontendAgentEvent(record.item));
+      } else if (record.type === 'error') {
+        throw new Error(record.error);
+      } else if (record.type === 'await-client-tool' || record.type === 'result') {
+        result = record.result;
+      }
+    },
+    () => result,
+  );
 }
 
 export async function listProjects(): Promise<ProjectListItem[]> {
@@ -453,7 +453,7 @@ export async function listProjects(): Promise<ProjectListItem[]> {
 }
 
 export function createProject(prompt: string): Promise<CreateProjectResult> {
-  return requestAgentCreate(prompt, createAgentRunId('create'));
+  return requestAgentCreate(prompt);
 }
 
 export function startProjectRuntime(projectId: string): Promise<RuntimeProject> {
@@ -470,34 +470,6 @@ function routeProjectMessage(
   return requestJson(`/api/projects/${encodeURIComponent(projectId)}/message`, {
     method: 'POST',
     body: JSON.stringify({ prompt }),
-  });
-}
-
-export function critiqueProjectDesign(
-  projectId: string,
-  editIntent: EditIntentDelta,
-  pageObservation: PreviewPageObservation,
-): Promise<{ critique: DesignCriticRun }> {
-  return requestJson(`/api/projects/${encodeURIComponent(projectId)}/critique`, {
-    method: 'POST',
-    body: JSON.stringify({ editIntent, pageObservation }),
-  });
-}
-
-export function repairProjectVisual(
-  projectId: string,
-  input: {
-    userRequest: string;
-    editIntent: EditIntentDelta;
-    critique: DesignCriticResult;
-    pageObservation: PreviewPageObservation;
-    initialChangedFiles: string[];
-    selectedContextFiles: string[];
-  },
-): Promise<VisualRepairResponse> {
-  return requestJson(`/api/projects/${encodeURIComponent(projectId)}/visual-repair`, {
-    method: 'POST',
-    body: JSON.stringify(input),
   });
 }
 
@@ -523,7 +495,6 @@ function reloadPreviewFrame(
   timeoutMs = PREVIEW_RELOAD_TIMEOUT_MS,
 ): Promise<void> {
   const nextUrl = preservePreviewRoute(runtimeUrl, frame);
-
   return new Promise((resolve, reject) => {
     let settled = false;
     const cleanup = () => {
@@ -538,204 +509,50 @@ function reloadPreviewFrame(
     };
     const onLoad = () => settle(resolve);
     const timeout = window.setTimeout(() => {
-      settle(() => reject(new Error('Preview reload timed out before visual feedback.')));
+      settle(() => reject(new Error('Preview reload timed out before observation.')));
     }, timeoutMs);
-
     frame.addEventListener('load', onLoad);
     frame.src = nextUrl;
   });
 }
 
-function healthyProjectCheck(check: ProjectCheckResult): boolean {
-  return check.ok && check.value.status === 'PASS';
-}
-
-function mergeChangedFiles(initial: string[], repair: string[]): string[] {
-  return [...new Set([...initial, ...repair])];
-}
-
-async function runVisualFeedback(
-  projectId: string,
-  userRequest: string,
-  edited: EditedProject,
-  runId: string,
-): Promise<EditedProject> {
-  if (!healthyProjectCheck(edited.projectCheck)) {
-    publishAgentState(
-      runId,
-      'DONE',
-      'FAILED',
-      'Stopped before visual feedback because the edited project is not code-healthy',
-    );
-    return {
-      ...edited,
-      visualFeedback: {
-        status: 'SKIPPED',
-        error: 'Visual feedback skipped because the edited project is not code-healthy.',
-      },
-    };
+async function executeClientTool(step: EditedProject): Promise<{
+  toolCallId: string;
+  toolName: 'observe_preview';
+  status: 'COMPLETED' | 'FAILED';
+  output?: PreviewPageObservation;
+  error?: string;
+}> {
+  const request = step.clientTool;
+  if (!request || request.toolName !== 'observe_preview') {
+    throw new Error('Server requested an unsupported client tool.');
   }
 
   const frame = currentPreviewFrame();
   if (!frame) {
-    publishAgentState(runId, 'OBSERVE', 'SKIPPED', 'Active Preview frame was not found', 0);
-    publishAgentState(runId, 'DONE', 'SKIPPED', 'Stopped because Preview observation is unavailable');
     return {
-      ...edited,
-      visualFeedback: {
-        status: 'SKIPPED',
-        error: 'Visual feedback skipped because the active Preview frame was not found.',
-      },
+      toolCallId: request.toolCallId,
+      toolName: 'observe_preview',
+      status: 'FAILED',
+      error: 'Active Preview frame was not found.',
     };
   }
 
-  let current = edited;
-  let initialObservation: PreviewPageObservation | undefined;
-  let initialCritique: DesignCriticRun | undefined;
-  let repair: VisualRepairResult | undefined;
-
   try {
-    publishAgentState(runId, 'OBSERVE', 'ACTIVE', 'Rendering and observing the current Preview', 0);
-    await reloadPreviewFrame(frame, current.previewUrl);
-    initialObservation = await requestPreviewPageObservation(frame);
-    publishAgentState(
-      runId,
-      'OBSERVE',
-      'COMPLETED',
-      `Observed ${initialObservation.elements.length} visible key element(s)`,
-      0,
-    );
-
-    publishAgentState(runId, 'CRITIQUE', 'ACTIVE', 'Checking the rendered result against design intent', 0);
-    initialCritique = (
-      await critiqueProjectDesign(projectId, current.editIntent.delta, initialObservation)
-    ).critique;
-    publishAgentState(
-      runId,
-      'CRITIQUE',
-      'COMPLETED',
-      initialCritique.result.status === 'PASS'
-        ? 'No concrete observable mismatch was found'
-        : `Found ${initialCritique.result.findings.length} grounded design issue(s)`,
-      0,
-    );
-
-    if (initialCritique.result.status === 'PASS') {
-      publishAgentState(runId, 'DONE', 'COMPLETED', 'Frontend edit passed the bounded feedback loop');
-      return {
-        ...current,
-        visualFeedback: {
-          status: 'PASS',
-          initialObservation,
-          initialCritique,
-        },
-      };
-    }
-
-    publishAgentState(runId, 'REPAIR', 'ACTIVE', 'Applying one bounded visual repair');
-    const repairResponse = await repairProjectVisual(projectId, {
-      userRequest,
-      editIntent: current.editIntent.delta,
-      critique: initialCritique.result,
-      pageObservation: initialObservation,
-      initialChangedFiles: current.changedFiles,
-      selectedContextFiles: current.contextSelection.relevantFiles,
-    });
-    repair = repairResponse.visualRepair;
-    current = {
-      ...current,
-      previewUrl: repairResponse.previewUrl,
-      session: repairResponse.session,
-      conversation: repairResponse.conversation,
-      changedFiles:
-        repair.status === 'REPAIRED'
-          ? mergeChangedFiles(current.changedFiles, repair.changedFiles)
-          : current.changedFiles,
-    };
-
-    if (repair.status !== 'REPAIRED' || !repair.projectCheck || !healthyProjectCheck(repair.projectCheck)) {
-      publishAgentState(
-        runId,
-        'REPAIR',
-        'FAILED',
-        repair.rolledBack
-          ? 'Visual repair failed project health checks and was rolled back'
-          : repair.error || 'Visual repair did not produce a healthy project',
-      );
-      publishAgentState(runId, 'DONE', 'FAILED', 'Stopped after the single allowed visual repair');
-      return {
-        ...current,
-        visualFeedback: {
-          status: 'REPAIR_FAILED',
-          initialObservation,
-          initialCritique,
-          repair,
-          ...(repair.error ? { error: repair.error } : {}),
-        },
-      };
-    }
-
-    publishAgentState(runId, 'REPAIR', 'COMPLETED', 'Applied one code-healthy visual repair');
-    publishAgentState(runId, 'OBSERVE', 'ACTIVE', 'Re-observing the repaired Preview', 1);
-    await reloadPreviewFrame(frame, current.previewUrl);
-    const finalObservation = await requestPreviewPageObservation(frame);
-    publishAgentState(
-      runId,
-      'OBSERVE',
-      'COMPLETED',
-      `Observed ${finalObservation.elements.length} key element(s) after repair`,
-      1,
-    );
-
-    publishAgentState(runId, 'CRITIQUE', 'ACTIVE', 'Running the final bounded design critique', 1);
-    const finalCritique = (
-      await critiqueProjectDesign(projectId, current.editIntent.delta, finalObservation)
-    ).critique;
-    publishAgentState(
-      runId,
-      'CRITIQUE',
-      'COMPLETED',
-      finalCritique.result.status === 'PASS'
-        ? 'The repaired result passed observable design checks'
-        : `${finalCritique.result.findings.length} grounded issue(s) remain after the single repair`,
-      1,
-    );
-    publishAgentState(
-      runId,
-      'DONE',
-      'COMPLETED',
-      finalCritique.result.status === 'PASS'
-        ? 'Frontend feedback loop completed successfully'
-        : 'Frontend feedback loop stopped at its one-repair boundary',
-    );
-
+    await reloadPreviewFrame(frame, step.previewUrl);
+    const observation = await requestPreviewPageObservation(frame);
     return {
-      ...current,
-      visualFeedback: {
-        status: finalCritique.result.status === 'PASS' ? 'REPAIRED_PASS' : 'REPAIRED_FAIL',
-        initialObservation,
-        initialCritique,
-        repair,
-        finalObservation,
-        finalCritique,
-      },
+      toolCallId: request.toolCallId,
+      toolName: 'observe_preview',
+      status: 'COMPLETED',
+      output: observation,
     };
   } catch (error) {
-    publishAgentState(
-      runId,
-      'DONE',
-      'FAILED',
-      `Frontend feedback stopped: ${error instanceof Error ? error.message : String(error)}`,
-    );
     return {
-      ...current,
-      visualFeedback: {
-        status: 'ERROR',
-        ...(initialObservation ? { initialObservation } : {}),
-        ...(initialCritique ? { initialCritique } : {}),
-        ...(repair ? { repair } : {}),
-        error: error instanceof Error ? error.message : String(error),
-      },
+      toolCallId: request.toolCallId,
+      toolName: 'observe_preview',
+      status: 'FAILED',
+      error: error instanceof Error ? error.message : String(error),
     };
   }
 }
@@ -762,33 +579,49 @@ export async function editProject(
     const frame = currentPreviewFrame();
     return {
       ...runtime,
-      previewUrl: frame?.src || runtime.previewUrl,
+      runId: '',
+      status: 'COMPLETED',
+      userRequest: prompt,
       conversation: routed.conversation ?? runtime.conversation,
+      previewUrl: frame?.src || runtime.previewUrl,
       route: routed.decision.route,
       summary: routed.decision.message,
       model: 'project-message-router',
       changedFiles: [],
+      editIntent: {
+        delta: {
+          version: 1,
+          summary: routed.decision.message,
+          scope: 'project',
+          targetHints: [],
+          directives: [],
+          preserve: [],
+        },
+        source: 'fallback',
+        reason: 'No source edit was executed.',
+      },
+      contextSelection: {
+        version: 1,
+        relevantFiles: [],
+        searchQuery: null,
+        reason: 'No source edit was executed.',
+        source: 'fallback',
+      },
+      projectCheck: { ok: true, value: { status: 'PASS' } },
     };
   }
 
-  const runId = createAgentRunId(projectId);
   const visualEditPrompt = buildVisualEditPrompt(prompt, selections);
-
   try {
-    const edited = await requestAgentEdit(projectId, visualEditPrompt, runId);
-    const result = await runVisualFeedback(projectId, prompt, edited, runId);
+    let step = await requestAgentEdit(projectId, visualEditPrompt);
+    while (step.status === 'WAITING_FOR_CLIENT_TOOL') {
+      const toolResult = await executeClientTool(step);
+      step = await continueAgentEdit(step.runId, toolResult);
+    }
     return {
-      ...result,
+      ...step,
       route: routed.decision.route,
     };
-  } catch (error) {
-    publishAgentState(
-      runId,
-      'DONE',
-      'FAILED',
-      `Frontend Agent stopped: ${error instanceof Error ? error.message : String(error)}`,
-    );
-    throw error;
   } finally {
     if (selections.length) clearCurrentPreviewSelections();
   }
@@ -800,10 +633,7 @@ export async function updateProject(
 ): Promise<ProjectListItem> {
   const result = await requestJson<{ project: ProjectListItem }>(
     `/api/projects/${encodeURIComponent(projectId)}`,
-    {
-      method: 'PATCH',
-      body: JSON.stringify(patch),
-    },
+    { method: 'PATCH', body: JSON.stringify(patch) },
   );
   return result.project;
 }
@@ -811,10 +641,7 @@ export async function updateProject(
 export async function remixProject(projectId: string): Promise<ProjectListItem> {
   const result = await requestJson<{ project: ProjectListItem }>(
     `/api/projects/${encodeURIComponent(projectId)}/remix`,
-    {
-      method: 'POST',
-      body: '{}',
-    },
+    { method: 'POST', body: '{}' },
   );
   return result.project;
 }
