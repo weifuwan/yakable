@@ -1,5 +1,8 @@
+import {
+  buildConversationContext,
+  type ConversationContextMessage,
+} from '../context/conversation-context.js';
 import { resolveDeepSeekRequestConfig } from '../model/deepseek.js';
-import type { ProjectConversationMessage } from '../types.js';
 import { PROJECT_CHAT_SYSTEM_PROMPT } from './project-chat-prompt.js';
 
 export type ProjectChatMode = 'CHAT' | 'CLARIFY';
@@ -8,7 +11,7 @@ export interface ProjectChatInput {
   mode: ProjectChatMode;
   userInput: string;
   hasGeneratedUi: boolean;
-  recentConversation: Array<Pick<ProjectConversationMessage, 'role' | 'content'>>;
+  recentConversation: readonly ConversationContextMessage[];
 }
 
 export interface ProjectChatMessage {
@@ -33,8 +36,6 @@ interface DeepSeekChatResponse {
 }
 
 const MAX_USER_INPUT = 8_000;
-const MAX_RECENT_MESSAGES = 12;
-const MAX_RECENT_MESSAGE_LENGTH = 2_000;
 const MAX_REPLY_LENGTH = 4_000;
 const PROJECT_CHAT_MAX_ATTEMPTS = 2;
 
@@ -49,13 +50,7 @@ function normalizeInput(input: ProjectChatInput): ProjectChatInput {
     mode: input.mode,
     userInput,
     hasGeneratedUi: input.hasGeneratedUi,
-    recentConversation: input.recentConversation
-      .slice(-MAX_RECENT_MESSAGES)
-      .map((message) => ({
-        role: message.role,
-        content: message.content.trim().slice(0, MAX_RECENT_MESSAGE_LENGTH),
-      }))
-      .filter((message) => message.content.length > 0),
+    recentConversation: buildConversationContext(input.recentConversation).messages,
   };
 }
 
