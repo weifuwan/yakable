@@ -1,4 +1,8 @@
 import { requestVisualRepair } from '../model/deepseek.js';
+import {
+  isOperationCancelled,
+  throwIfOperationCancelled,
+} from '../operation-cancellation.js';
 import type { AgentProtocolRecorder } from '../protocol/agent-recorder.js';
 import type { PageObservation } from '../runtime/page-observation.js';
 import { resolveGeneratedProject } from '../runtime/runtime.js';
@@ -200,6 +204,7 @@ function checkExecutionFailure(error: unknown): ToolResult<CheckProjectOutput> {
 export async function runVisualRepairOnce(
   input: RunVisualRepairInput,
 ): Promise<VisualRepairExecutionResult> {
+  throwIfOperationCancelled();
   validateUserRequest(input.userRequest);
 
   if (input.critique.status === 'PASS') {
@@ -239,7 +244,9 @@ export async function runVisualRepairOnce(
   let summary: string | undefined;
 
   try {
+    throwIfOperationCancelled();
     const files = await input.readFiles(contextFiles);
+    throwIfOperationCancelled();
     const generation = await input.requestRepair(
       buildVisualRepairRequest(
         input.projectId,
@@ -251,14 +258,18 @@ export async function runVisualRepairOnce(
         files,
       ),
     );
+    throwIfOperationCancelled();
     model = generation.model;
 
     const patch = input.parsePatch(generation.content);
     assertVisualRepairPatchUsesContext(patch, contextFiles);
+    throwIfOperationCancelled();
     changeSet = await input.applyChanges(patch);
+    throwIfOperationCancelled();
     changedFiles = workspaceChangedPaths(changeSet);
     summary = patch.summary;
   } catch (error) {
+    if (isOperationCancelled(error)) throw error;
     return {
       attempted: true,
       status: 'FAILED',
@@ -274,8 +285,11 @@ export async function runVisualRepairOnce(
 
   let projectCheck: ToolResult<CheckProjectOutput>;
   try {
+    throwIfOperationCancelled();
     projectCheck = await input.checkProject();
+    throwIfOperationCancelled();
   } catch (error) {
+    if (isOperationCancelled(error)) throw error;
     projectCheck = checkExecutionFailure(error);
   }
 
@@ -297,9 +311,12 @@ export async function runVisualRepairOnce(
   let rolledBack = false;
   let rollbackError: string | undefined;
   try {
+    throwIfOperationCancelled();
     await input.rollback(changeSet);
+    throwIfOperationCancelled();
     rolledBack = true;
   } catch (error) {
+    if (isOperationCancelled(error)) throw error;
     rollbackError = error instanceof Error ? error.message : String(error);
   }
 
@@ -328,20 +345,41 @@ export async function repairGeneratedProjectVisual(
   input: VisualRepairProjectInput,
   options: RepairGeneratedProjectVisualOptions = {},
 ): Promise<VisualRepairExecutionResult> {
+  throwIfOperationCancelled();
   const project = await resolveGeneratedProject(projectInput, options.generatedRoot);
+  throwIfOperationCancelled();
   const availableFiles = await listProjectContextFiles(project.directory);
+  throwIfOperationCancelled();
   const changeManager = createProjectChangeManager(project);
 
   return runVisualRepairOnce({
     ...input,
     projectId: project.id,
     availableFiles,
-    readFiles: async (paths) => (await readProjectSnapshot(project, paths)).files,
+    readFiles: async (paths) => {
+      throwIfOperationCancelled();
+      const files = (await readProjectSnapshot(project, paths)).files;
+      throwIfOperationCancelled();
+      return files;
+    },
     requestRepair: requestVisualRepair,
     parsePatch: parseProjectPatch,
-    applyChanges: (patch) => applyProjectChanges(changeManager, patch, options.agent),
-    checkProject: () =>
-      checkProjectTool.execute({}, { projectDirectory: project.directory, agent: options.agent }),
-    rollback: (changeSet) => changeManager.rollback(changeSet),
+    applyChanges: async (patch) => {
+      throwIfOperationCancelled();
+      const changeSet = await applyProjectChanges(changeManager, patch, options.agent);
+      throwIfOperationCancelled();
+      return changeSet;
+    },
+    checkProject: async () => {
+      throwIfOperationCancelled();
+      const result = await checkProjectTool.execute({}, { projectDirectory: project.directory, agent: options.agent });
+      throwIfOperationCancelled();
+      return result;
+    },
+    rollback: async (changeSet) => {
+      throwIfOperationCancelled();
+      await changeManager.rollback(changeSet);
+      throwIfOperationCancelled();
+    },
   });
 }
