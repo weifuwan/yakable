@@ -10,6 +10,7 @@ import {
   writeGeneratedProject,
   writeGeneratedProjectFromBase,
 } from '../src/projects/project.js';
+import { workspaceChangedPaths } from '../src/workspace/change-set.js';
 
 const validProject = JSON.stringify({
   summary: 'A small generated app',
@@ -94,7 +95,6 @@ test('rejects path traversal from model output', () => {
       { path: '../outside.txt', content: 'nope' },
     ],
   });
-
   assert.throws(() => parseGeneratedProject(dangerous), /not safe/);
 });
 
@@ -103,7 +103,6 @@ test('rejects incomplete source trees', () => {
     summary: 'missing entry point',
     files: [{ path: 'package.json', content: '{}' }],
   });
-
   assert.throws(() => parseGeneratedProject(incomplete), /missing required file/);
 });
 
@@ -112,7 +111,6 @@ test('parses Base overlays using only project-owned paths', () => {
     mode: 'base-overlay',
     expectedTemplate: 'app',
   });
-
   assert.equal(project.template, 'app');
   assert.ok(project.files.some((file) => file.path === 'src/pages/OverviewPage.tsx'));
   assert.ok(project.files.every((file) => file.path !== 'package.json'));
@@ -131,11 +129,7 @@ test('rejects infrastructure writes, component CSS, and misplaced pages in Base 
     files: [...parsedBase.files, { path: 'package.json', content: '{}' }],
   });
   assert.throws(
-    () =>
-      parseGeneratedProject(infrastructureWrite, {
-        mode: 'base-overlay',
-        expectedTemplate: 'app',
-      }),
+    () => parseGeneratedProject(infrastructureWrite, { mode: 'base-overlay', expectedTemplate: 'app' }),
     /project-owned files/,
   );
 
@@ -143,18 +137,11 @@ test('rejects infrastructure writes, component CSS, and misplaced pages in Base 
     ...parsedBase,
     files: [
       ...parsedBase.files,
-      {
-        path: 'src/components/product/IconButton.css',
-        content: '.button { display: inline-flex; }',
-      },
+      { path: 'src/components/product/IconButton.css', content: '.button { display: inline-flex; }' },
     ],
   });
   assert.throws(
-    () =>
-      parseGeneratedProject(componentCss, {
-        mode: 'base-overlay',
-        expectedTemplate: 'app',
-      }),
+    () => parseGeneratedProject(componentCss, { mode: 'base-overlay', expectedTemplate: 'app' }),
     /must use Tailwind utilities/,
   );
 
@@ -162,18 +149,11 @@ test('rejects infrastructure writes, component CSS, and misplaced pages in Base 
     ...parsedBase,
     files: [
       ...parsedBase.files,
-      {
-        path: 'src/components/product/JobsPage.tsx',
-        content: 'export function JobsPage() { return null; }',
-      },
+      { path: 'src/components/product/JobsPage.tsx', content: 'export function JobsPage() { return null; }' },
     ],
   });
   assert.throws(
-    () =>
-      parseGeneratedProject(misplacedPage, {
-        mode: 'base-overlay',
-        expectedTemplate: 'app',
-      }),
+    () => parseGeneratedProject(misplacedPage, { mode: 'base-overlay', expectedTemplate: 'app' }),
     /Route-level page files must live under src\/pages/,
   );
 });
@@ -183,19 +163,22 @@ test('creates a filesystem-safe prompt slug', () => {
   assert.equal(slugifyPrompt('做一个首页'), 'app');
 });
 
-test('writes source and .yakable project metadata under a new output root', async () => {
+test('writes source as one ChangeSet and persists project metadata', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'yakable-generation-'));
   const outputRoot = path.join(tempRoot, 'generated');
 
   try {
     const project = parseGeneratedProject(validProject);
-    const outputDirectory = await writeGeneratedProject('Build a demo', project, outputRoot);
+    const written = await writeGeneratedProject('Build a demo', project, outputRoot);
+    const { outputDirectory, changeSet } = written;
     const appSource = await readFile(path.join(outputDirectory, 'src/App.tsx'), 'utf8');
     const metadata = JSON.parse(
       await readFile(path.join(outputDirectory, '.yakable/project.json'), 'utf8'),
     ) as { template: string; routes: Array<{ path: string }> };
 
     assert.match(outputDirectory, /build-a-demo-/);
+    assert.deepEqual(workspaceChangedPaths(changeSet), project.files.map((file) => file.path));
+    assert.ok(changeSet.files.every((file) => file.type === 'ADDED'));
     assert.match(appSource, /Hello/);
     assert.equal(metadata.template, 'app');
     assert.deepEqual(metadata.routes.map((route) => route.path), ['/', '/account']);
@@ -204,7 +187,7 @@ test('writes source and .yakable project metadata under a new output root', asyn
   }
 });
 
-test('bootstraps first generation from Yakable Base before applying product files', async () => {
+test('bootstraps Yakable Base and applies the product overlay as one ChangeSet', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'yakable-base-generation-'));
   const outputRoot = path.join(tempRoot, 'generated');
 
@@ -213,11 +196,12 @@ test('bootstraps first generation from Yakable Base before applying product file
       mode: 'base-overlay',
       expectedTemplate: 'app',
     });
-    const outputDirectory = await writeGeneratedProjectFromBase(
+    const written = await writeGeneratedProjectFromBase(
       '帮我做一个数据同步的项目',
       project,
       outputRoot,
     );
+    const { outputDirectory, changeSet } = written;
 
     const packageJson = JSON.parse(
       await readFile(path.join(outputDirectory, 'package.json'), 'utf8'),
@@ -235,6 +219,9 @@ test('bootstraps first generation from Yakable Base before applying product file
       path.join(outputDirectory, 'src/components/IconButton.css'),
     ).catch(() => null);
 
+    assert.deepEqual(workspaceChangedPaths(changeSet), project.files.map((file) => file.path));
+    assert.equal(changeSet.files.find((file) => file.path === 'src/App.tsx')?.type, 'MODIFIED');
+    assert.equal(changeSet.files.find((file) => file.path === 'src/pages/OverviewPage.tsx')?.type, 'ADDED');
     assert.equal(packageJson.devDependencies?.tailwindcss, '^4.1.0');
     assert.equal(packageJson.devDependencies?.['@tailwindcss/vite'], '^4.1.0');
     assert.match(viteConfig, /@tailwindcss\/vite/);
