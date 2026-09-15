@@ -3,7 +3,10 @@ import type {
   EditGeneratedProjectOptions,
   EditProjectResult,
 } from '../editing/edit.js';
-import type { VisualRepairProjectInput, VisualRepairResult } from '../editing/visual-repair.js';
+import type {
+  VisualRepairProjectInput,
+  VisualRepairResult,
+} from '../editing/visual-repair.js';
 import { repairGeneratedProjectVisual } from '../editing/visual-repair.js';
 import type { GenerateProjectOptions } from '../generation/generate.js';
 import type { GenerationResult } from '../types.js';
@@ -45,13 +48,18 @@ export function editGeneratedProjectInMode(
   );
 }
 
-export function repairGeneratedProjectVisualInMode(
+export async function repairGeneratedProjectVisualInMode(
   mode: YakableMode,
   projectInput: string,
   input: VisualRepairProjectInput,
   generatedRoot?: string,
 ): Promise<VisualRepairResult> {
-  return runModeCapability(mode, 'repair-source', () =>
-    repairGeneratedProjectVisual(projectInput, input, generatedRoot),
-  );
+  return runModeCapability(mode, 'repair-source', async () => {
+    const { changeSet: _changeSet, ...result } = await repairGeneratedProjectVisual(
+      projectInput,
+      input,
+      { generatedRoot },
+    );
+    return result;
+  });
 }
