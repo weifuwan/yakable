@@ -671,21 +671,115 @@ function ChatComposer({
       <div className="mx-auto w-full">
         <div className="scrollbar-hide mb-2 flex gap-1.5 overflow-x-auto px-1">
           {suggestionPrompts.map((suggestion) => (
-            <button key={suggestion} className="h-7 shrink-0 rounded-full border border-black/[0.11] bg-white px-3 text-[11px] font-medium text-black/65 shadow-[0_1px_2px_rgba(15,23,42,0.035)] transition hover:bg-black/[0.025]" type="button" onClick={() => onPromptChange(suggestion)} disabled={busy}>
+            <button
+              key={suggestion}
+              className="
+                h-7 shrink-0
+                cursor-pointer
+                rounded-full
+                border border-black/[0.11]
+                bg-white
+                px-3
+                text-[11px]
+                font-medium
+                text-black/65
+                shadow-[0_1px_2px_rgba(15,23,42,0.035)]
+                transition
+                hover:bg-black/[0.025]
+                disabled:cursor-default
+              "
+              type="button"
+              onClick={() => onPromptChange(suggestion)}
+              disabled={busy}
+            >
               {suggestion}
             </button>
           ))}
         </div>
-        <form className="rounded-[22px] border border-black/[0.09] bg-white p-3 shadow-[0_6px_22px_rgba(15,23,42,0.08)]" onSubmit={onSubmit}>
-          <textarea className="min-h-[54px] w-full resize-none border-0 bg-transparent px-1 pb-2 text-sm leading-6 text-[#2e2e2b] outline-none placeholder:text-black/38 disabled:opacity-60" value={prompt} onChange={(event) => onPromptChange(event.target.value)} placeholder="Ask Yakable..." rows={2} disabled={busy} />
+
+        <form
+          className="rounded-[22px] border border-black/[0.09] bg-white p-3 shadow-[0_6px_22px_rgba(15,23,42,0.08)]"
+          onSubmit={onSubmit}
+        >
+          <textarea
+            className="
+              min-h-[54px]
+              w-full
+              resize-none
+              border-0
+              bg-transparent
+              px-1
+              pb-2
+              text-sm
+              leading-6
+              text-[#2e2e2b]
+              outline-none
+              placeholder:text-black/38
+              disabled:opacity-60
+            "
+            value={prompt}
+            onChange={(event) => onPromptChange(event.target.value)}
+            placeholder="Ask Yakable..."
+            rows={2}
+            disabled={busy}
+          />
+
           <div className="flex items-center justify-between gap-2">
-            <button className="grid h-7 w-7 place-items-center rounded-full border border-black/[0.11] bg-white text-black/55 transition hover:bg-black/[0.035]" type="button" aria-label="Add attachment" disabled={busy}>
+            <button
+              className="
+                grid h-7 w-7
+                cursor-pointer
+                place-items-center
+                rounded-full
+                border border-black/[0.11]
+                bg-white
+                text-black/55
+                transition
+                hover:bg-black/[0.035]
+                disabled:cursor-default
+              "
+              type="button"
+              aria-label="Add attachment"
+              disabled={busy}
+            >
               <Icon name="plus" size={15} />
             </button>
+
             <div className="flex items-center gap-1">
-              <button className="relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-0 bg-[#20201f] p-0 text-white transition hover:bg-black disabled:cursor-default disabled:opacity-25" type="submit" aria-label="Send message" disabled={!prompt.trim() || busy}>
-                <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" aria-hidden="true">
-                  <path d="M11.0004 19.0005V7.41461L7.70744 10.7076C7.31692 11.0981 6.68391 11.0981 6.29338 10.7076C5.90286 10.3171 5.90286 9.68404 6.29338 9.29352L11.2934 4.29352L11.3666 4.22711C11.5446 4.08128 11.7683 4.00055 12.0004 4.00055C12.2656 4.00055 12.5199 4.10598 12.7074 4.29352L17.7074 9.29352C18.098 9.68404 18.098 10.3171 17.7074 10.7076C17.3169 11.0981 16.6839 11.0981 16.2934 10.7076L13.0004 7.41461V19.0005C13.0004 19.5528 12.5527 20.0005 12.0004 20.0005C11.4481 20.0005 11.0004 19.5528 11.0004 19.0005Z" fill="currentColor" />
+              <button
+                className="
+                  relative
+                  inline-flex
+                  h-7 w-7
+                  shrink-0
+                  cursor-pointer
+                  items-center
+                  justify-center
+                  rounded-full
+                  border-0
+                  bg-[#20201f]
+                  p-0
+                  text-white
+                  transition
+                  hover:bg-black
+                  disabled:cursor-default
+                  disabled:opacity-25
+                "
+                type="submit"
+                aria-label="Send message"
+                disabled={!prompt.trim() || busy}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-4 w-4 shrink-0"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M11.0004 19.0005V7.41461L7.70744 10.7076C7.31692 11.0981 6.68391 11.0981 6.29338 10.7076C5.90286 10.3171 5.90286 9.68404 6.29338 9.29352L11.2934 4.29352L11.3666 4.22711C11.5446 4.08128 11.7683 4.00055 12.0004 4.00055C12.2656 4.00055 12.5199 4.10598 12.7074 4.29352L17.7074 9.29352C18.098 9.68404 18.098 10.3171 17.7074 10.7076C17.3169 11.0981 16.6839 11.0981 16.2934 10.7076L13.0004 7.41461V19.0005C13.0004 19.5528 12.5527 20.0005 12.0004 20.0005C11.4481 20.0005 11.0004 19.5528 11.0004 19.0005Z"
+                    fill="currentColor"
+                  />
                 </svg>
               </button>
             </div>

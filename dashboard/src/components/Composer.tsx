@@ -316,38 +316,57 @@ export function Composer({
   const [prompt, setPrompt] = useState("");
   const [error, setError] = useState("");
 
-  const quickActions: Array<{ label: string; icon: IconName; prompt: string }> =
-    [
-      {
-        label: "Recreate a screenshot",
-        icon: "image",
-        prompt:
-          "Recreate a polished web page from a screenshot with a clean responsive layout.",
-      },
-      {
-        label: "Import from GitHub",
-        icon: "github",
-        prompt:
-          "Create a polished frontend for an existing GitHub project and keep the implementation simple.",
-      },
-      {
-        label: "Import from Figma",
-        icon: "figma",
-        prompt:
-          "Turn a Figma-style product design into a responsive React interface.",
-      },
-      {
-        label: "Create a landing page",
-        icon: "template",
-        prompt:
-          "Build a clean SaaS landing page with a hero, feature section, and pricing cards.",
-      },
-    ];
+  const quickActions: Array<{
+    label: string;
+    icon: IconName;
+    prompt: string;
+  }> = [
+    {
+      label: "Recreate a screenshot",
+      icon: "image",
+      prompt:
+        "Recreate a polished web page from a screenshot with a clean responsive layout.",
+    },
+    {
+      label: "Import from GitHub",
+      icon: "github",
+      prompt:
+        "Create a polished frontend for an existing GitHub project and keep the implementation simple.",
+    },
+    {
+      label: "Import from Figma",
+      icon: "figma",
+      prompt:
+        "Turn a Figma-style product design into a responsive React interface.",
+    },
+    {
+      label: "Create a landing page",
+      icon: "template",
+      prompt:
+        "Build a clean SaaS landing page with a hero, feature section, and pricing cards.",
+    },
+  ];
 
-  async function submit(event: FormEvent) {
+  const canSubmit = Boolean(prompt.trim()) && !busy;
+
+  /**
+   * 统一提交入口
+   *
+   * 无论：
+   * - 点击发送按钮
+   * - Enter 发送
+   *
+   * 最终都走这里。
+   */
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
     const request = prompt.trim();
-    if (!request || busy) return;
+
+    if (!request || busy) {
+      return;
+    }
+
     setError("");
 
     try {
@@ -360,22 +379,97 @@ export function Composer({
     }
   }
 
+  /**
+   * textarea 键盘事件
+   *
+   * Enter         -> 发送
+   * Shift + Enter -> 换行
+   *
+   * 中文输入法正在选词时，
+   * Enter 不触发发送。
+   */
+  function handleKeyDown(event: any) {
+    if (event.key !== "Enter") {
+      return;
+    }
+
+    // Shift + Enter：正常换行
+    if (event.shiftKey) {
+      return;
+    }
+
+    // 中文 / 日文 / 韩文输入法组合输入过程中，
+    // Enter 通常用于确认候选词，不能触发发送。
+    if (event.nativeEvent.isComposing) {
+      return;
+    }
+
+    // 阻止 textarea 默认换行
+    event.preventDefault();
+
+    if (!canSubmit) {
+      return;
+    }
+
+    // 不直接调用 onCreate。
+    // 统一触发 form submit，
+    // 保证按钮点击和 Enter 使用同一套提交逻辑。
+    event.currentTarget.form?.requestSubmit();
+  }
+
   return (
     <div className="relative w-full">
       <form
-        className="relative z-10 flex min-h-[104px] w-full flex-col rounded-2xl border border-black/[0.11] bg-white px-3 pb-2 pt-2 shadow-[0_2px_8px_rgba(15,23,42,0.07)] transition focus-within:border-black/[0.18] focus-within:shadow-[0_6px_24px_rgba(15,23,42,0.10)]"
+        className="
+          relative z-10
+          flex min-h-[104px] w-full flex-col
+          rounded-2xl
+          border border-black/[0.11]
+          bg-white
+          px-3 pb-2 pt-2
+          shadow-[0_2px_8px_rgba(15,23,42,0.07)]
+          transition
+          focus-within:border-black/[0.18]
+          focus-within:shadow-[0_6px_24px_rgba(15,23,42,0.10)]
+        "
         onSubmit={submit}
       >
         <textarea
-          className="min-h-12 w-full resize-y border-0 bg-transparent px-1 py-2 text-[15px] leading-6 text-[#1e2525] outline-none placeholder:text-black/35 disabled:cursor-wait disabled:opacity-60"
+          className="
+            min-h-12
+            max-h-40
+            w-full
+            resize-none
+            overflow-y-auto
+            border-0
+            bg-transparent
+            px-1
+            py-2
+            text-[15px]
+            leading-6
+            text-[#1e2525]
+            outline-none
+            placeholder:text-black/35
+            disabled:cursor-wait
+            disabled:opacity-60
+          "
           value={prompt}
-          onChange={(event) => setPrompt(event.target.value)}
+          onChange={(event) => {
+            setPrompt(event.target.value);
+
+            if (error) {
+              setError("");
+            }
+          }}
+          onKeyDown={handleKeyDown}
           placeholder="Ask Yakable to build anything..."
           aria-label="Describe what you want to build"
           rows={2}
           disabled={busy}
         />
+
         <div className="mt-1 flex min-h-8 items-center justify-between gap-2">
+          {/* 左侧工具 */}
           <div className="flex min-w-0 flex-wrap items-center gap-1">
             <button
               className={iconButtonClass}
@@ -385,6 +479,7 @@ export function Composer({
             >
               <Icon name="plus" size={18} />
             </button>
+
             <button
               className={iconButtonClass}
               type="button"
@@ -393,56 +488,105 @@ export function Composer({
             >
               <Icon name="command" size={18} />
             </button>
+
             <DesignSystemPicker disabled={busy} />
           </div>
 
+          {/* 右侧工具 */}
           <div className="flex shrink-0 items-center gap-1">
             <button
-              className="inline-flex h-7 items-center gap-1 rounded-lg border-0 bg-transparent px-2 text-xs text-black/60 transition hover:bg-black/[0.04] hover:text-black disabled:opacity-40"
+              className="
+    inline-flex h-7 items-center gap-1
+    rounded-lg
+    border-0
+    bg-transparent
+    px-2
+    text-xs
+    text-black/60
+    cursor-pointer
+    transition
+    hover:bg-black/[0.04]
+    hover:text-black
+    disabled:cursor-default
+    disabled:opacity-40
+  "
               type="button"
               disabled={busy}
             >
-              Auto <Icon name="chevronDown" size={13} />
+              Auto
+              <Icon name="chevronDown" size={13} />
             </button>
+
             <button
               className={iconButtonClass}
               type="button"
               aria-label="Voice input"
               disabled={busy}
             >
-              <Icon name="mic" size={16} />
+              <svg
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                xmlns="http://www.w3.org/2000/svg"
+                className="shrink-0 size-5"
+                aria-hidden="true"
+                data-default-size=""
+                data-button-icon=""
+                style={{width: 16, height: 16}}
+              >
+                <path
+                  d="M19.348 13.001c0.517 0 0.89 0.5 0.683 0.975a8.753 8.753 0 0 1-7.28 5.24V21.25h1.25a0.75 0.75 0 0 1 0 1.5h-4a0.75 0.75 0 0 1 0-1.5h1.25v-2.032a8.754 8.754 0 0 1-7.281-5.242c-0.206-0.476 0.165-0.975 0.683-0.975a0.83 0.83 0 0 1 0.745 0.499 7.253 7.253 0 0 0 13.205 0 0.83 0.83 0 0 1 0.745-0.499Z"
+                  fill="currentColor"
+                ></path>
+                <path
+                  fill-rule="evenodd"
+                  clip-rule="evenodd"
+                  d="M12 1.75a4.75 4.75 0 0 1 4.75 4.75v4a4.75 4.75 0 0 1-9.5 0v-4A4.75 4.75 0 0 1 12 1.75Zm0 1.5a3.25 3.25 0 0 0-3.25 3.25v4a3.25 3.25 0 0 0 6.5 0v-4a3.25 3.25 0 0 0-3.25-3.25Z"
+                  fill="currentColor"
+                ></path>
+              </svg>
             </button>
+
+            {/* 发送按钮 */}
             <button
-              className={`grid h-9 w-9 place-items-center rounded-full border-0 bg-[#001617] text-white shadow-[0_1px_2px_rgba(0,0,0,0.16)] transition hover:bg-[#1c2424] disabled:cursor-default ${
-                busy ? "opacity-100" : "disabled:opacity-30"
-              }`}
+              className={`
+    grid h-9 w-9
+    place-items-center
+    rounded-full
+    border-0
+    bg-[#001617]
+    text-white
+    cursor-pointer
+    shadow-[0_1px_2px_rgba(0,0,0,0.16)]
+    transition
+    hover:bg-[#1c2424]
+    disabled:cursor-default
+    ${busy ? "opacity-100" : "disabled:opacity-30"}
+  `}
               type="submit"
-              disabled={!prompt.trim() || busy}
+              disabled={!canSubmit}
               aria-label={busy ? "Creating project" : "Send"}
               aria-busy={busy}
             >
               {busy ? (
                 <span
-                  className="h-4 w-4 animate-spin rounded-full border-2 border-white/35 border-t-white"
+                  className="
+        h-4 w-4
+        animate-spin
+        rounded-full
+        border-2
+        border-white/35
+        border-t-white
+      "
                   aria-hidden="true"
                 />
               ) : (
-                <span
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                    opacity: 1,
-                  }}
-                >
+                <span className="flex items-center" aria-hidden="true">
                   <svg
-                    width="15"
-                    height="15"
+                    width="16"
+                    height="16"
                     viewBox="0 0 15 15"
                     fill="none"
                     xmlns="http://www.w3.org/2000/svg"
-                    className="stroke-4 [&amp;&gt;path]:stroke-inherit"
-                    style={{ height: 16, width: 16 }}
                   >
                     <path
                       d="M7.14645 2.14645C7.34171 1.95118 7.65829 1.95118 7.85355 2.14645L11.8536 6.14645C12.0488 6.34171 12.0488 6.65829 11.8536 6.85355C11.6583 7.04882 11.3417 7.04882 11.1464 6.85355L8 3.70711L8 12.5C8 12.7761 7.77614 13 7.5 13C7.22386 13 7 12.7761 7 12.5L7 3.70711L3.85355 6.85355C3.65829 7.04882 3.34171 7.04882 3.14645 6.85355C2.95118 6.65829 2.95118 6.34171 3.14645 6.14645L7.14645 2.14645Z"
@@ -458,26 +602,72 @@ export function Composer({
         </div>
       </form>
 
+      {/* 快捷操作 */}
       <div
-        className="mt-3 hidden flex-wrap justify-center gap-2 px-2 sm:flex"
+        className="
+          mt-3
+          hidden
+          flex-wrap
+          justify-center
+          gap-2
+          px-2
+          sm:flex
+        "
         aria-label="Prompt shortcuts"
       >
         {quickActions.map((action) => (
           <button
             key={action.label}
-            className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-black/[0.10] bg-white px-3 text-xs font-normal text-[#344040] shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-black/[0.18] hover:bg-black/[0.02] disabled:opacity-40"
+            className="
+              inline-flex h-7 shrink-0
+              items-center gap-1.5
+              rounded-full
+              border border-black/[0.10]
+              bg-white
+              px-3
+              text-xs
+              font-normal
+              text-[#344040]
+              shadow-[0_1px_2px_rgba(15,23,42,0.04)]
+              transition
+              hover:border-black/[0.18]
+              hover:bg-black/[0.02]
+              disabled:opacity-40
+            "
             type="button"
-            onClick={() => setPrompt(action.prompt)}
+            onClick={() => {
+              setPrompt(action.prompt);
+              setError("");
+            }}
             disabled={busy}
           >
             <Icon name={action.icon} size={14} />
+
             {action.label}
           </button>
         ))}
       </div>
 
+      {/* 错误信息 */}
       {error ? (
-        <div className="absolute left-1/2 top-[calc(100%+12px)] z-20 max-w-[92%] -translate-x-1/2 rounded-full bg-rose-50 px-3 py-2 text-[11px] text-rose-700 shadow-lg">
+        <div
+          className="
+            absolute
+            left-1/2
+            top-[calc(100%+12px)]
+            z-20
+            max-w-[92%]
+            -translate-x-1/2
+            rounded-full
+            bg-rose-50
+            px-3
+            py-2
+            text-[11px]
+            text-rose-700
+            shadow-lg
+          "
+          role="alert"
+        >
           {error}
         </div>
       ) : null}
