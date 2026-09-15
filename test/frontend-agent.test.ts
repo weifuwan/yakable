@@ -51,6 +51,40 @@ test('records the bounded frontend agent happy path', async () => {
   assert.equal(recorder.snapshot().filter((event) => event.state === 'REPAIR').length, 2);
 });
 
+test('records the create pipeline through runtime', () => {
+  const recorder = createFrontendAgentRecorder();
+  recorder.emit('ROUTE', 'COMPLETED', 'create');
+  recorder.emit('UNDERSTAND', 'COMPLETED', 'understood');
+  recorder.emit('DESIGN', 'COMPLETED', 'designed');
+  recorder.emit('TEMPLATE', 'COMPLETED', 'template');
+  recorder.emit('GENERATE', 'COMPLETED', 'generated');
+  recorder.emit('WRITE', 'COMPLETED', 'written');
+  recorder.emit('CHECK', 'ACTIVE', 'checking');
+  recorder.emit('REPAIR', 'ACTIVE', 'repairing');
+  recorder.emit('REPAIR', 'COMPLETED', 'repaired');
+  recorder.emit('CHECK', 'COMPLETED', 'healthy');
+  recorder.emit('RUNTIME', 'COMPLETED', 'runtime ready');
+  recorder.emit('DONE', 'COMPLETED', 'done');
+
+  assert.deepEqual(
+    recorder.snapshot().map((event) => event.state),
+    [
+      'ROUTE',
+      'UNDERSTAND',
+      'DESIGN',
+      'TEMPLATE',
+      'GENERATE',
+      'WRITE',
+      'CHECK',
+      'REPAIR',
+      'REPAIR',
+      'CHECK',
+      'RUNTIME',
+      'DONE',
+    ],
+  );
+});
+
 test('allows critique to finish directly without visual repair', () => {
   const recorder = createFrontendAgentRecorder();
   recorder.emit('SELECT_CONTEXT', 'COMPLETED', 'selected');
@@ -71,7 +105,7 @@ test('rejects invalid order and a second visual repair cycle', () => {
   const wrongOrder = createFrontendAgentRecorder();
   assert.throws(
     () => wrongOrder.emit('EDIT', 'ACTIVE', 'editing too early'),
-    /must start at SELECT_CONTEXT/,
+    /must start at ROUTE or SELECT_CONTEXT/,
   );
 
   const recorder = createFrontendAgentRecorder();
@@ -87,7 +121,7 @@ test('rejects invalid order and a second visual repair cycle', () => {
 
   assert.throws(
     () => recorder.emit('REPAIR', 'ACTIVE', 'second repair'),
-    /at most one Visual Repair state/,
+    /at most one Repair state/,
   );
 });
 

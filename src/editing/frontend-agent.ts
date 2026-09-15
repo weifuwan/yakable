@@ -1,10 +1,17 @@
 export const FRONTEND_AGENT_VERSION = 1 as const;
 
 export const FRONTEND_AGENT_STATES = [
+  'ROUTE',
+  'UNDERSTAND',
+  'DESIGN',
+  'TEMPLATE',
+  'GENERATE',
+  'WRITE',
   'SELECT_CONTEXT',
   'READ',
   'EDIT',
   'CHECK',
+  'RUNTIME',
   'OBSERVE',
   'CRITIQUE',
   'REPAIR',
@@ -37,14 +44,23 @@ export interface FrontendAgentProgressOptions {
   onEvent?: (event: FrontendAgentEvent) => void;
 }
 
+const START_STATES = new Set<FrontendAgentState>(['ROUTE', 'SELECT_CONTEXT']);
+
 const NEXT_STATES: Record<FrontendAgentState, ReadonlySet<FrontendAgentState>> = {
+  ROUTE: new Set(['UNDERSTAND']),
+  UNDERSTAND: new Set(['DESIGN']),
+  DESIGN: new Set(['TEMPLATE']),
+  TEMPLATE: new Set(['GENERATE']),
+  GENERATE: new Set(['WRITE']),
+  WRITE: new Set(['CHECK', 'RUNTIME']),
   SELECT_CONTEXT: new Set(['READ']),
   READ: new Set(['EDIT']),
   EDIT: new Set(['CHECK']),
-  CHECK: new Set(['OBSERVE']),
+  CHECK: new Set(['REPAIR', 'RUNTIME', 'OBSERVE']),
+  RUNTIME: new Set(['DONE']),
   OBSERVE: new Set(['CRITIQUE']),
   CRITIQUE: new Set(['REPAIR']),
-  REPAIR: new Set(['OBSERVE']),
+  REPAIR: new Set(['CHECK', 'OBSERVE']),
   DONE: new Set(),
 };
 
@@ -76,8 +92,10 @@ export function assertFrontendAgentTransition(
   repairCount = 0,
 ): void {
   if (previousState === null) {
-    if (nextState !== 'SELECT_CONTEXT') {
-      throw new Error(`Frontend Agent must start at SELECT_CONTEXT, not ${nextState}.`);
+    if (!START_STATES.has(nextState)) {
+      throw new Error(
+        `Frontend Agent must start at ROUTE or SELECT_CONTEXT, not ${nextState}.`,
+      );
     }
     return;
   }
@@ -91,7 +109,7 @@ export function assertFrontendAgentTransition(
     throw new Error(`Invalid Frontend Agent transition: ${previousState} -> ${nextState}.`);
   }
   if (nextState === 'REPAIR' && repairCount >= 1) {
-    throw new Error('Frontend Agent v0 allows at most one Visual Repair state.');
+    throw new Error('Frontend Agent v0 allows at most one Repair state.');
   }
 }
 
@@ -124,13 +142,17 @@ export async function runFrontendAgentStage<T>(
   recorder: FrontendAgentRecorder,
   state: Exclude<FrontendAgentState, 'DONE'>,
   activeMessage: string,
-  completedMessage: string,
+  completedMessage: string | ((result: T) => string),
   task: () => Promise<T>,
 ): Promise<T> {
   recorder.emit(state, 'ACTIVE', activeMessage);
   try {
     const result = await task();
-    recorder.emit(state, 'COMPLETED', completedMessage);
+    recorder.emit(
+      state,
+      'COMPLETED',
+      typeof completedMessage === 'function' ? completedMessage(result) : completedMessage,
+    );
     return result;
   } catch (error) {
     recorder.emit(

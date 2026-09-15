@@ -203,6 +203,7 @@ export interface CreatedProject {
   model: string;
   template: ProjectTemplate;
   routes: ProjectRoute[];
+  agentRunId?: string;
   session: ProjectSession | null;
   conversation: ProjectConversation | null;
 }
@@ -253,6 +254,11 @@ interface VisualRepairResponse extends RuntimeProject {
   visualRepair: VisualRepairResult;
 }
 
+type AgentCreateStreamRecord =
+  | { type: 'agent-event'; event: unknown }
+  | { type: 'result'; result: CreateProjectResult }
+  | { type: 'error'; error: string };
+
 type AgentEditStreamRecord =
   | { type: 'agent-event'; event: unknown }
   | { type: 'result'; result: EditedProject }
@@ -294,6 +300,27 @@ function createAgentRunId(projectId: string): string {
   return `${projectId}-${Date.now()}-${nextAgentRunId++}`;
 }
 
+function parseAgentCreateStreamRecord(line: string): AgentCreateStreamRecord {
+  let value: unknown;
+  try {
+    value = JSON.parse(line);
+  } catch {
+    throw new Error('Create Agent stream returned invalid JSON.');
+  }
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error('Create Agent stream returned an invalid record.');
+  }
+  const record = value as Record<string, unknown>;
+  if (record.type === 'agent-event') return { type: 'agent-event', event: record.event };
+  if (record.type === 'result' && record.result && typeof record.result === 'object') {
+    return { type: 'result', result: record.result as CreateProjectResult };
+  }
+  if (record.type === 'error' && typeof record.error === 'string') {
+    return { type: 'error', error: record.error };
+  }
+  throw new Error('Create Agent stream returned an unknown record type.');
+}
+
 function parseAgentStreamRecord(line: string): AgentEditStreamRecord {
   let value: unknown;
   try {
@@ -313,6 +340,58 @@ function parseAgentStreamRecord(line: string): AgentEditStreamRecord {
     return { type: 'error', error: record.error };
   }
   throw new Error('Frontend Agent stream returned an unknown record type.');
+}
+
+async function requestAgentCreate(
+  prompt: string,
+  runId: string,
+): Promise<CreateProjectResult> {
+  const response = await fetch('/api/projects/agent-create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt }),
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(payload.error || `Yakable API failed with HTTP ${response.status}.`);
+  }
+  if (!response.body) {
+    throw new Error('Create Agent stream is not available in this browser.');
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let result: CreateProjectResult | null = null;
+
+  const consumeLine = (line: string) => {
+    if (!line.trim()) return;
+    const record = parseAgentCreateStreamRecord(line);
+    if (record.type === 'agent-event') {
+      publishFrontendAgentEvent(runId, parseFrontendAgentEvent(record.event));
+      return;
+    }
+    if (record.type === 'error') throw new Error(record.error);
+    result = record.result;
+  };
+
+  while (true) {
+    const chunk = await reader.read();
+    buffer += decoder.decode(chunk.value ?? new Uint8Array(), { stream: !chunk.done });
+    let newline = buffer.indexOf('\n');
+    while (newline !== -1) {
+      const line = buffer.slice(0, newline);
+      buffer = buffer.slice(newline + 1);
+      consumeLine(line);
+      newline = buffer.indexOf('\n');
+    }
+    if (chunk.done) break;
+  }
+
+  if (buffer.trim()) consumeLine(buffer);
+  if (!result) throw new Error('Create Agent stream ended without a project result.');
+  return result;
 }
 
 async function requestAgentEdit(
@@ -374,10 +453,7 @@ export async function listProjects(): Promise<ProjectListItem[]> {
 }
 
 export function createProject(prompt: string): Promise<CreateProjectResult> {
-  return requestJson('/api/projects', {
-    method: 'POST',
-    body: JSON.stringify({ prompt }),
-  });
+  return requestAgentCreate(prompt, createAgentRunId('create'));
 }
 
 export function startProjectRuntime(projectId: string): Promise<RuntimeProject> {

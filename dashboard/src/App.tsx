@@ -230,13 +230,16 @@ export default function App() {
   }
 
   return (
-    <Dashboard
-      projects={projects}
-      loading={loading || projectLoading}
-      pathname={route.pathname}
-      onCreate={handleCreate}
-      onOpen={handleOpen}
-      onNavigate={navigate}
-    />
+    <>
+      <Dashboard
+        projects={projects}
+        loading={loading || projectLoading}
+        pathname={route.pathname}
+        onCreate={handleCreate}
+        onOpen={handleOpen}
+        onNavigate={navigate}
+      />
+      <FrontendAgentActivity />
+    </>
   );
 }
