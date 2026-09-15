@@ -5,7 +5,6 @@ export {
 export type {
   AgentRuntimeContextInput,
   AgentRuntimeDependencies,
-  EditProjectExecutor,
   GenerateProjectExecutor,
 } from './agent-runtime.js';
 export {
