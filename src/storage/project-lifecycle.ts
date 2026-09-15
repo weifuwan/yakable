@@ -147,6 +147,23 @@ export function readProjectLifecycle(projectId: string): ProjectLifecycleRecord 
   return row ? lifecycleFromRow(row) : null;
 }
 
+export function listActiveProjectLifecycles(): ProjectLifecycleRecord[] {
+  const rows = getYakableDatabase().prepare(`
+    SELECT
+      project_id,
+      prompt,
+      status,
+      active_run_id,
+      failure_message,
+      created_at,
+      updated_at
+    FROM project_lifecycle
+    WHERE status IN ('CREATING', 'GENERATING', 'STARTING_RUNTIME')
+    ORDER BY updated_at ASC, project_id ASC
+  `).all() as unknown as ProjectLifecycleRow[];
+  return rows.map(lifecycleFromRow);
+}
+
 export function transitionProjectLifecycle(
   projectId: string,
   status: ProjectLifecycleStatus,
