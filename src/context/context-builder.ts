@@ -1,4 +1,5 @@
 import {
+  assertWithinContextBudget,
   createContextBudget,
   type ContextBudget,
 } from './context-budget.js';
@@ -10,6 +11,7 @@ import {
   type ContextSection,
   type ContextSnapshot,
 } from './context-contract.js';
+import { estimateTextTokens } from './token-estimator.js';
 
 export type ContextProviderResult =
   | ContextContribution
@@ -118,6 +120,19 @@ export class ContextBuilder {
       }
     }
 
+    const estimatedInputTokens = estimateTextTokens(JSON.stringify({
+      operation: normalizedInput.operation,
+      request: normalizedInput.request,
+      projectInput: normalizedInput.projectInput ?? null,
+      metadata: normalizedInput.metadata ?? null,
+      sections,
+    }));
+    const usage = assertWithinContextBudget(
+      this.budget,
+      estimatedInputTokens,
+      'Context snapshot',
+    );
+
     return {
       version: CONTEXT_SNAPSHOT_VERSION,
       operation: normalizedInput.operation,
@@ -126,6 +141,7 @@ export class ContextBuilder {
       ...(normalizedInput.metadata ? { metadata: normalizedInput.metadata } : {}),
       sections,
       budget: { ...this.budget },
+      usage,
       createdAt: this.now().toISOString(),
     };
   }
