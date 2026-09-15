@@ -62,6 +62,14 @@ export type ProjectBootstrapResult =
       decision: BuildIntentDecision;
     };
 
+export interface ProjectRetryResult {
+  accepted: true;
+  retryOf: string;
+  decision: BuildIntentDecision;
+  project: ProjectCreationProject;
+  run: ProjectCreationRun;
+}
+
 export type ProjectCreationStreamRecord =
   | { type: 'snapshot'; status: ProjectCreationStatus }
   | { type: 'agent-item'; runId: string; item: AgentProtocolItem }
@@ -208,6 +216,22 @@ export async function bootstrapProject(prompt: string): Promise<ProjectBootstrap
     throw new Error(errorMessage(payload, `Yakable API failed with HTTP ${response.status}.`));
   }
   return payload as ProjectBootstrapResult;
+}
+
+export async function retryProjectCreation(projectId: string): Promise<ProjectRetryResult> {
+  const response = await fetch(
+    `/api/projects/${encodeURIComponent(projectId)}/creation/retry`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    },
+  );
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(errorMessage(payload, `Yakable API failed with HTTP ${response.status}.`));
+  }
+  return payload as ProjectRetryResult;
 }
 
 export async function readProjectCreationStatus(
