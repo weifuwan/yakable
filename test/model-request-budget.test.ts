@@ -57,7 +57,7 @@ test('includes system prompts and current user input in the end-to-end check', (
         { role: 'user', content: '改一下页面' },
       ],
       maxContextTokens: 1_000,
-      reservedOutputTokens: 250,
+      reservedOutputTokens: 300,
       label: 'Final model request',
     }),
     /Final model request exceeds its Context budget/,
