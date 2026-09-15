@@ -1,3 +1,11 @@
+export * from './agent-runtime/index.js';
+export { deepSeekModelClient } from './model/deepseek.js';
+export type {
+  ModelClient,
+  ModelGeneration,
+  StructuredModelRequest,
+} from './model/model-client.js';
+
 export {
   BuildIntentGateError,
   classifyBuildIntent,
