@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type { FrontendAgentEvent } from '../editing/frontend-agent.js';
+import type { WorkspaceFileChange } from '../workspace/change-set.js';
 import type { WorkspaceTurnDiff } from '../workspace/turn-diff.js';
 import { readAgentRunTurnDiff } from './agent-run-turn-diff.js';
 import { getYakableDatabase } from './database.js';
@@ -10,6 +11,10 @@ export type AgentRunStatus = 'RUNNING' | 'COMPLETED' | 'FAILED';
 
 export interface AgentRunEventRecord extends FrontendAgentEvent {
   sequence: number;
+}
+
+export interface AgentRunChangeView extends WorkspaceFileChange {
+  ordinal: number;
 }
 
 export interface AgentRunRecord {
@@ -24,6 +29,8 @@ export interface AgentRunRecord {
   completedAt?: string;
   events: AgentRunEventRecord[];
   turnDiff: WorkspaceTurnDiff | null;
+  /** Current dashboard projection; source of truth is turnDiff. */
+  changes: AgentRunChangeView[];
 }
 
 export interface CreateAgentRunInput {
@@ -112,6 +119,7 @@ function runFromRow(row: AgentRunRow): AgentRunRecord {
   if (!isAgentRunKind(row.kind) || !isAgentRunStatus(row.status)) {
     throw new Error(`Stored agent run ${row.id} contains an unsupported kind or status.`);
   }
+  const turnDiff = readAgentRunTurnDiff(row.id);
   return {
     id: row.id,
     projectId: row.project_id,
@@ -123,7 +131,11 @@ function runFromRow(row: AgentRunRow): AgentRunRecord {
     startedAt: row.started_at,
     ...(row.completed_at ? { completedAt: row.completed_at } : {}),
     events: eventsForRun(row.id),
-    turnDiff: readAgentRunTurnDiff(row.id),
+    turnDiff,
+    changes: turnDiff?.files.map((file, index) => ({
+      ...file,
+      ordinal: index + 1,
+    })) ?? [],
   };
 }
 
@@ -148,6 +160,7 @@ export function createAgentRun(input: CreateAgentRunInput): AgentRunRecord {
     startedAt,
     events: [],
     turnDiff: null,
+    changes: [],
   };
 }
 
