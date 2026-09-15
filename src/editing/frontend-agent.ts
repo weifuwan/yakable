@@ -1,4 +1,5 @@
 import {
+  assertAgentProgressTransition,
   createAgentProtocolRecorder,
   runAgentStage,
   type AgentProtocolRecorder,
@@ -53,6 +54,10 @@ export async function runFrontendAgentStage<T>(
   return runAgentStage(recorder, state, activeMessage, completedMessage, task);
 }
 
-export function assertFrontendAgentTransition(): never {
-  throw new Error('Frontend Agent transition validation moved into AgentProtocolRecorder.');
+export function assertFrontendAgentTransition(
+  previousState: FrontendAgentState | null,
+  nextState: FrontendAgentState,
+  repairCount = 0,
+): void {
+  assertAgentProgressTransition(previousState, nextState, repairCount);
 }
