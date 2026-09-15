@@ -132,9 +132,11 @@ async function requestGeneration(input: {
     throw new Error(message ? `DeepSeek API error: ${message}` : `DeepSeek API error: HTTP ${response.status}`);
   }
 
-  const content = payload.choices?.[0]?.message?.content?.trim();
-  if (!content) throw new Error(`DeepSeek returned an empty generation during ${input.capabilityLabel}.`);
-  return { content, model: config.model };
+  const content = payload.choices?.[0]?.message?.content ?? '';
+  if (input.structured && !content.trim()) {
+    throw new Error(`DeepSeek returned an empty generation during ${input.capabilityLabel}.`);
+  }
+  return { content: content.trim(), model: config.model };
 }
 
 export const deepSeekModelClient: ModelClient = {
