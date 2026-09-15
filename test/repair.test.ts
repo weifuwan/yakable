@@ -10,6 +10,7 @@ import {
 import type { CheckProjectOutput } from '../src/tools/check-project.js';
 import type { ToolResult } from '../src/tools/tool.js';
 import type { ProjectPatch } from '../src/types.js';
+import type { WorkspaceChangeSet } from '../src/workspace/change-set.js';
 
 function passCheck(): ToolResult<CheckProjectOutput> {
   return {
@@ -49,6 +50,20 @@ function failCheck(path = 'src/components/Hero.tsx'): ToolResult<CheckProjectOut
 
 function parsePatch(rawContent: string): ProjectPatch {
   return JSON.parse(rawContent) as ProjectPatch;
+}
+
+function changeSetFromPatch(patch: ProjectPatch): WorkspaceChangeSet {
+  return {
+    id: 'repair-change-set',
+    summary: patch.summary,
+    createdAt: '2026-09-15T00:00:00.000Z',
+    files: patch.changes.map((change) => ({
+      path: change.path,
+      type: 'MODIFIED' as const,
+      beforeContent: `// before ${change.path}`,
+      afterContent: change.content,
+    })),
+  };
 }
 
 test('repair context prioritizes changed files, diagnostics, then original context', () => {
@@ -123,7 +138,9 @@ test('does not call repair model when initial project check passes', async () =>
       return { content: '{}', model: 'test-model' };
     },
     parsePatch,
-    applyPatch: async () => [],
+    applyChanges: async () => {
+      throw new Error('should not apply');
+    },
     checkProject: async () => {
       finalCheckCalls += 1;
       return passCheck();
@@ -136,7 +153,7 @@ test('does not call repair model when initial project check passes', async () =>
   assert.equal(finalCheckCalls, 0);
 });
 
-test('applies exactly one repair and checks once when repair succeeds', async () => {
+test('applies exactly one repair ChangeSet and checks once when repair succeeds', async () => {
   let repairCalls = 0;
   let applyCalls = 0;
   let finalCheckCalls = 0;
@@ -161,9 +178,9 @@ test('applies exactly one repair and checks once when repair succeeds', async ()
       };
     },
     parsePatch,
-    applyPatch: async (patch) => {
+    applyChanges: async (patch) => {
       applyCalls += 1;
-      return patch.changes.map((change) => change.path);
+      return changeSetFromPatch(patch);
     },
     checkProject: async () => {
       finalCheckCalls += 1;
@@ -177,6 +194,7 @@ test('applies exactly one repair and checks once when repair succeeds', async ()
   assert.equal(applyCalls, 1);
   assert.equal(finalCheckCalls, 1);
   assert.deepEqual(result.changedFiles, ['src/components/Hero.tsx']);
+  assert.equal(result.changeSet?.id, 'repair-change-set');
   assert.equal(result.finalCheck.ok && result.finalCheck.value.status, 'PASS');
 });
 
@@ -205,9 +223,9 @@ test('stops after one failed repair without looping', async () => {
       };
     },
     parsePatch,
-    applyPatch: async (patch) => {
+    applyChanges: async (patch) => {
       applyCalls += 1;
-      return patch.changes.map((change) => change.path);
+      return changeSetFromPatch(patch);
     },
     checkProject: async () => {
       finalCheckCalls += 1;
@@ -243,7 +261,9 @@ test('skips repair when the initial check tool itself errors', async () => {
       return { content: '{}', model: 'test-model' };
     },
     parsePatch,
-    applyPatch: async () => [],
+    applyChanges: async () => {
+      throw new Error('should not apply');
+    },
     checkProject: async () => passCheck(),
   });
 

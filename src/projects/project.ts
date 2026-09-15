@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 
 import {
@@ -7,6 +7,11 @@ import {
   isBaseTemplateProjectOwnedPath,
 } from '../templates/base-template.js';
 import type { GeneratedFile, GeneratedProject, ProjectTemplate } from '../types.js';
+import {
+  WorkspaceChangeManager,
+  workspaceMutationsFromFiles,
+  type WorkspaceChangeSet,
+} from '../workspace/index.js';
 import {
   createProjectMetadata,
   normalizeProjectRoutes,
@@ -31,6 +36,11 @@ export type GeneratedProjectParseMode = 'standalone' | 'base-overlay';
 export interface ParseGeneratedProjectOptions {
   mode?: GeneratedProjectParseMode;
   expectedTemplate?: ProjectTemplate;
+}
+
+export interface WrittenGeneratedProject {
+  outputDirectory: string;
+  changeSet: WorkspaceChangeSet;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -199,40 +209,36 @@ function createGeneratedProjectId(prompt: string, createdAt: string): string {
   return `${slugifyPrompt(prompt)}-${timestamp}-${randomUUID().slice(0, 8)}`;
 }
 
-async function writeProjectFiles(
-  outputDirectory: string,
-  files: GeneratedFile[],
-): Promise<void> {
-  for (const file of files) {
-    const destination = path.join(outputDirectory, ...file.path.split('/'));
-    await mkdir(path.dirname(destination), { recursive: true });
-    await writeFile(destination, file.content, 'utf8');
-  }
-}
-
 export async function writeGeneratedProject(
   prompt: string,
   project: GeneratedProject,
   outputRoot = path.resolve(process.cwd(), 'generated'),
-): Promise<string> {
+): Promise<WrittenGeneratedProject> {
   const createdAt = new Date().toISOString();
   const projectId = createGeneratedProjectId(prompt, createdAt);
   const outputDirectory = path.join(outputRoot, projectId);
 
   await mkdir(outputRoot, { recursive: true });
   await mkdir(outputDirectory);
-  await writeProjectFiles(outputDirectory, project.files);
 
-  await writeProjectMetadata(
-    outputDirectory,
-    createProjectMetadata(project.template, project.routes, {
-      starred: false,
-      createdAt,
-      updatedAt: createdAt,
-    }),
-  );
-
-  return outputDirectory;
+  try {
+    const changeSet = await new WorkspaceChangeManager(outputDirectory).apply(
+      project.summary,
+      workspaceMutationsFromFiles(project.files),
+    );
+    await writeProjectMetadata(
+      outputDirectory,
+      createProjectMetadata(project.template, project.routes, {
+        starred: false,
+        createdAt,
+        updatedAt: createdAt,
+      }),
+    );
+    return { outputDirectory, changeSet };
+  } catch (error) {
+    await rm(outputDirectory, { recursive: true, force: true }).catch(() => undefined);
+    throw error;
+  }
 }
 
 export async function writeGeneratedProjectFromBase(
@@ -240,7 +246,7 @@ export async function writeGeneratedProjectFromBase(
   project: GeneratedProject,
   outputRoot = path.resolve(process.cwd(), 'generated'),
   templateRoot = path.resolve(process.cwd(), 'templates', 'base'),
-): Promise<string> {
+): Promise<WrittenGeneratedProject> {
   assertBaseOverlayFiles(project.files, project.template);
 
   const createdAt = new Date().toISOString();
@@ -251,7 +257,10 @@ export async function writeGeneratedProjectFromBase(
   });
 
   try {
-    await writeProjectFiles(created.directory, project.files);
+    const changeSet = await new WorkspaceChangeManager(created.directory).apply(
+      project.summary,
+      workspaceMutationsFromFiles(project.files),
+    );
     await writeProjectMetadata(
       created.directory,
       createProjectMetadata(project.template, project.routes, {
@@ -260,7 +269,7 @@ export async function writeGeneratedProjectFromBase(
         updatedAt: createdAt,
       }),
     );
-    return created.directory;
+    return { outputDirectory: created.directory, changeSet };
   } catch (error) {
     await rm(created.directory, { recursive: true, force: true }).catch(() => undefined);
     throw error;

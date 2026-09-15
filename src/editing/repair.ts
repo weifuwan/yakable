@@ -1,6 +1,10 @@
 import type { CheckProjectOutput } from '../tools/check-project.js';
 import type { ToolResult } from '../tools/tool.js';
 import type { GeneratedFile, ProjectPatch } from '../types.js';
+import {
+  workspaceChangedPaths,
+  type WorkspaceChangeSet,
+} from '../workspace/change-set.js';
 
 export const MAX_REPAIR_CONTEXT_FILES = 12;
 
@@ -13,6 +17,7 @@ export interface OneShotRepairResult {
   changedFiles: string[];
   initialCheck: ToolResult<CheckProjectOutput>;
   finalCheck: ToolResult<CheckProjectOutput>;
+  changeSet?: WorkspaceChangeSet;
   model?: string;
   summary?: string;
   error?: string;
@@ -34,7 +39,7 @@ export interface RunOneShotRepairInput {
   readFiles(paths: string[]): Promise<GeneratedFile[]>;
   requestRepair(repairContext: string): Promise<RepairGeneration>;
   parsePatch(rawContent: string): ProjectPatch;
-  applyPatch(patch: ProjectPatch): Promise<string[]>;
+  applyChanges(patch: ProjectPatch): Promise<WorkspaceChangeSet>;
   checkProject(): Promise<ToolResult<CheckProjectOutput>>;
 }
 
@@ -169,6 +174,7 @@ export async function runOneShotRepair(
     input.availableFiles,
   );
 
+  let changeSet: WorkspaceChangeSet | undefined;
   let changedFiles: string[] = [];
   let model: string | undefined;
   let summary: string | undefined;
@@ -189,7 +195,8 @@ export async function runOneShotRepair(
 
     const patch = input.parsePatch(generation.content);
     assertRepairPatchUsesContext(patch, contextFiles);
-    changedFiles = await input.applyPatch(patch);
+    changeSet = await input.applyChanges(patch);
+    changedFiles = workspaceChangedPaths(changeSet);
     summary = patch.summary;
   } catch (error) {
     repairError = error instanceof Error ? error.message : String(error);
@@ -212,6 +219,7 @@ export async function runOneShotRepair(
     changedFiles,
     initialCheck: input.initialCheck,
     finalCheck,
+    ...(changeSet ? { changeSet } : {}),
     ...(model ? { model } : {}),
     ...(summary ? { summary } : {}),
     ...(repairError ? { error: repairError } : {}),

@@ -5,23 +5,27 @@ import {
 } from '../editing/context-selection.js';
 import { resolveProjectContextSearch } from '../editing/context-search.js';
 import {
-  applyProjectPatch,
-  assertPatchUsesSelectedContext,
-  listProjectContextFiles,
-  parseProjectPatch,
-  readProjectSnapshot,
-  type EditProjectResult,
-  type ProjectSnapshot,
-} from '../editing/edit.js';
-import {
   resolveEditIntentDelta,
   type EditIntentDelta,
+  type EditIntentResolution,
 } from '../editing/edit-intent.js';
 import {
   createFrontendAgentRecorder,
   runFrontendAgentStage,
+  type FrontendAgentEvent,
   type FrontendAgentProgressOptions,
 } from '../editing/frontend-agent.js';
+import {
+  applyProjectChanges,
+  assertPatchUsesSelectedContext,
+  createProjectChangeManager,
+  parseProjectPatch,
+} from '../editing/project-change.js';
+import {
+  listProjectContextFiles,
+  readProjectSnapshot,
+  type ProjectSnapshot,
+} from '../editing/project-context.js';
 import { runOneShotRepair, type OneShotRepairResult } from '../editing/repair.js';
 import {
   assertModeCapability,
@@ -33,8 +37,13 @@ import {
   readProjectSession,
 } from '../projects/project-session.js';
 import { resolveGeneratedProject } from '../runtime/runtime.js';
-import { checkProjectTool } from '../tools/check-project.js';
+import { checkProjectTool, type CheckProjectOutput } from '../tools/check-project.js';
+import type { ToolResult } from '../tools/tool.js';
 import type { ProjectPatch, ProjectSessionState } from '../types.js';
+import {
+  workspaceChangedPaths,
+  type WorkspaceChangeSet,
+} from '../workspace/change-set.js';
 import {
   ApprovedPlanExecutionError,
   buildApprovedPlanExecutionRequest,
@@ -52,7 +61,19 @@ export interface BuildFromApprovedPlanOptions extends FrontendAgentProgressOptio
   generatedRoot?: string;
 }
 
-export interface ApprovedPlanBuildResult extends EditProjectResult {
+export interface ApprovedPlanBuildResult {
+  projectId: string;
+  projectDirectory: string;
+  model: string;
+  summary: string;
+  changedFiles: string[];
+  editIntent: EditIntentResolution;
+  contextSelection: EditContextSelection;
+  initialChangeSet: WorkspaceChangeSet;
+  repair: OneShotRepairResult;
+  projectCheck: ToolResult<CheckProjectOutput>;
+  agentTrace: FrontendAgentEvent[];
+  session: ProjectSessionState | null;
   executionPlan: ApprovedPlanExecutionContract;
 }
 
@@ -126,9 +147,7 @@ export function parseApprovedPlanPatch(rawContent: string): ApprovedPlanPatchRes
   if (deviations.length > 0) {
     throw new Error('Applied Approved Plan Build cannot contain deviations.');
   }
-  const patch = parseProjectPatch(
-    JSON.stringify({ summary, changes: value.changes }),
-  );
+  const patch = parseProjectPatch(JSON.stringify({ summary, changes: value.changes }));
   return { status: 'APPLIED', summary, deviations: [], patch };
 }
 
@@ -203,6 +222,7 @@ export async function buildProjectFromApprovedPlan(
   assertModeCapability(mode, 'edit-source');
 
   const project = await resolveGeneratedProject(projectInput, options.generatedRoot);
+  const changeManager = createProjectChangeManager(project);
   const persistedPlan = await readPlanArtifactFromDirectory(project.directory, mode);
   if (!persistedPlan) {
     throw new ApprovedPlanExecutionError(
@@ -287,16 +307,13 @@ export async function buildProjectFromApprovedPlan(
         result.patch,
         contextSelection.relevantFiles,
       );
-      const initialChangedFiles = await applyProjectPatch(project, result.patch);
-      return {
-        generation,
-        patch: result.patch,
-        initialChangedFiles,
-      };
+      const initialChangeSet = await applyProjectChanges(changeManager, result.patch);
+      return { generation, patch: result.patch, initialChangeSet };
     },
   );
 
-  const { generation, patch, initialChangedFiles } = edited;
+  const { generation, patch, initialChangeSet } = edited;
+  const initialChangedFiles = workspaceChangedPaths(initialChangeSet);
   agent.emit('CHECK', 'ACTIVE', 'Checking TypeScript and build health');
 
   let repair: OneShotRepairResult;
@@ -315,11 +332,9 @@ export async function buildProjectFromApprovedPlan(
       initialCheck: initialProjectCheck,
       readFiles: async (paths) => (await readProjectSnapshot(project, paths)).files,
       requestRepair: (repairContext) =>
-        requestProjectRepair(
-          attachApprovedPlanToRepairRequest(repairContext, executionPlan),
-        ),
+        requestProjectRepair(attachApprovedPlanToRepairRequest(repairContext, executionPlan)),
       parsePatch: parseProjectPatch,
-      applyPatch: (repairPatch) => applyProjectPatch(project, repairPatch),
+      applyChanges: (repairPatch) => applyProjectChanges(changeManager, repairPatch),
       checkProject: () =>
         checkProjectTool.execute({}, { projectDirectory: project.directory }),
     });
@@ -375,6 +390,7 @@ export async function buildProjectFromApprovedPlan(
     changedFiles,
     editIntent,
     contextSelection,
+    initialChangeSet,
     repair,
     projectCheck,
     agentTrace: agent.snapshot(),
