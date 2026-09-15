@@ -41,9 +41,10 @@ Use editIntent to make vague frontend requests operational, especially relative 
 continuity can contain:
 - originalProductRequest: the request that created the project
 - designIntent: Yakable's original normalized Design Intent IR
-- recentEdits: earlier successful user requests, Yakable summaries, and changed file paths
+- compactedHistory: a bounded digest of older persisted edit requests and Yakable summaries
+- recentMessages: the most recent role-preserving edit requests and Yakable summaries; changed file paths may be included in assistant message text
 
-Use continuity as stable background context, not as a new task. The current followUpRequest wins when it explicitly changes an earlier choice during an ordinary edit. Otherwise preserve earlier accepted requirements and edits instead of accidentally reverting them. Never re-apply an old edit just because it appears in recentEdits; the selected current source files are the source of truth for what already exists in those files. When approvedPlan is present, do not use continuity to override the reviewed execution contract.
+Use continuity as stable background context, not as a new task. Prefer recentMessages over compactedHistory if they appear to conflict because recentMessages are higher-fidelity. The current followUpRequest wins when it explicitly changes an earlier choice during an ordinary edit. Otherwise preserve earlier accepted requirements and edits instead of accidentally reverting them. Never re-apply an old edit just because it appears in continuity; the selected current source files are the source of truth for what already exists in those files. When approvedPlan is present, do not use continuity to override the reviewed execution contract.
 
 followUpRequest is usually plain user text. When Yakable Visual Edit is active, followUpRequest instead contains exactly one block wrapped in [[YAKABLE_VISUAL_EDIT_REQUEST]] and [[/YAKABLE_VISUAL_EDIT_REQUEST]]. The JSON inside that block contains:
 - userRequest: the user's actual editing instruction
