@@ -2,6 +2,7 @@ import { cp, mkdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createProjectMetadata, writeProjectMetadata } from '../projects/project-metadata.js';
+import { initializeWorkspaceGitBaseline } from '../workspace/git-baseline.js';
 
 export const BASE_TEMPLATE_ID = 'base' as const;
 export const BASE_TEMPLATE_VERSION = 1 as const;
@@ -73,6 +74,7 @@ export interface CreatedBaseProject {
   id: string;
   directory: string;
   manifest: BaseTemplateManifest;
+  baselineCommit: string;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -192,5 +194,11 @@ export async function createBaseProject(
     }),
   );
 
-  return { id: projectId, directory: destination, manifest };
+  const baseline = await initializeWorkspaceGitBaseline(destination);
+  return {
+    id: projectId,
+    directory: destination,
+    manifest,
+    baselineCommit: baseline.commit,
+  };
 }
