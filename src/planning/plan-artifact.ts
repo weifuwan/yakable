@@ -10,11 +10,13 @@ import {
   listProjectContextFiles,
   readProjectSnapshot,
 } from '../editing/edit.js';
+import { requestPlanArtifact } from '../model/capabilities.js';
+import { defaultModelClient } from '../model/default-client.js';
+import type { ModelClient } from '../model/model-client.js';
 import {
   assertModeCapability,
   type YakableMode,
 } from '../modes/mode-contract.js';
-import { requestPlanArtifact } from '../model/deepseek.js';
 import { readProjectSession } from '../projects/project-session.js';
 import { resolveGeneratedProject } from '../runtime/runtime.js';
 import type { DesignIntentIR, GeneratedFile } from '../types.js';
@@ -90,6 +92,7 @@ export interface PlanArtifactBundle {
 export interface DraftProjectPlanOptions {
   mode?: YakableMode;
   generatedRoot?: string;
+  modelClient?: ModelClient;
 }
 
 export interface ReviewProjectPlanOptions {
@@ -548,6 +551,7 @@ export async function draftProjectPlan(
   options: DraftProjectPlanOptions = {},
 ): Promise<PlanArtifactRun> {
   const mode = options.mode ?? 'PLAN';
+  const modelClient = options.modelClient ?? defaultModelClient;
   assertModeCapability(mode, 'read-project');
   assertModeCapability(mode, 'search-project');
   assertModeCapability(mode, 'read-plan');
@@ -562,6 +566,7 @@ export async function draftProjectPlan(
   const initialSelection = await selectProjectContextFiles(
     { userRequest: request, visualSelections: [] },
     availableFiles,
+    modelClient,
   );
   const contextSelection = await resolveProjectContextSearch(
     project.directory,
@@ -579,12 +584,13 @@ export async function draftProjectPlan(
     currentUiPlan: currentPlan?.ui ?? null,
     contextSelection,
     files: snapshot.files,
-  });
+  }, modelClient);
   const uiPlan = uiPlannerRun.result.status === 'PLANNED'
     ? uiPlannerRun.result.plan
     : currentPlan?.ui ?? null;
 
   const generation = await requestPlanArtifact(
+    modelClient,
     buildPlanArtifactRequest({
       projectId: project.id,
       userRequest: request,
