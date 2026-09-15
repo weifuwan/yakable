@@ -1,7 +1,9 @@
 import {
+  CONVERSATION_CONTEXT_COMPACTED_MAX_TOKENS,
   buildConversationContext,
   type ConversationContextMessage,
 } from '../context/conversation-context.js';
+import { truncateTextToEstimatedTokens } from '../context/token-estimator.js';
 import { resolveDeepSeekRequestConfig } from '../model/deepseek.js';
 import { PROJECT_CHAT_SYSTEM_PROMPT } from './project-chat-prompt.js';
 
@@ -12,6 +14,7 @@ export interface ProjectChatInput {
   userInput: string;
   hasGeneratedUi: boolean;
   recentConversation: readonly ConversationContextMessage[];
+  compactedHistory?: string | null;
 }
 
 export interface ProjectChatMessage {
@@ -22,6 +25,10 @@ export interface ProjectChatMessage {
 export interface ProjectChatReply {
   message: string;
   model: string;
+}
+
+interface NormalizedProjectChatInput extends ProjectChatInput {
+  compactedHistory: string | null;
 }
 
 interface DeepSeekChatResponse {
@@ -39,18 +46,28 @@ const MAX_USER_INPUT = 8_000;
 const MAX_REPLY_LENGTH = 4_000;
 const PROJECT_CHAT_MAX_ATTEMPTS = 2;
 
-function normalizeInput(input: ProjectChatInput): ProjectChatInput {
+function normalizeInput(input: ProjectChatInput): NormalizedProjectChatInput {
   const userInput = input.userInput.trim();
   if (!userInput) throw new Error('A project chat message is required.');
   if (userInput.length > MAX_USER_INPUT) {
     throw new Error(`Project chat message is too long (max ${MAX_USER_INPUT} characters).`);
   }
 
+  const context = buildConversationContext(input.recentConversation);
+  const suppliedCompactedHistory = input.compactedHistory?.trim();
+  const compactedHistory = suppliedCompactedHistory
+    ? truncateTextToEstimatedTokens(
+        suppliedCompactedHistory,
+        CONVERSATION_CONTEXT_COMPACTED_MAX_TOKENS,
+      ).text || null
+    : context.compactedHistory;
+
   return {
     mode: input.mode,
     userInput,
     hasGeneratedUi: input.hasGeneratedUi,
-    recentConversation: buildConversationContext(input.recentConversation).messages,
+    recentConversation: context.messages,
+    compactedHistory,
   };
 }
 
@@ -65,6 +82,9 @@ export function buildProjectChatMessages(input: ProjectChatInput): ProjectChatMe
           conversationMode: normalized.mode,
           projectState: {
             hasGeneratedUi: normalized.hasGeneratedUi,
+          },
+          conversationContext: {
+            compactedHistory: normalized.compactedHistory,
           },
         },
         null,

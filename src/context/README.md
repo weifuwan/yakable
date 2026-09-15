@@ -21,9 +21,10 @@ Projects / Conversation / Planning / Runtime / Tools
 ## Core contracts
 
 - `ContextSnapshot` — immutable-by-contract description of the assembled model input for one turn.
-- `ContextBudget` — explicit model-window and reserved-output limits; token estimation and compaction are intentionally deferred.
+- `ContextBudget` — explicit context-window and reserved-output limits plus usage measurement/assertion.
 - `ContextProvider` — one bounded source of context such as conversation continuity, project source, plan state, runtime evidence, or tool output.
 - `ContextBuilder` — normalizes the request, collects providers deterministically, and rejects ambiguous duplicate provider/section identifiers.
+- `token-estimator` — dependency-free conservative token estimation used for Yakable-side budgeting. It is intentionally replaceable by a provider tokenizer later.
 
 ## Project source context
 
@@ -42,7 +43,7 @@ project-context-search
 project-context
     ├── bounded readable file list
     ├── selected source snapshot
-    ├── edit continuity payload
+    ├── token-bounded edit continuity
     └── resolveProjectEditContext()
 ```
 
@@ -50,24 +51,42 @@ project-context
 
 The former `src/editing/context-selection.ts`, `src/editing/context-search.ts`, and `src/editing/project-context.ts` modules contain no implementation; they are narrow facades while the remaining Planning/Repair call sites migrate independently.
 
+Edit continuity no longer grows from a fixed `recentEdits.slice(...)`. Persisted edit requests/summaries are converted into the same bounded conversation representation used by chat: recent role-preserving messages plus compacted older history. Current source files remain the source of truth for what already exists.
+
 ## Conversation context
 
-Project conversation continuity also has one Context-layer policy:
+Persistence and model context are deliberately separate:
 
 ```text
-persisted project conversation
-          ↓
-conversation-context
-    ├── latest 10 messages
-    ├── trim blank content
-    └── max 1,500 chars per message
-          ↓
-Project Message Router / Project Chat
+SQLite project conversation (full retained history)
+                    ↓
+            conversation-context
+          ┌─────────┴──────────┐
+          ↓                    ↓
+ recent role-preserving   compacted older
+      messages               history
+          └─────────┬──────────┘
+                    ↓
+             token budget
+                    ↓
+      Project Message Router / Chat
 ```
 
-`buildConversationContext()` does not delete or summarize old messages. SQLite remains the source of truth for the full bounded project session history; this function only chooses the recent window supplied to a model call.
+Current v2 policy:
 
-Both Project Message Router and Project Chat use this same policy. Product/service code should pass available persisted conversation turns rather than applying its own `slice(...)` or per-message truncation rules.
+- consider at most 10 recent persisted messages as the high-fidelity window;
+- cap an individual recent message at 1,500 characters before token budgeting;
+- keep recent history within 4,500 estimated tokens;
+- compact older history into at most 1,500 estimated tokens;
+- keep total conversation history within 6,000 estimated tokens;
+- reserve an additional 2,000 input tokens inside the Context budget for non-history task/system input;
+- reserve 4,000 tokens for output in the conservative 12,000-token conversation budget envelope.
+
+The estimator is intentionally conservative and provider-independent: ASCII is approximated at four characters/token, CJK-like text at one code point/token, and other Unicode at two code points/token. This is a Yakable safety budget, not a claim about the exact tokenizer of any provider model.
+
+Older turns remain persisted in SQLite. Context compaction changes only what enters one model call; it does not delete conversation history. Project session persistence no longer drops edits after the previous 40-edit retention boundary.
+
+Both Project Message Router and Project Chat consume the same `recentConversation + compactedHistory` representation. Product/service code should pass available persisted turns rather than applying its own `slice(...)` or truncation rules.
 
 ## Context is not execution state
 
@@ -81,10 +100,10 @@ Keeping these concepts separate avoids turning conversation history or prompt st
 
 This layer does not yet add:
 
-- token estimation or tokenizer dependencies;
-- automatic compaction or summarization;
+- provider-specific tokenizer dependencies;
+- model-generated semantic summaries of old turns;
+- semantic retrieval over older conversation history;
 - vector search, embeddings, or long-term memory;
-- semantic retrieval over older conversation turns;
-- replacement of existing byte/character limits with a shared token budget.
+- token-aware shrinking of selected source-file contents (the existing project snapshot byte safety limit still applies).
 
-Those concerns remain follow-up Context work rather than being mixed into the conversation-policy migration.
+Those are later Context capabilities. The current compaction path is deterministic so Context growth is bounded without adding another model call or making persistence lossy.

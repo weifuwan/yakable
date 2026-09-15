@@ -4,7 +4,10 @@ import {
 } from '../editing/context-selection.js';
 import type { EditIntentDelta } from '../editing/edit-intent.js';
 import { parseProjectPatch } from '../editing/project-change.js';
-import type { ProjectSnapshot } from '../editing/project-context.js';
+import {
+  buildProjectContinuityContext,
+  type ProjectSnapshot,
+} from '../editing/project-context.js';
 import type { ProjectPatch, ProjectSessionState } from '../types.js';
 import {
   collectApprovedPlanContextHints,
@@ -12,7 +15,6 @@ import {
 } from './approved-plan-contract.js';
 
 export const MAX_APPROVED_PLAN_DEVIATION_LENGTH = 600;
-const MAX_HISTORY_CONTEXT = 12;
 
 export type ApprovedPlanPatchResult =
   | { status: 'APPLIED'; summary: string; deviations: []; patch: ProjectPatch }
@@ -105,23 +107,11 @@ export function buildApprovedPlanEditContext(
   editIntent: EditIntentDelta,
   approvedPlan: ApprovedPlanExecutionContract,
 ): string {
-  const recentEdits = session?.edits.slice(-MAX_HISTORY_CONTEXT).map((edit) => ({
-    userRequest: edit.userRequest,
-    assistantSummary: edit.assistantSummary,
-    changedFiles: edit.changedFiles,
-  })) ?? [];
-
   return JSON.stringify({
     followUpRequest: executionRequest,
     editIntent,
     approvedPlan,
-    continuity: session
-      ? {
-          originalProductRequest: session.productRequest ?? null,
-          designIntent: session.designIntent ?? null,
-          recentEdits,
-        }
-      : null,
+    continuity: session ? buildProjectContinuityContext(session) : null,
     project: { id: snapshot.id, files: snapshot.files },
   });
 }
