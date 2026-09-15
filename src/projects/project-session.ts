@@ -12,7 +12,6 @@ import type {
   ProjectVisualSelection,
 } from '../types.js';
 
-const MAX_EDIT_HISTORY = 40;
 const MAX_REQUEST_LENGTH = 8_000;
 const MAX_SUMMARY_LENGTH = 2_000;
 const MAX_CHANGED_FILES = 12;
@@ -128,8 +127,7 @@ function normalizeSession(session: ProjectSessionState): ProjectSessionState {
   const initialSummary = normalizeText(session.initialSummary, MAX_SUMMARY_LENGTH);
   const edits = session.edits
     .map(normalizeEdit)
-    .filter((edit): edit is ProjectEditHistoryItem => Boolean(edit))
-    .slice(-MAX_EDIT_HISTORY);
+    .filter((edit): edit is ProjectEditHistoryItem => Boolean(edit));
 
   return {
     version: 1,
@@ -394,16 +392,6 @@ export async function appendProjectEditHistory(
     insertEdit(projectId, edit);
     database.prepare('UPDATE project_sessions SET updated_at = ? WHERE project_id = ?')
       .run(createdAt, projectId);
-    database.prepare(`
-      DELETE FROM project_edits
-      WHERE project_id = ?
-        AND id NOT IN (
-          SELECT id FROM project_edits
-          WHERE project_id = ?
-          ORDER BY created_at DESC, id DESC
-          LIMIT ?
-        )
-    `).run(projectId, projectId, MAX_EDIT_HISTORY);
     database.exec('COMMIT');
   } catch (error) {
     database.exec('ROLLBACK');
