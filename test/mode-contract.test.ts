@@ -11,7 +11,7 @@ import {
   parseYakableMode,
 } from '../src/modes/mode-contract.js';
 import {
-  editGeneratedProjectInMode,
+  beginEditRunInMode,
   runModeCapability,
 } from '../src/modes/mode-execution.js';
 import type { BuildIntentDecision } from '../src/types.js';
@@ -95,7 +95,7 @@ test('mode capability gate rejects before running a mutation task', async () => 
 
 test('mode-aware project edit rejects PLAN before resolving or reading a project', async () => {
   await assert.rejects(
-    editGeneratedProjectInMode('PLAN', 'project-that-does-not-exist', 'Change the Hero'),
+    beginEditRunInMode('PLAN', 'project-that-does-not-exist', 'Change the Hero'),
     /PLAN mode does not allow edit-source/,
   );
 });
