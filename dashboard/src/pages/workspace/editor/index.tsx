@@ -9,9 +9,13 @@ import {
 import { editProject, type ProjectRoute } from "../../../api";
 import { getCurrentPreviewSelections } from "../../../visual-edit-context";
 import {
+  PREVIEW_PANEL_MIN_WIDTH,
+  chatWidthForPreviewWidth,
+  constrainedPreviewWidth,
   resolvePreviewHeaderMode,
   restoredChatWidth,
   shouldCollapsePreviewPanel,
+  shouldReopenPreviewPanel,
 } from "./adaptive-header";
 import { ChatComposer, ChatTimeline } from "./ChatPanel";
 import { EditorHeader } from "./EditorHeader";
@@ -22,7 +26,6 @@ import {
   DEFAULT_CHAT_WIDTH,
   FALLBACK_ROUTES,
   buildPreviewUrl,
-  clampChatWidth,
   conversationMessages,
   persistedSelection,
 } from "./utils";
@@ -101,14 +104,24 @@ export function Workspace({
       if (!rect.width) return;
 
       const rawPreviewWidth = Math.max(0, rect.right - event.clientX);
-      if (shouldCollapsePreviewPanel(rawPreviewWidth)) {
-        setPreviewCollapsed(true);
-        setIsResizing(false);
+
+      if (previewCollapsed) {
+        if (shouldReopenPreviewPanel(rawPreviewWidth)) {
+          setChatWidth(
+            chatWidthForPreviewWidth(rect.width, PREVIEW_PANEL_MIN_WIDTH),
+          );
+          setPreviewCollapsed(false);
+        }
         return;
       }
 
-      const nextWidth = ((event.clientX - rect.left) / rect.width) * 100;
-      setChatWidth(clampChatWidth(nextWidth));
+      if (shouldCollapsePreviewPanel(rawPreviewWidth)) {
+        setPreviewCollapsed(true);
+        return;
+      }
+
+      const visiblePreviewWidth = constrainedPreviewWidth(rawPreviewWidth);
+      setChatWidth(chatWidthForPreviewWidth(rect.width, visiblePreviewWidth));
     }
 
     function stopResizing() {
@@ -125,7 +138,7 @@ export function Workspace({
       document.body.style.cursor = previousCursor;
       document.body.style.userSelect = previousUserSelect;
     };
-  }, [isResizing]);
+  }, [isResizing, previewCollapsed]);
 
   async function submitEdit(event: FormEvent) {
     event.preventDefault();
