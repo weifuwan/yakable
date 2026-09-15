@@ -27,7 +27,7 @@ Projects / Conversation / Planning / Runtime / Tools
 
 ## Project source context
 
-Project source context is now owned by this layer:
+Project source context is owned by this layer:
 
 ```text
 project files
@@ -50,6 +50,25 @@ project-context
 
 The former `src/editing/context-selection.ts`, `src/editing/context-search.ts`, and `src/editing/project-context.ts` modules contain no implementation; they are narrow facades while the remaining Planning/Repair call sites migrate independently.
 
+## Conversation context
+
+Project conversation continuity also has one Context-layer policy:
+
+```text
+persisted project conversation
+          ↓
+conversation-context
+    ├── latest 10 messages
+    ├── trim blank content
+    └── max 1,500 chars per message
+          ↓
+Project Message Router / Project Chat
+```
+
+`buildConversationContext()` does not delete or summarize old messages. SQLite remains the source of truth for the full bounded project session history; this function only chooses the recent window supplied to a model call.
+
+Both Project Message Router and Project Chat use this same policy. Product/service code should pass available persisted conversation turns rather than applying its own `slice(...)` or per-message truncation rules.
+
 ## Context is not execution state
 
 `src/agent-runtime/run-context.ts` describes **Agent execution context**: operation, mode, capabilities, tools, model client, and run metadata.
@@ -65,7 +84,7 @@ This layer does not yet add:
 - token estimation or tokenizer dependencies;
 - automatic compaction or summarization;
 - vector search, embeddings, or long-term memory;
-- migration of Project Chat / Project Message history policy;
+- semantic retrieval over older conversation turns;
 - replacement of existing byte/character limits with a shared token budget.
 
-Those concerns remain follow-up Context work rather than being mixed into the project-source migration.
+Those concerns remain follow-up Context work rather than being mixed into the conversation-policy migration.

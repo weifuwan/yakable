@@ -262,7 +262,7 @@ export function createDefaultWebApiServices(
         userInput: prompt,
         hasGeneratedUi,
         recentConversation:
-          conversation?.messages.slice(-10).map((message) => ({
+          conversation?.messages.map((message) => ({
             role: message.role,
             content: message.content,
           })) ?? [],
