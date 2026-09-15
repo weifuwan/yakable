@@ -220,7 +220,7 @@ export async function runVisualRepairOnce(
     };
   }
 
-  let changeSet: WorkspaceChangeSet | undefined;
+  let changeSet!: WorkspaceChangeSet;
   let changedFiles: string[] = [];
   let model: string | undefined;
   let summary: string | undefined;
