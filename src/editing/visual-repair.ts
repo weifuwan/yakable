@@ -1,7 +1,9 @@
-import { requestVisualRepair } from '../model/deepseek.js';
+import { requestVisualRepair } from '../model/capabilities.js';
+import { defaultModelClient } from '../model/default-client.js';
+import type { ModelClient } from '../model/model-client.js';
 import type { AgentProtocolRecorder } from '../protocol/agent-recorder.js';
 import type { PageObservation } from '../runtime/page-observation.js';
-import { resolveGeneratedProject } from '../runtime/runtime.js';
+import { resolveGeneratedProject, type ResolvedGeneratedProject } from '../runtime/runtime.js';
 import { checkProjectTool, type CheckProjectOutput } from '../tools/check-project.js';
 import type { ToolResult } from '../tools/tool.js';
 import type { DesignIntentIR, GeneratedFile, ProjectPatch } from '../types.js';
@@ -61,6 +63,16 @@ export interface VisualRepairProjectInput {
 export interface RepairGeneratedProjectVisualOptions {
   generatedRoot?: string;
   agent?: AgentProtocolRecorder;
+  modelClient?: ModelClient;
+  readFiles?: (
+    project: ResolvedGeneratedProject,
+    paths: string[],
+    agent?: AgentProtocolRecorder,
+  ) => Promise<GeneratedFile[]>;
+  checkProject?: (
+    project: ResolvedGeneratedProject,
+    agent?: AgentProtocolRecorder,
+  ) => Promise<ToolResult<CheckProjectOutput>>;
 }
 
 export interface RunVisualRepairInput extends VisualRepairProjectInput {
@@ -114,7 +126,6 @@ export function selectVisualRepairContextFiles(
 
   for (const file of initialChangedFiles) addUnique(selected, file, available);
   for (const file of selectedContextFiles) addUnique(selected, file, available);
-
   return selected.slice(0, MAX_VISUAL_REPAIR_CONTEXT_FILES);
 }
 
@@ -122,9 +133,7 @@ function validateUserRequest(userRequest: string): string {
   const request = userRequest.trim();
   if (!request) throw new Error('Visual Repair requires the original edit request.');
   if (request.length > MAX_VISUAL_REPAIR_USER_REQUEST) {
-    throw new Error(
-      `Visual Repair user request is too long (max ${MAX_VISUAL_REPAIR_USER_REQUEST} characters).`,
-    );
+    throw new Error(`Visual Repair user request is too long (max ${MAX_VISUAL_REPAIR_USER_REQUEST} characters).`);
   }
   return request;
 }
@@ -138,13 +147,9 @@ export function buildVisualRepairRequest(
   pageObservation: PageObservation,
   files: GeneratedFile[],
 ): string {
-  if (critique.status !== 'FAIL') {
-    throw new Error('Visual Repair requires a failed Design Critic result.');
-  }
+  if (critique.status !== 'FAIL') throw new Error('Visual Repair requires a failed Design Critic result.');
   if (files.length === 0 || files.length > MAX_VISUAL_REPAIR_CONTEXT_FILES) {
-    throw new Error(
-      `Visual Repair requires between 1 and ${MAX_VISUAL_REPAIR_CONTEXT_FILES} context files.`,
-    );
+    throw new Error(`Visual Repair requires between 1 and ${MAX_VISUAL_REPAIR_CONTEXT_FILES} context files.`);
   }
 
   const request = JSON.stringify({
@@ -152,23 +157,13 @@ export function buildVisualRepairRequest(
     baselineDesignIntent,
     editIntent,
     critique,
-    pageObservation: inputObservation(pageObservation),
-    project: {
-      id: projectId,
-      files,
-    },
+    pageObservation,
+    project: { id: projectId, files },
   });
-
   if (request.length > MAX_VISUAL_REPAIR_REQUEST_CHARS) {
-    throw new Error(
-      `Visual Repair request is too large (max ${MAX_VISUAL_REPAIR_REQUEST_CHARS} characters).`,
-    );
+    throw new Error(`Visual Repair request is too large (max ${MAX_VISUAL_REPAIR_REQUEST_CHARS} characters).`);
   }
   return request;
-}
-
-function inputObservation(observation: PageObservation): PageObservation {
-  return observation;
 }
 
 export function assertVisualRepairPatchUsesContext(
@@ -178,9 +173,7 @@ export function assertVisualRepairPatchUsesContext(
   const allowed = new Set(contextFiles);
   for (const change of patch.changes) {
     if (!allowed.has(change.path)) {
-      throw new Error(
-        `Visual Repair attempted to modify a file outside repair context: ${change.path}`,
-      );
+      throw new Error(`Visual Repair attempted to modify a file outside repair context: ${change.path}`);
     }
   }
 }
@@ -190,9 +183,7 @@ function checkExecutionFailure(error: unknown): ToolResult<CheckProjectOutput> {
     ok: false,
     error: {
       code: 'VISUAL_REPAIR_CHECK_FAILED',
-      message: `Post-visual-repair project check could not run: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
+      message: `Post-visual-repair project check could not run: ${error instanceof Error ? error.message : String(error)}`,
     },
   };
 }
@@ -331,17 +322,21 @@ export async function repairGeneratedProjectVisual(
   const project = await resolveGeneratedProject(projectInput, options.generatedRoot);
   const availableFiles = await listProjectContextFiles(project.directory);
   const changeManager = createProjectChangeManager(project);
+  const modelClient = options.modelClient ?? defaultModelClient;
 
   return runVisualRepairOnce({
     ...input,
     projectId: project.id,
     availableFiles,
-    readFiles: async (paths) => (await readProjectSnapshot(project, paths)).files,
-    requestRepair: requestVisualRepair,
+    readFiles: async (paths) => options.readFiles
+      ? options.readFiles(project, paths, options.agent)
+      : (await readProjectSnapshot(project, paths)).files,
+    requestRepair: (request) => requestVisualRepair(modelClient, request),
     parsePatch: parseProjectPatch,
     applyChanges: (patch) => applyProjectChanges(changeManager, patch, options.agent),
-    checkProject: () =>
-      checkProjectTool.execute({}, { projectDirectory: project.directory, agent: options.agent }),
+    checkProject: () => options.checkProject
+      ? options.checkProject(project, options.agent)
+      : checkProjectTool.execute({}, { projectDirectory: project.directory, agent: options.agent }),
     rollback: (changeSet) => changeManager.rollback(changeSet),
   });
 }
