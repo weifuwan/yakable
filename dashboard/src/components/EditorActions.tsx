@@ -5,7 +5,8 @@ type ActionButtonVariant = "share" | "upgrade" | "publish";
 type ActionButtonProps = {
   variant: ActionButtonVariant;
   icon: ReactNode;
-  children: ReactNode;
+  label: string;
+  compact: boolean;
 };
 
 const buttonVariantClasses: Record<ActionButtonVariant, string> = {
@@ -66,14 +67,22 @@ const secondaryHighlightClasses: Record<ActionButtonVariant, string> = {
     "shadow-[inset_0_0.5px_0_rgba(255,255,255,0.13),inset_0_-0.5px_0_rgba(0,0,0,0.12)]",
 };
 
-const layerClass =
-  "pointer-events-none absolute inset-0 rounded-[inherit]";
+const layerClass = "pointer-events-none absolute inset-0 rounded-[inherit]";
 
-function ActionButton({ variant, icon, children }: ActionButtonProps) {
+function ActionButton({
+  variant,
+  icon,
+  label,
+  compact,
+}: ActionButtonProps) {
   return (
     <button
       type="button"
-      className={`group relative isolate inline-flex h-7 cursor-pointer items-center justify-center rounded-full border-0 px-[9px] py-1 text-xs font-normal leading-5 transition-[transform,color,background-color] duration-100 active:scale-[0.97] ${buttonVariantClasses[variant]}`}
+      aria-label={label}
+      title={compact ? label : undefined}
+      className={`group relative isolate inline-flex h-7 cursor-pointer items-center justify-center rounded-full border-0 py-1 text-xs font-normal leading-5 transition-[width,padding,transform,color,background-color] duration-200 active:scale-[0.97] ${
+        compact ? "w-7 px-0" : "w-auto px-[9px]"
+      } ${buttonVariantClasses[variant]}`}
     >
       <span
         data-allow-shadow
@@ -104,9 +113,22 @@ function ActionButton({ variant, icon, children }: ActionButtonProps) {
         className={`${layerClass} z-[4] ${secondaryHighlightClasses[variant]}`}
       />
 
-      <span className="relative z-10 inline-flex items-center justify-center gap-1 whitespace-nowrap [&>svg]:size-4 [&>svg]:shrink-0">
+      <span
+        className={`relative z-10 inline-flex items-center justify-center whitespace-nowrap [&>svg]:size-4 [&>svg]:shrink-0 ${
+          compact ? "gap-0" : "gap-1"
+        }`}
+      >
         {icon}
-        <span className="px-0.5">{children}</span>
+        <span
+          aria-hidden={compact}
+          className={`overflow-hidden whitespace-nowrap px-0.5 transition-[max-width,opacity,margin] duration-200 ${
+            compact
+              ? "ml-0 max-w-0 opacity-0"
+              : "ml-0 max-w-[80px] opacity-100"
+          }`}
+        >
+          {label}
+        </span>
       </span>
     </button>
   );
@@ -136,18 +158,27 @@ function PublishIcon() {
   );
 }
 
-export function EditorActions() {
+export function EditorActions({ compact = false }: { compact?: boolean }) {
   return (
     <div className="ml-auto flex shrink-0 items-center gap-1.5">
-      <ActionButton variant="share" icon={<ShareIcon />}>
-        Share
-      </ActionButton>
-      <ActionButton variant="upgrade" icon={<BoltIcon />}>
-        Upgrade
-      </ActionButton>
-      <ActionButton variant="publish" icon={<PublishIcon />}>
-        Publish
-      </ActionButton>
+      <ActionButton
+        variant="share"
+        icon={<ShareIcon />}
+        label="Share"
+        compact={compact}
+      />
+      <ActionButton
+        variant="upgrade"
+        icon={<BoltIcon />}
+        label="Upgrade"
+        compact={compact}
+      />
+      <ActionButton
+        variant="publish"
+        icon={<PublishIcon />}
+        label="Publish"
+        compact={compact}
+      />
     </div>
   );
 }
