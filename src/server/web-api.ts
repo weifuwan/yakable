@@ -9,6 +9,7 @@ import { createPersistedAgentRecorder } from '../agent-runtime/persisted-recorde
 import type { AgentProtocolItem } from '../protocol/agent-protocol.js';
 import type { ProjectUpdate } from '../projects/project-actions.js';
 import { completeAgentRun, readAgentRun } from '../storage/agent-run.js';
+import type { BuildIntentDecision } from '../types.js';
 import {
   createDefaultWebApiServices,
   projectNameFromId,
@@ -16,6 +17,7 @@ import {
 import type {
   RuntimeSession,
   WebApiServices,
+  WebCreateProjectBootstrap,
   WebGeneratedProject,
 } from './web-api-contract.js';
 
@@ -23,6 +25,9 @@ export { createDefaultWebApiServices } from './project-services.js';
 export type {
   RuntimeSession,
   WebApiServices,
+  WebCreateProjectBootstrap,
+  WebCreateProjectReservation,
+  WebCreateProjectStatus,
   WebGeneratedProject,
   WebProjectListItem,
   WebProjectMessageResult,
@@ -174,6 +179,7 @@ async function runtimePayload(
 export function createYakableApiServer(options: { services?: WebApiServices } = {}): YakableApiServer {
   const services = options.services ?? createDefaultWebApiServices();
   const runtimes = new Map<string, RuntimeSession>();
+  const backgroundCreates = new Map<string, Promise<void>>();
 
   async function ensureRuntime(projectId: string): Promise<RuntimeSession> {
     const current = runtimes.get(projectId);
@@ -217,6 +223,39 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
     }
   }
 
+  function launchBackgroundCreate(
+    prompt: string,
+    decision: BuildIntentDecision,
+    bootstrap: WebCreateProjectBootstrap,
+  ): void {
+    const projectId = bootstrap.project.id;
+    if (backgroundCreates.has(projectId)) return;
+
+    const task = (async () => {
+      const project = await services.generate(
+        prompt,
+        decision,
+        undefined,
+        bootstrap.reservation,
+      );
+      if (project.id !== projectId) {
+        throw new Error(
+          `Async create returned project ${project.id}, expected reserved project ${projectId}.`,
+        );
+      }
+      await ensureGeneratedRuntime(project);
+    })()
+      .catch((error) => {
+        const normalized = error instanceof Error ? error : new Error(String(error));
+        console.error(`[Yakable API] Background create failed for ${projectId}.`, normalized);
+      })
+      .finally(() => {
+        backgroundCreates.delete(projectId);
+      });
+
+    backgroundCreates.set(projectId, task);
+  }
+
   async function closeRuntime(projectId: string): Promise<void> {
     const runtime = runtimes.get(projectId);
     if (!runtime) return;
@@ -243,6 +282,33 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
       }
       if (method === 'GET' && url.pathname === '/api/projects') {
         sendJson(response, 200, { projects: await services.listProjects() });
+        return;
+      }
+
+      if (method === 'POST' && url.pathname === '/api/projects/bootstrap') {
+        const body = await readJsonBody(request);
+        const prompt = readPrompt(body);
+        const decision = await services.gateBuildIntent(prompt);
+
+        if (decision.route !== 'CREATE') {
+          sendJson(response, 200, {
+            accepted: false,
+            decision,
+          });
+          return;
+        }
+        if (!services.bootstrapCreate) {
+          throw new Error('Async project bootstrap is not available.');
+        }
+
+        const bootstrap = await services.bootstrapCreate(prompt, decision);
+        sendJson(response, 202, {
+          accepted: true,
+          decision,
+          project: bootstrap.project,
+          run: bootstrap.run,
+        });
+        launchBackgroundCreate(prompt, decision, bootstrap);
         return;
       }
 
@@ -301,6 +367,21 @@ export function createYakableApiServer(options: { services?: WebApiServices } = 
           writeNdjson(response, { type: 'error', error: normalized.message });
         }
         response.end();
+        return;
+      }
+
+      const creationStatusRoute = url.pathname.match(/^\/api\/projects\/([^/]+)\/creation$/);
+      if (method === 'GET' && creationStatusRoute) {
+        if (!services.readCreateStatus) {
+          throw new Error('Async project creation status is not available.');
+        }
+        const projectId = assertProjectId(creationStatusRoute[1] ?? '');
+        const status = await services.readCreateStatus(projectId);
+        if (!status) {
+          sendJson(response, 404, { error: `Project creation state does not exist: ${projectId}` });
+          return;
+        }
+        sendJson(response, 200, status);
         return;
       }
 

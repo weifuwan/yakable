@@ -8,6 +8,8 @@ import type {
   ProjectUpdate,
 } from '../projects/project-actions.js';
 import type { ProjectMessageDecision } from '../prompt-intelligence/project-message.js';
+import type { AgentRunStatus } from '../storage/agent-run.js';
+import type { ProjectLifecycleStatus } from '../storage/project-lifecycle.js';
 import type {
   BuildIntentDecision,
   ProjectConversation,
@@ -36,6 +38,51 @@ export interface WebProjectMessageResult {
   conversation: ProjectConversation | null;
 }
 
+export interface WebCreateProjectReservation {
+  projectId: string;
+  agentRunId: string;
+  createdAt: string;
+}
+
+export interface WebCreateProjectBootstrap {
+  reservation: WebCreateProjectReservation;
+  project: {
+    id: string;
+    name: string;
+    prompt: string;
+    status: ProjectLifecycleStatus;
+    createdAt: string;
+    updatedAt: string;
+  };
+  run: {
+    id: string;
+    status: AgentRunStatus;
+    startedAt: string;
+  };
+}
+
+export interface WebCreateProjectStatus {
+  project: {
+    id: string;
+    name: string;
+    prompt: string;
+    status: ProjectLifecycleStatus;
+    activeRunId?: string;
+    failureMessage?: string;
+    createdAt: string;
+    updatedAt: string;
+  };
+  run: {
+    id: string;
+    status: AgentRunStatus;
+    model?: string;
+    summary?: string;
+    startedAt: string;
+    completedAt?: string;
+    items: AgentProtocolItem[];
+  } | null;
+}
+
 export interface RuntimeSession {
   url: string;
   metadata: ProjectMetadata;
@@ -46,10 +93,16 @@ export interface RuntimeSession {
 export interface WebApiServices {
   listProjects(): Promise<WebProjectListItem[]>;
   gateBuildIntent(prompt: string): Promise<BuildIntentDecision>;
+  bootstrapCreate?(
+    prompt: string,
+    buildIntent: BuildIntentDecision,
+  ): Promise<WebCreateProjectBootstrap>;
+  readCreateStatus?(projectId: string): Promise<WebCreateProjectStatus | null>;
   generate(
     prompt: string,
     buildIntent: BuildIntentDecision,
     onAgentItem?: (item: AgentProtocolItem) => void,
+    reservation?: WebCreateProjectReservation,
   ): Promise<WebGeneratedProject>;
   message?(projectId: string, prompt: string): Promise<WebProjectMessageResult>;
   beginEditRun(
