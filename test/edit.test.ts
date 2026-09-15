@@ -5,17 +5,21 @@ import path from 'node:path';
 import test from 'node:test';
 
 import {
-  applyProjectPatch,
+  applyProjectChanges,
   assertPatchUsesSelectedContext,
+  createProjectChangeManager,
+  parseProjectPatch,
+} from '../src/editing/project-change.js';
+import {
   buildProjectEditContext,
   extractUserEditContext,
   extractUserEditRequest,
   listProjectContextFiles,
-  parseProjectPatch,
   readProjectSnapshot,
-} from '../src/editing/edit.js';
+} from '../src/editing/project-context.js';
 import type { ResolvedGeneratedProject } from '../src/runtime/runtime.js';
 import type { ProjectSessionState } from '../src/types.js';
+import { workspaceChangedPaths } from '../src/workspace/change-set.js';
 
 async function createFixture(root: string): Promise<ResolvedGeneratedProject> {
   const directory = path.join(root, 'demo-project');
@@ -41,7 +45,7 @@ async function createFixture(root: string): Promise<ResolvedGeneratedProject> {
   return { directory, id: 'demo-project' };
 }
 
-test('parses a focused project change set', () => {
+test('parses a focused project change set request', () => {
   const patch = parseProjectPatch(
     JSON.stringify({
       summary: 'Update the Hero copy',
@@ -78,11 +82,9 @@ test('rejects root configuration and traversal changes', () => {
 
 test('lists context candidates without secrets, lockfiles, or build output', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'yakable-edit-candidates-'));
-
   try {
     const project = await createFixture(tempRoot);
     const paths = await listProjectContextFiles(project.directory);
-
     assert.ok(paths.includes('package.json'));
     assert.ok(paths.includes('src/App.tsx'));
     assert.ok(paths.includes('src/components/Hero.tsx'));
@@ -96,14 +98,12 @@ test('lists context candidates without secrets, lockfiles, or build output', asy
 
 test('reads only the selected project context files', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'yakable-edit-context-'));
-
   try {
     const project = await createFixture(tempRoot);
     const snapshot = await readProjectSnapshot(project, [
       'src/components/Hero.tsx',
       'src/styles.css',
     ]);
-
     assert.deepEqual(
       snapshot.files.map((file) => file.path),
       ['src/components/Hero.tsx', 'src/styles.css'],
@@ -116,7 +116,6 @@ test('reads only the selected project context files', async () => {
 
 test('includes original intent and recent accepted edits in follow-up context', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'yakable-edit-continuity-'));
-
   try {
     const project = await createFixture(tempRoot);
     const snapshot = await readProjectSnapshot(project, ['src/App.tsx']);
@@ -204,7 +203,6 @@ test('extracts the human request and source-mapped visual targets for persistenc
 
 test('rejects changes to existing files that were not selected as context', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'yakable-edit-context-guard-'));
-
   try {
     const project = await createFixture(tempRoot);
     const patch = parseProjectPatch(
@@ -213,7 +211,6 @@ test('rejects changes to existing files that were not selected as context', asyn
         changes: [{ path: 'src/styles.css', content: 'body { margin: 4px; }' }],
       }),
     );
-
     await assert.rejects(
       () => assertPatchUsesSelectedContext(project, patch, ['src/App.tsx']),
       /outside selected context/,
@@ -225,7 +222,6 @@ test('rejects changes to existing files that were not selected as context', asyn
 
 test('allows a selected existing file and a genuinely new file', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'yakable-edit-context-new-file-'));
-
   try {
     const project = await createFixture(tempRoot);
     const patch = parseProjectPatch(
@@ -243,7 +239,6 @@ test('allows a selected existing file and a genuinely new file', async () => {
         ],
       }),
     );
-
     await assert.doesNotReject(() =>
       assertPatchUsesSelectedContext(project, patch, ['src/App.tsx']),
     );
@@ -252,9 +247,8 @@ test('allows a selected existing file and a genuinely new file', async () => {
   }
 });
 
-test('applies only returned files and preserves unrelated source', async () => {
+test('applies project edits as a WorkspaceChangeSet and preserves unrelated source', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'yakable-edit-apply-'));
-
   try {
     const project = await createFixture(tempRoot);
     const beforeStyles = await readFile(path.join(project.directory, 'src/styles.css'), 'utf8');
@@ -274,11 +268,12 @@ test('applies only returned files and preserves unrelated source', async () => {
       }),
     );
 
-    const changed = await applyProjectPatch(project, patch);
+    const changeSet = await applyProjectChanges(createProjectChangeManager(project), patch);
     const afterApp = await readFile(path.join(project.directory, 'src/App.tsx'), 'utf8');
     const afterStyles = await readFile(path.join(project.directory, 'src/styles.css'), 'utf8');
 
-    assert.deepEqual(changed, ['src/App.tsx', 'src/components/Badge.tsx']);
+    assert.deepEqual(workspaceChangedPaths(changeSet), ['src/App.tsx', 'src/components/Badge.tsx']);
+    assert.deepEqual(changeSet.files.map((file) => file.type), ['MODIFIED', 'ADDED']);
     assert.match(afterApp, /After/);
     assert.equal(afterStyles, beforeStyles);
   } finally {
