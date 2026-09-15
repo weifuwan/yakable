@@ -1,4 +1,7 @@
-import type { ContextBudget } from './context-budget.js';
+import {
+  createContextBudget,
+  type ContextBudget,
+} from './context-budget.js';
 import {
   CONTEXT_SNAPSHOT_VERSION,
   type ContextBuildRequest,
@@ -61,13 +64,23 @@ function normalizeContribution(
   };
 }
 
+function contributionsFromProviderResult(
+  provided: ContextProviderResult,
+): readonly ContextContribution[] {
+  if (provided == null) return [];
+  if (Array.isArray(provided)) {
+    return provided as readonly ContextContribution[];
+  }
+  return [provided as ContextContribution];
+}
+
 export class ContextBuilder {
   private readonly budget: ContextBudget;
   private readonly providers: readonly ContextProvider[];
   private readonly now: () => Date;
 
   constructor(options: ContextBuilderOptions) {
-    this.budget = { ...options.budget };
+    this.budget = createContextBudget(options.budget);
     this.providers = (options.providers ?? []).map(normalizeProvider);
     this.now = options.now ?? (() => new Date());
 
@@ -95,13 +108,7 @@ export class ContextBuilder {
 
     for (const provider of this.providers) {
       const provided = await provider.provide(normalizedInput);
-      const contributions = provided == null
-        ? []
-        : Array.isArray(provided)
-          ? provided
-          : [provided];
-
-      for (const contribution of contributions) {
+      for (const contribution of contributionsFromProviderResult(provided)) {
         const section = normalizeContribution(provider.id, contribution);
         if (sectionIds.has(section.id)) {
           throw new Error(`Duplicate Context section id: ${section.id}`);
