@@ -33,7 +33,6 @@ export interface VisualRepairResult {
   changedFiles: string[];
   projectCheck: ToolResult<CheckProjectOutput> | null;
   rolledBack: boolean;
-  changeSet?: WorkspaceChangeSet;
   model?: string;
   summary?: string;
   error?: string;
@@ -253,7 +252,6 @@ export async function runVisualRepairOnce(
       changedFiles,
       projectCheck: null,
       rolledBack: false,
-      ...(changeSet ? { changeSet } : {}),
       ...(model ? { model } : {}),
       ...(summary ? { summary } : {}),
       error: error instanceof Error ? error.message : String(error),
@@ -276,7 +274,6 @@ export async function runVisualRepairOnce(
       changedFiles,
       projectCheck,
       rolledBack: false,
-      changeSet,
       ...(model ? { model } : {}),
       ...(summary ? { summary } : {}),
     };
@@ -302,7 +299,6 @@ export async function runVisualRepairOnce(
     changedFiles,
     projectCheck,
     rolledBack,
-    changeSet,
     ...(model ? { model } : {}),
     ...(summary ? { summary } : {}),
     error: rollbackError
