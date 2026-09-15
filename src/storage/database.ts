@@ -59,6 +59,19 @@ function initializeSchema(database: DatabaseSync): void {
     CREATE INDEX IF NOT EXISTS idx_project_edit_selections_edit
       ON project_edit_selections(edit_id, ordinal, id);
 
+    CREATE TABLE IF NOT EXISTS project_lifecycle (
+      project_id TEXT PRIMARY KEY,
+      prompt TEXT NOT NULL,
+      status TEXT NOT NULL,
+      active_run_id TEXT,
+      failure_message TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_project_lifecycle_status_updated
+      ON project_lifecycle(status, updated_at DESC, project_id);
+
     CREATE TABLE IF NOT EXISTS agent_runs (
       id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL,

@@ -22,6 +22,11 @@ import {
   writeProjectSession,
 } from '../projects/project-session.js';
 import { resolveGeneratedProject, startGeneratedProject } from '../runtime/runtime.js';
+import {
+  failProjectLifecycle,
+  readProjectLifecycle,
+  transitionProjectLifecycle,
+} from '../storage/project-lifecycle.js';
 import { createBaseProject } from '../templates/base-template.js';
 import type { BuildIntentDecision } from '../types.js';
 import {
@@ -193,17 +198,41 @@ export function createDefaultWebApiServices(
     },
 
     async startRuntime(projectId) {
-      const project = await resolveGeneratedProject(projectId, generatedRoot);
-      const metadata = await readProjectMetadata(project.directory);
-      const started = await startGeneratedProject(project, { port: 0 });
-      return {
-        url: started.url,
-        metadata,
-        isAlive: () => Boolean(started.server.httpServer?.listening),
-        close: async () => {
-          await started.server.close();
-        },
-      };
+      const lifecycle = readProjectLifecycle(projectId);
+      const trackCreationLifecycle = Boolean(
+        lifecycle
+        && (lifecycle.status === 'GENERATING' || lifecycle.status === 'STARTING_RUNTIME'),
+      );
+
+      if (lifecycle?.status === 'GENERATING') {
+        transitionProjectLifecycle(projectId, 'STARTING_RUNTIME');
+      }
+
+      try {
+        const project = await resolveGeneratedProject(projectId, generatedRoot);
+        const metadata = await readProjectMetadata(project.directory);
+        const started = await startGeneratedProject(project, { port: 0 });
+        if (trackCreationLifecycle) {
+          transitionProjectLifecycle(projectId, 'READY');
+        }
+        return {
+          url: started.url,
+          metadata,
+          isAlive: () => Boolean(started.server.httpServer?.listening),
+          close: async () => {
+            await started.server.close();
+          },
+        };
+      } catch (error) {
+        if (trackCreationLifecycle) {
+          try {
+            failProjectLifecycle(projectId, error);
+          } catch (lifecycleError) {
+            console.warn('[Yakable Runtime] Project lifecycle could not be marked failed.', lifecycleError);
+          }
+        }
+        throw error;
+      }
     },
 
     async readSession(projectId) {

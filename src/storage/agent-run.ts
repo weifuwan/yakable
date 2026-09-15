@@ -47,6 +47,11 @@ export interface CompleteAgentRunInput {
   completedAt?: string;
 }
 
+export interface FailAgentRunInput {
+  summary?: string;
+  completedAt?: string;
+}
+
 interface AgentRunRow {
   id: string;
   project_id: string;
@@ -152,6 +157,20 @@ export function completeAgentRun(runId: string, input: CompleteAgentRunInput = {
       completed_at = COALESCE(completed_at, ?)
     WHERE id = ?
   `).run(model ?? null, summary ?? null, completedAt, runId);
+}
+
+export function failAgentRun(runId: string, input: FailAgentRunInput = {}): void {
+  const summary = optionalText(input.summary, MAX_SUMMARY_LENGTH);
+  const completedAt = input.completedAt ?? new Date().toISOString();
+
+  getYakableDatabase().prepare(`
+    UPDATE agent_runs
+    SET
+      status = CASE WHEN status = 'RUNNING' THEN 'FAILED' ELSE status END,
+      summary = COALESCE(?, summary),
+      completed_at = COALESCE(completed_at, ?)
+    WHERE id = ?
+  `).run(summary ?? null, completedAt, runId);
 }
 
 export function readAgentRun(runId: string): AgentRunRecord | null {

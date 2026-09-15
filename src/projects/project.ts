@@ -31,6 +31,7 @@ const STANDALONE_REQUIRED_FILES = [
 ] as const;
 const BASE_OVERLAY_REQUIRED_FILES = ['src/App.tsx', 'src/routes.ts'] as const;
 const BLOCKED_ROOTS = new Set(['.git', '.yakable', 'generated', 'node_modules']);
+const GENERATED_PROJECT_ID_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$/;
 
 export type GeneratedProjectParseMode = 'standalone' | 'base-overlay';
 
@@ -43,6 +44,11 @@ export interface WrittenGeneratedProject {
   outputDirectory: string;
   baselineCommit: string;
   changeSet: WorkspaceChangeSet;
+}
+
+export interface GeneratedProjectIdentity {
+  projectId: string;
+  createdAt: string;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -206,18 +212,43 @@ export function slugifyPrompt(prompt: string): string {
   return slug || 'app';
 }
 
-function createGeneratedProjectId(prompt: string, createdAt: string): string {
+export function createGeneratedProjectIdentity(
+  prompt: string,
+  createdAt = new Date().toISOString(),
+): GeneratedProjectIdentity {
   const timestamp = createdAt.replace(/[:.]/g, '-');
-  return `${slugifyPrompt(prompt)}-${timestamp}-${randomUUID().slice(0, 8)}`;
+  return {
+    projectId: `${slugifyPrompt(prompt)}-${timestamp}-${randomUUID().slice(0, 8)}`,
+    createdAt,
+  };
+}
+
+function resolveGeneratedProjectIdentity(
+  prompt: string,
+  identity?: GeneratedProjectIdentity,
+): GeneratedProjectIdentity {
+  const resolved = identity ?? createGeneratedProjectIdentity(prompt);
+  const projectId = resolved.projectId.trim();
+  const createdAt = resolved.createdAt.trim();
+  if (!GENERATED_PROJECT_ID_PATTERN.test(projectId)) {
+    throw new Error(
+      'Generated project id must be 1-80 characters and use only letters, numbers, dot, underscore, or hyphen.',
+    );
+  }
+  if (!createdAt || createdAt.length > 40) {
+    throw new Error('Generated project createdAt must be a non-empty timestamp up to 40 characters.');
+  }
+  return { projectId, createdAt };
 }
 
 export async function writeGeneratedProject(
   prompt: string,
   project: GeneratedProject,
   outputRoot = path.resolve(process.cwd(), 'generated'),
+  identity?: GeneratedProjectIdentity,
 ): Promise<WrittenGeneratedProject> {
-  const createdAt = new Date().toISOString();
-  const projectId = createGeneratedProjectId(prompt, createdAt);
+  const resolvedIdentity = resolveGeneratedProjectIdentity(prompt, identity);
+  const { createdAt, projectId } = resolvedIdentity;
   const outputDirectory = path.join(outputRoot, projectId);
 
   await mkdir(outputRoot, { recursive: true });
@@ -253,11 +284,12 @@ export async function writeGeneratedProjectFromBase(
   project: GeneratedProject,
   outputRoot = path.resolve(process.cwd(), 'generated'),
   templateRoot = path.resolve(process.cwd(), 'templates', 'base'),
+  identity?: GeneratedProjectIdentity,
 ): Promise<WrittenGeneratedProject> {
   assertBaseOverlayFiles(project.files, project.template);
 
-  const createdAt = new Date().toISOString();
-  const projectId = createGeneratedProjectId(prompt, createdAt);
+  const resolvedIdentity = resolveGeneratedProjectIdentity(prompt, identity);
+  const { createdAt, projectId } = resolvedIdentity;
   const created = await createBaseProject(projectId, {
     outputRoot,
     templateRoot,
