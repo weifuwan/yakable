@@ -23,6 +23,7 @@ const MAX_USER_INPUT = 8_000;
 const MAX_RECENT_MESSAGES = 12;
 const MAX_RECENT_MESSAGE_LENGTH = 2_000;
 const MAX_REPLY_LENGTH = 4_000;
+const PROJECT_CHAT_MAX_ATTEMPTS = 2;
 
 function normalizeInput(input: ProjectChatInput): ProjectChatInput {
   const userInput = input.userInput.trim();
@@ -78,13 +79,24 @@ export async function generateProjectChatReply(
   input: ProjectChatInput,
   modelClient: ModelClient = defaultModelClient,
 ): Promise<ProjectChatReply> {
-  const generation = await modelClient.generateText({
+  const request = {
     messages: buildProjectChatMessages(input),
     capabilityLabel: 'Project Chat',
     maxTokens: 4_096,
-  });
-  return {
-    message: parseProjectChatReply(generation.content),
-    model: generation.model,
-  };
+  } as const;
+
+  for (let attempt = 1; attempt <= PROJECT_CHAT_MAX_ATTEMPTS; attempt += 1) {
+    const generation = await modelClient.generateText(request);
+    if (generation.content.trim()) {
+      return {
+        message: parseProjectChatReply(generation.content),
+        model: generation.model,
+      };
+    }
+    if (attempt === PROJECT_CHAT_MAX_ATTEMPTS) {
+      throw new Error('Project Chat Agent returned an empty response after one automatic retry.');
+    }
+  }
+
+  throw new Error('Project Chat Agent did not complete.');
 }
