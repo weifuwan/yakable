@@ -58,27 +58,6 @@ export {
   translatePromptTaste,
 } from './prompt-intelligence/taste.js';
 export {
-  YAKABLE_MODES,
-  YAKABLE_MODE_CAPABILITIES,
-  ModeCapabilityError,
-  assertModeCapability,
-  capabilitiesForMode,
-  createYakableModeContext,
-  modeAllowsCapability,
-  parseYakableMode,
-} from './modes/mode-contract.js';
-export type {
-  YakableMode,
-  YakableModeCapability,
-  YakableModeContext,
-} from './modes/mode-contract.js';
-export {
-  beginEditRunInMode,
-  generateProjectInMode,
-  repairGeneratedProjectVisualInMode,
-  runModeCapability,
-} from './modes/mode-execution.js';
-export {
   PLAN_ARTIFACT_JSON_PATH,
   PLAN_ARTIFACT_MARKDOWN_PATH,
   PLAN_ARTIFACT_MAX_CONTEXT_FILES,

@@ -1,8 +1,3 @@
-import {
-  modeAllowsCapability,
-  type YakableMode,
-  type YakableModeCapability,
-} from '../modes/mode-contract.js';
 import { checkProjectTool } from '../tools/check-project.js';
 import { readProjectFileTool } from '../tools/read-project-file.js';
 import { searchProjectTool } from '../tools/search-project.js';
@@ -13,32 +8,27 @@ import {
   type ToolResult,
 } from '../tools/tool.js';
 
-export interface ToolRouteOptions {
-  capability?: YakableModeCapability;
-}
-
 export interface RoutedTool {
   name: string;
   description: string;
-  capability?: YakableModeCapability;
 }
 
 /**
- * Runtime-facing tool boundary.
+ * Runtime-facing tool registry.
  *
- * The existing ToolRegistry remains the executor registry. ToolRouter adds
- * mode/capability exposure so workflows no longer need to own that policy.
+ * Tool availability is defined by explicit registration. Permission and
+ * approval policy belong to dedicated runtime boundaries instead of a
+ * global Plan / Build mode switch.
  */
 export class ToolRouter {
   private readonly registry = new ToolRegistry();
   private readonly routes = new Map<string, RoutedTool>();
 
-  register<Input, Output>(tool: Tool<Input, Output>, options: ToolRouteOptions = {}): this {
+  register<Input, Output>(tool: Tool<Input, Output>): this {
     this.registry.register(tool);
     this.routes.set(tool.name, {
       name: tool.name,
       description: tool.description,
-      ...(options.capability ? { capability: options.capability } : {}),
     });
     return this;
   }
@@ -47,35 +37,21 @@ export class ToolRouter {
     return this.routes.has(name);
   }
 
-  list(mode?: YakableMode): RoutedTool[] {
-    return [...this.routes.values()]
-      .filter((route) => !mode || !route.capability || modeAllowsCapability(mode, route.capability))
-      .map((route) => ({ ...route }));
+  list(): RoutedTool[] {
+    return [...this.routes.values()].map((route) => ({ ...route }));
   }
 
   async execute<Output = unknown>(
-    mode: YakableMode,
     name: string,
     input: unknown,
     context: ToolContext,
   ): Promise<ToolResult<Output>> {
-    const route = this.routes.get(name);
-    if (!route) {
+    if (!this.routes.has(name)) {
       return {
         ok: false,
         error: {
           code: 'TOOL_NOT_FOUND',
           message: `Tool is not registered: ${name}`,
-        },
-      };
-    }
-
-    if (route.capability && !modeAllowsCapability(mode, route.capability)) {
-      return {
-        ok: false,
-        error: {
-          code: 'TOOL_CAPABILITY_FORBIDDEN',
-          message: `${mode} mode does not allow ${route.capability} required by ${name}.`,
         },
       };
     }
@@ -86,7 +62,7 @@ export class ToolRouter {
 
 export function createDefaultToolRouter(): ToolRouter {
   return new ToolRouter()
-    .register(readProjectFileTool, { capability: 'read-project' })
-    .register(searchProjectTool, { capability: 'search-project' })
-    .register(checkProjectTool, { capability: 'read-project' });
+    .register(readProjectFileTool)
+    .register(searchProjectTool)
+    .register(checkProjectTool);
 }

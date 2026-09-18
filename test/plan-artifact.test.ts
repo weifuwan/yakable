@@ -135,7 +135,7 @@ test('approves a draft artifact and writes matching JSON and Markdown metadata',
       'demo-project',
       'APPROVE',
       'Ready for Build.',
-      { mode: 'PLAN', generatedRoot: fixture.root },
+      { generatedRoot: fixture.root },
     );
     assert.equal(reviewed.plan.status, 'APPROVED');
     assert.equal(reviewed.plan.revision, 1);
@@ -153,19 +153,13 @@ test('approves a draft artifact and writes matching JSON and Markdown metadata',
     assert.match(storedMarkdown, /Revision 1 · APPROVED/);
     assert.match(storedMarkdown, /Ready for Build/);
 
-    const buildRead = await readPlanArtifactFromDirectory(fixture.project, 'BUILD');
-    assert.equal(buildRead?.status, 'APPROVED');
+    const persistedRead = await readPlanArtifactFromDirectory(fixture.project);
+    assert.equal(persistedRead?.status, 'APPROVED');
   } finally {
     await rm(fixture.root, { recursive: true, force: true });
   }
 });
 
-test('review is a PLAN capability and cannot run from BUILD mode', async () => {
-  await assert.rejects(
-    reviewProjectPlan('does-not-exist', 'APPROVE', undefined, { mode: 'BUILD' }),
-    /BUILD mode does not allow review-plan/,
-  );
-});
 
 test('an already reviewed artifact cannot be reviewed again', async () => {
   const fixture = await createGeneratedFixture();
@@ -174,7 +168,6 @@ test('an already reviewed artifact cannot be reviewed again', async () => {
     await writeFile(jsonPath, `${JSON.stringify(artifact('REJECTED'), null, 2)}\n`, 'utf8');
     await assert.rejects(
       reviewProjectPlan('demo-project', 'APPROVE', undefined, {
-        mode: 'PLAN',
         generatedRoot: fixture.root,
       }),
       /Only a DRAFT Plan Artifact can be reviewed/,

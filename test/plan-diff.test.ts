@@ -12,7 +12,6 @@ import type { PlanArtifact } from '../src/planning/plan-artifact.js';
 import {
   readProjectPlanDiff,
   readProjectPlanRevision,
-  replanProjectPlan,
 } from '../src/planning/replan.js';
 
 function plan(revision: number, overrides: Partial<PlanArtifact> = {}): PlanArtifact {
@@ -180,14 +179,12 @@ test('archived revisions remain readable after plan.json advances and power late
     );
 
     const archived = await readProjectPlanRevision('demo-project', 1, {
-      mode: 'PLAN',
       generatedRoot: fixture.root,
     });
     assert.equal(archived?.revision, 1);
     assert.equal(archived?.status, 'APPROVED');
 
     const latest = await readProjectPlanDiff('demo-project', {
-      mode: 'PLAN',
       generatedRoot: fixture.root,
     });
     assert.equal(latest?.diff.fromRevision, 1);
@@ -199,16 +196,4 @@ test('archived revisions remain readable after plan.json advances and power late
   }
 });
 
-test('Re-plan is PLAN-only and rejects BUILD before resolving project or calling models', async () => {
-  await assert.rejects(
-    replanProjectPlan('does-not-exist', 'Change the hierarchy', { mode: 'BUILD' }),
-    /BUILD mode does not allow diff-plan/,
-  );
-});
 
-test('Plan Diff is PLAN-only and BUILD cannot inspect revision deltas', async () => {
-  await assert.rejects(
-    readProjectPlanDiff('does-not-exist', { mode: 'BUILD' }),
-    /BUILD mode does not allow diff-plan/,
-  );
-});

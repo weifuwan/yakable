@@ -478,7 +478,7 @@ These capabilities are intelligence-oriented and should continue to evolve as Ag
 These capabilities should increasingly become explicit domain infrastructure:
 
 - Context policies and budgets;
-- Mode and capability boundaries;
+- Capability and permission boundaries;
 - Tool contracts and permissions;
 - project templates;
 - stack/dependency policy;

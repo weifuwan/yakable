@@ -35,8 +35,5 @@ export {
   ToolRouter,
   createDefaultToolRouter,
 } from './tool-router.js';
-export type {
-  RoutedTool,
-  ToolRouteOptions,
-} from './tool-router.js';
+export type { RoutedTool } from './tool-router.js';
 export * from './workflows/index.js';

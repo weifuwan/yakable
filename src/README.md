@@ -6,7 +6,6 @@
 src/
 ├── cli/                  # command-line entry points
 ├── model/                # model-provider adapters
-├── modes/                # Plan / Build capability policy and mode-aware execution boundaries
 ├── planning/             # Plan Artifact, UI Planner, Re-plan/Diff, and approved-plan execution
 ├── prompt-intelligence/  # gate build intent, then understand and normalize build requests
 ├── generation/           # turn normalized intent into a generated project
@@ -23,10 +22,9 @@ src/
 
 ## Capability boundaries
 
-- **modes** owns the first-class `PLAN | BUILD` contract. Plan may read/search/observe/critique, author/review Plan metadata, run UI Planner, and compare Plan revisions. It still cannot generate, edit, repair, or execute project source. Build may read and execute an approved plan through the bounded source path, but it cannot silently rewrite, review, re-plan, or diff planning state.
-- **planning** owns the Plan Artifact, UI Planner, Re-plan / Plan Diff, and the approved-plan execution contract. A planning turn reads bounded current project context, UI Planner produces the semantic blueprint, and the Plan Artifact remains the reviewable source of truth. Re-plan archives the exact superseded revision before creating the next draft and computes a deterministic structural diff. After explicit approval, Build compiles the reviewed artifact into an immutable execution snapshot and runs it through the bounded frontend edit/check path.
+- **planning** owns the Plan Artifact, UI Planner, Re-plan / Plan Diff, and the approved-plan execution contract. A planning turn reads bounded current project context, UI Planner produces the semantic blueprint, and the Plan Artifact remains the reviewable source of truth. Re-plan archives the exact superseded revision before creating the next draft and computes a deterministic structural diff. After explicit approval, approved-plan execution compiles the reviewed artifact into an immutable execution snapshot and runs it through the bounded frontend edit/check path.
 - **prompt-intelligence** first answers whether dashboard input is CREATE, CHAT, or CLARIFY. Only CREATE continues into product intent, semantic defaults, taste translation, and Design Intent.
-- **generation** answers: how do we turn normalized intent into a complete frontend source tree? It refuses a precomputed non-CREATE Build Intent decision, and source generation requires Build capability when a caller explicitly enters PLAN or BUILD mode.
+- **generation** answers: how do we turn normalized intent into a complete frontend source tree? It refuses a precomputed non-CREATE Build Intent decision and owns no planning policy.
 - **editing** keeps frontend reasoning deliberately bounded. Frontend Agent v0 makes the existing workflow explicit as `SELECT_CONTEXT → READ → EDIT → CHECK → OBSERVE → CRITIQUE → REPAIR → DONE`; it is a deterministic state machine, not generic model-selected Tool calling. Context Selection still chooses at most 12 paths and Project Edit may modify only files it has read. The fixed project health check may run one build repair. Approved-plan execution reuses these bounded primitives but supplies a separate reviewed execution contract and refuses silent deviation before source mutation.
 - **runtime** safely runs generated projects, maps Preview elements back to source, and exposes one bounded page-observation snapshot. Page Observation v0 reports route, viewport/document dimensions, visible key elements with DOM/source metadata, and captured runtime errors. It does not take screenshots or dump full computed styles.
 - **projects** owns generated-project parsing, `.yakable/project.json`, project listing, rename/star/remix/delete, and the project conversation/session repository.
@@ -35,39 +33,18 @@ src/
 - **storage** owns the local SQLite connection and schema only. It does not know planning, Prompt Intelligence, editing, or UI behavior.
 - **model** owns provider-specific transport for intent analysis, generation, Plan Artifact drafting, UI Planner, Edit Intent normalization, Design Critic, focused editing, context selection, build repair, and Visual Repair. Plan Diff is deterministic and does not use a model.
 - **server** exposes the existing JSON actions plus a narrow `agent-edit` NDJSON stream. Browser-only observation remains in the dashboard because the live DOM exists inside the Preview iframe.
-- **cli** contains thin executable entry points. `npm run plan` drafts/re-plans/reviews/diffs Plan Artifacts without source mutation; `npm run build:plan` executes the current approved revision through the bounded Build path; `npm run edit` remains the direct follow-up edit path.
+- **cli** contains thin executable entry points. `npm run plan` drafts/re-plans/reviews/diffs Plan Artifacts; `npm run build:plan` executes the current approved revision through the bounded source-edit path; `npm run edit` remains the direct follow-up edit path.
 
 `types.ts` stays at the root because its contracts are shared by several capabilities. `index.ts` stays at the root as the package-facing export boundary.
 
-## Plan / Build Mode v0 contract
+## Planning and source-mutation boundary
 
-The mode contract is permission-oriented:
+Planning and execution are capabilities, not global runtime modes.
 
-```text
-PLAN
-├── read-project
-├── search-project
-├── observe-preview
-├── critique-design
-├── read-plan
-├── write-plan
-├── review-plan
-├── plan-ui
-└── diff-plan
-
-BUILD
-├── read-project
-├── search-project
-├── observe-preview
-├── critique-design
-├── read-plan
-├── execute-plan
-├── generate-source
-├── edit-source
-└── repair-source
-```
-
-`PLAN` is read-only with respect to project source by construction. Writing Plan metadata and revision history under `.yakable` is planning state, not source mutation. `BUILD` can consume and execute reviewed plan metadata but cannot silently revise, approve/reject, re-plan, or diff it.
+- Planning APIs may read bounded project context and write planning metadata under `.yakable`.
+- Source generation, editing, and repair happen through explicit mutation workflows.
+- Approved-plan execution may consume reviewed plan metadata but cannot silently rewrite review state.
+- Permission and approval policy belong to dedicated runtime boundaries rather than a Plan / Build switch.
 
 ## Plan Artifact v0 contract
 
