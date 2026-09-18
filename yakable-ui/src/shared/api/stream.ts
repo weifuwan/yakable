@@ -1,60 +1,78 @@
-import { throwIfAborted } from '@/shared/lib/abort';
+import { throwIfAborted } from './abort';
+import { request, type ApiRequestInit } from './client';
+import { ApiError } from './error';
 
-export function parseRecord(line: string): Record<string, unknown> {
+export type NdjsonParser<T> = (line: string) => T;
+
+export function parseJsonLine<T = unknown>(line: string): T {
   try {
-    const value: unknown = JSON.parse(line);
-    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-      throw new Error('Agent stream returned an invalid record.');
-    }
-    return value as Record<string, unknown>;
+    return JSON.parse(line) as T;
   } catch (error) {
-    if (error instanceof SyntaxError) {
-      throw new Error('Agent stream returned invalid JSON.');
-    }
-    throw error;
+    throw new ApiError('Stream returned invalid JSON.', {
+      kind: 'parse',
+      data: line,
+      cause: error,
+    });
   }
 }
 
-export async function consumeNdjson<T>(
+export async function* readNdjson<T>(
   response: Response,
-  consumeLine: (line: string) => void,
-  getResult: () => T | null,
-  signal?: AbortSignal,
-): Promise<T> {
+  parse: NdjsonParser<T>,
+  signal?: AbortSignal | null,
+): AsyncGenerator<T> {
   throwIfAborted(signal);
 
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new Error(payload.error || `Yakable API failed with HTTP ${response.status}.`);
-  }
   if (!response.body) {
-    throw new Error('Agent stream is not available in this browser.');
+    throw new ApiError('Response body is not available as a stream.', {
+      kind: 'parse',
+      status: response.status,
+    });
   }
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
 
-  while (true) {
-    throwIfAborted(signal);
-    const chunk = await reader.read();
-    throwIfAborted(signal);
-    buffer += decoder.decode(chunk.value ?? new Uint8Array(), { stream: !chunk.done });
+  try {
+    while (true) {
+      throwIfAborted(signal);
+      const chunk = await reader.read();
+      throwIfAborted(signal);
 
-    let newline = buffer.indexOf('\n');
-    while (newline !== -1) {
-      const line = buffer.slice(0, newline);
-      buffer = buffer.slice(newline + 1);
-      if (line.trim()) consumeLine(line);
-      newline = buffer.indexOf('\n');
+      buffer += decoder.decode(chunk.value ?? new Uint8Array(), {
+        stream: !chunk.done,
+      });
+
+      let newline = buffer.indexOf('\n');
+      while (newline !== -1) {
+        const line = buffer.slice(0, newline).trim();
+        buffer = buffer.slice(newline + 1);
+
+        if (line) yield parse(line);
+        newline = buffer.indexOf('\n');
+      }
+
+      if (chunk.done) break;
     }
-    if (chunk.done) break;
+
+    const trailingLine = buffer.trim();
+    if (trailingLine) yield parse(trailingLine);
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+export async function* requestNdjson<T>(
+  input: RequestInfo | URL,
+  parse: NdjsonParser<T>,
+  init: ApiRequestInit = {},
+): AsyncGenerator<T> {
+  const headers = new Headers(init.headers);
+  if (!headers.has('Accept')) {
+    headers.set('Accept', 'application/x-ndjson');
   }
 
-  if (buffer.trim()) consumeLine(buffer);
-  throwIfAborted(signal);
-
-  const result = getResult();
-  if (!result) throw new Error('Agent stream ended without a result.');
-  return result;
+  const response = await request(input, { ...init, headers });
+  yield* readNdjson(response, parse, init.signal);
 }
