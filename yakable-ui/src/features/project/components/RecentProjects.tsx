@@ -14,7 +14,7 @@ function updatedAtTimestamp(project: ProjectSummary): number {
 }
 
 function projectHref(projectId: string): string {
-  return `/projects/${encodeURIComponent(projectId)}`;
+  return `/dashboard/project/${encodeURIComponent(projectId)}`;
 }
 
 export function RecentProjects({

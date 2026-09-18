@@ -15,7 +15,7 @@ src/
 ├── assets/
 ├── pages/
 │   ├── dashboard/
-│   └── workspace/
+│   └── project/
 ├── features/
 │   ├── agent-run/
 │   ├── editor/
@@ -68,6 +68,15 @@ Pages compose features into complete product surfaces.
 
 A page should answer "what is shown here?" rather than own API clients, protocol parsing, or reusable domain behavior.
 
+Project routes use the project id as URL state:
+
+```text
+/dashboard
+/dashboard/project/:projectId
+```
+
+Creating a project returns the id first, then navigation moves immediately to the project page. AI generation is a separate lifecycle step and must not block project creation/navigation.
+
 ## features
 
 Features own product capabilities.
@@ -77,6 +86,8 @@ Features own product capabilities.
 Add one feature at a time only after its ownership and contract are understood. Likely future areas include Workspace, Editor, Preview, and Agent Run.
 
 Feature-specific types, APIs, state, hooks, and components stay with their owning feature.
+
+The current Project backend persists through a repository port with a Boot-owned in-memory adapter. This is a development persistence boundary, not durable storage; replacing it with a database must not require changing Project command/query services.
 
 ## shared
 

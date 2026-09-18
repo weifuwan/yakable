@@ -14,7 +14,6 @@ export const SIDEBAR_ROUTES = [
     href: '/dashboard',
     label: 'Dashboard',
     icon: 'dashboard',
-    active: (pathname: string) =>
-      pathname === '/dashboard' || pathname.startsWith('/dashboard/'),
+    active: (pathname: string) => pathname === '/dashboard',
   },
 ] as const satisfies readonly SidebarRoute[];

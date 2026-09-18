@@ -42,7 +42,7 @@ The suite grows only with real feature contracts and regressions. It currently p
 - `shared/ui/button/Button.test.tsx`: a real React primitive contract
 - `shared/ui/prompt-composer/PromptComposer.test.tsx`: reusable composer keyboard, IME, submit, and clear behavior
 - `features/model/components/ModelSelector.test.tsx`: model selector open/select behavior
-- `features/project/components/CreateProjectComposer.test.tsx`: Dashboard composer submit and model-selector composition
+- `features/project/components/CreateProjectComposer.test.tsx`: Dashboard composer submit, selected-model payload, and project-route navigation
 - `features/project/components/ProjectList.test.tsx`: the first feature data-flow contract from API to visible Dashboard state
 - `features/project/components/RecentProjects.test.tsx`: recent-project ordering, limit, and URL-driven active state
 
