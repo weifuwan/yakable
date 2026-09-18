@@ -11,6 +11,16 @@ npm run dev
 
 The Vite development server proxies `/api` to the Java backend at `http://127.0.0.1:8080`.
 
+## Quality checks
+
+```bash
+npm run check
+```
+
+Use `npm run lint:fix` for safe lint fixes and `npm run format` to format code.
+
+See [docs/tooling.md](./docs/tooling.md) for the executable frontend tooling contract.
+
 ## Source architecture
 
 ```text
