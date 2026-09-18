@@ -10,7 +10,7 @@ Run from `yakable-ui/`:
 npm run check
 ```
 
-`check` runs three independent gates:
+`check` runs four independent gates:
 
 ```text
 typecheck
@@ -18,6 +18,8 @@ typecheck
 lint
    ↓
 format:check
+   ↓
+test
 ```
 
 A change is not considered locally clean until all three pass.
@@ -30,6 +32,8 @@ npm run lint
 npm run lint:fix
 npm run format
 npm run format:check
+npm test
+npm run test:watch
 npm run check
 ```
 
@@ -73,3 +77,10 @@ Linting does not replace type checking, and type checking does not replace linti
 Tool versions are pinned exactly in `devDependencies` so a normal install cannot silently change lint or format behavior.
 
 Do not add another linter or formatter without a concrete gap in the current toolchain.
+
+
+## Test
+
+Vitest owns frontend unit and component tests. The default DOM environment is happy-dom and React components use React Testing Library.
+
+See [testing.md](./testing.md) for test boundaries and conventions.

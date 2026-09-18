@@ -129,7 +129,7 @@ Current primitive rules:
 - `IconButton` requires an accessible name.
 - feature-specific composites stay inside the owning feature.
 - do not promote a component into `shared/ui` merely because it is visually reusable once.
-- add tests beside primitives after the frontend test harness is introduced.
+- colocate primitive behavior tests with their owning component when a stable contract is worth protecting.
 
 Do not grow `shared/ui` into a second product-feature layer.
 
@@ -165,6 +165,7 @@ Frontend architecture rules are backed by executable checks rather than review c
 - `npm run typecheck` owns TypeScript correctness.
 - `npm run lint` owns static code rules.
 - `npm run format:check` owns code formatting.
+- `npm test` owns frontend unit and component behavior.
 - `npm run check` is the local aggregate quality gate.
 
-See [docs/tooling.md](./docs/tooling.md) for the tooling contract.
+See [docs/tooling.md](./docs/tooling.md) for the tooling contract and [docs/testing.md](./docs/testing.md) for test boundaries.

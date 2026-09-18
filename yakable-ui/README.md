@@ -17,9 +17,9 @@ The Vite development server proxies `/api` to the Java backend at `http://127.0.
 npm run check
 ```
 
-Use `npm run lint:fix` for safe lint fixes and `npm run format` to format code.
+Use `npm run lint:fix` for safe lint fixes, `npm run format` to format code, and `npm run test:watch` while developing tests.
 
-See [docs/tooling.md](./docs/tooling.md) for the executable frontend tooling contract.
+See [docs/tooling.md](./docs/tooling.md) for the executable frontend tooling contract and [docs/testing.md](./docs/testing.md) for the testing contract.
 
 ## Source architecture
 
