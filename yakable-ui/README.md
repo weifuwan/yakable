@@ -26,6 +26,7 @@ See [docs/tooling.md](./docs/tooling.md) for the executable frontend tooling con
 ```text
 src/
 ├── app/
+├── assets/
 ├── pages/
 ├── features/
 └── shared/

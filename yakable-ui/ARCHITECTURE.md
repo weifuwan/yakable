@@ -10,6 +10,7 @@ src/
 │   ├── router/
 │   ├── layout/
 │   └── styles/
+├── assets/
 ├── pages/
 │   ├── dashboard/
 │   └── workspace/
@@ -47,6 +48,7 @@ Owns application composition, routing, global layout, and global styles.
 - `App.tsx` is the composition entry and should stay thin.
 - `app/providers` owns application-wide framework providers and root runtime wrappers.
 - `app/router` owns browser routing and route registration.
+- `app/styles` owns application-wide CSS and app-global style resources such as font binaries.
 - `main.tsx` only mounts the React application; app-wide wrappers belong in `app/providers`.
 - Feature-specific providers and domain state stay with their owning feature.
 - Pages and features must not implement their own `window.history` / `popstate` routing.
@@ -78,6 +80,18 @@ Shared contains infrastructure and UI primitives that have no product-feature ow
 - `shared/ui`: reusable Yakable product UI primitives.
 
 Shared must not know Project, Editor, Agent Run, or Workspace business rules.
+
+## Asset boundary
+
+Static resources follow the same ownership rule as code.
+
+- app-global style resources live with `app/styles`; global font binaries are colocated under `app/styles/fonts`.
+- resources shared across product areas and imported through Vite live in `src/assets`.
+- feature-private images, SVGs, fonts, and other resources stay inside the owning feature, for example `features/project/assets`.
+- use `public/` only when a resource needs a stable browser URL and should not be imported through the module graph.
+- do not create top-level `font/`, `image/`, `css/`, or similar file-type buckets.
+
+Ownership decides where a resource lives; its file extension does not.
 
 ## API boundary
 
