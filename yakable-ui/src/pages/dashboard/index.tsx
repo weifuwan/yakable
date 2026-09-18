@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import type { ProjectListItem } from "../../api";
+import type { ProjectListItem } from "@/features/project/model/types";
 import { DashboardContent } from "./components/DashboardContent";
 import { DashboardLayout } from "./components/DashboardLayout";
 

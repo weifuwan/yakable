@@ -1,11 +1,11 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 
-import App from './App';
-import { ComposerRunControl } from './components/ComposerRunControl';
-import { startPreviewSelectionController } from './preview-selection-controller';
-import './styles.css';
-import './ambient.css';
+import App from '@/app/App';
+import { ComposerRunControl } from '@/features/agent-run/components/ComposerRunControl';
+import { startPreviewSelectionController } from '@/features/preview/preview-selection-controller';
+import '@/app/styles/global.css';
+import '@/app/styles/ambient.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

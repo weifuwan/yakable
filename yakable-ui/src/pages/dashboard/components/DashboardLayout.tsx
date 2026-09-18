@@ -1,8 +1,8 @@
 import { useState, type ReactNode } from "react";
 
-import type { ProjectListItem } from "../../../api";
-import { Sidebar, Topbar } from "../../../components/Layout";
-import { Icon, iconButtonClass } from "../../../components/ui";
+import type { ProjectListItem } from "@/features/project/model/types";
+import { Sidebar, Topbar } from "@/app/layout/Layout";
+import { Icon, iconButtonClass } from "@/shared/ui";
 
 export function DashboardLayout({
   pathname,
