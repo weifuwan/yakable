@@ -5,8 +5,8 @@ export type Project = {
   createdAt: string;
 };
 
-export async function getCurrentProject(): Promise<Project> {
-  const response = await fetch("/api/project/current");
+async function request<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
+  const response = await fetch(input, init);
 
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as
@@ -18,5 +18,13 @@ export async function getCurrentProject(): Promise<Project> {
     );
   }
 
-  return response.json() as Promise<Project>;
+  return response.json() as Promise<T>;
+}
+
+export function getDefaultProject(): Promise<Project> {
+  return request<Project>("/api/projects/default");
+}
+
+export function getProject(projectId: string): Promise<Project> {
+  return request<Project>(`/api/projects/${encodeURIComponent(projectId)}`);
 }

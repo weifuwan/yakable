@@ -15,10 +15,9 @@ export function createServer(config: ServerConfig) {
 
   return {
     async start(): Promise<void> {
-      const currentProject = await projectService.ensureDefaultProject();
+      await projectService.ensureDefaultProject();
 
       await registerRoutes(app, {
-        currentProjectId: currentProject.id,
         projectService,
       });
 

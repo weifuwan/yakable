@@ -6,6 +6,8 @@ export type WorkspaceEntry = {
 };
 
 export type WorkspaceFile = {
+  projectId: string;
+  workspaceId: string;
   path: string;
   content: string;
 };
@@ -17,41 +19,58 @@ async function request<T>(input: RequestInfo | URL, init?: RequestInit): Promise
     const body = (await response.json().catch(() => null)) as
       | { error?: string }
       | null;
-    throw new Error(body?.error ?? `Workspace request failed: ${response.status}`);
+
+    throw new Error(
+      body?.error ?? `Workspace request failed: ${response.status}`,
+    );
   }
 
   return response.json() as Promise<T>;
 }
 
-export async function listWorkspaceFiles(): Promise<WorkspaceEntry[]> {
+function workspaceUrl(projectId: string, path: string): string {
+  return `/api/projects/${encodeURIComponent(projectId)}/workspace${path}`;
+}
+
+export async function listWorkspaceFiles(
+  projectId: string,
+): Promise<WorkspaceEntry[]> {
   const result = await request<{
+    projectId: string;
     workspaceId: string;
     entries: WorkspaceEntry[];
-  }>("/api/workspace/tree");
+  }>(workspaceUrl(projectId, "/tree"));
 
   return result.entries;
 }
 
-export function readWorkspaceFile(path: string): Promise<WorkspaceFile> {
+export function readWorkspaceFile(
+  projectId: string,
+  path: string,
+): Promise<WorkspaceFile> {
   return request<WorkspaceFile>(
-    `/api/workspace/file?path=${encodeURIComponent(path)}`,
+    `${workspaceUrl(projectId, "/file")}?path=${encodeURIComponent(path)}`,
   );
 }
 
 export function writeWorkspaceFile(
+  projectId: string,
   path: string,
   content: string,
 ): Promise<{ ok: true }> {
-  return request<{ ok: true }>("/api/workspace/file", {
+  return request<{ ok: true }>(workspaceUrl(projectId, "/file"), {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ path, content }),
   });
 }
 
-export function deleteWorkspaceFile(path: string): Promise<{ ok: true }> {
+export function deleteWorkspaceFile(
+  projectId: string,
+  path: string,
+): Promise<{ ok: true }> {
   return request<{ ok: true }>(
-    `/api/workspace/file?path=${encodeURIComponent(path)}`,
+    `${workspaceUrl(projectId, "/file")}?path=${encodeURIComponent(path)}`,
     { method: "DELETE" },
   );
 }

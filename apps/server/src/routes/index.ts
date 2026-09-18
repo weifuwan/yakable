@@ -4,7 +4,6 @@ import { projectRoutes } from "./project.routes.js";
 import { workspaceRoutes } from "./workspace.routes.js";
 
 export type RoutesOptions = {
-  currentProjectId: string;
   projectService: ProjectService;
 };
 
@@ -13,12 +12,12 @@ export async function registerRoutes(
   options: RoutesOptions,
 ): Promise<void> {
   await app.register(projectRoutes, {
-    prefix: "/api/project",
+    prefix: "/api/projects",
     ...options,
   });
 
   await app.register(workspaceRoutes, {
-    prefix: "/api/workspace",
+    prefix: "/api/projects/:projectId/workspace",
     ...options,
   });
 }

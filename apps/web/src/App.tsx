@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getCurrentProject, type Project } from "./project";
+import { getDefaultProject, type Project } from "./project";
 import {
   listWorkspaceFiles,
   readWorkspaceFile,
@@ -24,12 +24,15 @@ function App() {
   useEffect(() => {
     let cancelled = false;
 
-    Promise.all([getCurrentProject(), listWorkspaceFiles()])
-      .then(([currentProject, nextEntries]) => {
+    getDefaultProject()
+      .then(async (currentProject) => {
+        const nextEntries = await listWorkspaceFiles(currentProject.id);
+
         if (cancelled) return;
 
         setProject(currentProject);
         setEntries(nextEntries);
+
         const initialFile =
           nextEntries.find((entry) => entry.path === "src/App.tsx") ??
           nextEntries.find((entry) => entry.type === "file");
@@ -38,7 +41,9 @@ function App() {
       })
       .catch((reason: unknown) => {
         if (!cancelled) {
-          setError(reason instanceof Error ? reason.message : "Failed to load workspace");
+          setError(
+            reason instanceof Error ? reason.message : "Failed to load workspace",
+          );
         }
       });
 
@@ -48,7 +53,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!selectedPath) {
+    if (!project || !selectedPath) {
       setContent("");
       return;
     }
@@ -56,7 +61,7 @@ function App() {
     let cancelled = false;
     setError(null);
 
-    readWorkspaceFile(selectedPath)
+    readWorkspaceFile(project.id, selectedPath)
       .then((file) => {
         if (!cancelled) setContent(file.content);
       })
@@ -69,7 +74,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [selectedPath]);
+  }, [project, selectedPath]);
 
   const selectedFileName = selectedPath?.split("/").at(-1) ?? "No file";
 

@@ -7,8 +7,11 @@ import type { FastifyPluginAsync } from "fastify";
 import { HttpError } from "../http/error.js";
 
 export type WorkspaceRoutesOptions = {
-  currentProjectId: string;
   projectService: ProjectService;
+};
+
+type ProjectParams = {
+  projectId: string;
 };
 
 type FileQuery = {
@@ -22,7 +25,7 @@ type WriteFileBody = {
 
 export const workspaceRoutes: FastifyPluginAsync<WorkspaceRoutesOptions> = async (
   app,
-  { currentProjectId, projectService },
+  { projectService },
 ) => {
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ProjectNotFoundError) {
@@ -38,9 +41,9 @@ export const workspaceRoutes: FastifyPluginAsync<WorkspaceRoutesOptions> = async
     throw error;
   });
 
-  app.get("/tree", async () => {
+  app.get<{ Params: ProjectParams }>("/tree", async (request) => {
     const { project, workspace } = await resolveWorkspace(
-      currentProjectId,
+      request.params.projectId,
       projectService,
     );
 
@@ -51,53 +54,62 @@ export const workspaceRoutes: FastifyPluginAsync<WorkspaceRoutesOptions> = async
     };
   });
 
-  app.get<{ Querystring: FileQuery }>("/file", async (request) => {
-    const filePath = requiredPath(request.query.path);
-    const { project, workspace } = await resolveWorkspace(
-      currentProjectId,
-      projectService,
-    );
+  app.get<{ Params: ProjectParams; Querystring: FileQuery }>(
+    "/file",
+    async (request) => {
+      const filePath = requiredPath(request.query.path);
+      const { project, workspace } = await resolveWorkspace(
+        request.params.projectId,
+        projectService,
+      );
 
-    return {
-      projectId: project.id,
-      workspaceId: project.workspaceId,
-      path: filePath,
-      content: await workspace.readFile(filePath),
-    };
-  });
+      return {
+        projectId: project.id,
+        workspaceId: project.workspaceId,
+        path: filePath,
+        content: await workspace.readFile(filePath),
+      };
+    },
+  );
 
-  app.put<{ Body: WriteFileBody }>("/file", async (request) => {
-    const { path, content } = request.body ?? {};
+  app.put<{ Params: ProjectParams; Body: WriteFileBody }>(
+    "/file",
+    async (request) => {
+      const { path, content } = request.body ?? {};
 
-    if (typeof path !== "string" || typeof content !== "string") {
-      throw new HttpError(400, "path and content are required");
-    }
+      if (typeof path !== "string" || typeof content !== "string") {
+        throw new HttpError(400, "path and content are required");
+      }
 
+      const { workspace } = await resolveWorkspace(
+        request.params.projectId,
+        projectService,
+      );
+
+      await workspace.writeFile(path, content);
+
+      return { ok: true };
+    },
+  );
+
+  app.delete<{ Params: ProjectParams; Querystring: FileQuery }>(
+    "/file",
+    async (request) => {
+      const filePath = requiredPath(request.query.path);
+      const { workspace } = await resolveWorkspace(
+        request.params.projectId,
+        projectService,
+      );
+
+      await workspace.deleteFile(filePath);
+
+      return { ok: true };
+    },
+  );
+
+  app.post<{ Params: ProjectParams }>("/reset", async (request) => {
     const { workspace } = await resolveWorkspace(
-      currentProjectId,
-      projectService,
-    );
-
-    await workspace.writeFile(path, content);
-
-    return { ok: true };
-  });
-
-  app.delete<{ Querystring: FileQuery }>("/file", async (request) => {
-    const filePath = requiredPath(request.query.path);
-    const { workspace } = await resolveWorkspace(
-      currentProjectId,
-      projectService,
-    );
-
-    await workspace.deleteFile(filePath);
-
-    return { ok: true };
-  });
-
-  app.post("/reset", async () => {
-    const { workspace } = await resolveWorkspace(
-      currentProjectId,
+      request.params.projectId,
       projectService,
     );
 

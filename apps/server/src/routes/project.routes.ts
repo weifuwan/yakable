@@ -6,8 +6,11 @@ import type { FastifyPluginAsync } from "fastify";
 import { HttpError } from "../http/error.js";
 
 export type ProjectRoutesOptions = {
-  currentProjectId: string;
   projectService: ProjectService;
+};
+
+type ProjectParams = {
+  projectId: string;
 };
 
 type CreateProjectBody = {
@@ -16,7 +19,7 @@ type CreateProjectBody = {
 
 export const projectRoutes: FastifyPluginAsync<ProjectRoutesOptions> = async (
   app,
-  { currentProjectId, projectService },
+  { projectService },
 ) => {
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ProjectNotFoundError) {
@@ -27,8 +30,12 @@ export const projectRoutes: FastifyPluginAsync<ProjectRoutesOptions> = async (
     throw error;
   });
 
-  app.get("/current", async () => {
-    return projectService.getProject(currentProjectId);
+  app.get("/default", async () => {
+    return projectService.ensureDefaultProject();
+  });
+
+  app.get<{ Params: ProjectParams }>("/:projectId", async (request) => {
+    return projectService.getProject(request.params.projectId);
   });
 
   app.post<{ Body: CreateProjectBody }>("/", async (request, reply) => {
