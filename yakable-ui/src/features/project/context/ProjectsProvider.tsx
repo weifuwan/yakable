@@ -1,5 +1,6 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useState,
@@ -15,6 +16,7 @@ export interface ProjectsState {
   projects: ProjectSummary[];
   isLoading: boolean;
   error: string | null;
+  upsertProject: (project: ProjectSummary) => void;
 }
 
 const ProjectsContext = createContext<ProjectsState | null>(null);
@@ -24,12 +26,25 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const upsertProject = useCallback((project: ProjectSummary) => {
+    setProjects((current) => [
+      project,
+      ...current.filter((item) => item.id !== project.id),
+    ]);
+  }, []);
+
   useEffect(() => {
     const controller = new AbortController();
 
     void getProjects(controller.signal)
       .then((result) => {
-        setProjects(result);
+        setProjects((current) => {
+          const resultIds = new Set(result.map((project) => project.id));
+          const locallyCreated = current.filter(
+            (project) => !resultIds.has(project.id),
+          );
+          return [...locallyCreated, ...result];
+        });
         setError(null);
       })
       .catch((requestError: unknown) => {
@@ -51,7 +66,9 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <ProjectsContext.Provider value={{ projects, isLoading, error }}>
+    <ProjectsContext.Provider
+      value={{ projects, isLoading, error, upsertProject }}
+    >
       {children}
     </ProjectsContext.Provider>
   );

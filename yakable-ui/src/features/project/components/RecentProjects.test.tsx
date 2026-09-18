@@ -26,7 +26,7 @@ describe('RecentProjects', () => {
     );
 
     render(
-      <MemoryRouter initialEntries={['/projects/project-5']}>
+      <MemoryRouter initialEntries={['/dashboard/project/project-5']}>
         <ProjectsProvider>
           <RecentProjects />
         </ProjectsProvider>
