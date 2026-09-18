@@ -5,7 +5,6 @@ import {
   type Project,
 } from "./project";
 import {
-  getWorkspaceStatus,
   listWorkspaceFiles,
   readWorkspaceFile,
   type WorkspaceEntry,
@@ -143,7 +142,7 @@ function App() {
     setIsCreatingProject(true);
 
     try {
-      const nextProject = await createProject();
+      const nextProject = await createProject(userPrompt);
       const snapshot = await loadWorkspaceSnapshot(nextProject.id);
 
       setContent("");
@@ -370,16 +369,6 @@ function App() {
 async function loadWorkspaceSnapshot(
   projectId: string,
 ): Promise<WorkspaceSnapshot> {
-  const status = await getWorkspaceStatus(projectId);
-
-  if (status.pristine) {
-    return {
-      entries: [],
-      selectedPath: null,
-      showCodeWorkspace: false,
-    };
-  }
-
   const entries = await listWorkspaceFiles(projectId);
 
   return {
