@@ -1,15 +1,18 @@
 # Features
 
-This directory is intentionally empty of product feature code.
+Features own Yakable product capabilities.
 
-Yakable is rebuilding frontend capabilities one feature at a time. A feature should only be added after its ownership, contract, API boundary, state model, and UI responsibility are understood.
+The first implemented feature is:
 
-Expected feature areas may include:
+- `project`: project query ownership used by the Dashboard vertical slice
 
-- project
+Add one feature at a time only after its ownership, contract, API boundary, state model, and UI responsibility are understood.
+
+Likely future areas include:
+
 - workspace
 - editor
 - preview
 - agent-run
 
-These names are placeholders for future ownership, not pre-created implementation modules.
+Do not pre-create feature modules only to reserve names. Feature-specific types, APIs, state, hooks, and components stay with their owning feature.

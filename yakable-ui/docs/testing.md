@@ -36,12 +36,11 @@ Use the smallest boundary that proves the behavior owner:
 
 ## Current baseline
 
-The initial suite intentionally contains only two tests:
+The suite grows only with real feature contracts and regressions. It currently protects:
 
 - `shared/ui/cx.test.ts`: pure utility behavior
 - `shared/ui/button/Button.test.tsx`: a real React primitive contract
-
-The suite should grow with real features and regressions.
+- `features/project/components/ProjectList.test.tsx`: the first feature data-flow contract from API to visible Dashboard state
 
 ## Not included yet
 
