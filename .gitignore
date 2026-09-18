@@ -13,3 +13,7 @@ data/*.db-wal
 !.env.example
 .vscode/
 .idea/
+**/target/
+.classpath
+.project
+.settings/
