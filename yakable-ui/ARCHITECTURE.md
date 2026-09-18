@@ -99,18 +99,39 @@ browser fetch
 - `shared/api` must not import feature types or contain feature-specific protocol messages.
 - a new HTTP library may replace the implementation later without changing feature ownership.
 
-## UI components
+## UI boundary
 
-A reusable primitive should gradually become its own component unit under `shared/ui`, following the engineering discipline used by mature component libraries:
+`shared/ui` owns small, reusable Yakable product primitives.
 
 ```text
-shared/ui/button/
-├── Button.tsx
-├── Button.test.tsx
+shared/ui/
+├── button/
+│   ├── Button.tsx
+│   └── index.ts
+├── icon-button/
+│   ├── IconButton.tsx
+│   └── index.ts
+├── icon/
+│   ├── Icon.tsx
+│   └── index.ts
+├── input/
+│   ├── Input.tsx
+│   └── index.ts
+├── cx.ts
 └── index.ts
 ```
 
-Do not split components mechanically before they have a real reusable boundary.
+Current primitive rules:
+
+- import product primitives from `@/shared/ui`; the root barrel is the public contract.
+- primitives use native HTML semantics and expose refs to their underlying elements.
+- interactive primitives preserve visible keyboard focus and native disabled behavior.
+- `IconButton` requires an accessible name.
+- feature-specific composites stay inside the owning feature.
+- do not promote a component into `shared/ui` merely because it is visually reusable once.
+- add tests beside primitives after the frontend test harness is introduced.
+
+Do not grow `shared/ui` into a second product-feature layer.
 
 ## Harness boundary
 
