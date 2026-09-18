@@ -73,11 +73,31 @@ Feature-specific types, APIs, state, hooks, and components should stay with thei
 
 Shared contains infrastructure and UI primitives that have no product-feature owner.
 
-- `shared/api`: generic HTTP / stream transport only.
+- `shared/api`: generic HTTP, error, cancellation, and stream transport.
 - `shared/lib`: framework-independent or browser-generic helpers.
 - `shared/ui`: reusable Yakable product UI primitives.
 
 Shared must not know Project, Editor, Agent Run, or Workspace business rules.
+
+## API boundary
+
+`shared/api` is the only owner of browser transport mechanics.
+
+```text
+page / component
+      ↓
+feature API
+      ↓
+shared/api
+      ↓
+browser fetch
+```
+
+- pages and components do not call `fetch` directly.
+- feature API modules own endpoint paths, methods, domain request/response types, and domain mapping.
+- feature API modules reuse `shared/api` for HTTP, JSON, errors, cancellation, and stream decoding.
+- `shared/api` must not import feature types or contain feature-specific protocol messages.
+- a new HTTP library may replace the implementation later without changing feature ownership.
 
 ## UI components
 
