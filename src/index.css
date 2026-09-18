@@ -5,6 +5,7 @@
 html,
 body,
 #root {
+  width: 100%;
   min-width: 320px;
   min-height: 100%;
   margin: 0;
@@ -12,37 +13,352 @@ body,
 
 body {
   min-height: 100vh;
+  overflow: hidden;
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
-  color: #111827;
-  background: #ffffff;
+  color: #16181d;
+  background: #f5f6f8;
 }
 
 button,
-input,
 textarea {
   font: inherit;
 }
 
-.app {
+button {
+  color: inherit;
+}
+
+.workspace {
   display: grid;
-  min-height: 100vh;
-  place-content: center;
-  gap: 8px;
-  padding: 24px;
+  grid-template-rows: 52px minmax(0, 1fr);
+  width: 100vw;
+  height: 100vh;
+  background: #ffffff;
+}
+
+.topbar {
+  display: grid;
+  grid-template-columns: 280px 1fr auto;
+  align-items: center;
+  gap: 16px;
+  padding: 0 14px;
+  border-bottom: 1px solid #e7e9ee;
+  background: #ffffff;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.brand-mark {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 8px;
+  background: #17191f;
+  color: #ffffff;
+  font-size: 13px;
+}
+
+.project-name {
+  overflow: hidden;
+  color: #6d7280;
+  font-size: 13px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar-button,
+.composer-actions button {
+  border: 0;
+  border-radius: 8px;
+  background: #17191f;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.topbar-button {
+  padding: 7px 14px;
+  font-size: 13px;
+}
+
+.workspace-body {
+  display: grid;
+  grid-template-columns: minmax(320px, 38%) minmax(0, 1fr);
+  min-height: 0;
+}
+
+.chat-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-width: 0;
+  border-right: 1px solid #e7e9ee;
+  background: #ffffff;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  min-height: 60px;
+  padding: 0 18px;
+  border-bottom: 1px solid #eff0f3;
+}
+
+.panel-header > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.panel-header strong {
+  font-size: 14px;
+}
+
+.panel-header span {
+  color: #9297a3;
+  font-size: 12px;
+}
+
+.chat-content {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 14px;
+  overflow: auto;
+  padding: 20px 18px;
+}
+
+.assistant-message,
+.user-message {
+  max-width: 84%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.assistant-message {
+  align-self: flex-start;
+  border: 1px solid #e8eaf0;
+  background: #ffffff;
+}
+
+.user-message {
+  align-self: flex-end;
+  background: #f0f1f4;
+}
+
+.chat-composer {
+  margin: 0 14px 14px;
+  padding: 10px;
+  border: 1px solid #dfe2e8;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.chat-composer textarea {
+  width: 100%;
+  resize: none;
+  border: 0;
+  outline: none;
+  color: #20232a;
+  background: transparent;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.chat-composer textarea::placeholder {
+  color: #a0a5af;
+}
+
+.composer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 8px;
+}
+
+.composer-actions span {
+  color: #9ba0aa;
+  font-size: 11px;
+}
+
+.composer-actions button {
+  padding: 6px 11px;
+  font-size: 12px;
+}
+
+.files-panel {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  background: #fbfbfc;
+}
+
+.file-tree {
+  min-width: 0;
+  border-right: 1px solid #e7e9ee;
+  background: #f8f9fb;
+}
+
+.file-tree-header {
+  display: flex;
+  height: 42px;
+  align-items: center;
+  padding: 0 14px;
+  border-bottom: 1px solid #e7e9ee;
+  color: #777c87;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.file-list {
+  padding: 8px 6px;
+}
+
+.file-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 7px;
+  padding-top: 6px;
+  padding-right: 8px;
+  padding-bottom: 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #555b66;
+  cursor: pointer;
+  font-size: 12px;
+  text-align: left;
+}
+
+.file-item:hover,
+.file-item.active {
+  background: #eceef2;
+  color: #1e2229;
+}
+
+.file-icon {
+  width: 12px;
+  color: #969ba5;
   text-align: center;
 }
 
-.app h1,
-.app p {
+.editor {
+  display: grid;
+  grid-template-rows: 42px minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  background: #ffffff;
+}
+
+.editor-tabs {
+  display: flex;
+  align-items: end;
+  border-bottom: 1px solid #e7e9ee;
+  background: #fafbfc;
+}
+
+.editor-tab {
+  display: flex;
+  height: 42px;
+  align-items: center;
+  padding: 0 14px;
+  color: #737985;
+  font-size: 12px;
+}
+
+.editor-tab.active {
+  border-right: 1px solid #e7e9ee;
+  background: #ffffff;
+  color: #22262d;
+}
+
+.editor-body {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 14px 0;
+  background: #ffffff;
+}
+
+.line-numbers {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
+  padding-right: 12px;
+  color: #b0b4bc;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  user-select: none;
+}
+
+.editor-body pre {
+  min-width: max-content;
   margin: 0;
+  padding-right: 24px;
+  color: #272b33;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  white-space: pre;
 }
 
-.app h1 {
-  font-size: 32px;
+@media (max-width: 900px) {
+  .workspace-body {
+    grid-template-columns: minmax(280px, 42%) minmax(0, 1fr);
+  }
+
+  .files-panel {
+    grid-template-columns: 160px minmax(0, 1fr);
+  }
 }
 
-.app p {
-  color: #6b7280;
+@media (max-width: 720px) {
+  body {
+    overflow: auto;
+  }
+
+  .workspace {
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .topbar {
+    grid-template-columns: 1fr auto;
+  }
+
+  .project-name {
+    display: none;
+  }
+
+  .workspace-body {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-panel {
+    min-height: 520px;
+    border-right: 0;
+    border-bottom: 1px solid #e7e9ee;
+  }
+
+  .files-panel {
+    min-height: 520px;
+  }
 }
