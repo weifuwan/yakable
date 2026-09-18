@@ -1,86 +1,105 @@
 import type { ProjectService } from "@yakable/project";
+import type { FastifyPluginAsync } from "fastify";
 import { HttpError } from "../http/error.js";
-import { readJsonBody, sendJson } from "../http/json.js";
-import type { RouteHandler } from "./index.js";
 
-type WorkspaceRoutesOptions = {
+export type WorkspaceRoutesOptions = {
   currentProjectId: string;
   projectService: ProjectService;
 };
 
-export function createWorkspaceRoutes({
-  currentProjectId,
-  projectService,
-}: WorkspaceRoutesOptions): RouteHandler {
-  return async (request, response, url) => {
-    if (!url.pathname.startsWith("/api/workspace")) {
-      return false;
+type FileQuery = {
+  path?: string;
+};
+
+type WriteFileBody = {
+  path?: string;
+  content?: string;
+};
+
+export const workspaceRoutes: FastifyPluginAsync<WorkspaceRoutesOptions> = async (
+  app,
+  { currentProjectId, projectService },
+) => {
+  app.get("/tree", async () => {
+    const { project, workspace } = await resolveWorkspace(
+      currentProjectId,
+      projectService,
+    );
+
+    return {
+      projectId: project.id,
+      workspaceId: project.workspaceId,
+      entries: await workspace.listFiles(),
+    };
+  });
+
+  app.get<{ Querystring: FileQuery }>("/file", async (request) => {
+    const filePath = requiredPath(request.query.path);
+    const { project, workspace } = await resolveWorkspace(
+      currentProjectId,
+      projectService,
+    );
+
+    return {
+      projectId: project.id,
+      workspaceId: project.workspaceId,
+      path: filePath,
+      content: await workspace.readFile(filePath),
+    };
+  });
+
+  app.put<{ Body: WriteFileBody }>("/file", async (request) => {
+    const { path, content } = request.body ?? {};
+
+    if (typeof path !== "string" || typeof content !== "string") {
+      throw new HttpError(400, "path and content are required");
     }
 
-    const project = await projectService.getProject(currentProjectId);
-    const workspace = await projectService.getWorkspace(project.id);
+    const { workspace } = await resolveWorkspace(
+      currentProjectId,
+      projectService,
+    );
 
-    if (request.method === "GET" && url.pathname === "/api/workspace/tree") {
-      sendJson(response, 200, {
-        projectId: project.id,
-        workspaceId: project.workspaceId,
-        entries: await workspace.listFiles(),
-      });
-      return true;
-    }
+    await workspace.writeFile(path, content);
 
-    if (request.method === "GET" && url.pathname === "/api/workspace/file") {
-      const filePath = requiredPath(url);
+    return { ok: true };
+  });
 
-      sendJson(response, 200, {
-        projectId: project.id,
-        workspaceId: project.workspaceId,
-        path: filePath,
-        content: await workspace.readFile(filePath),
-      });
-      return true;
-    }
+  app.delete<{ Querystring: FileQuery }>("/file", async (request) => {
+    const filePath = requiredPath(request.query.path);
+    const { workspace } = await resolveWorkspace(
+      currentProjectId,
+      projectService,
+    );
 
-    if (request.method === "PUT" && url.pathname === "/api/workspace/file") {
-      const body = (await readJsonBody(request)) as {
-        path?: unknown;
-        content?: unknown;
-      };
+    await workspace.deleteFile(filePath);
 
-      if (typeof body.path !== "string" || typeof body.content !== "string") {
-        throw new HttpError(400, "path and content are required");
-      }
+    return { ok: true };
+  });
 
-      await workspace.writeFile(body.path, body.content);
-      sendJson(response, 200, { ok: true });
-      return true;
-    }
+  app.post("/reset", async () => {
+    const { workspace } = await resolveWorkspace(
+      currentProjectId,
+      projectService,
+    );
 
-    if (
-      request.method === "DELETE" &&
-      url.pathname === "/api/workspace/file"
-    ) {
-      await workspace.deleteFile(requiredPath(url));
-      sendJson(response, 200, { ok: true });
-      return true;
-    }
+    await workspace.reset();
 
-    if (
-      request.method === "POST" &&
-      url.pathname === "/api/workspace/reset"
-    ) {
-      await workspace.reset();
-      sendJson(response, 200, { ok: true });
-      return true;
-    }
+    return { ok: true };
+  });
+};
 
-    return false;
-  };
+async function resolveWorkspace(
+  projectId: string,
+  projectService: ProjectService,
+) {
+  const project = await projectService.getProject(projectId);
+  const workspace = await projectService.getWorkspace(project.id);
+
+  return { project, workspace };
 }
 
-function requiredPath(url: URL): string {
-  const filePath = url.searchParams.get("path");
-
+function requiredPath(filePath: string | undefined): string {
   if (!filePath) {
     throw new HttpError(400, "path is required");
   }

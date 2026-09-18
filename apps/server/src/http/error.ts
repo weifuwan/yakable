@@ -1,7 +1,6 @@
-import type { ServerResponse } from "node:http";
+import type { FastifyInstance } from "fastify";
 import { ProjectNotFoundError } from "@yakable/project";
 import { WorkspacePathError } from "@yakable/workspace";
-import { sendJson } from "./json.js";
 
 export class HttpError extends Error {
   constructor(
@@ -13,25 +12,24 @@ export class HttpError extends Error {
   }
 }
 
-export function handleHttpError(
-  response: ServerResponse,
-  error: unknown,
-): void {
-  if (error instanceof HttpError) {
-    sendJson(response, error.statusCode, { error: error.message });
-    return;
-  }
+export function registerErrorHandler(app: FastifyInstance): void {
+  app.setErrorHandler((error, _request, reply) => {
+    if (error instanceof HttpError) {
+      reply.code(error.statusCode).send({ error: error.message });
+      return;
+    }
 
-  if (error instanceof ProjectNotFoundError) {
-    sendJson(response, 404, { error: error.message });
-    return;
-  }
+    if (error instanceof ProjectNotFoundError) {
+      reply.code(404).send({ error: error.message });
+      return;
+    }
 
-  if (error instanceof WorkspacePathError) {
-    sendJson(response, 400, { error: error.message });
-    return;
-  }
+    if (error instanceof WorkspacePathError) {
+      reply.code(400).send({ error: error.message });
+      return;
+    }
 
-  console.error("[server]", error);
-  sendJson(response, 500, { error: "Internal server error" });
+    app.log.error(error);
+    reply.code(500).send({ error: "Internal server error" });
+  });
 }
