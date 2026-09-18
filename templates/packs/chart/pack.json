@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "id": "chart",
+  "description": "Responsive chart container backed by Recharts.",
+  "base": {
+    "id": "base",
+    "version": 1
+  },
+  "dependencies": {
+    "recharts": "^2.15.4"
+  },
+  "devDependencies": {},
+  "files": [
+    "src/components/ui/chart.tsx"
+  ]
+}
