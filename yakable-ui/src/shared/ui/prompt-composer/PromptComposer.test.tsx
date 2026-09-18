@@ -4,6 +4,21 @@ import { describe, expect, it, vi } from 'vitest';
 import { PromptComposer } from './PromptComposer';
 
 describe('PromptComposer', () => {
+  it('enables submit only when the prompt contains non-whitespace text', () => {
+    render(<PromptComposer onSubmit={() => false} />);
+
+    const input = screen.getByRole('textbox', { name: 'Prompt' });
+    const submitButton = screen.getByRole('button', { name: 'Submit prompt' });
+
+    expect((submitButton as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.change(input, { target: { value: '   ' } });
+    expect((submitButton as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.change(input, { target: { value: 'Build a CRM dashboard' } });
+    expect((submitButton as HTMLButtonElement).disabled).toBe(false);
+  });
+
   it('submits with Enter and clears an accepted prompt', async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
 
