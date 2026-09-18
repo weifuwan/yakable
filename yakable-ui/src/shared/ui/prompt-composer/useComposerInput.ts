@@ -5,7 +5,6 @@ import {
   useRef,
   useState,
   type ChangeEvent,
-  type CompositionEvent,
   type KeyboardEvent,
 } from 'react';
 
@@ -109,30 +108,24 @@ export function useComposerInput({
     [submit],
   );
 
-  const handleCompositionStart = useCallback(
-    (_event: CompositionEvent<HTMLTextAreaElement>) => {
-      if (compositionEndTimerRef.current !== null) {
-        window.clearTimeout(compositionEndTimerRef.current);
-        compositionEndTimerRef.current = null;
-      }
-      isComposingRef.current = true;
-    },
-    [],
-  );
+  const handleCompositionStart = useCallback(() => {
+    if (compositionEndTimerRef.current !== null) {
+      window.clearTimeout(compositionEndTimerRef.current);
+      compositionEndTimerRef.current = null;
+    }
+    isComposingRef.current = true;
+  }, []);
 
-  const handleCompositionEnd = useCallback(
-    (_event: CompositionEvent<HTMLTextAreaElement>) => {
-      if (compositionEndTimerRef.current !== null) {
-        window.clearTimeout(compositionEndTimerRef.current);
-      }
+  const handleCompositionEnd = useCallback(() => {
+    if (compositionEndTimerRef.current !== null) {
+      window.clearTimeout(compositionEndTimerRef.current);
+    }
 
-      compositionEndTimerRef.current = window.setTimeout(() => {
-        compositionEndTimerRef.current = null;
-        isComposingRef.current = false;
-      }, COMPOSITION_END_DELAY_MS);
-    },
-    [],
-  );
+    compositionEndTimerRef.current = window.setTimeout(() => {
+      compositionEndTimerRef.current = null;
+      isComposingRef.current = false;
+    }, COMPOSITION_END_DELAY_MS);
+  }, []);
 
   return {
     canSubmit,
