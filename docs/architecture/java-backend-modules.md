@@ -15,7 +15,7 @@ yakable-spi
 yakable-common
 ```
 
-The browser application remains in `dashboard/`.
+The browser application lives in `yakable-ui/`.
 
 ## Module ownership
 
@@ -79,6 +79,6 @@ A lower module must never depend on a higher module.
 
 This commit only establishes the Java build and module boundaries.
 
-Existing TypeScript backend code remains in place temporarily. Capabilities should be migrated one at a time after their ownership and contract are understood.
+The previous TypeScript backend has been removed. Backend capabilities will be rebuilt incrementally in Java after their ownership and contract are understood.
 
-Browser-native behavior stays in `dashboard/`.
+Browser-native behavior stays in `yakable-ui/`.
