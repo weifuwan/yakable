@@ -12,6 +12,12 @@ export type WorkspaceFile = {
   content: string;
 };
 
+export type WorkspaceStatus = {
+  projectId: string;
+  workspaceId: string;
+  pristine: boolean;
+};
+
 async function request<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
   const response = await fetch(input, init);
 
@@ -30,6 +36,12 @@ async function request<T>(input: RequestInfo | URL, init?: RequestInit): Promise
 
 function workspaceUrl(projectId: string, path: string): string {
   return `/api/projects/${encodeURIComponent(projectId)}/workspace${path}`;
+}
+
+export function getWorkspaceStatus(
+  projectId: string,
+): Promise<WorkspaceStatus> {
+  return request<WorkspaceStatus>(workspaceUrl(projectId, "/status"));
 }
 
 export async function listWorkspaceFiles(

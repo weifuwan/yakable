@@ -46,6 +46,46 @@ export class WorkspaceService {
     return this.walk(this.rootPath, "");
   }
 
+  async isPristine(): Promise<boolean> {
+    await this.ensure();
+
+    const [workspaceEntries, starterEntries] = await Promise.all([
+      this.walk(this.rootPath, ""),
+      this.walk(this.starterPath, ""),
+    ]);
+
+    if (workspaceEntries.length !== starterEntries.length) {
+      return false;
+    }
+
+    for (let index = 0; index < workspaceEntries.length; index += 1) {
+      const workspaceEntry = workspaceEntries[index];
+      const starterEntry = starterEntries[index];
+
+      if (
+        workspaceEntry.path !== starterEntry.path ||
+        workspaceEntry.type !== starterEntry.type
+      ) {
+        return false;
+      }
+
+      if (workspaceEntry.type !== "file") {
+        continue;
+      }
+
+      const [workspaceContent, starterContent] = await Promise.all([
+        readFile(path.join(this.rootPath, workspaceEntry.path), "utf8"),
+        readFile(path.join(this.starterPath, starterEntry.path), "utf8"),
+      ]);
+
+      if (workspaceContent !== starterContent) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   async readFile(relativePath: string): Promise<string> {
     const target = this.resolvePath(relativePath);
     await this.assertNoSymlinks(target);
