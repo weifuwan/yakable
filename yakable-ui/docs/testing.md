@@ -41,6 +41,7 @@ The suite grows only with real feature contracts and regressions. It currently p
 - `shared/ui/cx.test.ts`: pure utility behavior
 - `shared/ui/button/Button.test.tsx`: a real React primitive contract
 - `features/project/components/ProjectList.test.tsx`: the first feature data-flow contract from API to visible Dashboard state
+- `features/project/components/RecentProjects.test.tsx`: recent-project ordering, limit, and URL-driven active state
 
 ## Not included yet
 
