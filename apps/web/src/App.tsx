@@ -5,6 +5,7 @@ import {
   type Project,
 } from "./project";
 import {
+  getWorkspaceStatus,
   listWorkspaceFiles,
   readWorkspaceFile,
   type WorkspaceEntry,
@@ -14,6 +15,12 @@ type ChatMessage = {
   id: number;
   role: "assistant" | "user";
   content: string;
+};
+
+type WorkspaceSnapshot = {
+  entries: WorkspaceEntry[];
+  selectedPath: string | null;
+  showCodeWorkspace: boolean;
 };
 
 const indentClasses = [
@@ -40,20 +47,23 @@ function App() {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [prompt, setPrompt] = useState("");
   const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [isLoadingWorkspace, setIsLoadingWorkspace] = useState(true);
+  const [showCodeWorkspace, setShowCodeWorkspace] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
+    setIsLoadingWorkspace(true);
+
     getDefaultProject()
       .then(async (currentProject) => {
-        const nextEntries = await listWorkspaceFiles(currentProject.id);
+        const snapshot = await loadWorkspaceSnapshot(currentProject.id);
 
         if (cancelled) return;
 
         setProject(currentProject);
-        setEntries(nextEntries);
-        setSelectedPath(findInitialFile(nextEntries));
+        applyWorkspaceSnapshot(snapshot);
       })
       .catch((reason: unknown) => {
         if (!cancelled) {
@@ -63,15 +73,30 @@ function App() {
               : "Failed to load workspace",
           );
         }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingWorkspace(false);
+        }
       });
 
     return () => {
       cancelled = true;
     };
+
+    function applyWorkspaceSnapshot(snapshot: WorkspaceSnapshot): void {
+      setEntries(snapshot.entries);
+      setSelectedPath(snapshot.selectedPath);
+      setShowCodeWorkspace(snapshot.showCodeWorkspace);
+
+      if (!snapshot.showCodeWorkspace) {
+        setContent("");
+      }
+    }
   }, []);
 
   useEffect(() => {
-    if (!project || !selectedPath) {
+    if (!project || !selectedPath || !showCodeWorkspace) {
       setContent("");
       return;
     }
@@ -96,7 +121,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [project?.id, selectedPath]);
+  }, [project?.id, selectedPath, showCodeWorkspace]);
 
   async function handleSubmit(): Promise<void> {
     const userPrompt = prompt.trim();
@@ -119,19 +144,20 @@ function App() {
 
     try {
       const nextProject = await createProject();
-      const nextEntries = await listWorkspaceFiles(nextProject.id);
+      const snapshot = await loadWorkspaceSnapshot(nextProject.id);
 
       setContent("");
       setProject(nextProject);
-      setEntries(nextEntries);
-      setSelectedPath(findInitialFile(nextEntries));
+      setEntries(snapshot.entries);
+      setSelectedPath(snapshot.selectedPath);
+      setShowCodeWorkspace(snapshot.showCodeWorkspace);
 
       setMessages((current) => [
         ...current,
         {
           id: Date.now() + 1,
           role: "assistant",
-          content: "Project created. Workspace initialized from the React + Vite template.",
+          content: "Project created. Ready to build.",
         },
       ]);
     } catch (reason: unknown) {
@@ -149,6 +175,7 @@ function App() {
       ]);
     } finally {
       setIsCreatingProject(false);
+      setIsLoadingWorkspace(false);
     }
   }
 
@@ -237,83 +264,129 @@ function App() {
           </div>
         </aside>
 
-        <section className="grid min-h-0 min-w-0 grid-cols-[210px_minmax(0,1fr)] bg-[#fbfbfc] max-[900px]:grid-cols-[160px_minmax(0,1fr)] max-[720px]:min-h-[520px]">
-          <aside className="min-w-0 overflow-auto border-r border-[#e7e9ee] bg-[#f8f9fb]">
-            <div className="flex h-[42px] items-center border-b border-[#e7e9ee] px-3.5 text-[11px] font-bold tracking-[0.08em] text-[#777c87] uppercase">
-              Files
-            </div>
-
-            <div className="px-1.5 py-2">
-              {entries.map((entry) => {
-                const indent =
-                  indentClasses[Math.min(entry.depth, indentClasses.length - 1)];
-
-                if (entry.type === "folder") {
-                  return (
-                    <div
-                      className={`flex w-full items-center gap-[7px] py-1.5 pr-2 text-xs text-[#555b66] ${indent}`}
-                      key={entry.path}
-                    >
-                      <span className="w-3 text-center text-[#969ba5]">▾</span>
-                      <span>{entry.name}</span>
-                    </div>
-                  );
-                }
-
-                const isActive = entry.path === selectedPath;
-
-                return (
-                  <button
-                    className={[
-                      "flex w-full cursor-pointer items-center gap-[7px] rounded-md border-0 py-1.5 pr-2 text-left text-xs",
-                      indent,
-                      isActive
-                        ? "bg-[#eceef2] text-[#1e2229]"
-                        : "bg-transparent text-[#555b66] hover:bg-[#eceef2] hover:text-[#1e2229]",
-                    ].join(" ")}
-                    key={entry.path}
-                    onClick={() => setSelectedPath(entry.path)}
-                    type="button"
-                  >
-                    <span className="w-3 text-center text-[#969ba5]">·</span>
-                    <span>{entry.name}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </aside>
-
-          <section className="grid min-h-0 min-w-0 grid-rows-[42px_minmax(0,1fr)] bg-white">
-            <div className="flex items-end border-b border-[#e7e9ee] bg-[#fafbfc]">
-              <div className="flex h-[42px] items-center border-r border-[#e7e9ee] bg-white px-3.5 text-xs text-[#22262d]">
-                {selectedFileName}
+        {showCodeWorkspace ? (
+          <section className="grid min-h-0 min-w-0 grid-cols-[210px_minmax(0,1fr)] bg-[#fbfbfc] max-[900px]:grid-cols-[160px_minmax(0,1fr)] max-[720px]:min-h-[520px]">
+            <aside className="min-w-0 overflow-auto border-r border-[#e7e9ee] bg-[#f8f9fb]">
+              <div className="flex h-[42px] items-center border-b border-[#e7e9ee] px-3.5 text-[11px] font-bold tracking-[0.08em] text-[#777c87] uppercase">
+                Files
               </div>
-            </div>
 
-            <div className="grid min-h-0 min-w-0 grid-cols-[48px_minmax(0,1fr)] overflow-auto bg-white py-3.5">
-              {error ? (
-                <div className="col-span-2 px-4 text-sm text-red-600">
-                  {error}
+              <div className="px-1.5 py-2">
+                {entries.map((entry) => {
+                  const indent =
+                    indentClasses[Math.min(entry.depth, indentClasses.length - 1)];
+
+                  if (entry.type === "folder") {
+                    return (
+                      <div
+                        className={`flex w-full items-center gap-[7px] py-1.5 pr-2 text-xs text-[#555b66] ${indent}`}
+                        key={entry.path}
+                      >
+                        <span className="w-3 text-center text-[#969ba5]">▾</span>
+                        <span>{entry.name}</span>
+                      </div>
+                    );
+                  }
+
+                  const isActive = entry.path === selectedPath;
+
+                  return (
+                    <button
+                      className={[
+                        "flex w-full cursor-pointer items-center gap-[7px] rounded-md border-0 py-1.5 pr-2 text-left text-xs",
+                        indent,
+                        isActive
+                          ? "bg-[#eceef2] text-[#1e2229]"
+                          : "bg-transparent text-[#555b66] hover:bg-[#eceef2] hover:text-[#1e2229]",
+                      ].join(" ")}
+                      key={entry.path}
+                      onClick={() => setSelectedPath(entry.path)}
+                      type="button"
+                    >
+                      <span className="w-3 text-center text-[#969ba5]">·</span>
+                      <span>{entry.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </aside>
+
+            <section className="grid min-h-0 min-w-0 grid-rows-[42px_minmax(0,1fr)] bg-white">
+              <div className="flex items-end border-b border-[#e7e9ee] bg-[#fafbfc]">
+                <div className="flex h-[42px] items-center border-r border-[#e7e9ee] bg-white px-3.5 text-xs text-[#22262d]">
+                  {selectedFileName}
                 </div>
-              ) : (
-                <>
-                  <div className="flex select-none flex-col items-end pr-3 font-mono text-xs leading-[1.7] text-[#b0b4bc]">
-                    {content.split("\n").map((_, index) => (
-                      <span key={index}>{index + 1}</span>
-                    ))}
-                  </div>
+              </div>
 
-                  <pre className="m-0 min-w-max pr-6 font-mono text-xs leading-[1.7] whitespace-pre text-[#272b33]">
-                    <code>{content}</code>
-                  </pre>
-                </>
-              )}
-            </div>
+              <div className="grid min-h-0 min-w-0 grid-cols-[48px_minmax(0,1fr)] overflow-auto bg-white py-3.5">
+                {error ? (
+                  <div className="col-span-2 px-4 text-sm text-red-600">
+                    {error}
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex select-none flex-col items-end pr-3 font-mono text-xs leading-[1.7] text-[#b0b4bc]">
+                      {content.split("\n").map((_, index) => (
+                        <span key={index}>{index + 1}</span>
+                      ))}
+                    </div>
+
+                    <pre className="m-0 min-w-max pr-6 font-mono text-xs leading-[1.7] whitespace-pre text-[#272b33]">
+                      <code>{content}</code>
+                    </pre>
+                  </>
+                )}
+              </div>
+            </section>
           </section>
-        </section>
+        ) : (
+          <section className="grid min-h-0 min-w-0 place-items-center bg-[#fbfbfc] px-8 text-center max-[720px]:min-h-[520px]">
+            {error ? (
+              <div className="max-w-md text-sm leading-6 text-red-600">
+                {error}
+              </div>
+            ) : (
+              <div className="flex max-w-md flex-col items-center">
+                <div className="mb-4 grid h-11 w-11 place-items-center rounded-xl border border-[#e2e4e9] bg-white text-sm font-semibold text-[#4e5562]">
+                  Y
+                </div>
+                <div className="text-[15px] font-semibold text-[#20232a]">
+                  {isLoadingWorkspace ? "Preparing workspace..." : "Ready to build"}
+                </div>
+                <div className="mt-2 text-[13px] leading-6 text-[#8a909b]">
+                  {isLoadingWorkspace
+                    ? "Setting up the project workspace."
+                    : "Describe what you want to build. Files will appear after the first code change."}
+                </div>
+              </div>
+            )}
+          </section>
+        )}
       </section>
     </main>
   );
+}
+
+async function loadWorkspaceSnapshot(
+  projectId: string,
+): Promise<WorkspaceSnapshot> {
+  const status = await getWorkspaceStatus(projectId);
+
+  if (status.pristine) {
+    return {
+      entries: [],
+      selectedPath: null,
+      showCodeWorkspace: false,
+    };
+  }
+
+  const entries = await listWorkspaceFiles(projectId);
+
+  return {
+    entries,
+    selectedPath: findInitialFile(entries),
+    showCodeWorkspace: true,
+  };
 }
 
 function findInitialFile(entries: WorkspaceEntry[]): string | null {
