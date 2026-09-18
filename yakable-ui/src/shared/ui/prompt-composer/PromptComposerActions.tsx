@@ -32,7 +32,7 @@ export function PromptComposerActions({
           <span
             id={tooltipId}
             role="tooltip"
-            className="pointer-events-none absolute right-0 bottom-full z-20 mb-2 flex translate-y-1 items-center gap-1.5 whitespace-nowrap rounded-lg bg-[#20201e] px-2.5 py-1.5 text-xs font-medium text-white opacity-0 transition-[opacity,transform] duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
+            className="pointer-events-none absolute right-0 bottom-full z-20 mb-2 hidden items-center gap-1.5 whitespace-nowrap rounded-lg bg-[#20201e] px-2.5 py-1.5 text-xs font-medium text-white group-hover:flex group-focus-within:flex"
           >
             <span>{submitTooltip}</span>
             <kbd className="rounded bg-white/10 px-1 py-0.5 text-[10px] leading-none text-white/70">
