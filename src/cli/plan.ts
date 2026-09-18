@@ -45,8 +45,8 @@ try {
   if (action === 'draft') {
     if (!text) usage();
     console.log('Yakable: Draft Plan Artifact');
-    console.log('PLAN mode may read/search project context and plan UI, but cannot mutate project source.');
-    const result = await draftProjectPlan(projectInput, text, { mode: 'PLAN' });
+    console.log('Planning reads bounded project context and only updates plan metadata.');
+    const result = await draftProjectPlan(projectInput, text);
     console.log(`\nPlan model: ${result.model}`);
     console.log(`UI Planner model: ${result.uiPlannerModel}`);
     console.log(`UI Planner: ${result.uiPlanner.status}`);
@@ -58,7 +58,7 @@ try {
     if (!text) usage();
     console.log('Yakable: Re-plan');
     console.log('The superseded revision will be archived before the new DRAFT replaces plan.json.');
-    const result = await replanProjectPlan(projectInput, text, { mode: 'PLAN' });
+    const result = await replanProjectPlan(projectInput, text);
     console.log(`\nPlan model: ${result.model}`);
     console.log(`UI Planner model: ${result.uiPlannerModel}`);
     console.log(`UI Planner: ${result.uiPlanner.status}`);
@@ -70,7 +70,6 @@ try {
   } else if (action === 'diff') {
     if (rest.length > 2) usage();
     const result = await readProjectPlanDiff(projectInput, {
-      mode: 'PLAN',
       fromRevision: optionalRevision(rest[0], 'fromRevision'),
       toRevision: optionalRevision(rest[1], 'toRevision'),
     });
@@ -80,19 +79,18 @@ try {
       console.log(result.markdown);
     }
   } else if (action === 'show') {
-    const result = await readProjectPlan(projectInput, { mode: 'PLAN' });
+    const result = await readProjectPlan(projectInput);
     if (!result) {
       console.log('No Plan Artifact exists for this project.');
     } else {
       console.log(result.markdown);
     }
   } else if (action === 'approve' || action === 'reject') {
-    const diff = await readProjectPlanDiff(projectInput, { mode: 'PLAN' });
+    const diff = await readProjectPlanDiff(projectInput);
     const result = await reviewProjectPlan(
       projectInput,
       action === 'approve' ? 'APPROVE' : 'REJECT',
       text || undefined,
-      { mode: 'PLAN' },
     );
     console.log(result.markdown);
     if (diff) {

@@ -10,10 +10,6 @@ import {
   listProjectContextFiles,
   readProjectSnapshot,
 } from '../editing/edit.js';
-import {
-  assertModeCapability,
-  type YakableMode,
-} from '../modes/mode-contract.js';
 import { requestPlanArtifact } from '../model/deepseek.js';
 import { readProjectSession } from '../projects/project-session.js';
 import { resolveGeneratedProject } from '../runtime/runtime.js';
@@ -88,12 +84,10 @@ export interface PlanArtifactBundle {
 }
 
 export interface DraftProjectPlanOptions {
-  mode?: YakableMode;
   generatedRoot?: string;
 }
 
 export interface ReviewProjectPlanOptions {
-  mode?: YakableMode;
   generatedRoot?: string;
 }
 
@@ -470,9 +464,7 @@ function planStoragePaths(projectDirectory: string) {
 async function persistPlanArtifact(
   projectDirectory: string,
   plan: PlanArtifact,
-  mode: YakableMode,
 ): Promise<PlanArtifactBundle> {
-  assertModeCapability(mode, 'write-plan');
   const normalized = parsePlanArtifact(JSON.stringify(plan));
   const markdown = renderPlanArtifactMarkdown(normalized);
   const paths = planStoragePaths(projectDirectory);
@@ -490,9 +482,7 @@ async function persistPlanArtifact(
 
 export async function readPlanArtifactFromDirectory(
   projectDirectory: string,
-  mode: YakableMode = 'BUILD',
 ): Promise<PlanArtifact | null> {
-  assertModeCapability(mode, 'read-plan');
   const { jsonPath } = planStoragePaths(projectDirectory);
   const content = await readFile(jsonPath, 'utf8').catch((error: NodeJS.ErrnoException) => {
     if (error.code === 'ENOENT') return null;
@@ -547,17 +537,11 @@ export async function draftProjectPlan(
   userRequest: string,
   options: DraftProjectPlanOptions = {},
 ): Promise<PlanArtifactRun> {
-  const mode = options.mode ?? 'PLAN';
-  assertModeCapability(mode, 'read-project');
-  assertModeCapability(mode, 'search-project');
-  assertModeCapability(mode, 'read-plan');
-  assertModeCapability(mode, 'write-plan');
-  assertModeCapability(mode, 'plan-ui');
   const request = validatePlanningRequest(userRequest);
 
   const project = await resolveGeneratedProject(projectInput, options.generatedRoot);
   const session = await readProjectSession(project.directory);
-  const currentPlan = await readPlanArtifactFromDirectory(project.directory, mode);
+  const currentPlan = await readPlanArtifactFromDirectory(project.directory);
   const availableFiles = await listProjectContextFiles(project.directory);
   const initialSelection = await selectProjectContextFiles(
     { userRequest: request, visualSelections: [] },
@@ -610,7 +594,7 @@ export async function draftProjectPlan(
     createdAt: currentPlan?.createdAt ?? now,
     updatedAt: now,
   };
-  const persisted = await persistPlanArtifact(project.directory, plan, mode);
+  const persisted = await persistPlanArtifact(project.directory, plan);
   return {
     model: generation.model,
     contextSelection,
@@ -622,11 +606,10 @@ export async function draftProjectPlan(
 
 export async function readProjectPlan(
   projectInput: string,
-  options: { mode?: YakableMode; generatedRoot?: string } = {},
+  options: { generatedRoot?: string } = {},
 ): Promise<PlanArtifactBundle | null> {
-  const mode = options.mode ?? 'BUILD';
   const project = await resolveGeneratedProject(projectInput, options.generatedRoot);
-  const plan = await readPlanArtifactFromDirectory(project.directory, mode);
+  const plan = await readPlanArtifactFromDirectory(project.directory);
   return plan ? { plan, markdown: renderPlanArtifactMarkdown(plan) } : null;
 }
 
@@ -636,13 +619,8 @@ export async function reviewProjectPlan(
   note?: string,
   options: ReviewProjectPlanOptions = {},
 ): Promise<PlanArtifactBundle> {
-  const mode = options.mode ?? 'PLAN';
-  assertModeCapability(mode, 'review-plan');
-  assertModeCapability(mode, 'read-plan');
-  assertModeCapability(mode, 'write-plan');
-
   const project = await resolveGeneratedProject(projectInput, options.generatedRoot);
-  const current = await readPlanArtifactFromDirectory(project.directory, mode);
+  const current = await readPlanArtifactFromDirectory(project.directory);
   if (!current) throw new Error('No Plan Artifact exists for this project.');
   if (current.status !== 'DRAFT') {
     throw new Error(`Only a DRAFT Plan Artifact can be reviewed; current status is ${current.status}.`);
@@ -665,6 +643,5 @@ export async function reviewProjectPlan(
       reviewedAt: now,
       ...(reviewNote ? { reviewNote } : {}),
     },
-    mode,
   );
 }

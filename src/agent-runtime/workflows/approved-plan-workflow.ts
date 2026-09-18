@@ -10,7 +10,6 @@ import {
 import { assertPatchUsesSelectedContext } from '../../editing/project-change.js';
 import { listProjectContextFiles } from '../../editing/project-context.js';
 import type { OneShotRepairResult } from '../../editing/repair.js';
-import { assertModeCapability, type YakableMode } from '../../modes/mode-contract.js';
 import { requestProjectPatch, requestProjectRepair } from '../../model/deepseek.js';
 import {
   ApprovedPlanExecutionError,
@@ -42,7 +41,6 @@ import { createPersistedAgentRecorder } from '../persisted-recorder.js';
 import { runSourceEditWorkflow } from './source-edit-workflow.js';
 
 export interface ApprovedPlanWorkflowOptions {
-  mode?: YakableMode;
   generatedRoot?: string;
   onEvent?: (item: AgentProtocolItem) => void;
 }
@@ -76,13 +74,8 @@ export async function runApprovedPlanWorkflow(
   projectInput: string,
   options: ApprovedPlanWorkflowOptions = {},
 ): Promise<ApprovedPlanWorkflowResult> {
-  const mode = options.mode ?? 'BUILD';
-  assertModeCapability(mode, 'execute-plan');
-  assertModeCapability(mode, 'read-plan');
-  assertModeCapability(mode, 'edit-source');
-
   const project = await resolveGeneratedProject(projectInput, options.generatedRoot);
-  const persistedPlan = await readPlanArtifactFromDirectory(project.directory, mode);
+  const persistedPlan = await readPlanArtifactFromDirectory(project.directory);
   if (!persistedPlan) {
     throw new ApprovedPlanExecutionError(
       'APPROVED_PLAN_NOT_FOUND',

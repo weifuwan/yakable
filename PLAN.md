@@ -30,11 +30,11 @@ Yakable should become increasingly strong at:
 
 ## Product Model
 
-Yakable should expose two first-class working modes.
+Yakable separates planning from source mutation through explicit capability boundaries.
 
-### Plan Mode
+### Planning
 
-Plan Mode is for **understanding, exploring, deciding, and reviewing**.
+Planning is for **understanding, exploring, deciding, and reviewing**.
 
 It may:
 
@@ -53,11 +53,11 @@ It must not:
 - perform Visual Repair
 - silently execute the plan
 
-The primary output of Plan Mode is an explicit, reviewable **Plan Artifact**.
+The primary output of planning is an explicit, reviewable **Plan Artifact**.
 
-### Build Mode
+### Execution
 
-Build Mode is for **executing an approved intent or plan**.
+Execution is for **applying an approved intent or plan to project source**.
 
 It may:
 
@@ -70,7 +70,7 @@ It may:
 - critique the rendered result
 - perform bounded repair
 
-Build Mode should not silently redefine an approved plan. When execution discovers that the plan is no longer valid, Yakable should stop or return to planning instead of hiding a new plan inside implementation.
+Execution should not silently redefine an approved plan. When execution discovers that the plan is no longer valid, Yakable should stop or return to planning instead of hiding a new plan inside implementation.
 
 ## Core Architecture
 
@@ -85,7 +85,7 @@ Build Mode should not silently redefine an approved plan. When execution discove
           │                             │
           └──────────────┬──────────────┘
                          ▼
-                     PLAN MODE
+                      PLANNING
                          │
               ┌──────────┴──────────┐
               ▼                     ▼
@@ -101,7 +101,7 @@ Build Mode should not silently redefine an approved plan. When execution discove
                     Review / Approve
                          │
                          ▼
-                    BUILD MODE
+                     EXECUTION
                          │
                          ▼
                   Frontend Agent
@@ -138,7 +138,7 @@ The architecture should remain understandable as the product grows. New capabili
 
 ## Frontend Intelligence
 
-Plan Mode and Build Mode should share one frontend-specific intelligence layer.
+Planning and execution should share one frontend-specific intelligence layer.
 
 ```text
 Frontend Intelligence
@@ -223,7 +223,7 @@ Superseded revisions are preserved under `.yakable/plans/` by the explicit Re-pl
 
 ## UI Planner
 
-UI Planner is a capability inside Plan Mode, not a replacement for Plan Mode.
+UI Planner is a planning capability, not a separate runtime mode.
 
 UI Planner v0 runs against the same bounded project context used by the Plan Artifact and produces either `PLANNED` or `NOT_APPLICABLE`. When applicable, the blueprint is attached to the Plan Artifact as `ui` before review.
 
@@ -328,7 +328,7 @@ new DRAFT rN+1
       ↓
 deterministic Plan Diff
       ↓
-review / approve before Build
+review / approve before execution
 ```
 
 The current revision remains `.yakable/plan.json`. Superseded revisions are archived as JSON plus derived Markdown under:
@@ -384,34 +384,18 @@ Current execution philosophy:
 
 Frontend Agent should remain an execution state machine unless real usage proves that broader model-selected tool orchestration is necessary.
 
-## Mode Permissions
+## Capability Boundaries
 
-Plan and Build enforce different capability policies, not merely different prompts.
+Yakable no longer uses a global Plan / Build runtime mode.
 
-| Capability | Plan | Build |
-| --- | --- | --- |
-| Understand intent | Yes | Yes |
-| Read project | Yes | Yes |
-| Search project | Yes | Yes |
-| Inspect Preview | Yes | Yes |
-| Page Observation | Yes | Yes |
-| Design Critic | Yes | Yes |
-| Read Plan Artifact | Yes | Yes |
-| Create / revise Plan Artifact | Yes | No |
-| Approve / reject Plan Artifact | Yes | No |
-| Create / revise UI blueprint | Yes | No |
-| Diff Plan revisions | Yes | No |
-| Execute approved Plan Artifact | No | Yes |
-| Generate source | No | Yes |
-| Edit source | No | Yes |
-| Visual Repair | No | Yes |
-| Add files | No | Bounded |
-| Change dependencies | No | Bounded |
-| External write tools | No | Explicitly gated |
+Planning, generation, editing, review, and approved-plan execution are explicit capabilities with separate APIs and workflow ownership. The boundary is structural:
 
-The mode policy includes plan-specific capabilities. Plan may `read-plan`, `write-plan`, `review-plan`, `plan-ui`, and `diff-plan`; Build may only read the artifact and execute source capabilities. This preserves the rule that execution can consume approved decisions but cannot silently redefine or compare/revise planning state.
+- planning operations may update Plan metadata and revision history;
+- source-changing operations are explicit generation/edit/repair workflows;
+- approved-plan execution consumes reviewed decisions but does not rewrite them;
+- tool permission and user approval should be enforced by dedicated permission/runtime policy when those capabilities require it.
 
-This separation is the foundation for future Taste Intelligence, MCP, and external-tool permission policies.
+This keeps ownership visible without carrying a global mode flag through every layer.
 
 ## Current Foundation
 
@@ -436,7 +420,7 @@ Yakable already has working foundations for:
 - evidence-grounded Design Critic
 - bounded Visual Repair with rollback
 - explicit Frontend Agent execution states and live progress
-- Plan / Build mode capability policy with a read-only Plan source boundary
+- bounded planning APIs with reviewable Plan Artifacts and no runtime mode switch
 - versioned Plan Artifact drafting, Markdown rendering, persistence, and explicit review state
 - UI Planner v0 with a bounded semantic UI blueprint attached to the Plan Artifact
 - Build From Approved Plan with immutable execution snapshots, plan-aware source editing, explicit BLOCKED deviations, and plan-preserving build repair
@@ -461,16 +445,16 @@ Stage H — Production
 
 Goal: **separate decision-making from source mutation and make frontend decisions reviewable before execution.**
 
-1. **Plan / Build Mode Contract** ✅
-   - make the two modes first-class concepts
-   - enforce a capability policy instead of relying on prompt instructions
-   - keep Plan read-only with respect to project source
+1. **Planning / Execution Boundary** ✅
+   - keep planning and source mutation as separate capability paths
+   - enforce boundaries through explicit APIs and workflow contracts
+   - keep planning operations focused on plan metadata rather than project-source mutation
 
 2. **Plan Artifact + Review** ✅
    - define a small versioned structured Plan Artifact
    - draft it from bounded read/search project context
    - persist machine-readable JSON plus derived review Markdown
-   - allow explicit approve / reject transitions before Build
+   - allow explicit approve / reject transitions before execution
 
 3. **UI Planner v0** ✅
    - compile Design Intent and bounded project evidence into a small semantic UI blueprint
@@ -485,7 +469,7 @@ Goal: **separate decision-making from source mutation and make frontend decision
 5. **Re-plan / Plan Diff v0** ✅
    - archive the superseded revision before creating the next draft
    - reread current bounded project evidence during Re-plan
-   - make material revision changes deterministic and visible before approval / Build
+   - make material revision changes deterministic and visible before approval / execution
    - keep older approved decisions traceable instead of replacing them invisibly
 
 ## Current Focus — Stage F: Taste Intelligence
@@ -501,7 +485,7 @@ Near-term work should focus on outcomes rather than permanent PR numbering:
 
 2. **Design Direction Suggestions**
    - generate a few distinct, bounded design directions when the user has not specified one
-   - let the user select or revise a direction before Build when the decision materially affects the interface
+   - let the user select or revise a direction before execution when the decision materially affects the interface
 
 3. **Component / Pattern Knowledge**
    - reuse proven frontend composition patterns without hard-coding complete page templates
@@ -553,7 +537,7 @@ Complexity should live inside Yakable's contracts and orchestration, not in form
 
 When a request contains meaningful product, architecture, or visual ambiguity, Yakable should prefer explicit planning over hidden improvisation.
 
-### Build should execute, not secretly re-plan
+### Execution should follow reviewed decisions, not secretly re-plan
 
 An approved plan is an execution contract. If it becomes invalid, return to planning explicitly.
 
@@ -599,6 +583,6 @@ When considering a new capability, ask:
 
 1. Which layer does it belong to?
 2. Does it strengthen the Frontend Harness?
-3. Does it preserve Plan / Build boundaries?
+3. Does it preserve capability ownership and source-mutation boundaries?
 4. Can its behavior be observed and tested?
 5. Can it remain bounded before becoming more autonomous?

@@ -5,7 +5,6 @@ import {
   buildUiPlannerRequest,
   parseUiPlanValue,
   parseUiPlannerResult,
-  planInterface,
   type UiPlan,
 } from '../src/planning/ui-planner.js';
 import {
@@ -144,12 +143,6 @@ test('builds UI Planner context from intent, prior UI plan, and bounded source f
   assert.deepEqual(parsed.project.files.map((file) => file.path), ['src/App.tsx']);
 });
 
-test('UI Planner is structurally PLAN-only and rejects BUILD before model work', async () => {
-  await assert.rejects(
-    planInterface({ ...plannerInput, mode: 'BUILD' }),
-    /BUILD mode does not allow plan-ui/,
-  );
-});
 
 test('Plan Artifact persists and renders the UI blueprint as one reviewable contract', () => {
   const artifact: PlanArtifact = {

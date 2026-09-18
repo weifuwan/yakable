@@ -24,10 +24,9 @@ const editTool: Tool<{ value: string }, string> = {
   },
 };
 
-test('creates a normalized run context with mode capabilities and runtime surfaces', () => {
+test('creates a normalized run context with runtime surfaces', () => {
   const context = createAgentRunContext({
     operation: 'EDIT',
-    mode: 'BUILD',
     projectInput: ' generated/example ',
     prompt: '  Make the hero clearer  ',
     modelClientId: 'deepseek',
@@ -40,55 +39,42 @@ test('creates a normalized run context with mode capabilities and runtime surfac
   assert.equal(context.prompt, 'Make the hero clearer');
   assert.equal(context.modelClientId, 'deepseek');
   assert.deepEqual(context.availableTools, ['read_project_file', 'check_project']);
-  assert.ok(context.capabilities.includes('edit-source'));
 });
 
-test('ToolRouter exposes and executes tools according to mode capabilities', async () => {
-  const router = new ToolRouter().register(editTool, { capability: 'edit-source' });
+test('ToolRouter exposes and executes explicitly registered tools', async () => {
+  const router = new ToolRouter().register(editTool);
 
-  assert.deepEqual(router.list('PLAN'), []);
-  assert.deepEqual(router.list('BUILD'), [
+  assert.deepEqual(router.list(), [
     {
       name: editTool.name,
       description: editTool.description,
-      capability: 'edit-source',
     },
   ]);
 
-  const forbidden = await router.execute(
-    'PLAN',
-    editTool.name,
-    { value: 'blocked' },
-    { projectDirectory: '/tmp/project' },
-  );
-  assert.equal(forbidden.ok, false);
-  if (!forbidden.ok) assert.equal(forbidden.error.code, 'TOOL_CAPABILITY_FORBIDDEN');
-
-  const allowed = await router.execute<string>(
-    'BUILD',
+  const result = await router.execute<string>(
     editTool.name,
     { value: 'applied' },
     { projectDirectory: '/tmp/project' },
   );
-  assert.deepEqual(allowed, { ok: true, value: 'applied' });
+  assert.deepEqual(result, { ok: true, value: 'applied' });
 });
 
 test('AgentRuntime owns create and approved-plan workflow entry points', async () => {
   const calls: string[] = [];
   const generationResult = { marker: 'create-result' } as unknown as GenerationResult;
   const approvedPlanResult = { marker: 'plan-result' } as unknown as ApprovedPlanWorkflowResult;
-  const router = new ToolRouter().register(editTool, { capability: 'edit-source' });
+  const router = new ToolRouter().register(editTool);
 
   const runtime = new AgentRuntime({
     modelClient,
     toolRouter: router,
     now: () => new Date('2026-09-15T00:00:00.000Z'),
-    async createProject(prompt, options) {
-      calls.push(`create:${prompt}:${options?.mode}`);
+    async createProject(prompt) {
+      calls.push(`create:${prompt}`);
       return generationResult;
     },
-    async executeApprovedPlan(projectInput, options) {
-      calls.push(`approved-plan:${projectInput}:${options?.mode}`);
+    async executeApprovedPlan(projectInput) {
+      calls.push(`approved-plan:${projectInput}`);
       return approvedPlanResult;
     },
   });
@@ -96,7 +82,6 @@ test('AgentRuntime owns create and approved-plan workflow entry points', async (
   const context = runtime.createContext({
     operation: 'CREATE',
     prompt: '  Build a dashboard  ',
-    mode: 'BUILD',
   });
   assert.equal(context.startedAt, '2026-09-15T00:00:00.000Z');
   assert.equal(context.modelClientId, 'test-model');
@@ -105,16 +90,7 @@ test('AgentRuntime owns create and approved-plan workflow entry points', async (
   assert.equal(await runtime.createProject('  Build a dashboard  '), generationResult);
   assert.equal(await runtime.executeApprovedPlan(' generated/example '), approvedPlanResult);
   assert.deepEqual(calls, [
-    'create:Build a dashboard:BUILD',
-    'approved-plan:generated/example:BUILD',
+    'create:Build a dashboard',
+    'approved-plan:generated/example',
   ]);
-
-  await assert.rejects(
-    runtime.createProject('Plan only', { mode: 'PLAN' }),
-    /PLAN mode does not allow generate-source/,
-  );
-  await assert.rejects(
-    runtime.executeApprovedPlan('generated/example', { mode: 'PLAN' }),
-    /PLAN mode does not allow execute-plan/,
-  );
 });

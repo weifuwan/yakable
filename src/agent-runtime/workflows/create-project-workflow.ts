@@ -17,7 +17,6 @@ import {
   selectProjectTemplate,
 } from '../../generation/template.js';
 import { requestProjectCode, requestProjectRepair } from '../../model/deepseek.js';
-import { assertModeCapability, type YakableMode } from '../../modes/mode-contract.js';
 import {
   BuildIntentGateError,
   classifyBuildIntent,
@@ -78,7 +77,6 @@ export interface ReservedProjectBuildLifecycle {
 
 export interface CreateProjectWorkflowOptions extends FrontendAgentProgressOptions {
   buildIntent?: BuildIntentDecision;
-  mode?: YakableMode;
   verifyProject?: boolean;
   persistAgentRun?: boolean;
   projectLifecycle?: ReservedProjectBuildLifecycle;
@@ -172,9 +170,6 @@ export async function runCreateProjectWorkflow(
   if (normalizedPrompt.length > 12_000) {
     throw new Error('Prompt is too long. Project generation accepts at most 12,000 characters.');
   }
-
-  const mode = options.mode ?? 'BUILD';
-  assertModeCapability(mode, 'generate-source');
 
   const shouldPersistAgentRun = options.persistAgentRun || Boolean(options.projectLifecycle);
   let agentRunId: string | undefined;
