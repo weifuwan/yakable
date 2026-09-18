@@ -6,6 +6,7 @@ Yakable UI is organized by ownership instead of by file type.
 src/
 ├── app/
 │   ├── App.tsx
+│   ├── providers/
 │   ├── router/
 │   ├── layout/
 │   └── styles/
@@ -44,7 +45,10 @@ Dependencies should point downward. Shared code must not import product features
 Owns application composition, routing, global layout, and global styles.
 
 - `App.tsx` is the composition entry and should stay thin.
+- `app/providers` owns application-wide framework providers and root runtime wrappers.
 - `app/router` owns browser routing and route registration.
+- `main.tsx` only mounts the React application; app-wide wrappers belong in `app/providers`.
+- Feature-specific providers and domain state stay with their owning feature.
 - Pages and features must not implement their own `window.history` / `popstate` routing.
 
 It should not become a dumping ground for domain logic.
