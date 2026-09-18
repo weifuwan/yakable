@@ -1,10 +1,20 @@
 import { useEffect, useState } from "react";
-import { getDefaultProject, type Project } from "./project";
+import {
+  createProject,
+  getDefaultProject,
+  type Project,
+} from "./project";
 import {
   listWorkspaceFiles,
   readWorkspaceFile,
   type WorkspaceEntry,
 } from "./workspace";
+
+type ChatMessage = {
+  id: number;
+  role: "assistant" | "user";
+  content: string;
+};
 
 const indentClasses = [
   "pl-3.5",
@@ -14,11 +24,22 @@ const indentClasses = [
   "pl-[78px]",
 ];
 
+const initialMessages: ChatMessage[] = [
+  {
+    id: 1,
+    role: "assistant",
+    content: "Tell me what you want to build.",
+  },
+];
+
 function App() {
   const [project, setProject] = useState<Project | null>(null);
   const [entries, setEntries] = useState<WorkspaceEntry[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [content, setContent] = useState("");
+  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+  const [prompt, setPrompt] = useState("");
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -32,17 +53,14 @@ function App() {
 
         setProject(currentProject);
         setEntries(nextEntries);
-
-        const initialFile =
-          nextEntries.find((entry) => entry.path === "src/App.tsx") ??
-          nextEntries.find((entry) => entry.type === "file");
-
-        setSelectedPath(initialFile?.path ?? null);
+        setSelectedPath(findInitialFile(nextEntries));
       })
       .catch((reason: unknown) => {
         if (!cancelled) {
           setError(
-            reason instanceof Error ? reason.message : "Failed to load workspace",
+            reason instanceof Error
+              ? reason.message
+              : "Failed to load workspace",
           );
         }
       });
@@ -63,18 +81,76 @@ function App() {
 
     readWorkspaceFile(project.id, selectedPath)
       .then((file) => {
-        if (!cancelled) setContent(file.content);
+        if (!cancelled) {
+          setContent(file.content);
+        }
       })
       .catch((reason: unknown) => {
         if (!cancelled) {
-          setError(reason instanceof Error ? reason.message : "Failed to read file");
+          setError(
+            reason instanceof Error ? reason.message : "Failed to read file",
+          );
         }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [project, selectedPath]);
+  }, [project?.id, selectedPath]);
+
+  async function handleSubmit(): Promise<void> {
+    const userPrompt = prompt.trim();
+
+    if (!userPrompt || isCreatingProject) {
+      return;
+    }
+
+    setMessages((current) => [
+      ...current,
+      {
+        id: Date.now(),
+        role: "user",
+        content: userPrompt,
+      },
+    ]);
+    setPrompt("");
+    setError(null);
+    setIsCreatingProject(true);
+
+    try {
+      const nextProject = await createProject();
+      const nextEntries = await listWorkspaceFiles(nextProject.id);
+
+      setContent("");
+      setProject(nextProject);
+      setEntries(nextEntries);
+      setSelectedPath(findInitialFile(nextEntries));
+
+      setMessages((current) => [
+        ...current,
+        {
+          id: Date.now() + 1,
+          role: "assistant",
+          content: "Project created. Workspace initialized from the React + Vite template.",
+        },
+      ]);
+    } catch (reason: unknown) {
+      const message =
+        reason instanceof Error ? reason.message : "Failed to create project";
+
+      setError(message);
+      setMessages((current) => [
+        ...current,
+        {
+          id: Date.now() + 1,
+          role: "assistant",
+          content: `Failed to create project: ${message}`,
+        },
+      ]);
+    } finally {
+      setIsCreatingProject(false);
+    }
+  }
 
   const selectedFileName = selectedPath?.split("/").at(-1) ?? "No file";
 
@@ -110,26 +186,52 @@ function App() {
           </div>
 
           <div className="flex min-h-0 flex-col gap-3.5 overflow-auto px-[18px] py-5">
-            <div className="max-w-[84%] self-start rounded-xl border border-[#e8eaf0] bg-white px-3 py-2.5 text-[13px] leading-[1.6]">
-              Tell me what you want to build.
-            </div>
+            {messages.map((message) => (
+              <div
+                className={
+                  message.role === "user"
+                    ? "max-w-[84%] self-end whitespace-pre-wrap rounded-xl bg-[#f0f1f4] px-3 py-2.5 text-[13px] leading-[1.6]"
+                    : "max-w-[84%] self-start whitespace-pre-wrap rounded-xl border border-[#e8eaf0] bg-white px-3 py-2.5 text-[13px] leading-[1.6]"
+                }
+                key={message.id}
+              >
+                {message.content}
+              </div>
+            ))}
           </div>
 
           <div className="mx-3.5 mb-3.5 rounded-xl border border-[#dfe2e8] bg-white p-2.5">
             <textarea
               aria-label="Message"
               className="w-full resize-none border-0 bg-transparent text-[13px] leading-6 text-[#20232a] outline-none placeholder:text-[#a0a5af]"
+              disabled={isCreatingProject}
+              onChange={(event) => setPrompt(event.target.value)}
+              onKeyDown={(event) => {
+                if (
+                  event.key === "Enter" &&
+                  !event.shiftKey &&
+                  !event.nativeEvent.isComposing
+                ) {
+                  event.preventDefault();
+                  void handleSubmit();
+                }
+              }}
               placeholder="Ask Yakable to build something..."
               rows={3}
+              value={prompt}
             />
 
             <div className="flex items-center justify-between pt-2">
-              <span className="text-[11px] text-[#9ba0aa]">Enter to send</span>
+              <span className="text-[11px] text-[#9ba0aa]">
+                Enter to send · Shift + Enter for new line
+              </span>
               <button
-                className="cursor-pointer rounded-lg bg-[#17191f] px-[11px] py-1.5 text-xs text-white"
+                className="cursor-pointer rounded-lg bg-[#17191f] px-[11px] py-1.5 text-xs text-white disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={!prompt.trim() || isCreatingProject}
+                onClick={() => void handleSubmit()}
                 type="button"
               >
-                Send
+                {isCreatingProject ? "Creating..." : "Send"}
               </button>
             </div>
           </div>
@@ -190,7 +292,9 @@ function App() {
 
             <div className="grid min-h-0 min-w-0 grid-cols-[48px_minmax(0,1fr)] overflow-auto bg-white py-3.5">
               {error ? (
-                <div className="col-span-2 px-4 text-sm text-red-600">{error}</div>
+                <div className="col-span-2 px-4 text-sm text-red-600">
+                  {error}
+                </div>
               ) : (
                 <>
                   <div className="flex select-none flex-col items-end pr-3 font-mono text-xs leading-[1.7] text-[#b0b4bc]">
@@ -209,6 +313,14 @@ function App() {
         </section>
       </section>
     </main>
+  );
+}
+
+function findInitialFile(entries: WorkspaceEntry[]): string | null {
+  return (
+    entries.find((entry) => entry.path === "src/App.tsx")?.path ??
+    entries.find((entry) => entry.type === "file")?.path ??
+    null
   );
 }
 

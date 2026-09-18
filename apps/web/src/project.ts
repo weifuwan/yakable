@@ -5,7 +5,10 @@ export type Project = {
   createdAt: string;
 };
 
-async function request<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
+async function request<T>(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<T> {
   const response = await fetch(input, init);
 
   if (!response.ok) {
@@ -27,4 +30,14 @@ export function getDefaultProject(): Promise<Project> {
 
 export function getProject(projectId: string): Promise<Project> {
   return request<Project>(`/api/projects/${encodeURIComponent(projectId)}`);
+}
+
+export function createProject(name = "Untitled project"): Promise<Project> {
+  return request<Project>("/api/projects", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name }),
+  });
 }
