@@ -41,6 +41,19 @@ export const workspaceRoutes: FastifyPluginAsync<WorkspaceRoutesOptions> = async
     throw error;
   });
 
+  app.get<{ Params: ProjectParams }>("/status", async (request) => {
+    const { project, workspace } = await resolveWorkspace(
+      request.params.projectId,
+      projectService,
+    );
+
+    return {
+      projectId: project.id,
+      workspaceId: project.workspaceId,
+      pristine: await workspace.isPristine(),
+    };
+  });
+
   app.get<{ Params: ProjectParams }>("/tree", async (request) => {
     const { project, workspace } = await resolveWorkspace(
       request.params.projectId,
