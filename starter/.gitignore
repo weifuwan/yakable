@@ -1,6 +1,5 @@
 node_modules
 dist
-.yakable
 .env
 .env.*
 !.env.example

@@ -1,105 +1,74 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import {
+  listWorkspaceFiles,
+  readWorkspaceFile,
+  type WorkspaceEntry,
+} from "./workspace";
 
-type ProjectFile = {
-  name: string;
-  path: string;
-  content: string;
-};
-
-const projectFiles: ProjectFile[] = [
-  {
-    name: "App.tsx",
-    path: "src/App.tsx",
-    content: `function App() {
-  return (
-    <main>
-      <h1>Yakable</h1>
-    </main>
-  );
-}
-
-export default App;`,
-  },
-  {
-    name: "main.tsx",
-    path: "src/main.tsx",
-    content: `import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
-import App from "./App";
-import "./index.css";
-
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);`,
-  },
-  {
-    name: "index.css",
-    path: "src/index.css",
-    content: `@import "tailwindcss";`,
-  },
-  {
-    name: "index.html",
-    path: "index.html",
-    content: `<!doctype html>
-<html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Yakable" />
-    <title>Yakable</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>`,
-  },
-  {
-    name: "package.json",
-    path: "package.json",
-    content: `{
-  "name": "yakable",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0"
-  },
-  "devDependencies": {
-    "@tailwindcss/vite": "^4.1.0",
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0",
-    "@vitejs/plugin-react": "^6.1.1",
-    "tailwindcss": "^4.1.0",
-    "typescript": "^7.0.2",
-    "vite": "^8.3.0"
-  }
-}`,
-  },
+const indentClasses = [
+  "pl-3.5",
+  "pl-[30px]",
+  "pl-[46px]",
+  "pl-[62px]",
+  "pl-[78px]",
 ];
 
-const fileTree = [
-  { name: "src", type: "folder", level: 0 },
-  { name: "App.tsx", path: "src/App.tsx", type: "file", level: 1 },
-  { name: "main.tsx", path: "src/main.tsx", type: "file", level: 1 },
-  { name: "index.css", path: "src/index.css", type: "file", level: 1 },
-  { name: "index.html", path: "index.html", type: "file", level: 0 },
-  { name: "package.json", path: "package.json", type: "file", level: 0 },
-] as const;
-
 function App() {
-  const [selectedPath, setSelectedPath] = useState("src/App.tsx");
+  const [entries, setEntries] = useState<WorkspaceEntry[]>([]);
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [content, setContent] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
-  const selectedFile =
-    projectFiles.find((file) => file.path === selectedPath) ?? projectFiles[0];
+  useEffect(() => {
+    let cancelled = false;
+
+    listWorkspaceFiles()
+      .then((nextEntries) => {
+        if (cancelled) return;
+
+        setEntries(nextEntries);
+        const initialFile =
+          nextEntries.find((entry) => entry.path === "src/App.tsx") ??
+          nextEntries.find((entry) => entry.type === "file");
+
+        setSelectedPath(initialFile?.path ?? null);
+      })
+      .catch((reason: unknown) => {
+        if (!cancelled) {
+          setError(reason instanceof Error ? reason.message : "Failed to load workspace");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedPath) {
+      setContent("");
+      return;
+    }
+
+    let cancelled = false;
+    setError(null);
+
+    readWorkspaceFile(selectedPath)
+      .then((file) => {
+        if (!cancelled) setContent(file.content);
+      })
+      .catch((reason: unknown) => {
+        if (!cancelled) {
+          setError(reason instanceof Error ? reason.message : "Failed to read file");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPath]);
+
+  const selectedFileName = selectedPath?.split("/").at(-1) ?? "No file";
 
   return (
     <main className="grid h-screen w-screen grid-rows-[52px_minmax(0,1fr)] overflow-hidden bg-white text-[#16181d] max-[720px]:h-auto max-[720px]:min-h-screen max-[720px]:overflow-visible">
@@ -112,7 +81,7 @@ function App() {
         </div>
 
         <div className="overflow-hidden text-center text-[13px] text-[#6d7280] text-ellipsis whitespace-nowrap max-[720px]:hidden">
-          Untitled project
+          Default workspace
         </div>
 
         <button
@@ -135,14 +104,6 @@ function App() {
           <div className="flex min-h-0 flex-col gap-3.5 overflow-auto px-[18px] py-5">
             <div className="max-w-[84%] self-start rounded-xl border border-[#e8eaf0] bg-white px-3 py-2.5 text-[13px] leading-[1.6]">
               Tell me what you want to build.
-            </div>
-
-            <div className="max-w-[84%] self-end rounded-xl bg-[#f0f1f4] px-3 py-2.5 text-[13px] leading-[1.6]">
-              帮我做一个数据同步任务列表页面
-            </div>
-
-            <div className="max-w-[84%] self-start rounded-xl border border-[#e8eaf0] bg-white px-3 py-2.5 text-[13px] leading-[1.6]">
-              I’ll update the project based on your request.
             </div>
           </div>
 
@@ -167,42 +128,45 @@ function App() {
         </aside>
 
         <section className="grid min-h-0 min-w-0 grid-cols-[210px_minmax(0,1fr)] bg-[#fbfbfc] max-[900px]:grid-cols-[160px_minmax(0,1fr)] max-[720px]:min-h-[520px]">
-          <aside className="min-w-0 border-r border-[#e7e9ee] bg-[#f8f9fb]">
+          <aside className="min-w-0 overflow-auto border-r border-[#e7e9ee] bg-[#f8f9fb]">
             <div className="flex h-[42px] items-center border-b border-[#e7e9ee] px-3.5 text-[11px] font-bold tracking-[0.08em] text-[#777c87] uppercase">
               Files
             </div>
 
             <div className="px-1.5 py-2">
-              {fileTree.map((file) => {
-                if (file.type === "folder") {
+              {entries.map((entry) => {
+                const indent =
+                  indentClasses[Math.min(entry.depth, indentClasses.length - 1)];
+
+                if (entry.type === "folder") {
                   return (
                     <div
-                      className="flex w-full items-center gap-[7px] py-1.5 pr-2 pl-3.5 text-xs text-[#555b66]"
-                      key={`${file.level}-${file.name}`}
+                      className={`flex w-full items-center gap-[7px] py-1.5 pr-2 text-xs text-[#555b66] ${indent}`}
+                      key={entry.path}
                     >
                       <span className="w-3 text-center text-[#969ba5]">▾</span>
-                      <span>{file.name}</span>
+                      <span>{entry.name}</span>
                     </div>
                   );
                 }
 
-                const isActive = file.path === selectedPath;
+                const isActive = entry.path === selectedPath;
 
                 return (
                   <button
                     className={[
                       "flex w-full cursor-pointer items-center gap-[7px] rounded-md border-0 py-1.5 pr-2 text-left text-xs",
-                      file.level === 1 ? "pl-[30px]" : "pl-3.5",
+                      indent,
                       isActive
                         ? "bg-[#eceef2] text-[#1e2229]"
                         : "bg-transparent text-[#555b66] hover:bg-[#eceef2] hover:text-[#1e2229]",
                     ].join(" ")}
-                    key={file.path}
-                    onClick={() => setSelectedPath(file.path)}
+                    key={entry.path}
+                    onClick={() => setSelectedPath(entry.path)}
                     type="button"
                   >
                     <span className="w-3 text-center text-[#969ba5]">·</span>
-                    <span>{file.name}</span>
+                    <span>{entry.name}</span>
                   </button>
                 );
               })}
@@ -212,20 +176,26 @@ function App() {
           <section className="grid min-h-0 min-w-0 grid-rows-[42px_minmax(0,1fr)] bg-white">
             <div className="flex items-end border-b border-[#e7e9ee] bg-[#fafbfc]">
               <div className="flex h-[42px] items-center border-r border-[#e7e9ee] bg-white px-3.5 text-xs text-[#22262d]">
-                {selectedFile.name}
+                {selectedFileName}
               </div>
             </div>
 
             <div className="grid min-h-0 min-w-0 grid-cols-[48px_minmax(0,1fr)] overflow-auto bg-white py-3.5">
-              <div className="flex select-none flex-col items-end pr-3 font-mono text-xs leading-[1.7] text-[#b0b4bc]">
-                {selectedFile.content.split("\n").map((_, index) => (
-                  <span key={index}>{index + 1}</span>
-                ))}
-              </div>
+              {error ? (
+                <div className="col-span-2 px-4 text-sm text-red-600">{error}</div>
+              ) : (
+                <>
+                  <div className="flex select-none flex-col items-end pr-3 font-mono text-xs leading-[1.7] text-[#b0b4bc]">
+                    {content.split("\n").map((_, index) => (
+                      <span key={index}>{index + 1}</span>
+                    ))}
+                  </div>
 
-              <pre className="m-0 min-w-max pr-6 font-mono text-xs leading-[1.7] whitespace-pre text-[#272b33]">
-                <code>{selectedFile.content}</code>
-              </pre>
+                  <pre className="m-0 min-w-max pr-6 font-mono text-xs leading-[1.7] whitespace-pre text-[#272b33]">
+                    <code>{content}</code>
+                  </pre>
+                </>
+              )}
             </div>
           </section>
         </section>
