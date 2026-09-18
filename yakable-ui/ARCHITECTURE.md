@@ -158,7 +158,6 @@ This architecture refactor does not yet introduce:
 
 Those should be introduced only when a concrete product or engineering problem requires them.
 
-
 ## Engineering checks
 
 Frontend architecture rules are backed by executable checks rather than review convention alone.
