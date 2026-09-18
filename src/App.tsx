@@ -19,67 +19,90 @@ export default App;`;
 
 function App() {
   return (
-    <main className="workspace">
-      <header className="topbar">
-        <div className="brand">
-          <span className="brand-mark">Y</span>
+    <main className="grid h-screen w-screen grid-rows-[52px_minmax(0,1fr)] overflow-hidden bg-white text-[#16181d] max-[720px]:h-auto max-[720px]:min-h-screen max-[720px]:overflow-visible">
+      <header className="grid grid-cols-[280px_1fr_auto] items-center gap-4 border-b border-[#e7e9ee] bg-white px-3.5 max-[720px]:grid-cols-[1fr_auto]">
+        <div className="flex items-center gap-[9px] text-sm font-[650]">
+          <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#17191f] text-[13px] text-white">
+            Y
+          </span>
           <span>Yakable</span>
         </div>
-        <div className="project-name">Untitled project</div>
-        <button className="topbar-button" type="button">
+
+        <div className="overflow-hidden text-center text-[13px] text-[#6d7280] text-ellipsis whitespace-nowrap max-[720px]:hidden">
+          Untitled project
+        </div>
+
+        <button
+          className="cursor-pointer rounded-lg bg-[#17191f] px-3.5 py-[7px] text-[13px] text-white"
+          type="button"
+        >
           Run
         </button>
       </header>
 
-      <section className="workspace-body">
-        <aside className="chat-panel">
-          <div className="panel-header">
-            <div>
-              <strong>Chat</strong>
-              <span>Build with Yakable</span>
+      <section className="grid min-h-0 grid-cols-[minmax(320px,38%)_minmax(0,1fr)] max-[900px]:grid-cols-[minmax(280px,42%)_minmax(0,1fr)] max-[720px]:grid-cols-1">
+        <aside className="grid min-w-0 grid-rows-[auto_minmax(0,1fr)_auto] border-r border-[#e7e9ee] bg-white max-[720px]:min-h-[520px] max-[720px]:border-r-0 max-[720px]:border-b">
+          <div className="flex min-h-[60px] items-center border-b border-[#eff0f3] px-[18px]">
+            <div className="flex flex-col gap-0.5">
+              <strong className="text-sm">Chat</strong>
+              <span className="text-xs text-[#9297a3]">Build with Yakable</span>
             </div>
           </div>
 
-          <div className="chat-content">
-            <div className="assistant-message">
+          <div className="flex min-h-0 flex-col gap-3.5 overflow-auto px-[18px] py-5">
+            <div className="max-w-[84%] self-start rounded-xl border border-[#e8eaf0] bg-white px-3 py-2.5 text-[13px] leading-[1.6]">
               Tell me what you want to build.
             </div>
 
-            <div className="user-message">
+            <div className="max-w-[84%] self-end rounded-xl bg-[#f0f1f4] px-3 py-2.5 text-[13px] leading-[1.6]">
               帮我做一个数据同步任务列表页面
             </div>
 
-            <div className="assistant-message">
+            <div className="max-w-[84%] self-start rounded-xl border border-[#e8eaf0] bg-white px-3 py-2.5 text-[13px] leading-[1.6]">
               I’ll update the project based on your request.
             </div>
           </div>
 
-          <div className="chat-composer">
+          <div className="mx-3.5 mb-3.5 rounded-xl border border-[#dfe2e8] bg-white p-2.5">
             <textarea
               aria-label="Message"
+              className="w-full resize-none border-0 bg-transparent text-[13px] leading-6 text-[#20232a] outline-none placeholder:text-[#a0a5af]"
               placeholder="Ask Yakable to build something..."
               rows={3}
             />
-            <div className="composer-actions">
-              <span>Enter to send</span>
-              <button type="button">Send</button>
+
+            <div className="flex items-center justify-between pt-2">
+              <span className="text-[11px] text-[#9ba0aa]">Enter to send</span>
+              <button
+                className="cursor-pointer rounded-lg bg-[#17191f] px-[11px] py-1.5 text-xs text-white"
+                type="button"
+              >
+                Send
+              </button>
             </div>
           </div>
         </aside>
 
-        <section className="files-panel">
-          <aside className="file-tree">
-            <div className="file-tree-header">Files</div>
+        <section className="grid min-h-0 min-w-0 grid-cols-[210px_minmax(0,1fr)] bg-[#fbfbfc] max-[900px]:grid-cols-[160px_minmax(0,1fr)] max-[720px]:min-h-[520px]">
+          <aside className="min-w-0 border-r border-[#e7e9ee] bg-[#f8f9fb]">
+            <div className="flex h-[42px] items-center border-b border-[#e7e9ee] px-3.5 text-[11px] font-bold tracking-[0.08em] text-[#777c87] uppercase">
+              Files
+            </div>
 
-            <div className="file-list">
+            <div className="px-1.5 py-2">
               {files.map((file) => (
                 <button
-                  className={`file-item ${file.active ? "active" : ""}`}
+                  className={[
+                    "flex w-full cursor-pointer items-center gap-[7px] rounded-md border-0 bg-transparent py-1.5 pr-2 text-left text-xs",
+                    file.level === 1 ? "pl-[30px]" : "pl-3.5",
+                    file.active
+                      ? "bg-[#eceef2] text-[#1e2229]"
+                      : "text-[#555b66] hover:bg-[#eceef2] hover:text-[#1e2229]",
+                  ].join(" ")}
                   key={`${file.level}-${file.name}`}
-                  style={{ paddingLeft: 14 + file.level * 16 }}
                   type="button"
                 >
-                  <span className="file-icon">
+                  <span className="w-3 text-center text-[#969ba5]">
                     {file.type === "folder" ? "▾" : "·"}
                   </span>
                   <span>{file.name}</span>
@@ -88,18 +111,21 @@ function App() {
             </div>
           </aside>
 
-          <section className="editor">
-            <div className="editor-tabs">
-              <div className="editor-tab active">App.tsx</div>
+          <section className="grid min-h-0 min-w-0 grid-rows-[42px_minmax(0,1fr)] bg-white">
+            <div className="flex items-end border-b border-[#e7e9ee] bg-[#fafbfc]">
+              <div className="flex h-[42px] items-center border-r border-[#e7e9ee] bg-white px-3.5 text-xs text-[#22262d]">
+                App.tsx
+              </div>
             </div>
 
-            <div className="editor-body">
-              <div className="line-numbers">
+            <div className="grid min-h-0 min-w-0 grid-cols-[48px_minmax(0,1fr)] overflow-auto bg-white py-3.5">
+              <div className="flex select-none flex-col items-end pr-3 font-mono text-xs leading-[1.7] text-[#b0b4bc]">
                 {code.split("\n").map((_, index) => (
                   <span key={index}>{index + 1}</span>
                 ))}
               </div>
-              <pre>
+
+              <pre className="m-0 min-w-max pr-6 font-mono text-xs leading-[1.7] whitespace-pre text-[#272b33]">
                 <code>{code}</code>
               </pre>
             </div>
