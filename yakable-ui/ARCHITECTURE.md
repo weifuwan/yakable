@@ -54,15 +54,11 @@ A page should answer "what is shown here?" rather than own API clients, protocol
 
 Features own product capabilities.
 
-Current owners:
+The directory is intentionally empty at this baseline. Old demo feature implementations were removed instead of being treated as production architecture.
 
-- `project`: project contracts, project CRUD/runtime API, project creation, project cards and composer.
-- `editor`: workspace editor behavior and edit execution.
-- `preview`: browser-only preview observation and visual-selection behavior.
-- `agent-run`: agent protocol, progress events, run details, cancellation UI.
-- `workspace`: project-building workspace state and UI.
+Add one feature at a time only after its ownership and contract are understood. Likely future areas include Project, Workspace, Editor, Preview, and Agent Run.
 
-Feature-specific types, APIs and components should stay with their feature.
+Feature-specific types, APIs, state, hooks, and components should stay with their feature once that feature exists.
 
 ## shared
 

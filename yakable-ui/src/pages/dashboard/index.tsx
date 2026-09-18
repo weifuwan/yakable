@@ -1,58 +1,20 @@
-import { useState } from "react";
+import { AppShell } from '@/app/layout/Layout';
 
-import type { ProjectListItem } from "@/features/project/model/types";
-import { DashboardContent } from "./components/DashboardContent";
-import { DashboardLayout } from "./components/DashboardLayout";
-
-export function Dashboard({
-  projects,
-  loading,
-  pathname,
-  onCreate,
-  onOpen,
-  onNavigate,
-}: {
-  projects: ProjectListItem[];
-  loading: boolean;
-  pathname: string;
-  onCreate: (prompt: string) => Promise<void>;
-  onOpen: (id: string) => Promise<void>;
-  onNavigate: (path: string) => void;
-}) {
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState("");
-
-  async function create(prompt: string) {
-    setCreating(true);
-    setCreateError("");
-    try {
-      await onCreate(prompt);
-    } catch (error) {
-      setCreateError(
-        error instanceof Error
-          ? error.message
-          : "Yakable could not finish this request. Please try again.",
-      );
-    } finally {
-      setCreating(false);
-    }
-  }
-
+export function DashboardPage() {
   return (
-    <DashboardLayout
-      pathname={pathname}
-      projects={projects}
-      onNavigate={onNavigate}
-    >
-      <DashboardContent
-        pathname={pathname}
-        projects={projects}
-        loading={loading}
-        creating={creating}
-        createError={createError}
-        onCreate={create}
-        onOpen={onOpen}
-      />
-    </DashboardLayout>
+    <AppShell>
+      <div className="flex min-h-[calc(100vh-3rem)] items-center justify-center px-6 py-16">
+        <div className="max-w-lg text-center">
+          <h1 className="m-0 text-2xl font-semibold tracking-[-0.025em]">
+            Yakable
+          </h1>
+          <p className="mb-0 mt-3 text-sm leading-6 text-black/45">
+            Frontend architecture baseline is ready. Product features will be rebuilt one at a time.
+          </p>
+        </div>
+      </div>
+    </AppShell>
   );
 }
+
+export { DashboardPage as Dashboard };
