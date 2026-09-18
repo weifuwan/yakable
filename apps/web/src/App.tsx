@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getCurrentProject, type Project } from "./project";
 import {
   listWorkspaceFiles,
   readWorkspaceFile,
@@ -14,6 +15,7 @@ const indentClasses = [
 ];
 
 function App() {
+  const [project, setProject] = useState<Project | null>(null);
   const [entries, setEntries] = useState<WorkspaceEntry[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [content, setContent] = useState("");
@@ -22,10 +24,11 @@ function App() {
   useEffect(() => {
     let cancelled = false;
 
-    listWorkspaceFiles()
-      .then((nextEntries) => {
+    Promise.all([getCurrentProject(), listWorkspaceFiles()])
+      .then(([currentProject, nextEntries]) => {
         if (cancelled) return;
 
+        setProject(currentProject);
         setEntries(nextEntries);
         const initialFile =
           nextEntries.find((entry) => entry.path === "src/App.tsx") ??
@@ -81,7 +84,7 @@ function App() {
         </div>
 
         <div className="overflow-hidden text-center text-[13px] text-[#6d7280] text-ellipsis whitespace-nowrap max-[720px]:hidden">
-          Default workspace
+          {project?.name ?? "Loading project..."}
         </div>
 
         <button

@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { WorkspaceService } from "@yakable/workspace";
+import type { ProjectService } from "@yakable/project";
 import { sendJson } from "../http/json.js";
+import { createProjectRoutes } from "./project.routes.js";
 import { createWorkspaceRoutes } from "./workspace.routes.js";
 
 export type RouteHandler = (
@@ -10,12 +11,15 @@ export type RouteHandler = (
 ) => boolean | Promise<boolean>;
 
 type RoutesOptions = {
-  workspaceId: string;
-  workspace: WorkspaceService;
+  currentProjectId: string;
+  projectService: ProjectService;
 };
 
 export function createRoutes(options: RoutesOptions): RouteHandler {
-  const routes: RouteHandler[] = [createWorkspaceRoutes(options)];
+  const routes: RouteHandler[] = [
+    createProjectRoutes(options),
+    createWorkspaceRoutes(options),
+  ];
 
   return async (request, response, url) => {
     for (const route of routes) {

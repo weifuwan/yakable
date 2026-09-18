@@ -1,26 +1,29 @@
-import type { IncomingMessage, ServerResponse } from "node:http";
-import type { WorkspaceService } from "@yakable/workspace";
+import type { ProjectService } from "@yakable/project";
 import { HttpError } from "../http/error.js";
 import { readJsonBody, sendJson } from "../http/json.js";
 import type { RouteHandler } from "./index.js";
 
 type WorkspaceRoutesOptions = {
-  workspaceId: string;
-  workspace: WorkspaceService;
+  currentProjectId: string;
+  projectService: ProjectService;
 };
 
 export function createWorkspaceRoutes({
-  workspaceId,
-  workspace,
+  currentProjectId,
+  projectService,
 }: WorkspaceRoutesOptions): RouteHandler {
   return async (request, response, url) => {
     if (!url.pathname.startsWith("/api/workspace")) {
       return false;
     }
 
+    const project = await projectService.getProject(currentProjectId);
+    const workspace = await projectService.getWorkspace(project.id);
+
     if (request.method === "GET" && url.pathname === "/api/workspace/tree") {
       sendJson(response, 200, {
-        workspaceId,
+        projectId: project.id,
+        workspaceId: project.workspaceId,
         entries: await workspace.listFiles(),
       });
       return true;
@@ -30,6 +33,8 @@ export function createWorkspaceRoutes({
       const filePath = requiredPath(url);
 
       sendJson(response, 200, {
+        projectId: project.id,
+        workspaceId: project.workspaceId,
         path: filePath,
         content: await workspace.readFile(filePath),
       });

@@ -9,6 +9,7 @@
     "build": "tsc --noEmit"
   },
   "dependencies": {
+    "@yakable/project": "0.0.0",
     "@yakable/workspace": "0.0.0"
   },
   "devDependencies": {

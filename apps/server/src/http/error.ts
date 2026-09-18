@@ -1,4 +1,5 @@
 import type { ServerResponse } from "node:http";
+import { ProjectNotFoundError } from "@yakable/project";
 import { WorkspacePathError } from "@yakable/workspace";
 import { sendJson } from "./json.js";
 
@@ -18,6 +19,11 @@ export function handleHttpError(
 ): void {
   if (error instanceof HttpError) {
     sendJson(response, error.statusCode, { error: error.message });
+    return;
+  }
+
+  if (error instanceof ProjectNotFoundError) {
+    sendJson(response, 404, { error: error.message });
     return;
   }
 

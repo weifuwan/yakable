@@ -2,24 +2,23 @@ import {
   createServer as createNodeServer,
   type Server as NodeServer,
 } from "node:http";
-import { WorkspaceService } from "@yakable/workspace";
+import { ProjectService } from "@yakable/project";
 import type { ServerConfig } from "./config.js";
 import { handleHttpError } from "./http/error.js";
-import { createRoutes } from "./routes/index.js";
+import { sendJson } from "./http/json.js";
+import { createRoutes, type RouteHandler } from "./routes/index.js";
 
 export function createServer(config: ServerConfig) {
-  const workspace = new WorkspaceService(
-    config.workspace.rootPath,
-    config.workspace.templatePath,
-  );
-
-  const routes = createRoutes({
-    workspaceId: config.workspace.id,
-    workspace,
-  });
+  const projectService = new ProjectService(config.project);
+  let routes: RouteHandler | undefined;
 
   const server: NodeServer = createNodeServer(async (request, response) => {
     try {
+      if (!routes) {
+        sendJson(response, 503, { error: "Server is starting" });
+        return;
+      }
+
       const url = new URL(request.url ?? "/", "http://localhost");
       await routes(request, response, url);
     } catch (error) {
@@ -29,7 +28,12 @@ export function createServer(config: ServerConfig) {
 
   return {
     async start(): Promise<void> {
-      await workspace.ensure();
+      const currentProject = await projectService.ensureDefaultProject();
+
+      routes = createRoutes({
+        currentProjectId: currentProject.id,
+        projectService,
+      });
 
       await new Promise<void>((resolve, reject) => {
         server.once("error", reject);
