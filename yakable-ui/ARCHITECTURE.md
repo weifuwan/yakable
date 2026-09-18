@@ -9,6 +9,8 @@ src/
 │   ├── providers/
 │   ├── router/
 │   ├── layout/
+│   ├── navigation/
+│   │   └── sidebar/
 │   └── styles/
 ├── assets/
 ├── pages/
@@ -48,6 +50,8 @@ Owns application composition, routing, global layout, and global styles.
 - `App.tsx` is the composition entry and should stay thin.
 - `app/providers` owns application-wide framework providers and root runtime wrappers.
 - `app/router` owns browser routing and route registration.
+- `app/layout` owns route-level application composition such as the persistent sidebar and page outlet.
+- `app/navigation` owns application-level static navigation such as Dashboard.
 - `app/styles` owns application-wide CSS and app-global style resources such as font binaries.
 - `main.tsx` only mounts the React application; app-wide wrappers belong in `app/providers`.
 - Feature-specific providers and domain state stay with their owning feature.
@@ -80,6 +84,18 @@ Shared contains infrastructure and UI primitives that have no product-feature ow
 - `shared/ui`: reusable Yakable product UI primitives.
 
 Shared must not know Project, Editor, Agent Run, or Workspace business rules.
+
+## Navigation boundary
+
+Navigation follows ownership instead of living in one global menu registry.
+
+- application-level static entries live in `app/navigation`.
+- dynamic project entries such as Recents stay in the `project` feature because their data comes from the Project API.
+- feature-private navigation belongs to the owning feature when that feature needs it.
+- URL state determines the active item; do not duplicate the selected route in global state.
+- only shipped capabilities appear in navigation. Do not pre-create placeholder entries for Search, Library, Templates, Settings, or other future features.
+
+The current sidebar intentionally contains only Dashboard and Recent Projects.
 
 ## Asset boundary
 
