@@ -1,8 +1,4 @@
-export {
-  abortError,
-  isAbortError,
-  throwIfAborted,
-} from './abort';
+export { isAbortError } from './abort';
 export {
   request,
   requestJson,
@@ -10,14 +6,11 @@ export {
 } from './client';
 export {
   ApiError,
-  createHttpError,
   isApiError,
   type ApiErrorKind,
-  type ApiErrorOptions,
 } from './error';
 export {
   parseJsonLine,
-  readNdjson,
   requestNdjson,
   type NdjsonParser,
 } from './stream';
