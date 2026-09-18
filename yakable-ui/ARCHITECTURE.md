@@ -20,6 +20,7 @@ src/
 │   ├── agent-run/
 │   ├── editor/
 │   ├── preview/
+│   ├── model/
 │   ├── project/
 │   └── workspace/
 ├── shared/
@@ -71,7 +72,7 @@ A page should answer "what is shown here?" rather than own API clients, protocol
 
 Features own product capabilities.
 
-`project` is the first implemented feature and owns the Dashboard project-query slice: its response model, endpoint call, loading state, and project presentation.
+`project` owns Dashboard project interactions and project-query state. `model` owns model identity and selection UI; its current catalog is local until a real model API exists.
 
 Add one feature at a time only after its ownership and contract are understood. Likely future areas include Workspace, Editor, Preview, and Agent Run.
 
@@ -85,7 +86,7 @@ Shared contains infrastructure and UI primitives that have no product-feature ow
 - `shared/lib`: framework-independent or browser-generic helpers.
 - `shared/ui`: reusable Yakable product UI primitives.
 
-Shared must not know Project, Editor, Agent Run, or Workspace business rules.
+Shared must not know Project, Model, Editor, Agent Run, or Workspace business rules.
 
 ## Navigation boundary
 

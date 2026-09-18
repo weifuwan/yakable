@@ -2,9 +2,10 @@
 
 Features own Yakable product capabilities.
 
-The first implemented feature is:
+Implemented feature boundaries include:
 
-- `project`: project query ownership used by the Dashboard vertical slice
+- `project`: project query and Dashboard project interaction ownership
+- `model`: model identity and selector ownership; the first catalog is local until a backend model endpoint exists
 
 Add one feature at a time only after its ownership, contract, API boundary, state model, and UI responsibility are understood.
 
