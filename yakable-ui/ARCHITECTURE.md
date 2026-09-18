@@ -53,6 +53,8 @@ Owns application composition, routing, global layout, and global styles.
 - `app/layout` owns route-level application composition such as the persistent sidebar and page outlet.
 - `app/navigation` owns application-level static navigation such as Dashboard.
 - `app/styles` owns application-wide CSS and app-global style resources such as font binaries.
+- global CSS is limited to reset, typography, theme, and viewport rules; page or feature visuals stay with their owner.
+- do not target page structure from global CSS with positional selectors such as `main > section:first-of-type`; use an explicit component class when a visual effect has a real owner.
 - `main.tsx` only mounts the React application; app-wide wrappers belong in `app/providers`.
 - Feature-specific providers and domain state stay with their owning feature.
 - Pages and features must not implement their own `window.history` / `popstate` routing.
