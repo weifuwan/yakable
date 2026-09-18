@@ -18,4 +18,19 @@ describe('CreateProjectComposer', () => {
 
     expect((submitButton as HTMLButtonElement).disabled).toBe(false);
   });
+
+  it('composes the model selector immediately before the create action', () => {
+    render(<CreateProjectComposer />);
+
+    const modelButton = screen.getByRole('button', { name: 'Select model' });
+    const submitButton = screen.getByRole('button', { name: 'Create project' });
+
+    expect(modelButton.textContent).toContain('DeepSeek');
+
+    fireEvent.click(modelButton);
+    fireEvent.click(screen.getByRole('option', { name: 'Kimi' }));
+
+    expect(modelButton.textContent).toContain('Kimi');
+    expect(submitButton).toBeTruthy();
+  });
 });
