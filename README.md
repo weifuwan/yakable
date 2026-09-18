@@ -1,12 +1,24 @@
 # Yakable
 
-Yakable is starting again from a minimal frontend foundation.
+Yakable is built as a small monorepo with clear application and domain boundaries.
 
-## Stack
+## Structure
 
-- Vite
-- React
-- TypeScript
+```text
+apps/
+  web/        Yakable frontend
+  server/     Yakable backend
+
+packages/
+  project/    Project domain
+  workspace/  Workspace domain
+  agent/      Agent domain
+  harness/    Frontend Harness
+  runtime/    Runtime domain
+
+templates/
+  react-vite/ Default project template
+```
 
 ## Run
 
@@ -15,4 +27,4 @@ npm install
 npm run dev
 ```
 
-For now, keep the project small and add capabilities only when they are actually needed.
+The frontend runs through Vite and proxies `/api` to the Yakable server.
