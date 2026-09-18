@@ -1,4 +1,7 @@
-import type { ProjectService } from "@yakable/project";
+import {
+  ProjectNotFoundError,
+  type ProjectService,
+} from "@yakable/project";
 import type { FastifyPluginAsync } from "fastify";
 import { HttpError } from "../http/error.js";
 
@@ -15,6 +18,15 @@ export const projectRoutes: FastifyPluginAsync<ProjectRoutesOptions> = async (
   app,
   { currentProjectId, projectService },
 ) => {
+  app.setErrorHandler((error, _request, reply) => {
+    if (error instanceof ProjectNotFoundError) {
+      reply.code(404).send({ error: error.message });
+      return;
+    }
+
+    throw error;
+  });
+
   app.get("/current", async () => {
     return projectService.getProject(currentProjectId);
   });

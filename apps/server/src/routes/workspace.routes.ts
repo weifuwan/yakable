@@ -1,4 +1,8 @@
-import type { ProjectService } from "@yakable/project";
+import {
+  ProjectNotFoundError,
+  type ProjectService,
+} from "@yakable/project";
+import { WorkspacePathError } from "@yakable/workspace";
 import type { FastifyPluginAsync } from "fastify";
 import { HttpError } from "../http/error.js";
 
@@ -20,6 +24,20 @@ export const workspaceRoutes: FastifyPluginAsync<WorkspaceRoutesOptions> = async
   app,
   { currentProjectId, projectService },
 ) => {
+  app.setErrorHandler((error, _request, reply) => {
+    if (error instanceof ProjectNotFoundError) {
+      reply.code(404).send({ error: error.message });
+      return;
+    }
+
+    if (error instanceof WorkspacePathError) {
+      reply.code(400).send({ error: error.message });
+      return;
+    }
+
+    throw error;
+  });
+
   app.get("/tree", async () => {
     const { project, workspace } = await resolveWorkspace(
       currentProjectId,
