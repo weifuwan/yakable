@@ -1,4 +1,8 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import {
+  forwardRef,
+  type ButtonHTMLAttributes,
+  type ReactNode,
+} from 'react';
 
 import { cx } from '../cx';
 
@@ -25,26 +29,32 @@ const sizes: Record<IconButtonSize, string> = {
   md: 'h-9 w-9',
 };
 
-export function IconButton({
-  children,
-  className,
-  variant = 'ghost',
-  size = 'md',
-  type = 'button',
-  ...props
-}: IconButtonProps) {
-  return (
-    <button
-      type={type}
-      className={cx(
-        'inline-flex shrink-0 items-center justify-center rounded-lg outline-none transition-colors focus-visible:ring-2 focus-visible:ring-black/30 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-40',
-        variants[variant],
-        sizes[size],
-        className,
-      )}
-      {...props}
-    >
-      {children}
-    </button>
-  );
-}
+export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
+  function IconButton(
+    {
+      children,
+      className,
+      variant = 'ghost',
+      size = 'md',
+      type = 'button',
+      ...props
+    },
+    ref,
+  ) {
+    return (
+      <button
+        ref={ref}
+        type={type}
+        className={cx(
+          'inline-flex shrink-0 items-center justify-center rounded-lg outline-none transition-colors focus-visible:ring-2 focus-visible:ring-black/30 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-40',
+          variants[variant],
+          sizes[size],
+          className,
+        )}
+        {...props}
+      >
+        {children}
+      </button>
+    );
+  },
+);
