@@ -157,3 +157,15 @@ This architecture refactor does not yet introduce:
 - a separately published UI package
 
 Those should be introduced only when a concrete product or engineering problem requires them.
+
+
+## Engineering checks
+
+Frontend architecture rules are backed by executable checks rather than review convention alone.
+
+- `npm run typecheck` owns TypeScript correctness.
+- `npm run lint` owns static code rules.
+- `npm run format:check` owns code formatting.
+- `npm run check` is the local aggregate quality gate.
+
+See [docs/tooling.md](./docs/tooling.md) for the tooling contract.
