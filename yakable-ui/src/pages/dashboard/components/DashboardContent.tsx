@@ -1,5 +1,5 @@
-import type { ProjectListItem } from "../../../api";
-import { ProjectGallery } from "../../../components/ProjectGallery";
+import type { ProjectListItem } from "@/features/project/model/types";
+import { ProjectGallery } from "@/features/project/components/ProjectGallery";
 import { AllFiles } from "../views/AllFiles";
 import { DesignSystemsPage } from "../views/DesignSystems";
 import { FilesPage } from "../views/Files";

@@ -1,6 +1,6 @@
-import type { ProjectListItem } from "../../../api";
-import { Composer } from "../../../components/Composer";
-import { ProjectGallery } from "../../../components/ProjectGallery";
+import type { ProjectListItem } from "@/features/project/model/types";
+import { Composer } from "@/features/project/components/Composer";
+import { ProjectGallery } from "@/features/project/components/ProjectGallery";
 
 export function DashboardHome({
   projects,
