@@ -2,4 +2,4 @@ export {
   WorkspacePathError,
   WorkspaceService,
   type WorkspaceEntry,
-} from "./WorkspaceService";
+} from "./WorkspaceService.js";
