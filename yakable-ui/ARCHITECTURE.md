@@ -6,6 +6,7 @@ Yakable UI is organized by ownership instead of by file type.
 src/
 ├── app/
 │   ├── App.tsx
+│   ├── router/
 │   ├── layout/
 │   └── styles/
 ├── pages/
@@ -40,7 +41,11 @@ Dependencies should point downward. Shared code must not import product features
 
 ## app
 
-Owns application composition, global layout, global styles, and route-level orchestration.
+Owns application composition, routing, global layout, and global styles.
+
+- `App.tsx` is the composition entry and should stay thin.
+- `app/router` owns browser routing and route registration.
+- Pages and features must not implement their own `window.history` / `popstate` routing.
 
 It should not become a dumping ground for domain logic.
 
@@ -101,7 +106,6 @@ The two may share design ideas, but they have different owners and must not be c
 
 This architecture refactor does not yet introduce:
 
-- React Router
 - TanStack Query
 - Zustand
 - a pnpm workspace / Turborepo
