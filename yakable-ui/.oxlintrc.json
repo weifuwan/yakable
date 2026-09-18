@@ -1,0 +1,39 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": [
+    "eslint",
+    "typescript",
+    "unicorn",
+    "oxc",
+    "react",
+    "jsx-a11y"
+  ],
+  "env": {
+    "browser": true,
+    "es2022": true
+  },
+  "settings": {
+    "react": {
+      "version": "18.3.1"
+    }
+  },
+  "rules": {
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "error"
+  },
+  "options": {
+    "denyWarnings": true,
+    "reportUnusedDisableDirectives": "error"
+  },
+  "overrides": [
+    {
+      "files": [
+        "vite.config.ts"
+      ],
+      "env": {
+        "browser": false,
+        "node": true
+      }
+    }
+  ]
+}
