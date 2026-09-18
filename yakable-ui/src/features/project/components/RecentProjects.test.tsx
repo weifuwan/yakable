@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { ProjectsProvider } from '../context/ProjectsProvider';
 import { RecentProjects } from './RecentProjects';
 
 afterEach(() => {
@@ -26,7 +27,9 @@ describe('RecentProjects', () => {
 
     render(
       <MemoryRouter initialEntries={['/projects/project-5']}>
-        <RecentProjects />
+        <ProjectsProvider>
+          <RecentProjects />
+        </ProjectsProvider>
       </MemoryRouter>,
     );
 
