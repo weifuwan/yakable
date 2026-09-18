@@ -9,8 +9,10 @@
     "build": "tsc --noEmit"
   },
   "dependencies": {
+    "@yakable/agent": "0.0.0",
     "@yakable/project": "0.0.0",
     "@yakable/workspace": "0.0.0",
+    "dotenv": "^16.4.7",
     "fastify": "^5.2.2"
   },
   "devDependencies": {

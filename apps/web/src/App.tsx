@@ -1,9 +1,6 @@
 import { useEffect, useState } from "react";
-import {
-  createProject,
-  getDefaultProject,
-  type Project,
-} from "./project";
+import { runAgent } from "./agent";
+import { createProject, type Project } from "./project";
 import {
   listWorkspaceFiles,
   readWorkspaceFile,
@@ -14,12 +11,6 @@ type ChatMessage = {
   id: number;
   role: "assistant" | "user";
   content: string;
-};
-
-type WorkspaceSnapshot = {
-  entries: WorkspaceEntry[];
-  selectedPath: string | null;
-  showCodeWorkspace: boolean;
 };
 
 const indentClasses = [
@@ -45,54 +36,9 @@ function App() {
   const [content, setContent] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [prompt, setPrompt] = useState("");
-  const [isCreatingProject, setIsCreatingProject] = useState(false);
-  const [isLoadingWorkspace, setIsLoadingWorkspace] = useState(true);
+  const [isBuilding, setIsBuilding] = useState(false);
   const [showCodeWorkspace, setShowCodeWorkspace] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    setIsLoadingWorkspace(true);
-
-    getDefaultProject()
-      .then(async (currentProject) => {
-        const snapshot = await loadWorkspaceSnapshot(currentProject.id);
-
-        if (cancelled) return;
-
-        setProject(currentProject);
-        applyWorkspaceSnapshot(snapshot);
-      })
-      .catch((reason: unknown) => {
-        if (!cancelled) {
-          setError(
-            reason instanceof Error
-              ? reason.message
-              : "Failed to load workspace",
-          );
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setIsLoadingWorkspace(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-
-    function applyWorkspaceSnapshot(snapshot: WorkspaceSnapshot): void {
-      setEntries(snapshot.entries);
-      setSelectedPath(snapshot.selectedPath);
-      setShowCodeWorkspace(snapshot.showCodeWorkspace);
-
-      if (!snapshot.showCodeWorkspace) {
-        setContent("");
-      }
-    }
-  }, []);
 
   useEffect(() => {
     if (!project || !selectedPath || !showCodeWorkspace) {
@@ -125,7 +71,7 @@ function App() {
   async function handleSubmit(): Promise<void> {
     const userPrompt = prompt.trim();
 
-    if (!userPrompt || isCreatingProject) {
+    if (!userPrompt || isBuilding) {
       return;
     }
 
@@ -139,29 +85,36 @@ function App() {
     ]);
     setPrompt("");
     setError(null);
-    setIsCreatingProject(true);
+    setIsBuilding(true);
 
     try {
-      const nextProject = await createProject(userPrompt);
-      const snapshot = await loadWorkspaceSnapshot(nextProject.id);
+      let activeProject = project;
 
-      setContent("");
-      setProject(nextProject);
-      setEntries(snapshot.entries);
-      setSelectedPath(snapshot.selectedPath);
-      setShowCodeWorkspace(snapshot.showCodeWorkspace);
+      if (!activeProject) {
+        activeProject = await createProject(userPrompt);
+        setProject(activeProject);
+      }
+
+      const result = await runAgent(activeProject.id, userPrompt);
+      const nextEntries = await listWorkspaceFiles(activeProject.id);
+      const nextSelectedPath =
+        result.changedFiles[0] ?? findInitialFile(nextEntries);
+
+      setEntries(nextEntries);
+      setSelectedPath(nextSelectedPath);
+      setShowCodeWorkspace(true);
 
       setMessages((current) => [
         ...current,
         {
           id: Date.now() + 1,
           role: "assistant",
-          content: "Project created. Ready to build.",
+          content: `Done. Updated ${result.changedFiles.join(", ")}.`,
         },
       ]);
     } catch (reason: unknown) {
       const message =
-        reason instanceof Error ? reason.message : "Failed to create project";
+        reason instanceof Error ? reason.message : "Failed to build project";
 
       setError(message);
       setMessages((current) => [
@@ -169,12 +122,11 @@ function App() {
         {
           id: Date.now() + 1,
           role: "assistant",
-          content: `Failed to create project: ${message}`,
+          content: `Build failed: ${message}`,
         },
       ]);
     } finally {
-      setIsCreatingProject(false);
-      setIsLoadingWorkspace(false);
+      setIsBuilding(false);
     }
   }
 
@@ -191,7 +143,7 @@ function App() {
         </div>
 
         <div className="overflow-hidden text-center text-[13px] text-[#6d7280] text-ellipsis whitespace-nowrap max-[720px]:hidden">
-          {project?.name ?? "Loading project..."}
+          {project?.name ?? "New project"}
         </div>
 
         <button
@@ -230,7 +182,7 @@ function App() {
             <textarea
               aria-label="Message"
               className="w-full resize-none border-0 bg-transparent text-[13px] leading-6 text-[#20232a] outline-none placeholder:text-[#a0a5af]"
-              disabled={isCreatingProject}
+              disabled={isBuilding}
               onChange={(event) => setPrompt(event.target.value)}
               onKeyDown={(event) => {
                 if (
@@ -253,11 +205,11 @@ function App() {
               </span>
               <button
                 className="cursor-pointer rounded-lg bg-[#17191f] px-[11px] py-1.5 text-xs text-white disabled:cursor-not-allowed disabled:opacity-40"
-                disabled={!prompt.trim() || isCreatingProject}
+                disabled={!prompt.trim() || isBuilding}
                 onClick={() => void handleSubmit()}
                 type="button"
               >
-                {isCreatingProject ? "Creating..." : "Send"}
+                {isBuilding ? "Building..." : "Send"}
               </button>
             </div>
           </div>
@@ -350,12 +302,12 @@ function App() {
                   Y
                 </div>
                 <div className="text-[15px] font-semibold text-[#20232a]">
-                  {isLoadingWorkspace ? "Preparing workspace..." : "Ready to build"}
+                  {isBuilding ? "Building..." : "Ready to build"}
                 </div>
                 <div className="mt-2 text-[13px] leading-6 text-[#8a909b]">
-                  {isLoadingWorkspace
-                    ? "Setting up the project workspace."
-                    : "Describe what you want to build. Files will appear after the first code change."}
+                  {isBuilding
+                    ? "AI is generating src/App.tsx."
+                    : "Describe what you want to build."}
                 </div>
               </div>
             )}
@@ -364,18 +316,6 @@ function App() {
       </section>
     </main>
   );
-}
-
-async function loadWorkspaceSnapshot(
-  projectId: string,
-): Promise<WorkspaceSnapshot> {
-  const entries = await listWorkspaceFiles(projectId);
-
-  return {
-    entries,
-    selectedPath: findInitialFile(entries),
-    showCodeWorkspace: true,
-  };
 }
 
 function findInitialFile(entries: WorkspaceEntry[]): string | null {

@@ -1,4 +1,5 @@
 import Fastify from "fastify";
+import { AgentService } from "@yakable/agent";
 import { ProjectService } from "@yakable/project";
 import type { ServerConfig } from "./config.js";
 import { registerErrorHandler } from "./http/error.js";
@@ -10,14 +11,14 @@ export function createServer(config: ServerConfig) {
   });
 
   const projectService = new ProjectService(config.project);
+  const agentService = new AgentService(config.agent);
 
   registerErrorHandler(app);
 
   return {
     async start(): Promise<void> {
-      await projectService.ensureDefaultProject();
-
       await registerRoutes(app, {
+        agentService,
         projectService,
       });
 
