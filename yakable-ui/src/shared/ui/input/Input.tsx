@@ -1,11 +1,16 @@
-import type { InputHTMLAttributes } from 'react';
+import {
+  forwardRef,
+  type InputHTMLAttributes,
+} from 'react';
 
 import { cx } from '../cx';
 
 export type InputSize = 'sm' | 'md';
 
-export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
-  sizeVariant?: InputSize;
+export interface InputProps
+  extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
+  size?: InputSize;
+  htmlSize?: number;
 }
 
 const sizes: Record<InputSize, string> = {
@@ -13,19 +18,25 @@ const sizes: Record<InputSize, string> = {
   md: 'h-9 px-3 text-sm',
 };
 
-export function Input({
-  className,
-  sizeVariant = 'md',
-  ...props
-}: InputProps) {
+export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
+  {
+    className,
+    size = 'md',
+    htmlSize,
+    ...props
+  },
+  ref,
+) {
   return (
     <input
+      ref={ref}
+      size={htmlSize}
       className={cx(
         'w-full rounded-lg border border-black/[0.12] bg-white text-[#20201e] outline-none transition-colors placeholder:text-black/35 focus:border-black/30 focus:ring-2 focus:ring-black/[0.08] disabled:cursor-not-allowed disabled:bg-black/[0.03] disabled:text-black/40 aria-[invalid=true]:border-red-500/70 aria-[invalid=true]:focus:ring-red-500/10',
-        sizes[sizeVariant],
+        sizes[size],
         className,
       )}
       {...props}
     />
   );
-}
+});
