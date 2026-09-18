@@ -31,9 +31,16 @@ return requestJson<Project>('/api/projects', {
 });
 ```
 
+Cancellation uses the normal `signal` request option:
+
+```ts
+return requestJson<Project>('/api/projects/123', { signal });
+```
+
 ## Rules
 
 - pages and components do not call `fetch` directly
+- feature API modules import the public contract from `@/shared/api`, not transport internals
 - feature API modules do not reimplement HTTP error handling or stream readers
 - domain response validation and mapping belong to the owning feature
 - `shared/api` stays provider- and feature-agnostic
