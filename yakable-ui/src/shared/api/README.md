@@ -1,46 +1,38 @@
 # Shared API
 
-`shared/api` owns browser transport infrastructure only.
+`shared/api` is intentionally small.
 
-It may know about:
+It currently owns only generic API-related primitives that already have a clear reusable boundary:
 
-- HTTP requests and headers
-- JSON serialization / parsing
-- HTTP, network, and response parsing errors
-- AbortSignal handling
-- generic stream / NDJSON decoding
+- request cancellation classification
+- generic API error types
 
-It must not know about Product, Workspace, Editor, Agent Run, or any other product feature.
+It does not currently provide an HTTP client or stream abstraction.
 
-## Usage
+## Feature API rule
 
-Feature APIs describe business endpoints and use this transport boundary:
+Business endpoints belong to their owning feature:
 
-```ts
-import { requestJson } from '@/shared/api';
-
-return requestJson<Project>('/api/projects/123');
+```text
+page / component
+      ↓
+feature/api
+      ↓
+browser API
 ```
 
-For JSON request bodies, use the `json` option instead of manually stringifying:
+A feature API may use native `fetch` directly while the transport behavior is simple.
 
-```ts
-return requestJson<Project>('/api/projects', {
-  method: 'POST',
-  json: { name },
-});
-```
+Do not move endpoint paths, request/response models, or feature protocol rules into `shared/api`.
 
-Cancellation uses the normal `signal` request option:
+## When to add transport infrastructure
 
-```ts
-return requestJson<Project>('/api/projects/123', { signal });
-```
+Introduce a shared HTTP or stream abstraction only after repeated product code shows a concrete need, for example:
 
-## Rules
+- the same error normalization appears across several features
+- authentication or headers must be applied consistently
+- cancellation behavior is repeated
+- streaming decoding is repeated
+- retries, timeouts, or observability need one owner
 
-- pages and components do not call `fetch` directly
-- feature API modules import the public contract from `@/shared/api`, not transport internals
-- feature API modules do not reimplement HTTP error handling or stream readers
-- domain response validation and mapping belong to the owning feature
-- `shared/api` stays provider- and feature-agnostic
+Until then, native browser APIs are the simpler contract.
