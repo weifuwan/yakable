@@ -1,13 +1,16 @@
-const files = [
-  { name: "src", type: "folder", level: 0 },
-  { name: "App.tsx", type: "file", level: 1, active: true },
-  { name: "main.tsx", type: "file", level: 1 },
-  { name: "index.css", type: "file", level: 1 },
-  { name: "index.html", type: "file", level: 0 },
-  { name: "package.json", type: "file", level: 0 },
-];
+import { useState } from "react";
 
-const code = `function App() {
+type ProjectFile = {
+  name: string;
+  path: string;
+  content: string;
+};
+
+const projectFiles: ProjectFile[] = [
+  {
+    name: "App.tsx",
+    path: "src/App.tsx",
+    content: `function App() {
   return (
     <main>
       <h1>Yakable</h1>
@@ -15,9 +18,89 @@ const code = `function App() {
   );
 }
 
-export default App;`;
+export default App;`,
+  },
+  {
+    name: "main.tsx",
+    path: "src/main.tsx",
+    content: `import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import App from "./App";
+import "./index.css";
+
+createRoot(document.getElementById("root")!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+);`,
+  },
+  {
+    name: "index.css",
+    path: "src/index.css",
+    content: `@import "tailwindcss";`,
+  },
+  {
+    name: "index.html",
+    path: "index.html",
+    content: `<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Yakable" />
+    <title>Yakable</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>`,
+  },
+  {
+    name: "package.json",
+    path: "package.json",
+    content: `{
+  "name": "yakable",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "tailwindcss": "^4.1.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0"
+  }
+}`,
+  },
+];
+
+const fileTree = [
+  { name: "src", type: "folder", level: 0 },
+  { name: "App.tsx", path: "src/App.tsx", type: "file", level: 1 },
+  { name: "main.tsx", path: "src/main.tsx", type: "file", level: 1 },
+  { name: "index.css", path: "src/index.css", type: "file", level: 1 },
+  { name: "index.html", path: "index.html", type: "file", level: 0 },
+  { name: "package.json", path: "package.json", type: "file", level: 0 },
+] as const;
 
 function App() {
+  const [selectedPath, setSelectedPath] = useState("src/App.tsx");
+
+  const selectedFile =
+    projectFiles.find((file) => file.path === selectedPath) ?? projectFiles[0];
+
   return (
     <main className="grid h-screen w-screen grid-rows-[52px_minmax(0,1fr)] overflow-hidden bg-white text-[#16181d] max-[720px]:h-auto max-[720px]:min-h-screen max-[720px]:overflow-visible">
       <header className="grid grid-cols-[280px_1fr_auto] items-center gap-4 border-b border-[#e7e9ee] bg-white px-3.5 max-[720px]:grid-cols-[1fr_auto]">
@@ -90,43 +173,58 @@ function App() {
             </div>
 
             <div className="px-1.5 py-2">
-              {files.map((file) => (
-                <button
-                  className={[
-                    "flex w-full cursor-pointer items-center gap-[7px] rounded-md border-0 bg-transparent py-1.5 pr-2 text-left text-xs",
-                    file.level === 1 ? "pl-[30px]" : "pl-3.5",
-                    file.active
-                      ? "bg-[#eceef2] text-[#1e2229]"
-                      : "text-[#555b66] hover:bg-[#eceef2] hover:text-[#1e2229]",
-                  ].join(" ")}
-                  key={`${file.level}-${file.name}`}
-                  type="button"
-                >
-                  <span className="w-3 text-center text-[#969ba5]">
-                    {file.type === "folder" ? "▾" : "·"}
-                  </span>
-                  <span>{file.name}</span>
-                </button>
-              ))}
+              {fileTree.map((file) => {
+                if (file.type === "folder") {
+                  return (
+                    <div
+                      className="flex w-full items-center gap-[7px] py-1.5 pr-2 pl-3.5 text-xs text-[#555b66]"
+                      key={`${file.level}-${file.name}`}
+                    >
+                      <span className="w-3 text-center text-[#969ba5]">▾</span>
+                      <span>{file.name}</span>
+                    </div>
+                  );
+                }
+
+                const isActive = file.path === selectedPath;
+
+                return (
+                  <button
+                    className={[
+                      "flex w-full cursor-pointer items-center gap-[7px] rounded-md border-0 py-1.5 pr-2 text-left text-xs",
+                      file.level === 1 ? "pl-[30px]" : "pl-3.5",
+                      isActive
+                        ? "bg-[#eceef2] text-[#1e2229]"
+                        : "bg-transparent text-[#555b66] hover:bg-[#eceef2] hover:text-[#1e2229]",
+                    ].join(" ")}
+                    key={file.path}
+                    onClick={() => setSelectedPath(file.path)}
+                    type="button"
+                  >
+                    <span className="w-3 text-center text-[#969ba5]">·</span>
+                    <span>{file.name}</span>
+                  </button>
+                );
+              })}
             </div>
           </aside>
 
           <section className="grid min-h-0 min-w-0 grid-rows-[42px_minmax(0,1fr)] bg-white">
             <div className="flex items-end border-b border-[#e7e9ee] bg-[#fafbfc]">
               <div className="flex h-[42px] items-center border-r border-[#e7e9ee] bg-white px-3.5 text-xs text-[#22262d]">
-                App.tsx
+                {selectedFile.name}
               </div>
             </div>
 
             <div className="grid min-h-0 min-w-0 grid-cols-[48px_minmax(0,1fr)] overflow-auto bg-white py-3.5">
               <div className="flex select-none flex-col items-end pr-3 font-mono text-xs leading-[1.7] text-[#b0b4bc]">
-                {code.split("\n").map((_, index) => (
+                {selectedFile.content.split("\n").map((_, index) => (
                   <span key={index}>{index + 1}</span>
                 ))}
               </div>
 
               <pre className="m-0 min-w-max pr-6 font-mono text-xs leading-[1.7] whitespace-pre text-[#272b33]">
-                <code>{code}</code>
+                <code>{selectedFile.content}</code>
               </pre>
             </div>
           </section>
