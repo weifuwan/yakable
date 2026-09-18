@@ -1,19 +1,26 @@
-import type { SVGProps } from 'react';
+import {
+  forwardRef,
+  type SVGProps,
+} from 'react';
 
 export interface IconProps extends SVGProps<SVGSVGElement> {
   label?: string;
   size?: number | string;
 }
 
-export function Icon({
-  children,
-  label,
-  size = 16,
-  viewBox = '0 0 24 24',
-  ...props
-}: IconProps) {
+export const Icon = forwardRef<SVGSVGElement, IconProps>(function Icon(
+  {
+    children,
+    label,
+    size = 16,
+    viewBox = '0 0 24 24',
+    ...props
+  },
+  ref,
+) {
   return (
     <svg
+      ref={ref}
       width={size}
       height={size}
       viewBox={viewBox}
@@ -31,4 +38,4 @@ export function Icon({
       {children}
     </svg>
   );
-}
+});
