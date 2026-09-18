@@ -4,6 +4,17 @@ import { describe, expect, it, vi } from 'vitest';
 import { PromptComposer } from './PromptComposer';
 
 describe('PromptComposer', () => {
+  it('exposes the send tooltip used by the submit affordance', () => {
+    render(
+      <PromptComposer
+        onSubmit={() => false}
+        submitTooltip="Send prompt"
+      />,
+    );
+
+    expect(screen.getByRole('tooltip').textContent).toContain('Send prompt');
+  });
+
   it('enables submit only when the prompt contains non-whitespace text', () => {
     render(<PromptComposer onSubmit={() => false} />);
 

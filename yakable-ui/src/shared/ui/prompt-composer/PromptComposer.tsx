@@ -15,6 +15,7 @@ export interface PromptComposerProps {
   onSubmit?: PromptComposerSubmitHandler;
   placeholder?: string;
   submitLabel?: string;
+  submitTooltip?: string;
   trailingActions?: ReactNode;
 }
 
@@ -26,6 +27,7 @@ export function PromptComposer({
   onSubmit,
   placeholder = 'Ask Yakable to build...',
   submitLabel = 'Submit prompt',
+  submitTooltip = 'Send prompt',
   trailingActions,
 }: PromptComposerProps) {
   const {
@@ -73,6 +75,7 @@ export function PromptComposer({
         leadingActions={leadingActions}
         trailingActions={trailingActions}
         submitLabel={submitLabel}
+        submitTooltip={submitTooltip}
         onSubmit={() => {
           void submit();
         }}

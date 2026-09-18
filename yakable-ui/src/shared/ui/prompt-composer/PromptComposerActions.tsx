@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 
 import { Icon } from '../icon';
 
@@ -8,6 +8,7 @@ export function PromptComposerActions({
   leadingActions,
   onSubmit,
   submitLabel,
+  submitTooltip,
   trailingActions,
 }: {
   canSubmit: boolean;
@@ -15,33 +16,51 @@ export function PromptComposerActions({
   leadingActions?: ReactNode;
   onSubmit: () => void;
   submitLabel: string;
+  submitTooltip: string;
   trailingActions?: ReactNode;
 }) {
+  const tooltipId = useId();
+
   return (
     <div className="flex min-h-8 items-center justify-between gap-3 px-1">
       <div className="flex min-w-0 items-center gap-1">{leadingActions}</div>
 
       <div className="flex shrink-0 items-center gap-1.5">
         {trailingActions}
-        <button
-          type="button"
-          aria-label={submitLabel}
-          disabled={!canSubmit}
-          onClick={onSubmit}
-          className="inline-flex size-8 items-center justify-center rounded-full bg-[#20201e] text-white outline-none transition-colors hover:bg-[#343431] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black/50 disabled:pointer-events-none disabled:bg-black/[0.08] disabled:text-black/25"
-        >
-          {isSubmitting ? (
-            <span
-              aria-hidden="true"
-              className="size-3.5 animate-spin rounded-full border-2 border-current border-r-transparent"
-            />
-          ) : (
-            <Icon size={17}>
-              <path d="M12 19V5" />
-              <path d="m6.5 10.5 5.5-5.5 5.5 5.5" />
-            </Icon>
-          )}
-        </button>
+
+        <div className="group relative">
+          <span
+            id={tooltipId}
+            role="tooltip"
+            className="pointer-events-none absolute right-0 bottom-full z-20 mb-2 flex translate-y-1 items-center gap-1.5 whitespace-nowrap rounded-lg bg-[#20201e] px-2.5 py-1.5 text-xs font-medium text-white opacity-0 transition-[opacity,transform] duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
+          >
+            <span>{submitTooltip}</span>
+            <kbd className="rounded bg-white/10 px-1 py-0.5 text-[10px] leading-none text-white/70">
+              ↵
+            </kbd>
+          </span>
+
+          <button
+            type="button"
+            aria-label={submitLabel}
+            aria-describedby={tooltipId}
+            disabled={!canSubmit}
+            onClick={onSubmit}
+            className="inline-flex size-8 cursor-pointer items-center justify-center rounded-full bg-[#20201e] text-white outline-none transition-colors hover:bg-[#343431] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black/50 disabled:pointer-events-none disabled:cursor-default disabled:bg-black/[0.08] disabled:text-black/25"
+          >
+            {isSubmitting ? (
+              <span
+                aria-hidden="true"
+                className="size-3.5 animate-spin rounded-full border-2 border-current border-r-transparent"
+              />
+            ) : (
+              <Icon size={20} viewBox="0 0 20 20" strokeWidth={1.5}>
+                <path d="M10 15.5V4.5" />
+                <path d="M5.75 8.75 10 4.5l4.25 4.25" />
+              </Icon>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );
