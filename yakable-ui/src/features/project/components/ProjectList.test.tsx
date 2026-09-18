@@ -1,8 +1,12 @@
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ProjectList } from './ProjectList';
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe('ProjectList', () => {
   it('loads projects from the project API and renders the empty state', async () => {
@@ -19,7 +23,9 @@ describe('ProjectList', () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText('No projects yet')).toBeTruthy();
+    expect(
+      await screen.findByRole('heading', { name: 'No projects yet' }),
+    ).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/projects',
@@ -27,7 +33,5 @@ describe('ProjectList', () => {
         signal: expect.any(AbortSignal),
       }),
     );
-
-    vi.unstubAllGlobals();
   });
 });

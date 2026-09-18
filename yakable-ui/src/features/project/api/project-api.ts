@@ -7,9 +7,9 @@ function isProjectSummary(value: unknown): value is ProjectSummary {
 
   const project = value as Record<string, unknown>;
   return (
-    typeof project.id === 'string'
-    && typeof project.name === 'string'
-    && typeof project.updatedAt === 'string'
+    typeof project.id === 'string' &&
+    typeof project.name === 'string' &&
+    typeof project.updatedAt === 'string'
   );
 }
 

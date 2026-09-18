@@ -63,11 +63,11 @@ A page should answer "what is shown here?" rather than own API clients, protocol
 
 Features own product capabilities.
 
-The directory is intentionally empty at this baseline. Old demo feature implementations were removed instead of being treated as production architecture.
+`project` is the first implemented feature and owns the Dashboard project-query slice: its response model, endpoint call, loading state, and project presentation.
 
-Add one feature at a time only after its ownership and contract are understood. Likely future areas include Project, Workspace, Editor, Preview, and Agent Run.
+Add one feature at a time only after its ownership and contract are understood. Likely future areas include Workspace, Editor, Preview, and Agent Run.
 
-Feature-specific types, APIs, state, hooks, and components should stay with their feature once that feature exists.
+Feature-specific types, APIs, state, hooks, and components stay with their owning feature.
 
 ## shared
 
