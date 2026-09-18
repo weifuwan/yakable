@@ -32,7 +32,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       ref={ref}
       size={htmlSize}
       className={cx(
-        'w-full rounded-lg border border-black/[0.12] bg-white text-[#20201e] outline-none transition-colors placeholder:text-black/35 focus:border-black/30 focus:ring-2 focus:ring-black/[0.08] disabled:cursor-not-allowed disabled:bg-black/[0.03] disabled:text-black/40 aria-[invalid=true]:border-red-500/70 aria-[invalid=true]:focus:ring-red-500/10',
+        'w-full rounded-lg border border-black/[0.12] bg-white text-[#20201e] outline-none transition-colors placeholder:text-black/35 focus:border-black/30 focus:outline-2 focus:outline-offset-1 focus:outline-black/20 disabled:cursor-not-allowed disabled:bg-black/[0.03] disabled:text-black/40 aria-[invalid=true]:border-red-500/70 aria-[invalid=true]:focus:outline-red-500/30',
         sizes[size],
         className,
       )}
