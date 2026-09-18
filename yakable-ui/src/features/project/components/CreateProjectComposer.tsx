@@ -6,6 +6,7 @@ export function CreateProjectComposer() {
       ariaLabel="Describe the project you want to build"
       placeholder="Ask Yakable to build..."
       submitLabel="Create project"
+      onSubmit={() => false}
     />
   );
 }
