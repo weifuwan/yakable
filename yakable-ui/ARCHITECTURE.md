@@ -17,12 +17,9 @@ src/
 │   ├── dashboard/
 │   └── project/
 ├── features/
-│   ├── agent-run/
-│   ├── editor/
-│   ├── preview/
+│   ├── generation/
 │   ├── model/
-│   ├── project/
-│   └── workspace/
+│   └── project/
 ├── shared/
 │   ├── api/
 │   ├── lib/
@@ -81,13 +78,15 @@ Creating a project returns the id first, then navigation moves immediately to th
 
 Features own product capabilities.
 
-`project` owns Dashboard project interactions and project-query state. `model` owns model identity and selection UI; its current catalog is local until a real model API exists.
+`project` owns Dashboard project interactions and project-query state. `model` owns model identity and selection UI; its current catalog is local until a real model API exists. `generation` owns the lifecycle of one project generation run and the UI that presents backend-owned execution state.
 
 Add one feature at a time only after its ownership and contract are understood. Likely future areas include Workspace, Editor, Preview, and Agent Run.
 
 Feature-specific types, APIs, state, hooks, and components stay with their owning feature.
 
-The current Project backend persists through a repository port with a Boot-owned in-memory adapter. This is a development persistence boundary, not durable storage; replacing it with a database must not require changing Project command/query services.
+Generation status is never simulated in the browser. The frontend renders only states returned by the Generation API. The first real run starts with `PREPARING=RUNNING` and later steps pending until an executor advances them.
+
+The current Project and Generation backends persist through repository ports with Boot-owned in-memory adapters. These are development persistence boundaries, not durable storage; replacing them with database adapters must not require changing Core services.
 
 ## shared
 
