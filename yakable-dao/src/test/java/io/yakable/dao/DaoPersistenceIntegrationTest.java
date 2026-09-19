@@ -21,6 +21,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.ComponentScan;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -149,7 +150,7 @@ class DaoPersistenceIntegrationTest {
 
     @Test
     void transactionRunnerRollsBackAggregateBootstrap() {
-        Instant now = Instant.now();
+        Instant now = now();
         String projectId = UUID.randomUUID().toString();
         String sessionId = UUID.randomUUID().toString();
 
@@ -199,7 +200,7 @@ class DaoPersistenceIntegrationTest {
                     ready.countDown();
                     start.await();
 
-                    Instant now = Instant.now();
+                    Instant now = now();
                     Turn turn = pendingTurn(
                             UUID.randomUUID().toString(),
                             fixture.session().id(),
@@ -243,7 +244,7 @@ class DaoPersistenceIntegrationTest {
     }
 
     private Fixture createFixture() {
-        Instant now = Instant.now();
+        Instant now = now();
         Project project = project(
                 UUID.randomUUID().toString(),
                 now
@@ -270,6 +271,10 @@ class DaoPersistenceIntegrationTest {
                 ),
                 now
         );
+    }
+
+    private static Instant now() {
+        return Instant.now().truncatedTo(ChronoUnit.MICROS);
     }
 
     private static Project project(
