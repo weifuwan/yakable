@@ -1,7 +1,6 @@
 # Session Domain
 
-Yakable separates long-lived Project identity from conversational and execution
-state.
+Yakable separates long-lived Project identity from conversational and execution state.
 
 ## Domain model
 
@@ -28,8 +27,7 @@ updatedAt
 
 A Project does not own the initial prompt, selected model, or message history.
 
-Cross-aggregate Project/Session orchestration belongs to
-`yakable-application`:
+Cross-aggregate Project/Session orchestration belongs to `yakable-application`:
 
 ```text
 ProjectBootstrapService
@@ -60,11 +58,9 @@ ACTIVE
 ARCHIVED
 ```
 
-Provider and model belong to Session because different sessions of the same
-Project may use different model configurations.
+Provider and model belong to Session because different sessions of the same Project may use different model configurations.
 
-A Session is also the consistency boundary for Turn creation and Message
-ordering.
+A Session is also the consistency boundary for Turn creation and Message ordering.
 
 ### Turn
 
@@ -85,9 +81,7 @@ RUNNING -> SUCCEEDED
 RUNNING -> FAILED
 ```
 
-A Turn is not defined as exactly one USER Message plus one ASSISTANT Message.
-Future Agent execution may add tool calls, tool results, file changes,
-approvals, and other events without changing Session identity.
+A Turn is not defined as exactly one USER Message plus one ASSISTANT Message. Future Agent execution may add tool calls, tool results, file changes, approvals, and other events without changing Session identity.
 
 Only one active Turn is allowed in a Session at a time.
 
@@ -107,52 +101,114 @@ sequence
 createdAt
 ```
 
-Message ordering is explicit through `sequence`; repository iteration order is
-not part of the contract.
+Message ordering is explicit through `sequence`; repository iteration order is not part of the contract.
 
-Sequence allocation and Message persistence are one repository operation.
-Callers must never request a sequence first and persist a Message later.
+Sequence allocation and Message persistence are one repository operation. Callers must never request a sequence first and persist a Message later.
 
-## Repository consistency boundary
+## Persistence boundary
 
-Repository contracts live in `yakable-domain`. Implementations live in
-`yakable-infrastructure`.
+Repository contracts live in `yakable-domain`. MyBatis-Plus implementations live in `yakable-dao`.
+
+```text
+SessionExecutionRepository
+  -> SessionExecutionRepositoryAdapter
+  -> SessionExecutionDao
+  -> TurnMapper / MessageMapper
+  -> yak_turn / yak_message
+```
 
 `SessionExecutionRepository` must atomically guarantee:
 
 ```text
 createPendingTurn
-  -> verify no active Turn exists in the Session
+  -> lock Session row FOR UPDATE
+  -> verify no active Turn exists
   -> create PENDING Turn
   -> allocate Message sequence
   -> persist USER Message
 
 claimPendingTurn
+  -> conditional UPDATE
   -> PENDING -> RUNNING only when still PENDING
 
 completeTurn
+  -> lock Session row FOR UPDATE
+  -> RUNNING -> SUCCEEDED with conditional UPDATE
   -> allocate Message sequence
   -> persist ASSISTANT Message
-  -> RUNNING -> SUCCEEDED
 
 failTurn
-  -> RUNNING -> FAILED
+  -> RUNNING -> FAILED with conditional UPDATE
 ```
 
-This prevents:
+Database constraints include:
 
-- two concurrent active Turns in one Session;
-- duplicate model execution after repeated dispatch;
-- duplicate Message sequence allocation;
-- assistant Message persistence without a matching SUCCEEDED Turn.
+```text
+PRIMARY KEY for Project / Session / Turn / Message
+FOREIGN KEY Project -> Session -> Turn / Message
+UNIQUE (session_id, message_sequence)
+INDEX (session_id, status)
+```
 
-The current in-memory adapter uses a per-Session lock. A future database adapter
-must preserve the same semantics using transactions, constraints, and
-compare-and-set updates.
+This preserves:
+
+- one active Turn per Session;
+- duplicate execution protection;
+- unique ordered Message sequence;
+- no ASSISTANT Message without a matching successful Turn transition.
+
+## Application transactions
+
+Application owns transaction boundaries through `TransactionRunner`; the DAO module implements them with Spring transactions.
+
+Project bootstrap:
+
+```text
+transaction
+  -> create Project
+  -> create Session
+  -> create initial PENDING Turn + USER Message
+  -> touch Session
+commit
+  -> dispatch Turn
+```
+
+New Session Turn:
+
+```text
+transaction
+  -> create PENDING Turn + USER Message
+  -> touch Session
+commit
+  -> dispatch Turn
+```
+
+Model execution deliberately does not hold a database transaction:
+
+```text
+claim Turn transaction
+commit
+
+build context
+call ModelGateway
+
+success:
+  transaction
+    -> complete Turn
+    -> persist ASSISTANT Message
+    -> touch Session
+  commit
+
+failure:
+  transaction
+    -> fail Turn
+    -> touch Session
+  commit
+```
+
+The slow external LLM call is therefore outside a database transaction.
 
 ## Application services
-
-Session use cases live in `yakable-application`:
 
 ```text
 SessionCommandService
@@ -160,18 +216,18 @@ SessionCommandService
   -> persist/start Turn
 
 SessionTurnService
-  -> start Turn
-  -> request async dispatch
+  -> transaction around Turn creation
+  -> request dispatch after commit
 
 SessionQueryService
   -> read Session snapshot
   -> list Project Sessions
 
 TurnExecutor
-  -> claim Turn
+  -> atomically claim Turn
   -> build model context
-  -> call ModelGateway
-  -> complete/fail Turn
+  -> call ModelGateway outside DB transaction
+  -> persist completion/failure in a short transaction
 
 TurnPromptAssembler
   -> convert Session context into ModelRequest
@@ -182,18 +238,16 @@ The REST layer does not coordinate these steps.
 
 ## Project bootstrap
 
-Creating a Project starts its first Session and first Turn in one application
-use case:
-
 ```text
 POST /api/projects
   -> ProjectController
   -> ProjectBootstrapService
-       -> create Project
-       -> create Session
-       -> atomically create PENDING Turn + USER Message
-       -> TurnDispatcher
-  -> return Project + latestSessionId immediately
+       -> TransactionRunner
+            -> ProjectRepository
+            -> SessionRepository
+            -> SessionExecutionRepository
+       -> TurnDispatcher after commit
+  -> return Project + latestSessionId
 ```
 
 The frontend can navigate immediately to:
@@ -202,12 +256,7 @@ The frontend can navigate immediately to:
 /dashboard/project/:projectId/session/:sessionId
 ```
 
-Opening a Session page is read-only. Page mount must never create the initial
-Message or start a Turn.
-
-When database repositories are introduced, Project + Session + initial
-Turn/Message persistence should have an explicit transaction boundary.
-Dispatch should happen after durable state is available.
+Opening a Session page is read-only. Page mount must never create the initial Message or start a Turn.
 
 ## Session API
 
@@ -223,31 +272,25 @@ Start a new Turn:
 POST /api/projects/{projectId}/sessions/{sessionId}/turns
 ```
 
-The backend validates that the Session belongs to the Project. A mismatched
-Project/Session pair is treated as not found.
+The backend validates that the Session belongs to the Project. A mismatched Project/Session pair is treated as not found.
 
-The write request persists the USER Message and returns `202 Accepted` with a
-PENDING Turn. The Application layer requests execution through
-`TurnDispatcher`; the Infrastructure layer decides how dispatch is performed.
+The write request commits the USER Message before requesting asynchronous execution.
 
-The current adapter uses virtual threads. A queue or distributed worker can
-replace it without changing the REST or Domain model.
+The current dispatcher uses virtual threads. A queue or distributed worker can replace it without changing the REST or Domain model.
 
 ## Model boundary
-
-Session owns model selection but does not know provider HTTP details.
 
 ```text
 TurnExecutor
   -> TurnPromptAssembler
-  -> ModelGateway                  # application port
-  -> PluginModelGateway            # infrastructure adapter
+  -> ModelGateway                  # Application port
+  -> PluginModelGateway            # Infrastructure adapter
   -> ModelPluginRegistry
   -> ModelPlugin
   -> protocol client
 ```
 
-The Domain and Application layers do not import the model plugin API.
+Domain and Application do not import the model plugin API.
 
 Adding a provider must not require changing `TurnExecutor`.
 
@@ -261,42 +304,27 @@ all Messages from SUCCEEDED prior Turns
 Messages belonging to the current Turn
 ```
 
-Messages from FAILED Turns are preserved but excluded from automatic future
-model context.
-
-This prevents failed or incomplete execution from silently contaminating later
-prompts.
-
-## Project read model
-
-A Project may have multiple Sessions.
-
-Project list/detail responses expose:
-
-```text
-latestSessionId
-```
-
-rather than a generic `sessionId`.
+Messages from FAILED Turns are preserved but excluded from automatic future model context.
 
 ## Current persistence
 
-Repositories are currently in-memory infrastructure adapters.
+Persistence is now MySQL-backed through MyBatis-Plus.
 
-Replacing them with database repositories must preserve:
+Flyway owns the schema:
 
-- Project and Session identity separation;
-- Project-scoped Session access;
-- explicit Turn state transitions;
-- one active Turn per Session;
-- atomic Turn claim;
-- atomic Message sequence allocation;
-- atomic Turn completion with assistant Message;
-- failed-Turn context exclusion.
+```text
+yak_project
+yak_session
+yak_turn
+yak_message
+yakable_schema_history
+```
+
+Tests run the same migrations against H2 in MySQL compatibility mode and verify transaction rollback, ordered Message persistence, and concurrent active-Turn exclusion.
 
 ## Not in this phase
 
-This refactor intentionally does not introduce:
+This persistence refactor intentionally does not introduce:
 
 ```text
 SSE / token streaming
@@ -305,10 +333,8 @@ Tool calls
 Context compression
 Session branching
 Session summaries
-database persistence
 retry policies
 distributed workers
 ```
 
-Those capabilities should extend the existing boundaries rather than bypass
-them.
+Those capabilities should extend the existing Session/Turn and persistence boundaries rather than bypass them.

@@ -8,15 +8,19 @@ The backend is being rebuilt in Java. The previous TypeScript backend has been r
 
 ```text
 yakable/
-├── yakable-bom/       # Java dependency alignment
-├── yakable-common/    # Framework-independent shared types and utilities
-├── yakable-spi/       # Stable ports and extension contracts
-├── yakable-plugins/   # AutoService + ServiceLoader extension implementations
-├── yakable-core/      # Frontend Harness domain capabilities and runtime coordination
-├── yakable-boot/      # Spring Boot application and HTTP adapters
-├── yakable-ui/        # React + TypeScript browser application
-├── templates/         # Frontend project templates and capability assets
-└── docs/              # Architecture documentation
+├── yakable-bom/             # Java dependency alignment
+├── yakable-common/          # Business-agnostic shared types and utilities
+├── yakable-spi/             # Stable extension contracts
+├── yakable-domain/          # Domain model, invariants, repository ports
+├── yakable-application/     # Use cases and application ports
+├── yakable-dao/             # MyBatis-Plus persistence + Flyway migrations
+├── yakable-infrastructure/  # LLM runtime, async, external-system adapters
+├── yakable-interfaces/      # REST and other inbound adapters
+├── yakable-plugins/         # AutoService + ServiceLoader implementations
+├── yakable-boot/            # Spring Boot composition root
+├── yakable-ui/              # React + TypeScript browser application
+├── templates/               # Frontend project templates and capability assets
+└── docs/                    # Architecture documentation
 ```
 
 ## Backend
@@ -24,6 +28,7 @@ yakable/
 Requirements:
 
 - Java 21
+- MySQL 8+
 - Maven Wrapper is included
 
 Build:
@@ -32,37 +37,74 @@ Build:
 ./mvnw test
 ```
 
+Create an empty MySQL database named `yakable` (or point Yakable at another database). Flyway owns the application tables and migration history.
+
+Runtime database configuration:
+
+```text
+YAKABLE_DB_URL
+YAKABLE_DB_USERNAME
+YAKABLE_DB_PASSWORD
+```
+
+Defaults:
+
+```text
+YAKABLE_DB_URL=jdbc:mysql://127.0.0.1:3306/yakable?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+YAKABLE_DB_USERNAME=root
+YAKABLE_DB_PASSWORD=
+```
+
 Run:
 
 ```bash
+export YAKABLE_DB_USERNAME=root
+export YAKABLE_DB_PASSWORD=your-password
 export DEEPSEEK_API_KEY=your-api-key
+
 ./mvnw -pl yakable-boot -am spring-boot:run
 ```
 
-The first built-in model plugin is DeepSeek. Plugins are registered with AutoService and discovered at runtime through Java ServiceLoader. The backend reads:
+The first built-in model plugin is DeepSeek. Plugins are registered with AutoService and discovered at runtime through Java ServiceLoader. Model configuration:
 
 ```text
 DEEPSEEK_API_KEY       required for LLM calls
 DEEPSEEK_BASE_URL      optional, defaults to https://api.deepseek.com
 ```
 
-The backend dependency direction is:
+## Backend dependency direction
 
 ```text
 yakable-boot
-├──> yakable-core
-│      ├──> yakable-spi
-│      │      └──> yakable-common
-│      └──> yakable-plugin-model-api
-│
-└──> yakable-plugin-model-all
-       └──> yakable-plugin-model-deepseek
-              ├──> yakable-plugin-model-api
-              └──> yakable-plugin-model-openai-compatible
-                     └──> yakable-plugin-model-api
+  ├── yakable-interfaces
+  │     └── yakable-application
+  │             └── yakable-domain
+  │
+  ├── yakable-dao
+  │     ├── yakable-application
+  │     └── yakable-domain
+  │
+  └── yakable-infrastructure
+        ├── yakable-application
+        └── model plugin API
+
+yakable-plugin-model-*
+  └── AutoService / ServiceLoader provider implementations
 ```
 
-Core depends only on the stable model plugin API. Concrete providers are discovered through ServiceLoader and are not imported by Core or Boot.
+The persistence corridor is:
+
+```text
+Application
+  -> Domain Repository Port
+  -> Repository Adapter
+  -> DAO
+  -> MyBatis-Plus Mapper
+  -> PO
+  -> MySQL
+```
+
+Flyway migrations live in `yakable-dao/src/main/resources/db/migration/yakable`.
 
 The interaction domain is explicitly separated:
 
@@ -86,6 +128,6 @@ The frontend development server proxies `/api` to Spring Boot on port `8080`.
 
 ## Current baseline
 
-The Java modules currently establish the engineering skeleton only. Existing product APIs will be rebuilt incrementally in Java rather than copied mechanically from the removed TypeScript backend.
+Yakable now has explicit Domain, Application, Persistence, Infrastructure, Interface, and Boot boundaries. New backend capabilities should extend those boundaries rather than bypass them.
 
 Browser-only behavior remains in `yakable-ui`; backend orchestration and Harness capabilities belong in Java.

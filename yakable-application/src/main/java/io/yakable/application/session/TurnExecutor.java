@@ -3,6 +3,7 @@ package io.yakable.application.session;
 import io.yakable.application.model.ModelGateway;
 import io.yakable.application.model.ModelReply;
 import io.yakable.application.model.ModelRequest;
+import io.yakable.application.transaction.TransactionRunner;
 import io.yakable.domain.session.Session;
 import io.yakable.domain.session.SessionMessage;
 import io.yakable.domain.session.SessionNotFoundException;
@@ -26,12 +27,14 @@ public final class TurnExecutor {
     private final SessionExecutionRepository executionRepository;
     private final ModelGateway modelGateway;
     private final TurnPromptAssembler promptAssembler;
+    private final TransactionRunner transactionRunner;
 
     public TurnExecutor(
             SessionRepository sessionRepository,
             SessionExecutionRepository executionRepository,
             ModelGateway modelGateway,
-            TurnPromptAssembler promptAssembler
+            TurnPromptAssembler promptAssembler,
+            TransactionRunner transactionRunner
     ) {
         this.sessionRepository = Objects.requireNonNull(
                 sessionRepository,
@@ -48,6 +51,10 @@ public final class TurnExecutor {
         this.promptAssembler = Objects.requireNonNull(
                 promptAssembler,
                 "promptAssembler"
+        );
+        this.transactionRunner = Objects.requireNonNull(
+                transactionRunner,
+                "transactionRunner"
         );
     }
 
@@ -74,42 +81,77 @@ public final class TurnExecutor {
             return false;
         }
 
-        Instant completedAt;
-        try {
-            List<SessionMessage> context = buildModelContext(
-                    session.id(),
-                    runningTurn.id()
-            );
-            ModelRequest request = promptAssembler.assemble(
-                    session,
-                    context
-            );
+        List<SessionMessage> context = buildModelContext(
+                session.id(),
+                runningTurn.id()
+        );
+        ModelRequest request = promptAssembler.assemble(
+                session,
+                context
+        );
 
-            ModelReply response = modelGateway.chat(
+        ModelReply response;
+        try {
+            response = modelGateway.chat(
                     session.provider(),
                     request
             );
+        } catch (RuntimeException exception) {
+            persistFailure(
+                    session,
+                    runningTurn,
+                    exception
+            );
+            throw exception;
+        }
 
-            completedAt = Instant.now();
+        persistSuccess(
+                session,
+                runningTurn,
+                response
+        );
+        return true;
+    }
+
+    private void persistSuccess(
+            Session session,
+            Turn runningTurn,
+            ModelReply response
+    ) {
+        Instant completedAt = Instant.now();
+
+        transactionRunner.required(() -> {
             executionRepository.completeTurn(
                     runningTurn,
                     UUID.randomUUID().toString(),
                     response.content(),
                     completedAt
             );
-        } catch (RuntimeException exception) {
-            Instant failedAt = Instant.now();
+            sessionRepository.save(
+                    session.touch(completedAt)
+            );
+            return Boolean.TRUE;
+        });
+    }
+
+    private void persistFailure(
+            Session session,
+            Turn runningTurn,
+            RuntimeException exception
+    ) {
+        Instant failedAt = Instant.now();
+
+        transactionRunner.required(() -> {
             executionRepository.failTurn(
                     runningTurn,
                     failureMessage(exception),
                     failedAt
             );
-            sessionRepository.save(session.touch(failedAt));
-            throw exception;
-        }
-
-        sessionRepository.save(session.touch(completedAt));
-        return true;
+            sessionRepository.save(
+                    session.touch(failedAt)
+            );
+            return Boolean.TRUE;
+        });
     }
 
     private List<SessionMessage> buildModelContext(

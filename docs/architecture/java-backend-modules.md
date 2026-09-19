@@ -1,8 +1,6 @@
 # Java Backend Architecture
 
-Yakable's backend follows the same boundary idea that makes Dify's backend
-maintainable, translated into Java modules instead of copying Python directory
-names literally.
+Yakable's backend follows the same boundary idea that makes Dify's backend maintainable, translated into Java modules instead of copying Python directory names literally.
 
 ## Dify to Yakable mapping
 
@@ -11,11 +9,11 @@ names literally.
 | controllers | `yakable-interfaces` / `interfaces.rest` |
 | services | `yakable-application` |
 | core | `yakable-domain` |
-| models | infrastructure persistence entities, when database persistence exists |
-| repositories | domain repository ports + infrastructure adapters |
+| models | `yakable-dao` persistence models |
+| repositories | Domain repository ports + DAO repository adapters |
 | extensions | `yakable-infrastructure` |
-| events | domain/application events, only when a real event boundary exists |
-| tasks | application job handlers + infrastructure async/worker adapters |
+| events | Domain/Application events when a real event boundary exists |
+| tasks | Application job ports + Infrastructure async/worker adapters |
 | libs | `yakable-common` |
 | configs | `yakable-boot.configuration` |
 
@@ -29,9 +27,12 @@ yakable-boot
   │     └── yakable-application
   │             └── yakable-domain
   │
+  ├── yakable-dao
+  │     ├── yakable-application
+  │     └── yakable-domain
+  │
   └── yakable-infrastructure
         ├── yakable-application
-        ├── yakable-domain
         └── model plugin API
 
 yakable-plugin-model-*
@@ -41,9 +42,7 @@ yakable-common
   └── business-agnostic shared code only
 ```
 
-Dependencies point toward business policy. Domain and Application never depend
-on Boot, REST, Spring configuration, persistence implementations, or concrete
-LLM providers.
+Dependencies point toward business policy. Domain and Application never depend on Boot, REST, MyBatis, Flyway, concrete persistence adapters, or concrete LLM providers.
 
 ## Module ownership
 
@@ -69,14 +68,14 @@ Rules:
 - framework independent;
 - no Spring annotations;
 - no HTTP types;
+- no MyBatis/Flyway types;
 - no plugin/provider SDK;
-- repository interfaces belong here when persistence is part of the domain
-  boundary;
+- repository interfaces describe business-required persistence semantics;
 - state-transition rules belong on the domain model where possible.
 
 ### yakable-application
 
-Owns use cases and orchestration.
+Owns use cases, orchestration, and outbound application ports.
 
 Current examples:
 
@@ -91,80 +90,139 @@ TurnPromptAssembler
 
 ModelGateway
 TurnDispatcher
+TransactionRunner
 ```
 
 Rules:
 
-- coordinates domain objects and ports;
+- coordinates Domain objects and ports;
 - owns use-case ordering and transaction boundaries;
-- must not know REST or concrete persistence;
+- must not know REST, MyBatis, Flyway, or concrete persistence;
 - must not instantiate DeepSeek, Kimi, OpenAI, or another provider;
-- external capabilities are expressed as application ports.
+- external capabilities are expressed as Application ports.
 
-`ProjectBootstrapService`, not the REST controller, owns:
+`ProjectBootstrapService` owns:
 
 ```text
-create Project
+transaction
+  -> create Project
   -> create Session
-  -> create initial Turn
+  -> create initial Turn + USER Message
+commit
   -> dispatch execution
 ```
 
-`SessionTurnService`, not the REST controller, owns:
+`SessionTurnService` owns:
 
 ```text
-persist new Turn
+transaction
+  -> persist Turn + USER Message
+  -> touch Session
+commit
   -> dispatch execution
+```
+
+`TurnExecutor` keeps external model I/O outside database transactions:
+
+```text
+claim Turn
+  -> build context
+  -> call ModelGateway
+
+transaction
+  -> complete/fail Turn
+  -> persist result/touch Session
+commit
 ```
 
 ### yakable-interfaces
 
 Owns inbound transport adapters.
 
-Current adapter:
+Rules:
+
+- parse and validate HTTP input;
+- call one Application use case;
+- map Application/Domain results to HTTP responses;
+- translate Domain/Application failures at the transport boundary;
+- do not query repositories directly;
+- do not call DAO/Mapper directly;
+- do not dispatch background work directly;
+- do not call model plugins directly.
+
+### yakable-dao
+
+Owns relational persistence.
+
+Persistence corridor:
 
 ```text
-interfaces/rest
+Application
+  -> Domain Repository Port
+  -> Repository Adapter
+  -> DAO
+  -> MyBatis-Plus Mapper
+  -> PO
+  -> MySQL
+```
+
+Current package roles:
+
+```text
+dao/project
+  ├── ProjectRepositoryAdapter
+  ├── ProjectDao / MybatisProjectDao
+  ├── mapper/ProjectMapper
+  └── model/ProjectPO
+
+dao/session
+  ├── SessionRepositoryAdapter
+  ├── SessionExecutionRepositoryAdapter
+  ├── SessionDao / SessionExecutionDao
+  ├── mapper/*
+  └── model/*
+
+dao/transaction
+  └── SpringTransactionRunner
+
+db/migration/yakable
+  └── Flyway migrations
 ```
 
 Rules:
 
-- parse and validate HTTP input;
-- call one application use case;
-- map application/domain results to HTTP responses;
-- translate domain/application failures at the transport boundary;
-- do not query repositories directly;
-- do not dispatch background work directly;
-- do not call model plugins directly.
+- Repository Adapter owns Domain <-> PO translation;
+- DAO/Mapper never accepts HTTP DTOs or returns HTTP VOs;
+- MyBatis-Plus types never cross into Domain/Application;
+- PO classes never leave `yakable-dao`;
+- simple single-table access uses MyBatis-Plus;
+- atomic/CAS SQL may use explicit Mapper SQL;
+- Flyway is the only owner of schema evolution;
+- `yakable_schema_history` is the dedicated migration history table.
 
 ### yakable-infrastructure
 
-Owns implementations that touch the outside world.
+Owns non-database outbound adapters.
 
 Current adapters:
 
 ```text
-infrastructure/persistence/memory
 infrastructure/model
 infrastructure/async
 ```
 
-Rules:
-
-- implements ports owned by Domain or Application;
-- provider discovery and plugin API mapping live here;
-- persistence implementation details live here;
-- asynchronous executor details live here;
-- business decisions do not originate here.
-
-When database persistence is introduced, ORM entities belong under a path such
-as:
+Examples for the future:
 
 ```text
-io.yakable.infrastructure.persistence.jpa.entity
+storage
+git
+workspace
+shell
+external HTTP clients
+worker/message-broker adapters
 ```
 
-Domain models remain persistence-framework independent.
+Database persistence does not return to this module; it has its own `yakable-dao` boundary.
 
 ### yakable-boot
 
@@ -175,28 +233,102 @@ Spring Boot entrypoint
 configuration
 configuration properties
 bean wiring
+runtime datasource settings
 ```
 
-Boot may depend on all runtime modules because it is the composition root.
+Boot may depend on runtime modules because it is the composition root.
 
-Business logic, REST controllers, repositories, and provider protocol code do
-not belong in Boot.
+Business logic, REST controllers, Mapper/DAO code, and provider protocol code do not belong in Boot.
 
 ### yakable-common
 
 Owns business-agnostic utilities and shared primitives only.
 
-Do not create `ProjectUtils`, `SessionUtils`, `ModelUtils`, or similar
-business dumping grounds here.
+Do not create `ProjectUtils`, `SessionUtils`, `ModelUtils`, or similar business dumping grounds here.
 
 ### yakable-spi and plugins
 
-`yakable-spi` is reserved for stable extension contracts that are broader
-than one application use case.
+`yakable-spi` is reserved for stable extension contracts broader than one Application use case.
 
-LLM providers continue to use the dedicated model plugin API and AutoService
-registration. The Application layer sees only `ModelGateway`; the
-Infrastructure layer adapts that gateway to the plugin runtime.
+LLM providers continue to use the dedicated model plugin API and AutoService registration. Application sees only `ModelGateway`; Infrastructure adapts that gateway to the plugin runtime.
+
+## Persistence rules
+
+### Repository vs DAO
+
+Repository is a Domain Port:
+
+```text
+SessionRepository
+SessionExecutionRepository
+```
+
+DAO is a database access role:
+
+```text
+SessionDao
+SessionExecutionDao
+SessionMapper
+TurnMapper
+MessageMapper
+```
+
+Application never depends on DAO.
+
+### Transaction ownership
+
+Application decides what is atomic through `TransactionRunner`.
+
+DAO implements that boundary with Spring transactions.
+
+This avoids putting `@Transactional` into the framework-independent Application module while still allowing a use case to own its transaction lifecycle.
+
+### Session consistency
+
+`SessionExecutionRepository` is not decomposed into generic CRUD operations.
+
+Its adapter preserves the consistency boundary with:
+
+```text
+createPendingTurn
+  -> lock Session row FOR UPDATE
+  -> verify no PENDING/RUNNING Turn
+  -> insert Turn
+  -> allocate next Message sequence
+  -> insert USER Message
+
+claimPendingTurn
+  -> UPDATE ... WHERE status = 'PENDING'
+  -> affected rows == 1 means claim succeeded
+
+completeTurn
+  -> lock Session row FOR UPDATE
+  -> RUNNING -> SUCCEEDED with CAS condition
+  -> allocate next Message sequence
+  -> insert ASSISTANT Message
+  -> all in one transaction
+```
+
+Database constraints back the Java rules, including a unique `(session_id, message_sequence)` key.
+
+### Flyway
+
+Migration files live with the persistence implementation:
+
+```text
+yakable-dao/src/main/resources/db/migration/yakable
+```
+
+Current migrations:
+
+```text
+V1__create_project.sql
+V2__create_session.sql
+V3__create_turn.sql
+V4__create_message.sql
+```
+
+Do not mutate an applied migration. Add a new versioned migration for every schema change.
 
 ## Programming rules
 
@@ -207,68 +339,23 @@ A controller should look conceptually like:
 ```text
 validate request
   -> create command
-  -> call application service
+  -> call Application service
   -> map response
 ```
 
-If a controller starts coordinating repositories, LLM calls, async dispatch,
-or domain state transitions, the logic is in the wrong layer.
-
-### Transaction rule
-
-Write transactions must be explicit and bounded.
-
-Do not keep a database transaction open while waiting for an LLM or another
-slow external service unless atomicity genuinely requires it.
-
-For a future persistent Turn flow, prefer:
-
-```text
-transaction
-  -> persist pending Turn and USER Message
-commit
-
-external model call
-
-transaction
-  -> persist ASSISTANT Message and complete Turn
-commit
-```
-
-The repository contract must preserve the Session consistency invariants.
-
-### Repository rule
-
-A repository interface describes business-required persistence semantics.
-
-An adapter describes how those semantics are implemented.
-
-For example:
-
-```text
-domain
-  SessionExecutionRepository
-
-infrastructure
-  InMemorySessionExecutionRepository
-  JpaSessionExecutionRepository   # future
-```
+If a Controller starts coordinating repositories, DAO, LLM calls, async dispatch, or Domain state transitions, the logic is in the wrong layer.
 
 ### Async rule
 
-Application code requests asynchronous work through a port such as
-`TurnDispatcher`.
+Application requests asynchronous work through `TurnDispatcher`.
 
-Thread pools, virtual threads, queues, Celery-like workers, retries, and message
-brokers are infrastructure details.
+Virtual threads, queues, workers, retries, and message brokers are Infrastructure details.
 
-When retries or distributed workers are introduced, handlers must be
-idempotent.
+When retries or distributed workers are introduced, handlers must be idempotent.
 
 ### Configuration rule
 
-Runtime configuration is strongly typed under
-`yakable-boot.configuration.properties`.
+Runtime configuration is strongly typed or centralized in Boot configuration.
 
 Do not scatter `System.getenv(...)` calls through business code.
 
@@ -276,33 +363,21 @@ Do not scatter `System.getenv(...)` calls through business code.
 
 Do not add empty event packages just to match an architecture diagram.
 
-Introduce domain or application events when there is a real side effect that
-should be decoupled from a use case, for example audit, indexing, notification,
-or cleanup.
+Introduce Domain or Application events when a real side effect should be decoupled from a use case, for example audit, indexing, notification, or cleanup.
 
 ## Why yakable-core was removed
 
-The old `yakable-core` mixed two different responsibilities:
+The old `yakable-core` mixed Domain model, Application orchestration, and model-plugin runtime responsibilities.
 
-```text
-domain model
-+
-application orchestration
-+
-model plugin runtime
-```
-
-That made the dependency boundary ambiguous.
-
-The replacement makes ownership explicit:
+The current ownership is explicit:
 
 ```text
 domain          = business truth
 application     = use-case orchestration
+dao             = relational persistence
 interfaces      = inbound transport
-infrastructure  = outbound technology
+infrastructure  = non-database outbound technology
 boot            = composition
 ```
 
-This is the baseline for later database persistence, SSE, Agent execution, and
-Frontend Taste Harness capabilities.
+This is the baseline for database-backed Sessions, SSE, Agent execution, and Frontend Taste Harness capabilities.

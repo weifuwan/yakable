@@ -10,10 +10,10 @@
         <version>0.1.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>yakable-boot</artifactId>
+    <artifactId>yakable-dao</artifactId>
 
-    <name>Yakable Boot</name>
-    <description>Yakable application assembly and Spring Boot entry module</description>
+    <name>Yakable DAO</name>
+    <description>MyBatis-Plus persistence adapters and Flyway migrations</description>
 
     <dependencies>
         <dependency>
@@ -24,29 +24,28 @@
             <groupId>io.yakable</groupId>
             <artifactId>yakable-application</artifactId>
         </dependency>
+
         <dependency>
-            <groupId>io.yakable</groupId>
-            <artifactId>yakable-dao</artifactId>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
         </dependency>
         <dependency>
-            <groupId>io.yakable</groupId>
-            <artifactId>yakable-infrastructure</artifactId>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-tx</artifactId>
         </dependency>
         <dependency>
-            <groupId>io.yakable</groupId>
-            <artifactId>yakable-interfaces</artifactId>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
         </dependency>
         <dependency>
-            <groupId>io.yakable</groupId>
-            <artifactId>yakable-plugin-model-api</artifactId>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-mysql</artifactId>
+            <scope>runtime</scope>
         </dependency>
         <dependency>
-            <groupId>io.yakable</groupId>
-            <artifactId>yakable-plugin-model-all</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-actuator</artifactId>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <scope>runtime</scope>
         </dependency>
 
         <dependency>
@@ -60,16 +59,4 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
-
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-                <configuration>
-                    <mainClass>io.yakable.boot.YakableApplication</mainClass>
-                </configuration>
-            </plugin>
-        </plugins>
-    </build>
 </project>
