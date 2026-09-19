@@ -3,9 +3,9 @@ package io.yakable.boot.conversation;
 import io.yakable.core.conversation.ConversationMessage;
 import io.yakable.core.conversation.ConversationService;
 import io.yakable.core.conversation.ConversationTurn;
-import io.yakable.core.llm.LlmProviderException;
 import io.yakable.core.project.Project;
 import io.yakable.core.project.ProjectQueryService;
+import io.yakable.plugin.model.api.ModelPluginException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -68,7 +68,7 @@ public class ConversationController {
                     exception.getMessage(),
                     exception
             );
-        } catch (LlmProviderException exception) {
+        } catch (ModelPluginException exception) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_GATEWAY,
                     exception.getMessage(),

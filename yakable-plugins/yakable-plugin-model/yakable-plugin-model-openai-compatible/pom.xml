@@ -6,28 +6,24 @@
 
     <parent>
         <groupId>io.yakable</groupId>
-        <artifactId>yakable</artifactId>
+        <artifactId>yakable-plugin-model</artifactId>
         <version>0.1.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>yakable-core</artifactId>
+    <artifactId>yakable-plugin-model-openai-compatible</artifactId>
 
-    <name>Yakable Core</name>
-    <description>Frontend Harness domain capabilities and runtime coordination</description>
+    <name>Yakable OpenAI Compatible Model Base</name>
+    <description>Shared OpenAI-compatible chat completions client for model plugins</description>
 
     <dependencies>
-        <dependency>
-            <groupId>io.yakable</groupId>
-            <artifactId>yakable-spi</artifactId>
-        </dependency>
         <dependency>
             <groupId>io.yakable</groupId>
             <artifactId>yakable-plugin-model-api</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
         </dependency>
     </dependencies>
 </project>

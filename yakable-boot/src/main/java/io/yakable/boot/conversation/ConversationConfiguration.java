@@ -2,7 +2,7 @@ package io.yakable.boot.conversation;
 
 import io.yakable.core.conversation.ConversationMessageRepository;
 import io.yakable.core.conversation.ConversationService;
-import io.yakable.core.llm.LlmProvider;
+import io.yakable.core.model.ModelRuntime;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -17,8 +17,8 @@ public class ConversationConfiguration {
     @Bean
     ConversationService conversationService(
             ConversationMessageRepository messageRepository,
-            LlmProvider llmProvider
+            ModelRuntime modelRuntime
     ) {
-        return new ConversationService(messageRepository, llmProvider);
+        return new ConversationService(messageRepository, modelRuntime);
     }
 }

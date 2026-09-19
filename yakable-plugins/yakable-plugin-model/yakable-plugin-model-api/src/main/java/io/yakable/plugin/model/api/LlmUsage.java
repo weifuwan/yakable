@@ -1,4 +1,4 @@
-package io.yakable.core.llm;
+package io.yakable.plugin.model.api;
 
 public record LlmUsage(
         Long inputTokens,

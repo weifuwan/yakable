@@ -1,9 +1,9 @@
 package io.yakable.core.conversation;
 
-import io.yakable.core.llm.LlmMessage;
-import io.yakable.core.llm.LlmProvider;
-import io.yakable.core.llm.LlmRequest;
-import io.yakable.core.llm.LlmResponse;
+import io.yakable.core.model.ModelRuntime;
+import io.yakable.plugin.model.api.LlmMessage;
+import io.yakable.plugin.model.api.LlmRequest;
+import io.yakable.plugin.model.api.LlmResponse;
 
 import java.time.Instant;
 import java.util.List;
@@ -16,14 +16,14 @@ public final class ConversationService {
             "You are Yakable, a concise and accurate assistant.";
 
     private final ConversationMessageRepository messageRepository;
-    private final LlmProvider llmProvider;
+    private final ModelRuntime modelRuntime;
 
     public ConversationService(
             ConversationMessageRepository messageRepository,
-            LlmProvider llmProvider
+            ModelRuntime modelRuntime
     ) {
         this.messageRepository = Objects.requireNonNull(messageRepository, "messageRepository");
-        this.llmProvider = Objects.requireNonNull(llmProvider, "llmProvider");
+        this.modelRuntime = Objects.requireNonNull(modelRuntime, "modelRuntime");
     }
 
     public List<ConversationMessage> listMessages(String projectId) {
@@ -40,19 +40,14 @@ public final class ConversationService {
         String normalizedProvider = requireText(provider, "provider");
         String normalizedModel = requireText(model, "model");
 
-        if (!llmProvider.provider().equalsIgnoreCase(normalizedProvider)) {
-            throw new IllegalArgumentException(
-                    "Unsupported LLM provider: " + normalizedProvider
-            );
-        }
-
         ConversationMessage userMessage = appendUserMessage(projectId, content);
 
         List<LlmMessage> history = listMessages(projectId).stream()
                 .map(ConversationService::toLlmMessage)
                 .toList();
 
-        LlmResponse response = llmProvider.chat(
+        LlmResponse response = modelRuntime.chat(
+                normalizedProvider,
                 new LlmRequest(normalizedModel, SYSTEM_PROMPT, history)
         );
 

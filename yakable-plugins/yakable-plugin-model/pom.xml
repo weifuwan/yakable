@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.yakable</groupId>
+        <artifactId>yakable</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>yakable-plugin-model</artifactId>
+    <packaging>pom</packaging>
+
+    <name>Yakable Model Plugins</name>
+    <description>Yakable model-plugin module aggregation</description>
+
+    <modules>
+        <module>yakable-plugin-model-api</module>
+        <module>yakable-plugin-model-openai-compatible</module>
+        <module>yakable-plugin-model-deepseek</module>
+        <module>yakable-plugin-model-all</module>
+    </modules>
+</project>

@@ -1,4 +1,4 @@
-package io.yakable.core.llm;
+package io.yakable.plugin.model.api;
 
 import java.util.Objects;
 

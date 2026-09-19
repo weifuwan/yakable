@@ -1,14 +1,14 @@
-package io.yakable.boot.llm;
+package io.yakable.plugin.model.openai;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.yakable.core.llm.LlmMessage;
-import io.yakable.core.llm.LlmProvider;
-import io.yakable.core.llm.LlmProviderException;
-import io.yakable.core.llm.LlmRequest;
-import io.yakable.core.llm.LlmResponse;
-import io.yakable.core.llm.LlmUsage;
+import io.yakable.plugin.model.api.LlmMessage;
+import io.yakable.plugin.model.api.LlmRequest;
+import io.yakable.plugin.model.api.LlmResponse;
+import io.yakable.plugin.model.api.LlmUsage;
+import io.yakable.plugin.model.api.ModelPluginConfiguration;
+import io.yakable.plugin.model.api.ModelPluginException;
 
 import java.io.IOException;
 import java.net.URI;
@@ -22,57 +22,53 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public final class DeepSeekLlmProvider implements LlmProvider {
+public final class OpenAiCompatibleClient {
 
-    private static final String PROVIDER = "deepseek";
-
-    private final DeepSeekProperties properties;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
 
-    public DeepSeekLlmProvider(
-            DeepSeekProperties properties,
-            ObjectMapper objectMapper
-    ) {
+    public OpenAiCompatibleClient() {
         this(
-                properties,
-                objectMapper,
+                new ObjectMapper(),
                 HttpClient.newBuilder()
                         .connectTimeout(Duration.ofSeconds(20))
                         .build()
         );
     }
 
-    DeepSeekLlmProvider(
-            DeepSeekProperties properties,
+    OpenAiCompatibleClient(
             ObjectMapper objectMapper,
             HttpClient httpClient
     ) {
-        this.properties = Objects.requireNonNull(properties, "properties");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
         this.httpClient = Objects.requireNonNull(httpClient, "httpClient");
     }
 
-    @Override
-    public String provider() {
-        return PROVIDER;
-    }
-
-    @Override
-    public LlmResponse chat(LlmRequest request) {
+    public LlmResponse chat(
+            String providerName,
+            ModelPluginConfiguration configuration,
+            LlmRequest request
+    ) {
+        String normalizedProviderName = requireText(providerName, "providerName");
+        Objects.requireNonNull(configuration, "configuration");
         Objects.requireNonNull(request, "request");
 
-        if (properties.apiKey().isBlank()) {
-            throw new LlmProviderException(
-                    "DeepSeek API key is not configured. Set DEEPSEEK_API_KEY."
+        if (configuration.apiKey().isBlank()) {
+            throw new ModelPluginException(
+                    normalizedProviderName + " API key is not configured."
+            );
+        }
+        if (configuration.baseUrl().isBlank()) {
+            throw new ModelPluginException(
+                    normalizedProviderName + " base URL is not configured."
             );
         }
 
         String requestBody = writeRequestBody(request);
         HttpRequest httpRequest = HttpRequest.newBuilder()
-                .uri(URI.create(properties.baseUrl() + "/chat/completions"))
+                .uri(URI.create(configuration.baseUrl() + "/chat/completions"))
                 .timeout(Duration.ofSeconds(120))
-                .header("Authorization", "Bearer " + properties.apiKey())
+                .header("Authorization", "Bearer " + configuration.apiKey())
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
@@ -86,18 +82,27 @@ public final class DeepSeekLlmProvider implements LlmProvider {
             );
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            throw new LlmProviderException("DeepSeek request was interrupted.", exception);
+            throw new ModelPluginException(
+                    normalizedProviderName + " request was interrupted.",
+                    exception
+            );
         } catch (IOException exception) {
-            throw new LlmProviderException("Unable to call DeepSeek.", exception);
-        }
-
-        if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw new LlmProviderException(
-                    "DeepSeek returned HTTP " + response.statusCode() + "."
+            throw new ModelPluginException(
+                    "Unable to call " + normalizedProviderName + ".",
+                    exception
             );
         }
 
-        return readResponse(response.body());
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            throw new ModelPluginException(
+                    normalizedProviderName
+                            + " returned HTTP "
+                            + response.statusCode()
+                            + "."
+            );
+        }
+
+        return readResponse(normalizedProviderName, response.body());
     }
 
     private String writeRequestBody(LlmRequest request) {
@@ -125,20 +130,20 @@ public final class DeepSeekLlmProvider implements LlmProvider {
         try {
             return objectMapper.writeValueAsString(body);
         } catch (JsonProcessingException exception) {
-            throw new LlmProviderException(
-                    "Unable to serialize DeepSeek request.",
+            throw new ModelPluginException(
+                    "Unable to serialize OpenAI-compatible request.",
                     exception
             );
         }
     }
 
-    private LlmResponse readResponse(String body) {
+    private LlmResponse readResponse(String providerName, String body) {
         JsonNode payload;
         try {
             payload = objectMapper.readTree(body);
         } catch (JsonProcessingException exception) {
-            throw new LlmProviderException(
-                    "DeepSeek returned invalid JSON.",
+            throw new ModelPluginException(
+                    providerName + " returned invalid JSON.",
                     exception
             );
         }
@@ -149,8 +154,8 @@ public final class DeepSeekLlmProvider implements LlmProvider {
                 .path("content");
 
         if (!contentNode.isTextual() || contentNode.asText().isBlank()) {
-            throw new LlmProviderException(
-                    "DeepSeek returned no assistant text."
+            throw new ModelPluginException(
+                    providerName + " returned no assistant text."
             );
         }
 
@@ -174,5 +179,14 @@ public final class DeepSeekLlmProvider implements LlmProvider {
 
     private static Long longValue(JsonNode node) {
         return node != null && node.isNumber() ? node.longValue() : null;
+    }
+
+    private static String requireText(String value, String field) {
+        Objects.requireNonNull(value, field);
+        String normalized = value.strip();
+        if (normalized.isEmpty()) {
+            throw new IllegalArgumentException(field + " must not be blank");
+        }
+        return normalized;
     }
 }

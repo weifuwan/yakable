@@ -33,6 +33,26 @@
             </dependency>
             <dependency>
                 <groupId>io.yakable</groupId>
+                <artifactId>yakable-plugin-model-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.yakable</groupId>
+                <artifactId>yakable-plugin-model-openai-compatible</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.yakable</groupId>
+                <artifactId>yakable-plugin-model-deepseek</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.yakable</groupId>
+                <artifactId>yakable-plugin-model-all</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.yakable</groupId>
                 <artifactId>yakable-core</artifactId>
                 <version>${project.version}</version>
             </dependency>
