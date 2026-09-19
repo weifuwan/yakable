@@ -8,7 +8,7 @@ afterEach(() => {
 });
 
 describe('ConversationWorkspace', () => {
-  it('renders user messages on the user side and assistant messages on the assistant side', async () => {
+  it('renders user messages and assistant messages with separate roles', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -34,17 +34,13 @@ describe('ConversationWorkspace', () => {
     render(
       <ConversationWorkspace
         projectId="project-1"
-        projectName="Who are you?"
         initialPrompt="Who are you?"
         initialCreatedAt="2026-09-19T00:00:00Z"
       />,
     );
 
     expect(screen.getByText('Who are you?')).toBeTruthy();
-
-    expect(
-      await screen.findByLabelText('Assistant message'),
-    ).toBeTruthy();
+    expect(await screen.findByLabelText('Assistant message')).toBeTruthy();
     expect(screen.getByLabelText('User message')).toBeTruthy();
     expect(screen.getByText('I am Yakable.')).toBeTruthy();
   });
@@ -85,7 +81,6 @@ describe('ConversationWorkspace', () => {
     render(
       <ConversationWorkspace
         projectId="project-1"
-        projectName="Who are you?"
         initialPrompt="Who are you?"
         initialCreatedAt="2026-09-19T00:00:00Z"
       />,

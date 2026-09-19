@@ -28,7 +28,6 @@ function ProjectConversation({ projectId }: { projectId: string }) {
   return (
     <ConversationWorkspace
       projectId={project.id}
-      projectName={project.name}
       initialPrompt={project.prompt}
       initialCreatedAt={project.createdAt}
     />

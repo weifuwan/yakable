@@ -14,12 +14,10 @@ export function ConversationWorkspace({
   initialCreatedAt,
   initialPrompt,
   projectId,
-  projectName,
 }: {
   initialCreatedAt: string;
   initialPrompt: string;
   projectId: string;
-  projectName: string;
 }) {
   const [messages, setMessages] = useState<ConversationMessage[]>([
     {
@@ -74,12 +72,6 @@ export function ConversationWorkspace({
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-white">
-      <header className="flex h-14 shrink-0 items-center border-b border-black/[0.07] px-6">
-        <h1 className="m-0 truncate text-sm font-semibold text-[#20201e]">
-          {projectName}
-        </h1>
-      </header>
-
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-8">
           {loadError && (
