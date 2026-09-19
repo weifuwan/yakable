@@ -2,7 +2,6 @@ package io.yakable.dao.project;
 
 import io.yakable.dao.project.model.ProjectPO;
 
-import java.util.List;
 import java.util.Optional;
 
 public interface ProjectDao {
@@ -10,6 +9,4 @@ public interface ProjectDao {
     ProjectPO save(ProjectPO project);
 
     Optional<ProjectPO> findById(String projectId);
-
-    List<ProjectPO> findAll();
 }

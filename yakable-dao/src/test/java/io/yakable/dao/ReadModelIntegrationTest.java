@@ -179,8 +179,8 @@ class ReadModelIntegrationTest {
                 .isEqualTo(TurnStatus.SUCCEEDED);
         assertThat(changes.messages())
                 .extracting(
-                        message -> message.sequence(),
-                        message -> message.content()
+                        io.yakable.domain.session.SessionMessage::sequence,
+                        io.yakable.domain.session.SessionMessage::content
                 )
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple(
@@ -239,7 +239,7 @@ class ReadModelIntegrationTest {
                 ).orElseThrow();
 
         assertThat(latest.messages())
-                .extracting(message -> message.sequence())
+                .extracting(io.yakable.domain.session.SessionMessage::sequence)
                 .containsExactly(2L);
         assertThat(latest.hasMore()).isTrue();
         assertThat(latest.nextBeforeSequence()).isEqualTo(2L);

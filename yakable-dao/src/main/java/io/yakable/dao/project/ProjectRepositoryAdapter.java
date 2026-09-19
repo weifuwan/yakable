@@ -7,7 +7,6 @@ import io.yakable.domain.project.repository.ProjectRepository;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -34,14 +33,6 @@ public class ProjectRepositoryAdapter
         return dao.findById(projectId).map(
                 ProjectRepositoryAdapter::toDomain
         );
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<Project> findAll() {
-        return dao.findAll().stream()
-                .map(ProjectRepositoryAdapter::toDomain)
-                .toList();
     }
 
     private static ProjectPO toPO(Project project) {
