@@ -86,7 +86,10 @@ SessionCommandService
 SessionQueryService
 SessionTurnService
 TurnExecutor
-TurnPromptAssembler
+ContextPolicy
+DefaultContextPolicy
+ContextBundle
+ModelInvocationCompiler
 
 ModelGateway
 TurnDispatcher
@@ -122,11 +125,13 @@ commit
   -> dispatch execution
 ```
 
-`TurnExecutor` keeps external model I/O outside database transactions:
+`TurnExecutor` keeps external model I/O outside database transactions. Context admission is delegated to the Context Harness:
 
 ```text
 claim Turn
-  -> build context
+  -> load context candidates
+  -> ContextPolicy
+  -> ModelInvocationCompiler
   -> call ModelGateway
 
 transaction

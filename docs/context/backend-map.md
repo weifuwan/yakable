@@ -119,7 +119,6 @@ yakable-application/src/main/java/io/yakable/application/session/
 ├── SessionTurnService.java
 ├── TurnExecutor.java
 ├── TurnExecutionRecoveryService.java
-├── TurnPromptAssembler.java
 ├── SessionQueryService.java
 ├── SessionQueryRepository.java
 ├── SessionSnapshot.java
@@ -135,10 +134,9 @@ Use these entry points:
 | Start a new user Turn | `SessionTurnService` |
 | Execute a pending Turn | `TurnExecutor` |
 | Recover stale execution | `TurnExecutionRecoveryService` |
-| Build current model input | `TurnPromptAssembler` |
 | Read Session UI state | `SessionQueryService` |
 
-`TurnPromptAssembler` is the current model-input boundary. It is expected to evolve as the Context Harness becomes explicit; do not treat its current shape as the long-term architecture.
+Model context is owned by `io.yakable.application.context`; read `docs/architecture/context-harness.md` before changing admission or compilation rules.
 
 ### Persistence
 
@@ -196,7 +194,9 @@ The current call chain is:
 
 ```text
 TurnExecutor
-  -> TurnPromptAssembler
+  -> ContextPolicy
+  -> ContextBundle
+  -> ModelInvocationCompiler
   -> ModelGateway
   -> PluginModelGateway
   -> ModelPlugin
@@ -390,10 +390,14 @@ Load:
 
 ```text
 TurnExecutor.java
-TurnPromptAssembler.java
+application/context/ContextPolicy.java
+application/context/DefaultContextPolicy.java
+application/context/ContextBundle.java
+application/context/ModelInvocationCompiler.java
 ModelRequest.java
 ModelMessage.java
 ModelGateway.java
+docs/architecture/context-harness.md
 docs/architecture/frontend-domain-harness.md
 ```
 

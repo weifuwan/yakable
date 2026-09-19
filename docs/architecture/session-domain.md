@@ -303,7 +303,9 @@ PENDING Turns have no invocation. RUNNING/FAILED Turns retain the claimed provid
 
 ```text
 TurnExecutor
-  -> TurnPromptAssembler
+  -> ContextPolicy
+  -> ContextBundle
+  -> ModelInvocationCompiler
   -> ModelGateway
   -> PluginModelGateway
   -> ModelPlugin
@@ -313,7 +315,9 @@ Domain and Application do not know concrete model providers.
 
 ## Context rules
 
-Model history contains:
+Context admission is owned by the Application Context Harness.
+
+The initial `DefaultContextPolicy` admits:
 
 ```text
 all Messages from SUCCEEDED prior Turns
@@ -322,6 +326,8 @@ Messages belonging to the current Turn
 ```
 
 Messages from FAILED Turns are retained for audit/UI state but excluded from automatic future model context.
+
+`ModelInvocationCompiler` translates the approved `ContextBundle` into `ModelRequest`; it does not decide what is admitted. See `docs/architecture/context-harness.md`.
 
 ## Not in this phase
 

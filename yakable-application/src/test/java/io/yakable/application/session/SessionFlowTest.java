@@ -1,6 +1,8 @@
 package io.yakable.application.session;
 
 import io.yakable.application.async.TurnDispatcher;
+import io.yakable.application.context.DefaultContextPolicy;
+import io.yakable.application.context.ModelInvocationCompiler;
 import io.yakable.application.model.ModelGateway;
 import io.yakable.application.model.ModelMessage;
 import io.yakable.application.model.ModelReply;
@@ -384,7 +386,8 @@ class SessionFlowTest {
                     sessionRepository,
                     executionRepository,
                     modelGateway,
-                    new TurnPromptAssembler(),
+                    new DefaultContextPolicy(),
+                    new ModelInvocationCompiler(),
                     transactionRunner
             );
         }

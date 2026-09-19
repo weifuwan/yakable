@@ -1,6 +1,9 @@
 package io.yakable.boot.configuration;
 
 import io.yakable.application.async.TurnDispatcher;
+import io.yakable.application.context.ContextPolicy;
+import io.yakable.application.context.DefaultContextPolicy;
+import io.yakable.application.context.ModelInvocationCompiler;
 import io.yakable.application.model.ModelGateway;
 import io.yakable.application.project.ProjectBootstrapService;
 import io.yakable.application.project.ProjectOverviewQueryService;
@@ -10,7 +13,6 @@ import io.yakable.application.session.SessionQueryRepository;
 import io.yakable.application.session.SessionQueryService;
 import io.yakable.application.session.SessionTurnService;
 import io.yakable.application.session.TurnExecutor;
-import io.yakable.application.session.TurnPromptAssembler;
 import io.yakable.application.transaction.TransactionRunner;
 import io.yakable.domain.project.repository.ProjectRepository;
 import io.yakable.domain.session.repository.SessionExecutionRepository;
@@ -40,8 +42,13 @@ public class ApplicationConfiguration {
     }
 
     @Bean
-    TurnPromptAssembler turnPromptAssembler() {
-        return new TurnPromptAssembler();
+    ContextPolicy contextPolicy() {
+        return new DefaultContextPolicy();
+    }
+
+    @Bean
+    ModelInvocationCompiler modelInvocationCompiler() {
+        return new ModelInvocationCompiler();
     }
 
     @Bean
@@ -49,14 +56,16 @@ public class ApplicationConfiguration {
             SessionRepository sessionRepository,
             SessionExecutionRepository executionRepository,
             ModelGateway modelGateway,
-            TurnPromptAssembler promptAssembler,
+            ContextPolicy contextPolicy,
+            ModelInvocationCompiler invocationCompiler,
             TransactionRunner transactionRunner
     ) {
         return new TurnExecutor(
                 sessionRepository,
                 executionRepository,
                 modelGateway,
-                promptAssembler,
+                contextPolicy,
+                invocationCompiler,
                 transactionRunner
         );
     }

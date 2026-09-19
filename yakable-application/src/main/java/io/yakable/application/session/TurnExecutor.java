@@ -1,42 +1,40 @@
 package io.yakable.application.session;
 
+import io.yakable.application.context.ContextBundle;
+import io.yakable.application.context.ContextPolicy;
+import io.yakable.application.context.ModelInvocationCompiler;
 import io.yakable.application.model.ModelGateway;
 import io.yakable.application.model.ModelReply;
 import io.yakable.application.model.ModelRequest;
 import io.yakable.application.model.ModelUsage;
 import io.yakable.application.transaction.TransactionRunner;
 import io.yakable.domain.session.Session;
-import io.yakable.domain.session.SessionMessage;
 import io.yakable.domain.session.SessionNotFoundException;
 import io.yakable.domain.session.Turn;
 import io.yakable.domain.session.TurnInvocation;
-import io.yakable.domain.session.TurnStatus;
 import io.yakable.domain.session.TurnTokenUsage;
 import io.yakable.domain.session.repository.SessionExecutionRepository;
 import io.yakable.domain.session.repository.SessionRepository;
 
 import java.time.Instant;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 public final class TurnExecutor {
 
     private final SessionRepository sessionRepository;
     private final SessionExecutionRepository executionRepository;
     private final ModelGateway modelGateway;
-    private final TurnPromptAssembler promptAssembler;
+    private final ContextPolicy contextPolicy;
+    private final ModelInvocationCompiler invocationCompiler;
     private final TransactionRunner transactionRunner;
 
     public TurnExecutor(
             SessionRepository sessionRepository,
             SessionExecutionRepository executionRepository,
             ModelGateway modelGateway,
-            TurnPromptAssembler promptAssembler,
+            ContextPolicy contextPolicy,
+            ModelInvocationCompiler invocationCompiler,
             TransactionRunner transactionRunner
     ) {
         this.sessionRepository = Objects.requireNonNull(
@@ -51,9 +49,13 @@ public final class TurnExecutor {
                 modelGateway,
                 "modelGateway"
         );
-        this.promptAssembler = Objects.requireNonNull(
-                promptAssembler,
-                "promptAssembler"
+        this.contextPolicy = Objects.requireNonNull(
+                contextPolicy,
+                "contextPolicy"
+        );
+        this.invocationCompiler = Objects.requireNonNull(
+                invocationCompiler,
+                "invocationCompiler"
         );
         this.transactionRunner = Objects.requireNonNull(
                 transactionRunner,
@@ -90,11 +92,17 @@ public final class TurnExecutor {
         }
 
         try {
-            List<SessionMessage> context = buildModelContext(
-                    session.id(),
-                    runningTurn.id()
+            ContextBundle context = contextPolicy.resolve(
+                    session,
+                    runningTurn,
+                    executionRepository.findTurnsBySessionId(
+                            session.id()
+                    ),
+                    executionRepository.findMessagesBySessionId(
+                            session.id()
+                    )
             );
-            ModelRequest request = promptAssembler.assemble(
+            ModelRequest request = invocationCompiler.compile(
                     session,
                     context
             );
@@ -174,34 +182,6 @@ public final class TurnExecutor {
         } catch (RuntimeException persistenceFailure) {
             originalFailure.addSuppressed(persistenceFailure);
         }
-    }
-
-    private List<SessionMessage> buildModelContext(
-            String sessionId,
-            String currentTurnId
-    ) {
-        Map<String, Turn> turnsById = executionRepository
-                .findTurnsBySessionId(sessionId)
-                .stream()
-                .collect(Collectors.toMap(
-                        Turn::id,
-                        Function.identity()
-                ));
-
-        return executionRepository
-                .findMessagesBySessionId(sessionId)
-                .stream()
-                .sorted(Comparator.comparingLong(SessionMessage::sequence))
-                .filter(message -> {
-                    if (message.turnId().equals(currentTurnId)) {
-                        return true;
-                    }
-
-                    Turn turn = turnsById.get(message.turnId());
-                    return turn != null
-                            && turn.status() == TurnStatus.SUCCEEDED;
-                })
-                .toList();
     }
 
     private static TurnTokenUsage toTurnTokenUsage(

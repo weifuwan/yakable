@@ -1,4 +1,4 @@
-package io.yakable.application.session;
+package io.yakable.application.context;
 
 import io.yakable.application.model.ModelMessage;
 import io.yakable.application.model.ModelRequest;
@@ -8,26 +8,24 @@ import io.yakable.domain.session.SessionMessage;
 import java.util.List;
 import java.util.Objects;
 
-public final class TurnPromptAssembler {
+public final class ModelInvocationCompiler {
 
-    private static final String SYSTEM_PROMPT =
-            "You are Yakable, a concise and accurate assistant.";
-
-    public ModelRequest assemble(
+    public ModelRequest compile(
             Session session,
-            List<SessionMessage> messages
+            ContextBundle context
     ) {
         Objects.requireNonNull(session, "session");
-        Objects.requireNonNull(messages, "messages");
+        Objects.requireNonNull(context, "context");
 
-        List<ModelMessage> history = messages.stream()
-                .map(TurnPromptAssembler::toModelMessage)
+        List<ModelMessage> messages = context.conversation()
+                .stream()
+                .map(ModelInvocationCompiler::toModelMessage)
                 .toList();
 
         return new ModelRequest(
                 session.model(),
-                SYSTEM_PROMPT,
-                history
+                context.systemInstructions(),
+                messages
         );
     }
 
