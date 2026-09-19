@@ -1,8 +1,8 @@
 /**
- * Adapters for persistence, model providers, asynchronous execution, storage,
- * and other external systems.
+ * Non-database outbound adapters such as model providers, asynchronous
+ * execution, storage, Git, workspace, and other external systems.
  *
- * <p>Infrastructure implements ports owned by the application or domain
- * layers. Business policy must not originate here.</p>
+ * <p>Relational persistence belongs in yakable-dao. Infrastructure implements
+ * Application ports without owning business policy.</p>
  */
 package io.yakable.infrastructure;
