@@ -1,16 +1,15 @@
-package io.yakable.interfaces.rest.session;
+package io.yakable.boot.controller.session;
 
 import io.yakable.application.session.SessionChanges;
 import io.yakable.application.session.SessionMessagePage;
-import io.yakable.application.session.SessionQueryService;
 import io.yakable.application.session.SessionSnapshot;
-import io.yakable.application.session.SessionTurnService;
 import io.yakable.domain.session.Session;
 import io.yakable.domain.session.SessionMessage;
 import io.yakable.domain.session.Turn;
 import io.yakable.domain.session.TurnInvocation;
 import io.yakable.domain.session.TurnTokenUsage;
 import io.yakable.domain.session.TurnStartResult;
+import io.yakable.service.session.SessionService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.ResponseEntity;
@@ -29,15 +28,10 @@ import java.util.List;
 @RequestMapping("/api/projects/{projectId}/sessions")
 public class SessionController {
 
-    private final SessionTurnService turnService;
-    private final SessionQueryService queryService;
+    private final SessionService sessionService;
 
-    public SessionController(
-            SessionTurnService turnService,
-            SessionQueryService queryService
-    ) {
-        this.turnService = turnService;
-        this.queryService = queryService;
+    public SessionController(SessionService sessionService) {
+        this.sessionService = sessionService;
     }
 
     @GetMapping("/{sessionId}")
@@ -46,7 +40,7 @@ public class SessionController {
             @PathVariable String sessionId
     ) {
         return SessionSnapshotResponse.from(
-                queryService.getSnapshot(projectId, sessionId)
+                sessionService.getSnapshot(projectId, sessionId)
         );
     }
 
@@ -57,7 +51,7 @@ public class SessionController {
             @RequestParam(defaultValue = "0") long afterSequence
     ) {
         return SessionChangesResponse.from(
-                queryService.getChanges(
+                sessionService.getChanges(
                         projectId,
                         sessionId,
                         afterSequence
@@ -73,7 +67,7 @@ public class SessionController {
             @RequestParam(defaultValue = "50") int limit
     ) {
         return MessagePageResponse.from(
-                queryService.getMessagePage(
+                sessionService.getMessagePage(
                         projectId,
                         sessionId,
                         beforeSequence,
@@ -88,7 +82,7 @@ public class SessionController {
             @PathVariable String sessionId,
             @Valid @RequestBody StartTurnRequest request
     ) {
-        TurnStartResult result = turnService.startTurn(
+        TurnStartResult result = sessionService.startTurn(
                 projectId,
                 sessionId,
                 request.content()

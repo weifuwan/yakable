@@ -1,4 +1,4 @@
-package io.yakable.interfaces.rest;
+package io.yakable.boot.controller;
 
 import io.yakable.domain.session.SessionBusyException;
 import io.yakable.domain.session.SessionInactiveException;

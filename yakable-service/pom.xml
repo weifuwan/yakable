@@ -10,10 +10,10 @@
         <version>0.1.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>yakable-api</artifactId>
+    <artifactId>yakable-service</artifactId>
 
-    <name>Yakable API</name>
-    <description>Yakable domain, application, REST and infrastructure runtime</description>
+    <name>Yakable Service</name>
+    <description>Yakable business services and runtime support</description>
 
     <dependencies>
         <dependency>
@@ -23,14 +23,6 @@
         <dependency>
             <groupId>io.yakable</groupId>
             <artifactId>yakable-plugin-model-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
     </dependencies>
 </project>

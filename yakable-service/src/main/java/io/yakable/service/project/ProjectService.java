@@ -1,30 +1,40 @@
-package io.yakable.application.project;
+package io.yakable.service.project;
 
 import io.yakable.application.async.TurnDispatcher;
-import io.yakable.application.session.SessionCommandService;
+import io.yakable.application.project.ProjectDetails;
+import io.yakable.application.project.ProjectQueryRepository;
+import io.yakable.application.project.ProjectStartResult;
+import io.yakable.application.project.ProjectSummary;
+import io.yakable.application.project.StartProjectCommand;
+import io.yakable.application.query.PageResult;
 import io.yakable.application.transaction.TransactionRunner;
 import io.yakable.domain.project.Project;
 import io.yakable.domain.project.ProjectStatus;
 import io.yakable.domain.project.repository.ProjectRepository;
 import io.yakable.domain.session.Session;
 import io.yakable.domain.session.TurnStartResult;
+import io.yakable.service.session.SessionService;
 
 import java.time.Instant;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
-public final class ProjectBootstrapService {
+public final class ProjectService {
 
     private static final int MAX_PROJECT_NAME_LENGTH = 48;
+    private static final int MAX_PAGE_SIZE = 100;
 
     private final ProjectRepository projectRepository;
-    private final SessionCommandService sessionCommandService;
+    private final ProjectQueryRepository queryRepository;
+    private final SessionService sessionService;
     private final TurnDispatcher turnDispatcher;
     private final TransactionRunner transactionRunner;
 
-    public ProjectBootstrapService(
+    public ProjectService(
             ProjectRepository projectRepository,
-            SessionCommandService sessionCommandService,
+            ProjectQueryRepository queryRepository,
+            SessionService sessionService,
             TurnDispatcher turnDispatcher,
             TransactionRunner transactionRunner
     ) {
@@ -32,9 +42,13 @@ public final class ProjectBootstrapService {
                 projectRepository,
                 "projectRepository"
         );
-        this.sessionCommandService = Objects.requireNonNull(
-                sessionCommandService,
-                "sessionCommandService"
+        this.queryRepository = Objects.requireNonNull(
+                queryRepository,
+                "queryRepository"
+        );
+        this.sessionService = Objects.requireNonNull(
+                sessionService,
+                "sessionService"
         );
         this.turnDispatcher = Objects.requireNonNull(
                 turnDispatcher,
@@ -59,6 +73,36 @@ public final class ProjectBootstrapService {
         return result;
     }
 
+    public PageResult<ProjectSummary> listProjects(
+            int current,
+            int pageSize
+    ) {
+        if (current <= 0) {
+            throw new IllegalArgumentException(
+                    "current must be greater than zero"
+            );
+        }
+        if (pageSize <= 0 || pageSize > MAX_PAGE_SIZE) {
+            throw new IllegalArgumentException(
+                    "pageSize must be between 1 and "
+                            + MAX_PAGE_SIZE
+            );
+        }
+
+        return queryRepository.findProjectSummaries(
+                current,
+                pageSize
+        );
+    }
+
+    public Optional<ProjectDetails> getProject(
+            String projectId
+    ) {
+        return queryRepository.findProjectDetails(
+                requireText(projectId, "projectId")
+        );
+    }
+
     private ProjectStartResult persistProject(
             StartProjectCommand command
     ) {
@@ -73,7 +117,7 @@ public final class ProjectBootstrapService {
                 now
         ));
 
-        Session session = sessionCommandService.createSession(
+        Session session = sessionService.createSession(
                 project.id(),
                 projectName,
                 command.provider(),
@@ -81,7 +125,7 @@ public final class ProjectBootstrapService {
         );
 
         TurnStartResult initialTurn =
-                sessionCommandService.startTurn(
+                sessionService.createPendingTurn(
                         project.id(),
                         session.id(),
                         command.prompt()
@@ -116,5 +160,19 @@ public final class ProjectBootstrapService {
                 0,
                 MAX_PROJECT_NAME_LENGTH - 3
         ) + "...";
+    }
+
+    private static String requireText(
+            String value,
+            String field
+    ) {
+        Objects.requireNonNull(value, field);
+        String normalized = value.strip();
+        if (normalized.isEmpty()) {
+            throw new IllegalArgumentException(
+                    field + " must not be blank"
+            );
+        }
+        return normalized;
     }
 }
