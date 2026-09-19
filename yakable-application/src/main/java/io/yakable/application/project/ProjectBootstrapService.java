@@ -55,9 +55,7 @@ public final class ProjectBootstrapService {
                 () -> persistProject(command)
         );
 
-        turnDispatcher.dispatchSafely(
-                result.initialTurn().turn().id()
-        );
+        dispatchBestEffort(result.initialTurn().turn().id());
         return result;
     }
 
@@ -94,6 +92,14 @@ public final class ProjectBootstrapService {
                 session,
                 initialTurn
         );
+    }
+
+    private void dispatchBestEffort(String turnId) {
+        try {
+            turnDispatcher.dispatch(turnId);
+        } catch (RuntimeException ignored) {
+            // PENDING is durable; recovery will retry dispatch.
+        }
     }
 
     private static String projectName(String prompt) {

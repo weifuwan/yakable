@@ -33,7 +33,8 @@ public record Turn(
                 attemptCount,
                 errorMessage,
                 startedAt,
-                finishedAt
+                finishedAt,
+                createdAt
         );
     }
 
@@ -120,7 +121,8 @@ public record Turn(
             int attemptCount,
             String errorMessage,
             Instant startedAt,
-            Instant finishedAt
+            Instant finishedAt,
+            Instant createdAt
     ) {
         switch (status) {
             case PENDING -> {
@@ -141,6 +143,7 @@ public record Turn(
                             "RUNNING turn requires startedAt only"
                     );
                 }
+                validateStartedAt(createdAt, startedAt);
             }
             case SUCCEEDED -> {
                 requireAttempt(attemptCount, status);
@@ -151,6 +154,7 @@ public record Turn(
                             "SUCCEEDED turn requires execution timestamps"
                     );
                 }
+                validateStartedAt(createdAt, startedAt);
                 validateFinishedAt(startedAt, finishedAt);
             }
             case FAILED -> {
@@ -162,6 +166,7 @@ public record Turn(
                             "FAILED turn requires error and execution timestamps"
                     );
                 }
+                validateStartedAt(createdAt, startedAt);
                 validateFinishedAt(startedAt, finishedAt);
             }
         }
@@ -174,6 +179,17 @@ public record Turn(
         if (attemptCount <= 0) {
             throw new IllegalArgumentException(
                     status + " turn requires at least one attempt"
+            );
+        }
+    }
+
+    private static void validateStartedAt(
+            Instant createdAt,
+            Instant startedAt
+    ) {
+        if (startedAt.isBefore(createdAt)) {
+            throw new IllegalArgumentException(
+                    "startedAt must not be before createdAt"
             );
         }
     }

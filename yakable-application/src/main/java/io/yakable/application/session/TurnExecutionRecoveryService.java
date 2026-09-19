@@ -55,7 +55,7 @@ public final class TurnExecutionRecoveryService {
 
         int accepted = 0;
         for (String turnId : pendingTurnIds) {
-            if (turnDispatcher.dispatchSafely(turnId)) {
+            if (dispatchBestEffort(turnId)) {
                 accepted++;
             }
         }
@@ -65,6 +65,14 @@ public final class TurnExecutionRecoveryService {
                 pendingTurnIds.size(),
                 accepted
         );
+    }
+
+    private boolean dispatchBestEffort(String turnId) {
+        try {
+            return turnDispatcher.dispatch(turnId);
+        } catch (RuntimeException ignored) {
+            return false;
+        }
     }
 
     private static Duration requirePositive(

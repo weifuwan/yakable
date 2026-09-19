@@ -10,16 +10,4 @@ public interface TurnDispatcher {
      * should return false for transient scheduling failures.</p>
      */
     boolean dispatch(String turnId);
-
-    /**
-     * Protects committed business state from any dispatcher implementation
-     * that unexpectedly throws.
-     */
-    default boolean dispatchSafely(String turnId) {
-        try {
-            return dispatch(turnId);
-        } catch (RuntimeException ignored) {
-            return false;
-        }
-    }
 }

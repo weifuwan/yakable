@@ -44,7 +44,15 @@ public final class SessionTurnService {
                 )
         );
 
-        turnDispatcher.dispatchSafely(result.turn().id());
+        dispatchBestEffort(result.turn().id());
         return result;
+    }
+
+    private void dispatchBestEffort(String turnId) {
+        try {
+            turnDispatcher.dispatch(turnId);
+        } catch (RuntimeException ignored) {
+            // PENDING is durable; recovery will retry dispatch.
+        }
     }
 }
