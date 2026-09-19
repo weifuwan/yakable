@@ -12,9 +12,10 @@ When a task touches Yakable code, prefer this order:
 
 1. Read this file to identify the relevant module or domain.
 2. Read `docs/context/backend-map.md` for backend tasks.
-3. Read the matching architecture document only when its rules are relevant.
-4. Read the smallest set of implementation files needed for the task.
-5. Expand context only when the current evidence is insufficient.
+3. Read the selected Java module's `MODULE.md` before scanning its implementation.
+4. Read the matching architecture document only when its rules are relevant.
+5. Read the smallest set of implementation files needed for the task.
+6. Expand context only when the current evidence is insufficient.
 
 Do not scan the whole repository by default.
 
@@ -215,6 +216,7 @@ A useful Yakable task context should usually be:
 
 ```text
 project map
++ selected module MODULE.md
 + relevant domain map / architecture rule
 + task entry point
 + directly related domain/application contracts
