@@ -25,7 +25,7 @@ createdAt
 updatedAt
 ```
 
-Cross-aggregate Project/Session orchestration belongs to `yakable-application`.
+Cross-aggregate Project/Session orchestration belongs to `yakable-api` 的 `application` package.
 
 ### Session
 
@@ -196,7 +196,7 @@ This is intentionally a single-node recovery baseline. Before running long-lived
 
 ## Persistence boundary
 
-Repository contracts live in `yakable-domain`; MyBatis-Plus implementations live in `yakable-dao`.
+Repository contracts live in `yakable-api` 的 `domain` package; MyBatis-Plus implementations live in `yakable-dao`.
 
 `SessionExecutionRepository` owns atomic execution semantics:
 

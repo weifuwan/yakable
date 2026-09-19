@@ -32,13 +32,9 @@
     <modules>
         <module>yakable-bom</module>
         <module>yakable-common</module>
-        <module>yakable-spi</module>
         <module>yakable-plugins/yakable-plugin-model</module>
-        <module>yakable-domain</module>
-        <module>yakable-application</module>
+        <module>yakable-api</module>
         <module>yakable-dao</module>
-        <module>yakable-infrastructure</module>
-        <module>yakable-interfaces</module>
         <module>yakable-boot</module>
     </modules>
 

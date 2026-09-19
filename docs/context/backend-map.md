@@ -21,7 +21,7 @@ For architecture rules, read `docs/architecture/java-backend-modules.md`.
 ### Business model
 
 ```text
-yakable-domain/src/main/java/io/yakable/domain/project/
+yakable-api/src/main/java/io/yakable/domain/project/
 ├── Project.java
 ├── ProjectStatus.java
 └── repository/
@@ -31,7 +31,7 @@ yakable-domain/src/main/java/io/yakable/domain/project/
 ### Use cases and read models
 
 ```text
-yakable-application/src/main/java/io/yakable/application/project/
+yakable-api/src/main/java/io/yakable/application/project/
 ├── ProjectBootstrapService.java
 ├── ProjectOverviewQueryService.java
 ├── ProjectQueryRepository.java
@@ -65,7 +65,7 @@ directly; there is no intermediate Dao or Adapter layer.
 ### REST
 
 ```text
-yakable-interfaces/src/main/java/io/yakable/interfaces/rest/project/
+yakable-api/src/main/java/io/yakable/interfaces/rest/project/
 └── ProjectController.java
 ```
 
@@ -85,7 +85,7 @@ Read `docs/architecture/session-domain.md` before changing lifecycle or consiste
 ### Business model
 
 ```text
-yakable-domain/src/main/java/io/yakable/domain/session/
+yakable-api/src/main/java/io/yakable/domain/session/
 ├── Session.java
 ├── SessionStatus.java
 ├── SessionMessage.java
@@ -109,7 +109,7 @@ Important boundary:
 ### Commands and execution
 
 ```text
-yakable-application/src/main/java/io/yakable/application/session/
+yakable-api/src/main/java/io/yakable/application/session/
 ├── SessionCommandService.java
 ├── SessionTurnService.java
 ├── TurnExecutor.java
@@ -159,7 +159,7 @@ classes over the table Mappers.
 ### REST
 
 ```text
-yakable-interfaces/src/main/java/io/yakable/interfaces/rest/session/
+yakable-api/src/main/java/io/yakable/interfaces/rest/session/
 └── SessionController.java
 ```
 
@@ -168,14 +168,14 @@ yakable-interfaces/src/main/java/io/yakable/interfaces/rest/session/
 Application port:
 
 ```text
-yakable-application/src/main/java/io/yakable/application/async/
+yakable-api/src/main/java/io/yakable/application/async/
 └── TurnDispatcher.java
 ```
 
 Infrastructure implementations:
 
 ```text
-yakable-infrastructure/src/main/java/io/yakable/infrastructure/async/
+yakable-api/src/main/java/io/yakable/infrastructure/async/
 ├── VirtualThreadTurnDispatcher.java
 └── TurnRecoveryWorker.java
 ```
@@ -196,7 +196,7 @@ TurnExecutor
 ### Application model contract
 
 ```text
-yakable-application/src/main/java/io/yakable/application/model/
+yakable-api/src/main/java/io/yakable/application/model/
 ├── ModelGateway.java
 ├── ModelRequest.java
 ├── ModelMessage.java
@@ -208,7 +208,7 @@ Application code must depend on `ModelGateway`, not on DeepSeek/OpenAI-specific 
 ### Infrastructure adapter
 
 ```text
-yakable-infrastructure/src/main/java/io/yakable/infrastructure/model/
+yakable-api/src/main/java/io/yakable/infrastructure/model/
 ├── PluginModelGateway.java
 ├── ModelPluginRegistry.java
 └── ModelPluginConfigurationResolver.java
@@ -248,7 +248,7 @@ Only enter concrete plugins when the issue is provider protocol, configuration, 
 Application port:
 
 ```text
-yakable-application/src/main/java/io/yakable/application/transaction/
+yakable-api/src/main/java/io/yakable/application/transaction/
 └── TransactionRunner.java
 ```
 
@@ -278,7 +278,7 @@ Flyway owns schema evolution. Never edit an applied migration; add a new version
 ## REST boundary
 
 ```text
-yakable-interfaces/src/main/java/io/yakable/interfaces/rest/
+yakable-api/src/main/java/io/yakable/interfaces/rest/
 ├── RestExceptionHandler.java
 ├── project/ProjectController.java
 └── session/SessionController.java
@@ -318,7 +318,7 @@ Do not move business rules into configuration classes.
 ### Application flow
 
 ```text
-yakable-application/src/test/java/io/yakable/application/session/
+yakable-api/src/test/java/io/yakable/application/session/
 └── SessionFlowTest.java
 ```
 
@@ -350,8 +350,8 @@ Load:
 
 ```text
 docs/architecture/session-domain.md
-yakable-domain/.../session/
-yakable-application/.../session/
+yakable-api/.../session/
+yakable-api/.../session/
 SessionFlowTest.java
 ```
 
@@ -409,9 +409,9 @@ Load:
 ```text
 the Domain repository contract
 the RepositoryImpl
-the DAO interface
-the MyBatis implementation / Mapper
-the relevant PO
+the RepositoryImpl
+the Mapper
+the relevant Entity
 the closest integration test
 ```
 

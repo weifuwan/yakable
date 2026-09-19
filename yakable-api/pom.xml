@@ -10,20 +10,29 @@
         <version>0.1.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>yakable-infrastructure</artifactId>
+    <artifactId>yakable-api</artifactId>
 
-    <name>Yakable Infrastructure</name>
-    <description>Model-plugin, async, and external-system adapters</description>
+    <name>Yakable API</name>
+    <description>Yakable domain, application, REST and infrastructure runtime</description>
 
     <dependencies>
         <dependency>
             <groupId>io.yakable</groupId>
-            <artifactId>yakable-application</artifactId>
+            <artifactId>yakable-common</artifactId>
         </dependency>
         <dependency>
             <groupId>io.yakable</groupId>
             <artifactId>yakable-plugin-model-api</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

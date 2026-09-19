@@ -38,7 +38,7 @@
             </dependency>
             <dependency>
                 <groupId>io.yakable</groupId>
-                <artifactId>yakable-spi</artifactId>
+                <artifactId>yakable-api</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -63,27 +63,7 @@
             </dependency>
             <dependency>
                 <groupId>io.yakable</groupId>
-                <artifactId>yakable-domain</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.yakable</groupId>
-                <artifactId>yakable-application</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.yakable</groupId>
                 <artifactId>yakable-dao</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.yakable</groupId>
-                <artifactId>yakable-infrastructure</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.yakable</groupId>
-                <artifactId>yakable-interfaces</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

@@ -18,11 +18,7 @@
     <dependencies>
         <dependency>
             <groupId>io.yakable</groupId>
-            <artifactId>yakable-domain</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.yakable</groupId>
-            <artifactId>yakable-application</artifactId>
+            <artifactId>yakable-api</artifactId>
         </dependency>
 
         <dependency>

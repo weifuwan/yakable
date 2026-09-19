@@ -10,12 +10,8 @@ The backend is being rebuilt in Java. The previous TypeScript backend has been r
 yakable/
 ├── yakable-bom/             # Java dependency alignment
 ├── yakable-common/          # Business-agnostic shared types and utilities
-├── yakable-spi/             # Stable extension contracts
-├── yakable-domain/          # Domain model, invariants, repository ports
-├── yakable-application/     # Use cases and application ports
+├── yakable-api/             # Domain, application, REST and infrastructure
 ├── yakable-dao/             # MyBatis-Plus persistence + Flyway migrations
-├── yakable-infrastructure/  # LLM runtime, async, external-system adapters
-├── yakable-interfaces/      # REST and other inbound adapters
 ├── yakable-plugins/         # AutoService + ServiceLoader implementations
 ├── yakable-boot/            # Spring Boot composition root
 ├── yakable-ui/              # React + TypeScript browser application
@@ -76,31 +72,25 @@ DEEPSEEK_BASE_URL      optional, defaults to https://api.deepseek.com
 
 ```text
 yakable-boot
-  ├── yakable-interfaces
-  │     └── yakable-application
-  │             └── yakable-domain
-  │
+  ├── yakable-api
   ├── yakable-dao
-  │     ├── yakable-application
-  │     └── yakable-domain
-  │
-  └── yakable-infrastructure
-        ├── yakable-application
-        └── model plugin API
+  └── yakable-plugin-model-*
 
-yakable-plugin-model-*
-  └── AutoService / ServiceLoader provider implementations
+yakable-dao
+  └── yakable-api
+
+yakable-api
+  ├── yakable-common
+  └── model plugin API
 ```
 
 The persistence corridor is:
 
 ```text
-Application
-  -> Domain Repository Port
-  -> Repository Adapter
-  -> DAO
+Repository
+  -> RepositoryImpl
   -> MyBatis-Plus Mapper
-  -> PO
+  -> Entity
   -> MySQL
 ```
 
