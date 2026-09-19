@@ -1,4 +1,4 @@
-import type { ConversationMessage } from '../types';
+import type { ConversationMessage, ConversationTurn } from '../types';
 
 function isConversationMessage(value: unknown): value is ConversationMessage {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
@@ -12,6 +12,20 @@ function isConversationMessage(value: unknown): value is ConversationMessage {
     (message.role === 'USER' || message.role === 'ASSISTANT') &&
     typeof message.content === 'string' &&
     typeof message.createdAt === 'string'
+  );
+}
+
+function isConversationTurn(value: unknown): value is ConversationTurn {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+
+  const turn = value as Record<string, unknown>;
+  return (
+    isConversationMessage(turn.userMessage) &&
+    turn.userMessage.role === 'USER' &&
+    isConversationMessage(turn.assistantMessage) &&
+    turn.assistantMessage.role === 'ASSISTANT'
   );
 }
 
@@ -65,7 +79,8 @@ export async function getConversationMessages(
 export async function sendConversationMessage(
   projectId: string,
   content: string,
-): Promise<ConversationMessage> {
+  signal?: AbortSignal,
+): Promise<ConversationTurn> {
   let response: Response;
 
   try {
@@ -78,9 +93,11 @@ export async function sendConversationMessage(
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ content }),
+        signal,
       },
     );
   } catch (error) {
+    if (signal?.aborted) throw error;
     throw new Error('Unable to send message.', { cause: error });
   }
 
@@ -93,8 +110,8 @@ export async function sendConversationMessage(
     'Conversation API returned invalid JSON.',
   );
 
-  if (!isConversationMessage(data)) {
-    throw new Error('Conversation API returned an invalid message.');
+  if (!isConversationTurn(data)) {
+    throw new Error('Conversation API returned an invalid turn.');
   }
 
   return data;

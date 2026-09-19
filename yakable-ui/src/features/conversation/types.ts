@@ -6,3 +6,8 @@ export interface ConversationMessage {
   content: string;
   createdAt: string;
 }
+
+export interface ConversationTurn {
+  userMessage: ConversationMessage;
+  assistantMessage: ConversationMessage;
+}

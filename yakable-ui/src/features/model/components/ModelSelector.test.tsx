@@ -9,7 +9,7 @@ describe('ModelSelector', () => {
 
     render(
       <ModelSelector
-        value={{ provider: 'deepseek', model: 'deepseek' }}
+        value={{ provider: 'deepseek', model: 'deepseek-flash' }}
         onValueChange={onValueChange}
       />,
     );
@@ -22,7 +22,7 @@ describe('ModelSelector', () => {
 
     expect(onValueChange).toHaveBeenCalledWith({
       provider: 'kimi',
-      model: 'kimi',
+      model: 'kimi-k3',
     });
   });
 });
