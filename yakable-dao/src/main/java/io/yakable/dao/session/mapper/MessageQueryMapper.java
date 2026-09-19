@@ -55,16 +55,32 @@ public interface MessageQueryMapper {
                 created_at
             FROM yak_message
             WHERE session_id = #{sessionId}
-              AND (
-                  #{beforeSequence} IS NULL
-                  OR message_sequence < #{beforeSequence}
-              )
+            ORDER BY message_sequence DESC
+            LIMIT #{limit}
+            """)
+    List<MessagePO> selectLatestMessages(
+            @Param("sessionId") String sessionId,
+            @Param("limit") int limit
+    );
+
+    @Select("""
+            SELECT
+                id,
+                session_id,
+                turn_id,
+                role,
+                content,
+                message_sequence,
+                created_at
+            FROM yak_message
+            WHERE session_id = #{sessionId}
+              AND message_sequence < #{beforeSequence}
             ORDER BY message_sequence DESC
             LIMIT #{limit}
             """)
     List<MessagePO> selectMessagesBefore(
             @Param("sessionId") String sessionId,
-            @Param("beforeSequence") Long beforeSequence,
+            @Param("beforeSequence") long beforeSequence,
             @Param("limit") int limit
     );
 

@@ -88,6 +88,13 @@ public class MybatisSessionQueryDao
             Long beforeSequence,
             int limit
     ) {
+        if (beforeSequence == null) {
+            return messageMapper.selectLatestMessages(
+                    sessionId,
+                    limit
+            );
+        }
+
         return messageMapper.selectMessagesBefore(
                 sessionId,
                 beforeSequence,
