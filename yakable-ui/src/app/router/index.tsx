@@ -11,7 +11,7 @@ function AppRoutes() {
       <Route element={<AppLayout />}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route
-          path="/dashboard/project/:projectId/*"
+          path="/dashboard/project/:projectId/session/:sessionId"
           element={<ProjectPage />}
         />
       </Route>

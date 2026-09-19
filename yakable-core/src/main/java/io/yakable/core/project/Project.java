@@ -6,9 +6,6 @@ import java.util.Objects;
 public record Project(
         String id,
         String name,
-        String prompt,
-        String provider,
-        String model,
         ProjectStatus status,
         Instant createdAt,
         Instant updatedAt
@@ -17,9 +14,6 @@ public record Project(
     public Project {
         id = requireText(id, "id");
         name = requireText(name, "name");
-        prompt = requireText(prompt, "prompt");
-        provider = requireText(provider, "provider");
-        model = requireText(model, "model");
         Objects.requireNonNull(status, "status");
         Objects.requireNonNull(createdAt, "createdAt");
         Objects.requireNonNull(updatedAt, "updatedAt");

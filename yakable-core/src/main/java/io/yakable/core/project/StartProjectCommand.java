@@ -2,13 +2,13 @@ package io.yakable.core.project;
 
 import java.util.Objects;
 
-public record CreateProjectCommand(
+public record StartProjectCommand(
         String prompt,
         String provider,
         String model
 ) {
 
-    public CreateProjectCommand {
+    public StartProjectCommand {
         prompt = requireText(prompt, "prompt");
         provider = requireText(provider, "provider");
         model = requireText(model, "model");

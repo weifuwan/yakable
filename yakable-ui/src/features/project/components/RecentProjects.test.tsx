@@ -10,10 +10,11 @@ afterEach(() => {
 });
 
 describe('RecentProjects', () => {
-  it('shows the five most recently updated projects and marks the URL project active', async () => {
+  it('shows the five most recently updated projects and marks the session route active', async () => {
     const projects = Array.from({ length: 6 }, (_, index) => ({
       id: `project-${index + 1}`,
       name: `Project ${index + 1}`,
+      sessionId: `session-${index + 1}`,
       updatedAt: new Date(Date.UTC(2026, 8, index + 1)).toISOString(),
     }));
 
@@ -26,7 +27,11 @@ describe('RecentProjects', () => {
     );
 
     render(
-      <MemoryRouter initialEntries={['/dashboard/project/project-5']}>
+      <MemoryRouter
+        initialEntries={[
+          '/dashboard/project/project-5/session/session-5',
+        ]}
+      >
         <ProjectsProvider>
           <RecentProjects />
         </ProjectsProvider>

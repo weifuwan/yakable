@@ -8,11 +8,7 @@ import { CreateProjectComposer } from './CreateProjectComposer';
 const createdProject = {
   id: 'project-123',
   name: 'Build a CRM dashboard',
-  prompt: 'Build a CRM dashboard',
-  model: {
-    provider: 'kimi',
-    model: 'kimi-k3',
-  },
+  sessionId: 'session-123',
   status: 'CREATED',
   createdAt: '2026-09-19T00:00:00Z',
   updatedAt: '2026-09-19T00:00:00Z',
@@ -48,8 +44,8 @@ function renderComposer() {
         <Routes>
           <Route path="/dashboard" element={<CreateProjectComposer />} />
           <Route
-            path="/dashboard/project/:projectId"
-            element={<div>Project destination</div>}
+            path="/dashboard/project/:projectId/session/:sessionId"
+            element={<div>Project session destination</div>}
           />
         </Routes>
       </ProjectsProvider>
@@ -78,7 +74,7 @@ describe('CreateProjectComposer', () => {
     expect((submitButton as HTMLButtonElement).disabled).toBe(false);
   });
 
-  it('creates with the selected model and navigates to the project route', async () => {
+  it('creates with the selected model and navigates to the session route', async () => {
     const fetchMock = stubProjectApi();
     renderComposer();
 
@@ -93,9 +89,13 @@ describe('CreateProjectComposer', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'Create project' }));
 
-    expect(await screen.findByText('Project destination')).toBeTruthy();
+    expect(
+      await screen.findByText('Project session destination'),
+    ).toBeTruthy();
 
-    const postCall = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST');
+    const postCall = fetchMock.mock.calls.find(
+      ([, init]) => init?.method === 'POST',
+    );
     expect(postCall).toBeTruthy();
     expect(JSON.parse(String(postCall?.[1]?.body))).toEqual({
       prompt: 'Build a CRM dashboard',
