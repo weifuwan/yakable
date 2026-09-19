@@ -2,14 +2,18 @@ package io.yakable.boot.project;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.yakable.boot.session.SessionTurnDispatcher;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -25,6 +29,9 @@ class ProjectControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @MockBean
+    private SessionTurnDispatcher turnDispatcher;
+
     @Test
     void listsProjects() throws Exception {
         mockMvc.perform(get("/api/projects"))
@@ -33,7 +40,7 @@ class ProjectControllerTest {
     }
 
     @Test
-    void createsProjectAndReadsItById() throws Exception {
+    void createsProjectWithInitialSessionAndReadsItById() throws Exception {
         MvcResult result = mockMvc.perform(post("/api/projects")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -41,25 +48,29 @@ class ProjectControllerTest {
                                   "prompt": "Build a CRM dashboard",
                                   "model": {
                                     "provider": "deepseek",
-                                    "model": "deepseek"
+                                    "model": "deepseek-flash"
                                   }
                                 }
                                 """))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.name").value("Build a CRM dashboard"))
-                .andExpect(jsonPath("$.prompt").value("Build a CRM dashboard"))
-                .andExpect(jsonPath("$.model.provider").value("deepseek"))
-                .andExpect(jsonPath("$.model.model").value("deepseek"))
+                .andExpect(jsonPath("$.sessionId").isString())
                 .andExpect(jsonPath("$.status").value("CREATED"))
                 .andReturn();
 
-        JsonNode createdProject = objectMapper.readTree(result.getResponse().getContentAsString());
+        JsonNode createdProject =
+                objectMapper.readTree(
+                        result.getResponse().getContentAsString()
+                );
         String projectId = createdProject.get("id").asText();
+        String sessionId = createdProject.get("sessionId").asText();
+
+        verify(turnDispatcher).dispatch(anyString());
 
         mockMvc.perform(get("/api/projects/{projectId}", projectId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(projectId))
-                .andExpect(jsonPath("$.prompt").value("Build a CRM dashboard"));
+                .andExpect(jsonPath("$.sessionId").value(sessionId));
     }
 
     @Test
@@ -71,7 +82,7 @@ class ProjectControllerTest {
                                   "prompt": "   ",
                                   "model": {
                                     "provider": "deepseek",
-                                    "model": "deepseek"
+                                    "model": "deepseek-flash"
                                   }
                                 }
                                 """))

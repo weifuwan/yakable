@@ -13,8 +13,13 @@ function updatedAtTimestamp(project: ProjectSummary): number {
   return Number.isNaN(timestamp) ? 0 : timestamp;
 }
 
-function projectHref(projectId: string): string {
-  return `/dashboard/project/${encodeURIComponent(projectId)}`;
+function projectHref(project: ProjectSummary): string {
+  return (
+    '/dashboard/project/' +
+    encodeURIComponent(project.id) +
+    '/session/' +
+    encodeURIComponent(project.sessionId)
+  );
 }
 
 export function RecentProjects({
@@ -63,8 +68,8 @@ export function RecentProjects({
       {!isLoading && !error && recentProjects.length > 0 && (
         <nav aria-label="Recent projects" className="flex flex-col gap-0.5">
           {recentProjects.map((project) => {
-            const href = projectHref(project.id);
-            const active = pathname === href || pathname.startsWith(`${href}/`);
+            const href = projectHref(project);
+            const active = pathname === href;
 
             return (
               <Link

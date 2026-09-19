@@ -1,21 +1,27 @@
-package io.yakable.core.conversation;
+package io.yakable.core.session;
 
 import java.time.Instant;
 import java.util.Objects;
 
-public record ConversationMessage(
+public record SessionMessage(
         String id,
-        String projectId,
+        String sessionId,
+        String turnId,
         Role role,
         String content,
+        long sequence,
         Instant createdAt
 ) {
 
-    public ConversationMessage {
+    public SessionMessage {
         id = requireText(id, "id");
-        projectId = requireText(projectId, "projectId");
+        sessionId = requireText(sessionId, "sessionId");
+        turnId = requireText(turnId, "turnId");
         Objects.requireNonNull(role, "role");
         content = requireText(content, "content");
+        if (sequence <= 0) {
+            throw new IllegalArgumentException("sequence must be greater than zero");
+        }
         Objects.requireNonNull(createdAt, "createdAt");
     }
 

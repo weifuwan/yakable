@@ -11,6 +11,15 @@ import { PromptComposer } from '@/shared/ui';
 import { createProject } from '../api/project-api';
 import { useProjects } from '../hooks/useProjects';
 
+function projectSessionPath(projectId: string, sessionId: string) {
+  return (
+    '/dashboard/project/' +
+    encodeURIComponent(projectId) +
+    '/session/' +
+    encodeURIComponent(sessionId)
+  );
+}
+
 export function CreateProjectComposer() {
   const navigate = useNavigate();
   const { upsertProject } = useProjects();
@@ -29,7 +38,7 @@ export function CreateProjectComposer() {
       });
 
       upsertProject(project);
-      navigate('/dashboard/project/' + encodeURIComponent(project.id));
+      navigate(projectSessionPath(project.id, project.sessionId));
       return true;
     } catch (requestError) {
       setError(

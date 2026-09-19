@@ -1,9 +1,11 @@
 package io.yakable.boot.project;
 
-import io.yakable.core.project.CreateProjectCommand;
-import io.yakable.core.project.Project;
+import io.yakable.boot.session.SessionTurnDispatcher;
+import io.yakable.core.project.StartProjectCommand;
+import io.yakable.core.project.ProjectDetails;
 import io.yakable.core.project.ProjectCommandService;
 import io.yakable.core.project.ProjectQueryService;
+import io.yakable.core.project.ProjectStartResult;
 import io.yakable.core.project.ProjectStatus;
 import io.yakable.core.project.ProjectSummary;
 import org.springframework.http.HttpStatus;
@@ -26,13 +28,16 @@ public class ProjectController {
 
     private final ProjectCommandService projectCommandService;
     private final ProjectQueryService projectQueryService;
+    private final SessionTurnDispatcher turnDispatcher;
 
     public ProjectController(
             ProjectCommandService projectCommandService,
-            ProjectQueryService projectQueryService
+            ProjectQueryService projectQueryService,
+            SessionTurnDispatcher turnDispatcher
     ) {
         this.projectCommandService = projectCommandService;
         this.projectQueryService = projectQueryService;
+        this.turnDispatcher = turnDispatcher;
     }
 
     @GetMapping
@@ -43,7 +48,9 @@ public class ProjectController {
     }
 
     @GetMapping("/{projectId}")
-    public ProjectDetailsResponse getProject(@PathVariable String projectId) {
+    public ProjectDetailsResponse getProject(
+            @PathVariable String projectId
+    ) {
         return projectQueryService.getProject(projectId)
                 .map(ProjectDetailsResponse::from)
                 .orElseThrow(() -> new ResponseStatusException(
@@ -56,21 +63,29 @@ public class ProjectController {
     public ResponseEntity<ProjectDetailsResponse> createProject(
             @RequestBody CreateProjectRequest request
     ) {
-        CreateProjectCommand command = toCommand(request);
-        Project project = projectCommandService.createProject(command);
+        StartProjectCommand command = toCommand(request);
+        ProjectStartResult result =
+                projectCommandService.startProject(command);
+
+        turnDispatcher.dispatch(result.initialTurn().turn().id());
 
         return ResponseEntity
-                .created(URI.create("/api/projects/" + project.id()))
-                .body(ProjectDetailsResponse.from(project));
+                .created(URI.create("/api/projects/" + result.project().id()))
+                .body(ProjectDetailsResponse.from(result));
     }
 
-    private static CreateProjectCommand toCommand(CreateProjectRequest request) {
+    private static StartProjectCommand toCommand(
+            CreateProjectRequest request
+    ) {
         if (request == null || request.model() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "prompt and model are required");
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "prompt and model are required"
+            );
         }
 
         try {
-            return new CreateProjectCommand(
+            return new StartProjectCommand(
                     request.prompt(),
                     request.model().provider(),
                     request.model().model()
@@ -99,6 +114,7 @@ public class ProjectController {
     public record ProjectSummaryResponse(
             String id,
             String name,
+            String sessionId,
             Instant updatedAt
     ) {
 
@@ -106,6 +122,7 @@ public class ProjectController {
             return new ProjectSummaryResponse(
                     project.id(),
                     project.name(),
+                    project.sessionId(),
                     project.updatedAt()
             );
         }
@@ -114,29 +131,32 @@ public class ProjectController {
     public record ProjectDetailsResponse(
             String id,
             String name,
-            String prompt,
-            ModelResponse model,
+            String sessionId,
             ProjectStatus status,
             Instant createdAt,
             Instant updatedAt
     ) {
 
-        static ProjectDetailsResponse from(Project project) {
+        static ProjectDetailsResponse from(ProjectDetails project) {
             return new ProjectDetailsResponse(
                     project.id(),
                     project.name(),
-                    project.prompt(),
-                    new ModelResponse(project.provider(), project.model()),
+                    project.sessionId(),
                     project.status(),
                     project.createdAt(),
                     project.updatedAt()
             );
         }
-    }
 
-    public record ModelResponse(
-            String provider,
-            String model
-    ) {
+        static ProjectDetailsResponse from(ProjectStartResult result) {
+            return new ProjectDetailsResponse(
+                    result.project().id(),
+                    result.project().name(),
+                    result.session().id(),
+                    result.project().status(),
+                    result.project().createdAt(),
+                    result.session().updatedAt()
+            );
+        }
     }
 }

@@ -1,9 +1,9 @@
-import type { ConversationMessage } from '../types';
+import type { SessionMessage } from '../types';
 
-export function ConversationMessageItem({
+export function MessageItem({
   message,
 }: {
-  message: ConversationMessage;
+  message: SessionMessage;
 }) {
   const isUser = message.role === 'USER';
 

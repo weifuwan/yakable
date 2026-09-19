@@ -13,6 +13,7 @@ function isProjectSummary(value: unknown): value is ProjectSummary {
   return (
     typeof project.id === 'string' &&
     typeof project.name === 'string' &&
+    typeof project.sessionId === 'string' &&
     typeof project.updatedAt === 'string'
   );
 }
@@ -21,17 +22,9 @@ function isProjectDetails(value: unknown): value is ProjectDetails {
   if (!isProjectSummary(value)) return false;
 
   const project = value as unknown as Record<string, unknown>;
-  const model = project.model;
-
   return (
-    typeof project.prompt === 'string' &&
     project.status === 'CREATED' &&
-    typeof project.createdAt === 'string' &&
-    typeof model === 'object' &&
-    model !== null &&
-    !Array.isArray(model) &&
-    typeof (model as Record<string, unknown>).provider === 'string' &&
-    typeof (model as Record<string, unknown>).model === 'string'
+    typeof project.createdAt === 'string'
   );
 }
 

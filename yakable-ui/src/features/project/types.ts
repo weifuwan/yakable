@@ -1,6 +1,7 @@
 export interface ProjectSummary {
   id: string;
   name: string;
+  sessionId: string;
   updatedAt: string;
 }
 
@@ -12,8 +13,6 @@ export interface ProjectModel {
 export type ProjectStatus = 'CREATED';
 
 export interface ProjectDetails extends ProjectSummary {
-  prompt: string;
-  model: ProjectModel;
   status: ProjectStatus;
   createdAt: string;
 }

@@ -64,6 +64,14 @@ yakable-boot
 
 Core depends only on the stable model plugin API. Concrete providers are discovered through ServiceLoader and are not imported by Core or Boot.
 
+The interaction domain is explicitly separated:
+
+```text
+Project -> Session -> Turn -> Message
+```
+
+Project is the long-lived workspace, Session owns conversation/model context, Turn owns execution lifecycle, and Message is the ordered conversational record. See `docs/architecture/session-domain.md`.
+
 `yakable-bom` manages dependency versions and is not part of the runtime dependency chain.
 
 ## Frontend
