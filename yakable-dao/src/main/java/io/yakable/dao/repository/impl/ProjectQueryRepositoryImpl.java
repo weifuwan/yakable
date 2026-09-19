@@ -1,12 +1,13 @@
-package io.yakable.dao.project;
+package io.yakable.dao.repository.impl;
 
 import io.yakable.application.project.ProjectDetails;
 import io.yakable.application.project.ProjectQueryRepository;
 import io.yakable.application.project.ProjectSummary;
 import io.yakable.application.query.PageResult;
-import io.yakable.dao.project.mapper.ProjectMapper;
-import io.yakable.dao.project.model.ProjectQueryRow;
+import io.yakable.dao.entity.ProjectEntity;
+import io.yakable.dao.mapper.ProjectMapper;
 import io.yakable.domain.project.ProjectStatus;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,12 +16,13 @@ import java.util.Objects;
 import java.util.Optional;
 
 @Repository
-public class ProjectQueryRepositoryAdapter
+@DependsOn("yakableFlyway")
+public class ProjectQueryRepositoryImpl
         implements ProjectQueryRepository {
 
     private final ProjectMapper mapper;
 
-    public ProjectQueryRepositoryAdapter(ProjectMapper mapper) {
+    public ProjectQueryRepositoryImpl(ProjectMapper mapper) {
         this.mapper = Objects.requireNonNull(mapper, "mapper");
     }
 
@@ -36,7 +38,7 @@ public class ProjectQueryRepositoryAdapter
         List<ProjectSummary> records =
                 mapper.selectProjectPage(offset, pageSize)
                         .stream()
-                        .map(ProjectQueryRepositoryAdapter::toSummary)
+                        .map(ProjectQueryRepositoryImpl::toSummary)
                         .toList();
 
         return new PageResult<>(
@@ -55,30 +57,30 @@ public class ProjectQueryRepositoryAdapter
     ) {
         return Optional.ofNullable(
                 mapper.selectProjectDetails(projectId)
-        ).map(ProjectQueryRepositoryAdapter::toDetails);
+        ).map(ProjectQueryRepositoryImpl::toDetails);
     }
 
     private static ProjectSummary toSummary(
-            ProjectQueryRow row
+            ProjectEntity entity
     ) {
         return new ProjectSummary(
-                row.getId(),
-                row.getName(),
-                row.getLatestSessionId(),
-                row.getUpdatedAt()
+                entity.getId(),
+                entity.getName(),
+                entity.getLatestSessionId(),
+                entity.getUpdatedAt()
         );
     }
 
     private static ProjectDetails toDetails(
-            ProjectQueryRow row
+            ProjectEntity entity
     ) {
         return new ProjectDetails(
-                row.getId(),
-                row.getName(),
-                row.getLatestSessionId(),
-                ProjectStatus.valueOf(row.getStatus()),
-                row.getCreatedAt(),
-                row.getUpdatedAt()
+                entity.getId(),
+                entity.getName(),
+                entity.getLatestSessionId(),
+                ProjectStatus.valueOf(entity.getStatus()),
+                entity.getCreatedAt(),
+                entity.getUpdatedAt()
         );
     }
 }

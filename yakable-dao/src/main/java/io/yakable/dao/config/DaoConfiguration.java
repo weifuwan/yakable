@@ -8,10 +8,7 @@ import org.springframework.context.annotation.Configuration;
 import javax.sql.DataSource;
 
 @Configuration(proxyBeanMethods = false)
-@MapperScan({
-        "io.yakable.dao.project.mapper",
-        "io.yakable.dao.session.mapper"
-})
+@MapperScan("io.yakable.dao.mapper")
 public class DaoConfiguration {
 
     @Bean(name = "yakableFlyway", initMethod = "migrate")

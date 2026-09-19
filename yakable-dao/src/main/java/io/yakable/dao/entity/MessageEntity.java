@@ -8,7 +8,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.Instant;
 
 @TableName("yak_message")
-public class MessagePO {
+public class MessageEntity {
 
     @TableId(value = "id", type = IdType.INPUT)
     private String id;
