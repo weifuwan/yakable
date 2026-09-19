@@ -33,12 +33,35 @@ export function ConversationWorkspace({
   useEffect(() => {
     const controller = new AbortController();
 
-    void getConversationMessages(projectId, controller.signal)
-      .then((result) => {
-        setMessages(result);
+    void (async () => {
+      try {
+        const result = await getConversationMessages(
+          projectId,
+          controller.signal,
+        );
+
+        if (controller.signal.aborted) return;
+
+        if (result.length > 0) {
+          setMessages(result);
+          setLoadError(null);
+          return;
+        }
+
+        const initialTurn = await sendConversationMessage(
+          projectId,
+          initialPrompt,
+          controller.signal,
+        );
+
+        if (controller.signal.aborted) return;
+
+        setMessages([
+          initialTurn.userMessage,
+          initialTurn.assistantMessage,
+        ]);
         setLoadError(null);
-      })
-      .catch((requestError: unknown) => {
+      } catch (requestError: unknown) {
         if (isAbortError(requestError, controller.signal)) return;
 
         setLoadError(
@@ -46,19 +69,24 @@ export function ConversationWorkspace({
             ? requestError.message
             : 'Unable to load conversation.',
         );
-      });
+      }
+    })();
 
     return () => {
       controller.abort();
     };
-  }, [projectId]);
+  }, [initialPrompt, projectId]);
 
   const handleSubmit = async (content: string) => {
     setSendError(null);
 
     try {
-      const message = await sendConversationMessage(projectId, content);
-      setMessages((current) => [...current, message]);
+      const turn = await sendConversationMessage(projectId, content);
+      setMessages((current) => [
+        ...current,
+        turn.userMessage,
+        turn.assistantMessage,
+      ]);
       return true;
     } catch (requestError) {
       setSendError(

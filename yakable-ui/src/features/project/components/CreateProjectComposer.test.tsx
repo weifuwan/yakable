@@ -11,7 +11,7 @@ const createdProject = {
   prompt: 'Build a CRM dashboard',
   model: {
     provider: 'kimi',
-    model: 'kimi',
+    model: 'kimi-k3',
   },
   status: 'CREATED',
   createdAt: '2026-09-19T00:00:00Z',
@@ -101,7 +101,7 @@ describe('CreateProjectComposer', () => {
       prompt: 'Build a CRM dashboard',
       model: {
         provider: 'kimi',
-        model: 'kimi',
+        model: 'kimi-k3',
       },
     });
   });

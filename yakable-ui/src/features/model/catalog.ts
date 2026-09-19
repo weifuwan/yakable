@@ -3,12 +3,12 @@ import type { ModelOption, ModelSelection } from './types';
 export const MODEL_CATALOG = [
   {
     provider: 'deepseek',
-    model: 'deepseek',
+    model: 'deepseek-flash',
     label: 'DeepSeek',
   },
   {
     provider: 'kimi',
-    model: 'kimi',
+    model: 'kimi-k3',
     label: 'Kimi',
   },
 ] as const satisfies readonly ModelOption[];

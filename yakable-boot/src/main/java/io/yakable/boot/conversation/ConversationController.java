@@ -2,6 +2,8 @@ package io.yakable.boot.conversation;
 
 import io.yakable.core.conversation.ConversationMessage;
 import io.yakable.core.conversation.ConversationService;
+import io.yakable.core.conversation.ConversationTurn;
+import io.yakable.core.llm.LlmProviderException;
 import io.yakable.core.project.Project;
 import io.yakable.core.project.ProjectQueryService;
 import org.springframework.http.HttpStatus;
@@ -14,9 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.net.URI;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -36,43 +36,49 @@ public class ConversationController {
 
     @GetMapping
     public List<MessageResponse> listMessages(@PathVariable String projectId) {
-        Project project = requireProject(projectId);
+        requireProject(projectId);
 
-        List<MessageResponse> messages = new ArrayList<>();
-        messages.add(MessageResponse.initial(project));
-        messages.addAll(
-                conversationService.listMessages(projectId).stream()
-                        .map(MessageResponse::from)
-                        .toList()
-        );
-        return messages;
+        return conversationService.listMessages(projectId).stream()
+                .map(MessageResponse::from)
+                .toList();
     }
 
     @PostMapping
-    public ResponseEntity<MessageResponse> sendMessage(
+    public ResponseEntity<ConversationTurnResponse> sendMessage(
             @PathVariable String projectId,
             @RequestBody SendMessageRequest request
     ) {
-        requireProject(projectId);
+        Project project = requireProject(projectId);
 
         if (request == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "content is required");
         }
 
-        ConversationMessage message;
+        ConversationTurn turn;
         try {
-            message = conversationService.appendUserMessage(projectId, request.content());
+            turn = conversationService.sendMessage(
+                    projectId,
+                    project.provider(),
+                    project.model(),
+                    request.content()
+            );
         } catch (IllegalArgumentException | NullPointerException exception) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "content must not be blank",
+                    exception.getMessage(),
+                    exception
+            );
+        } catch (LlmProviderException exception) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_GATEWAY,
+                    exception.getMessage(),
                     exception
             );
         }
 
         return ResponseEntity
-                .created(URI.create("/api/projects/" + projectId + "/messages/" + message.id()))
-                .body(MessageResponse.from(message));
+                .status(HttpStatus.CREATED)
+                .body(ConversationTurnResponse.from(turn));
     }
 
     private Project requireProject(String projectId) {
@@ -86,21 +92,25 @@ public class ConversationController {
     public record SendMessageRequest(String content) {
     }
 
+    public record ConversationTurnResponse(
+            MessageResponse userMessage,
+            MessageResponse assistantMessage
+    ) {
+
+        static ConversationTurnResponse from(ConversationTurn turn) {
+            return new ConversationTurnResponse(
+                    MessageResponse.from(turn.userMessage()),
+                    MessageResponse.from(turn.assistantMessage())
+            );
+        }
+    }
+
     public record MessageResponse(
             String id,
             ConversationMessage.Role role,
             String content,
             Instant createdAt
     ) {
-
-        static MessageResponse initial(Project project) {
-            return new MessageResponse(
-                    "initial-" + project.id(),
-                    ConversationMessage.Role.USER,
-                    project.prompt(),
-                    project.createdAt()
-            );
-        }
 
         static MessageResponse from(ConversationMessage message) {
             return new MessageResponse(

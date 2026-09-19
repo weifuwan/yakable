@@ -34,7 +34,15 @@ Build:
 Run:
 
 ```bash
+export DEEPSEEK_API_KEY=your-api-key
 ./mvnw -pl yakable-boot -am spring-boot:run
+```
+
+The first conversation provider is DeepSeek. The backend reads:
+
+```text
+DEEPSEEK_API_KEY       required for LLM calls
+DEEPSEEK_BASE_URL      optional, defaults to https://api.deepseek.com
 ```
 
 The backend dependency direction is:

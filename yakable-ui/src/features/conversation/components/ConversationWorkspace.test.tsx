@@ -16,7 +16,7 @@ describe('ConversationWorkspace', () => {
         status: 200,
         json: async () => [
           {
-            id: 'initial-project-1',
+            id: 'user-1',
             role: 'USER',
             content: 'Who are you?',
             createdAt: '2026-09-19T00:00:00Z',
@@ -45,7 +45,7 @@ describe('ConversationWorkspace', () => {
     expect(screen.getByText('I am Yakable.')).toBeTruthy();
   });
 
-  it('sends a new user message and keeps it in the conversation', async () => {
+  it('sends a new turn and appends both user and assistant messages', async () => {
     const fetchMock = vi.fn(
       async (_input: RequestInfo | URL, init?: RequestInit) => {
         if (init?.method === 'POST') {
@@ -53,10 +53,18 @@ describe('ConversationWorkspace', () => {
             ok: true,
             status: 201,
             json: async () => ({
-              id: 'message-2',
-              role: 'USER',
-              content: 'Tell me more',
-              createdAt: '2026-09-19T00:00:02Z',
+              userMessage: {
+                id: 'message-2',
+                role: 'USER',
+                content: 'Tell me more',
+                createdAt: '2026-09-19T00:00:02Z',
+              },
+              assistantMessage: {
+                id: 'message-3',
+                role: 'ASSISTANT',
+                content: 'Here is more.',
+                createdAt: '2026-09-19T00:00:03Z',
+              },
             }),
           };
         }
@@ -66,7 +74,7 @@ describe('ConversationWorkspace', () => {
           status: 200,
           json: async () => [
             {
-              id: 'initial-project-1',
+              id: 'message-1',
               role: 'USER',
               content: 'Who are you?',
               createdAt: '2026-09-19T00:00:00Z',
@@ -91,6 +99,7 @@ describe('ConversationWorkspace', () => {
     fireEvent.keyDown(input, { key: 'Enter' });
 
     expect(await screen.findByText('Tell me more')).toBeTruthy();
+    expect(await screen.findByText('Here is more.')).toBeTruthy();
 
     const postCall = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST');
     expect(postCall).toBeTruthy();
@@ -100,6 +109,57 @@ describe('ConversationWorkspace', () => {
 
     await waitFor(() => {
       expect((input as HTMLTextAreaElement).value).toBe('');
+    });
+  });
+
+  it('uses the project prompt to start the first LLM turn after navigation', async () => {
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.method === 'POST') {
+          return {
+            ok: true,
+            status: 201,
+            json: async () => ({
+              userMessage: {
+                id: 'message-1',
+                role: 'USER',
+                content: 'Build a CRM dashboard',
+                createdAt: '2026-09-19T00:00:00Z',
+              },
+              assistantMessage: {
+                id: 'message-2',
+                role: 'ASSISTANT',
+                content: 'What should the dashboard include?',
+                createdAt: '2026-09-19T00:00:01Z',
+              },
+            }),
+          };
+        }
+
+        return {
+          ok: true,
+          status: 200,
+          json: async () => [],
+        };
+      },
+    );
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(
+      <ConversationWorkspace
+        projectId="project-1"
+        initialPrompt="Build a CRM dashboard"
+        initialCreatedAt="2026-09-19T00:00:00Z"
+      />,
+    );
+
+    expect(await screen.findByText('What should the dashboard include?')).toBeTruthy();
+
+    const postCall = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST');
+    expect(postCall).toBeTruthy();
+    expect(JSON.parse(String(postCall?.[1]?.body))).toEqual({
+      content: 'Build a CRM dashboard',
     });
   });
 });
