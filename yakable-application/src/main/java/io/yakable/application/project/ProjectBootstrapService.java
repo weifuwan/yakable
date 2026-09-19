@@ -55,7 +55,9 @@ public final class ProjectBootstrapService {
                 () -> persistProject(command)
         );
 
-        turnDispatcher.dispatch(result.initialTurn().turn().id());
+        turnDispatcher.dispatchSafely(
+                result.initialTurn().turn().id()
+        );
         return result;
     }
 

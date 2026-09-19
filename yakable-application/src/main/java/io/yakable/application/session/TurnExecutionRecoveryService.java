@@ -55,13 +55,8 @@ public final class TurnExecutionRecoveryService {
 
         int accepted = 0;
         for (String turnId : pendingTurnIds) {
-            try {
-                if (turnDispatcher.dispatch(turnId)) {
-                    accepted++;
-                }
-            } catch (RuntimeException ignored) {
-                // The persisted PENDING Turn remains the source of truth.
-                // A later recovery cycle can dispatch it again.
+            if (turnDispatcher.dispatchSafely(turnId)) {
+                accepted++;
             }
         }
 

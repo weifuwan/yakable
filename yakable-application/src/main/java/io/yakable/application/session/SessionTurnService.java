@@ -44,7 +44,7 @@ public final class SessionTurnService {
                 )
         );
 
-        turnDispatcher.dispatch(result.turn().id());
+        turnDispatcher.dispatchSafely(result.turn().id());
         return result;
     }
 }
