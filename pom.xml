@@ -36,6 +36,7 @@
         <module>yakable-plugins/yakable-plugin-model</module>
         <module>yakable-domain</module>
         <module>yakable-application</module>
+        <module>yakable-dao</module>
         <module>yakable-infrastructure</module>
         <module>yakable-interfaces</module>
         <module>yakable-boot</module>

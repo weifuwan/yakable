@@ -2,6 +2,7 @@ package io.yakable.application.project;
 
 import io.yakable.application.async.TurnDispatcher;
 import io.yakable.application.session.SessionCommandService;
+import io.yakable.application.transaction.TransactionRunner;
 import io.yakable.domain.project.Project;
 import io.yakable.domain.project.ProjectStatus;
 import io.yakable.domain.project.repository.ProjectRepository;
@@ -19,11 +20,13 @@ public final class ProjectBootstrapService {
     private final ProjectRepository projectRepository;
     private final SessionCommandService sessionCommandService;
     private final TurnDispatcher turnDispatcher;
+    private final TransactionRunner transactionRunner;
 
     public ProjectBootstrapService(
             ProjectRepository projectRepository,
             SessionCommandService sessionCommandService,
-            TurnDispatcher turnDispatcher
+            TurnDispatcher turnDispatcher,
+            TransactionRunner transactionRunner
     ) {
         this.projectRepository = Objects.requireNonNull(
                 projectRepository,
@@ -37,6 +40,10 @@ public final class ProjectBootstrapService {
                 turnDispatcher,
                 "turnDispatcher"
         );
+        this.transactionRunner = Objects.requireNonNull(
+                transactionRunner,
+                "transactionRunner"
+        );
     }
 
     public ProjectStartResult startProject(
@@ -44,6 +51,17 @@ public final class ProjectBootstrapService {
     ) {
         Objects.requireNonNull(command, "command");
 
+        ProjectStartResult result = transactionRunner.required(
+                () -> persistProject(command)
+        );
+
+        turnDispatcher.dispatch(result.initialTurn().turn().id());
+        return result;
+    }
+
+    private ProjectStartResult persistProject(
+            StartProjectCommand command
+    ) {
         Instant now = Instant.now();
         String projectName = projectName(command.prompt());
 
@@ -68,8 +86,6 @@ public final class ProjectBootstrapService {
                         session.id(),
                         command.prompt()
                 );
-
-        turnDispatcher.dispatch(initialTurn.turn().id());
 
         return new ProjectStartResult(
                 project,
