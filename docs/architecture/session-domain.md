@@ -58,8 +58,10 @@ sessionId
 status
 attemptCount
 errorMessage
+invocation
 startedAt
 finishedAt
+durationMs (derived)
 createdAt
 updatedAt
 ```
@@ -83,14 +85,16 @@ PENDING
 
 RUNNING
   -> attemptCount > 0
+  -> provider/model invocation route required
   -> startedAt required
   -> finishedAt absent
 
 SUCCEEDED
-  -> startedAt + finishedAt required
+  -> invocation + startedAt + finishedAt required
+  -> token usage / provider request id / finish reason retained when available
 
 FAILED
-  -> startedAt + finishedAt + errorMessage required
+  -> invocation route + startedAt + finishedAt + errorMessage required
 ```
 
 A Turn is not exactly one USER Message plus one ASSISTANT Message. Future Agent execution may attach tool calls, tool results, file changes, approvals, and other events to the same Turn.
@@ -136,6 +140,8 @@ The in-process virtual-thread dispatcher is only a low-latency wake-up mechanism
 UPDATE yak_turn
 SET status = 'RUNNING',
     attempt_count = attempt_count + 1,
+    provider = ?,
+    model = ?,
     started_at = ?
 WHERE id = ?
   AND status = 'PENDING'
@@ -163,7 +169,7 @@ A periodic worker:
 ```text
 RUNNING with startedAt < now - runningTimeout
   -> PENDING
-  -> clear startedAt / finishedAt / error
+  -> clear invocation metadata / startedAt / finishedAt / error
   -> redispatch
 ```
 
@@ -206,6 +212,20 @@ findPendingTurnIds
 Database constraints preserve Session Message ordering and relational integrity.
 
 Flyway migration `V5__add_turn_execution_recovery.sql` adds execution timestamps, attempt count, and the recovery scan index without mutating older migrations.
+
+Flyway migration `V7__add_turn_invocation_metadata.sql` adds the durable model invocation fields:
+
+```text
+provider
+model
+inputTokens
+outputTokens
+totalTokens
+providerRequestId
+finishReason
+```
+
+`durationMs` is deliberately not stored. It is derived from `startedAt` and `finishedAt` so execution duration has one source of truth.
 
 ## Application transactions
 
@@ -263,7 +283,21 @@ GET /api/projects/{projectId}/sessions/{sessionId}
 POST /api/projects/{projectId}/sessions/{sessionId}/turns
 ```
 
-The Turn response exposes `attemptCount`, `startedAt`, and `finishedAt` so execution state is observable without exposing persistence details.
+The Turn response exposes execution and invocation metadata:
+
+```text
+attemptCount
+invocation.provider
+invocation.model
+invocation.usage
+invocation.providerRequestId
+invocation.finishReason
+startedAt
+finishedAt
+durationMs
+```
+
+PENDING Turns have no invocation. RUNNING/FAILED Turns retain the claimed provider/model route, while SUCCEEDED Turns also retain response metadata when the provider supplies it.
 
 ## Model boundary
 

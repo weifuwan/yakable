@@ -16,6 +16,13 @@ public interface TurnMapper extends BaseMapper<TurnPO> {
             SET status = 'RUNNING',
                 attempt_count = attempt_count + 1,
                 error_message = NULL,
+                provider = #{provider},
+                model = #{model},
+                input_tokens = NULL,
+                output_tokens = NULL,
+                total_tokens = NULL,
+                provider_request_id = NULL,
+                finish_reason = NULL,
                 started_at = #{claimedAt},
                 finished_at = NULL,
                 updated_at = #{claimedAt}
@@ -24,13 +31,22 @@ public interface TurnMapper extends BaseMapper<TurnPO> {
             """)
     int claimPendingTurn(
             @Param("turnId") String turnId,
-            @Param("claimedAt") Instant claimedAt
+            @Param("claimedAt") Instant claimedAt,
+            @Param("provider") String provider,
+            @Param("model") String model
     );
 
     @Update("""
             UPDATE yak_turn
             SET status = 'SUCCEEDED',
                 error_message = NULL,
+                provider = #{provider},
+                model = #{model},
+                input_tokens = #{inputTokens},
+                output_tokens = #{outputTokens},
+                total_tokens = #{totalTokens},
+                provider_request_id = #{providerRequestId},
+                finish_reason = #{finishReason},
                 finished_at = #{completedAt},
                 updated_at = #{completedAt}
             WHERE id = #{turnId}
@@ -40,6 +56,13 @@ public interface TurnMapper extends BaseMapper<TurnPO> {
     int completeRunningTurn(
             @Param("turnId") String turnId,
             @Param("sessionId") String sessionId,
+            @Param("provider") String provider,
+            @Param("model") String model,
+            @Param("inputTokens") Long inputTokens,
+            @Param("outputTokens") Long outputTokens,
+            @Param("totalTokens") Long totalTokens,
+            @Param("providerRequestId") String providerRequestId,
+            @Param("finishReason") String finishReason,
             @Param("completedAt") Instant completedAt
     );
 
@@ -64,6 +87,13 @@ public interface TurnMapper extends BaseMapper<TurnPO> {
             UPDATE yak_turn
             SET status = 'PENDING',
                 error_message = NULL,
+                provider = NULL,
+                model = NULL,
+                input_tokens = NULL,
+                output_tokens = NULL,
+                total_tokens = NULL,
+                provider_request_id = NULL,
+                finish_reason = NULL,
                 started_at = NULL,
                 finished_at = NULL,
                 updated_at = #{recoveredAt}

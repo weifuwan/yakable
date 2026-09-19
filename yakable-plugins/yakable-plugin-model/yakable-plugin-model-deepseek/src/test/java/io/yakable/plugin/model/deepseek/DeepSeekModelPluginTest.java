@@ -43,12 +43,15 @@ class DeepSeekModelPluginTest {
 
             byte[] response = """
                     {
+                      "id": "chatcmpl-deepseek-1",
+                      "model": "deepseek-flash",
                       "choices": [
                         {
                           "message": {
                             "role": "assistant",
                             "content": "Hello from DeepSeek"
-                          }
+                          },
+                          "finish_reason": "stop"
                         }
                       ],
                       "usage": {
@@ -88,6 +91,10 @@ class DeepSeekModelPluginTest {
         assertThat(authorization.get()).isEqualTo("Bearer test-key");
         assertThat(response.content()).isEqualTo("Hello from DeepSeek");
         assertThat(response.usage().totalTokens()).isEqualTo(15L);
+        assertThat(response.model()).isEqualTo("deepseek-flash");
+        assertThat(response.providerRequestId())
+                .isEqualTo("chatcmpl-deepseek-1");
+        assertThat(response.finishReason()).isEqualTo("stop");
 
         JsonNode request = new ObjectMapper().readTree(requestBody.get());
         assertThat(request.path("model").asText()).isEqualTo("deepseek-flash");

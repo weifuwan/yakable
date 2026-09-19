@@ -69,20 +69,41 @@ public class MybatisSessionExecutionDao
     @Override
     public int claimPendingTurn(
             String turnId,
-            Instant claimedAt
+            Instant claimedAt,
+            String provider,
+            String model
     ) {
-        return turnMapper.claimPendingTurn(turnId, claimedAt);
+        return turnMapper.claimPendingTurn(
+                turnId,
+                claimedAt,
+                provider,
+                model
+        );
     }
 
     @Override
     public int completeRunningTurn(
             String turnId,
             String sessionId,
+            String provider,
+            String model,
+            Long inputTokens,
+            Long outputTokens,
+            Long totalTokens,
+            String providerRequestId,
+            String finishReason,
             Instant completedAt
     ) {
         return turnMapper.completeRunningTurn(
                 turnId,
                 sessionId,
+                provider,
+                model,
+                inputTokens,
+                outputTokens,
+                totalTokens,
+                providerRequestId,
+                finishReason,
                 completedAt
         );
     }

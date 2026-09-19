@@ -17,11 +17,23 @@ public interface SessionExecutionDao {
 
     List<TurnPO> findTurnsBySessionId(String sessionId);
 
-    int claimPendingTurn(String turnId, Instant claimedAt);
+    int claimPendingTurn(
+            String turnId,
+            Instant claimedAt,
+            String provider,
+            String model
+    );
 
     int completeRunningTurn(
             String turnId,
             String sessionId,
+            String provider,
+            String model,
+            Long inputTokens,
+            Long outputTokens,
+            Long totalTokens,
+            String providerRequestId,
+            String finishReason,
             Instant completedAt
     );
 

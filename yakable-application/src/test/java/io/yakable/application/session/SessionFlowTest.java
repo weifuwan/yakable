@@ -5,12 +5,14 @@ import io.yakable.application.model.ModelGateway;
 import io.yakable.application.model.ModelMessage;
 import io.yakable.application.model.ModelReply;
 import io.yakable.application.model.ModelRequest;
+import io.yakable.application.model.ModelUsage;
 import io.yakable.application.transaction.TransactionRunner;
 import io.yakable.domain.session.Session;
 import io.yakable.domain.session.SessionBusyException;
 import io.yakable.domain.session.SessionMessage;
 import io.yakable.domain.session.SessionNotFoundException;
 import io.yakable.domain.session.Turn;
+import io.yakable.domain.session.TurnInvocation;
 import io.yakable.domain.session.TurnStartResult;
 import io.yakable.domain.session.TurnStatus;
 import io.yakable.domain.session.repository.SessionExecutionRepository;
@@ -73,6 +75,16 @@ class SessionFlowTest {
         assertThat(firstTurn.attemptCount()).isEqualTo(1);
         assertThat(firstTurn.startedAt()).isNotNull();
         assertThat(firstTurn.finishedAt()).isNotNull();
+        assertThat(firstTurn.durationMillis()).isNotNull();
+        assertThat(firstTurn.durationMillis()).isGreaterThanOrEqualTo(0L);
+        assertThat(firstTurn.invocation()).isNotNull();
+        assertThat(firstTurn.invocation().provider()).isEqualTo("deepseek");
+        assertThat(firstTurn.invocation().model()).isEqualTo("deepseek-flash");
+        assertThat(firstTurn.invocation().usage().inputTokens()).isEqualTo(10L);
+        assertThat(firstTurn.invocation().usage().outputTokens()).isEqualTo(5L);
+        assertThat(firstTurn.invocation().usage().totalTokens()).isEqualTo(15L);
+        assertThat(firstTurn.invocation().providerRequestId()).isEqualTo("req-1");
+        assertThat(firstTurn.invocation().finishReason()).isEqualTo("stop");
 
         ModelRequest secondRequest =
                 fixture.modelGateway.requests.get(1);
@@ -173,6 +185,9 @@ class SessionFlowTest {
         assertThat(persisted.errorMessage()).isEqualTo("context failed");
         assertThat(persisted.startedAt()).isNotNull();
         assertThat(persisted.finishedAt()).isNotNull();
+        assertThat(persisted.invocation()).isNotNull();
+        assertThat(persisted.invocation().provider()).isEqualTo("deepseek");
+        assertThat(persisted.invocation().model()).isEqualTo("deepseek-flash");
     }
 
     @Test
@@ -205,7 +220,12 @@ class SessionFlowTest {
                 "Recover me"
         );
         Turn running = fixture.executionRepository
-                .claimPendingTurn(started.turn().id(), claimedAt)
+                .claimPendingTurn(
+                        started.turn().id(),
+                        claimedAt,
+                        "deepseek",
+                        "deepseek-flash"
+                )
                 .orElseThrow();
 
         List<String> dispatched = new ArrayList<>();
@@ -239,6 +259,7 @@ class SessionFlowTest {
         assertThat(recovered.attemptCount()).isEqualTo(1);
         assertThat(recovered.startedAt()).isNull();
         assertThat(recovered.finishedAt()).isNull();
+        assertThat(recovered.invocation()).isNull();
     }
 
     @Test
@@ -271,10 +292,17 @@ class SessionFlowTest {
                 now
         );
 
-        assertThatThrownBy(() -> pending.markSucceeded(now))
+        assertThatThrownBy(() -> pending.markSucceeded(
+                now,
+                TurnInvocation.started("deepseek", "deepseek-flash")
+        ))
                 .isInstanceOf(IllegalStateException.class);
 
-        Turn running = pending.markRunning(now.plusSeconds(1));
+        Turn running = pending.markRunning(
+                now.plusSeconds(1),
+                "deepseek",
+                "deepseek-flash"
+        );
         assertThat(running.attemptCount()).isEqualTo(1);
         assertThat(running.startedAt()).isEqualTo(now.plusSeconds(1));
 
@@ -285,7 +313,11 @@ class SessionFlowTest {
         assertThat(recovered.attemptCount()).isEqualTo(1);
         assertThat(recovered.startedAt()).isNull();
 
-        Turn retried = recovered.markRunning(now.plusSeconds(3));
+        Turn retried = recovered.markRunning(
+                now.plusSeconds(3),
+                "deepseek",
+                "deepseek-flash"
+        );
         assertThat(retried.attemptCount()).isEqualTo(2);
 
         Turn failed = retried.markFailed(
@@ -295,7 +327,10 @@ class SessionFlowTest {
         assertThat(failed.status()).isEqualTo(TurnStatus.FAILED);
         assertThat(failed.finishedAt()).isEqualTo(now.plusSeconds(4));
         assertThatThrownBy(
-                () -> failed.markSucceeded(now.plusSeconds(5))
+                () -> failed.markSucceeded(
+                        now.plusSeconds(5),
+                        failed.invocation()
+                )
         ).isInstanceOf(IllegalStateException.class);
     }
 
@@ -309,6 +344,7 @@ class SessionFlowTest {
                 sessionId,
                 TurnStatus.PENDING,
                 0,
+                null,
                 null,
                 null,
                 null,
@@ -438,7 +474,9 @@ class SessionFlowTest {
         @Override
         public Optional<Turn> claimPendingTurn(
                 String turnId,
-                Instant claimedAt
+                Instant claimedAt,
+                String provider,
+                String model
         ) {
             Turn current = turns.get(turnId);
             if (current == null
@@ -446,7 +484,11 @@ class SessionFlowTest {
                 return Optional.empty();
             }
 
-            Turn running = current.markRunning(claimedAt);
+            Turn running = current.markRunning(
+                    claimedAt,
+                    provider,
+                    model
+            );
             turns.put(turnId, running);
             return Optional.of(running);
         }
@@ -456,10 +498,14 @@ class SessionFlowTest {
                 Turn runningTurn,
                 String assistantMessageId,
                 String content,
+                TurnInvocation completedInvocation,
                 Instant completedAt
         ) {
             Turn current = turns.get(runningTurn.id());
-            Turn succeeded = current.markSucceeded(completedAt);
+            Turn succeeded = current.markSucceeded(
+                    completedAt,
+                    completedInvocation
+            );
             SessionMessage assistantMessage = newMessage(
                     assistantMessageId,
                     current.sessionId(),
@@ -736,8 +782,14 @@ class SessionFlowTest {
             }
 
             requests.add(request);
+            int requestNumber = requests.size();
             return new ModelReply(
-                    "Assistant " + requests.size()
+                    "Assistant " + requestNumber,
+                    provider,
+                    request.model(),
+                    new ModelUsage(10L, 5L, 15L),
+                    "req-" + requestNumber,
+                    "stop"
             );
         }
     }

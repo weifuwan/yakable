@@ -3,12 +3,15 @@ package io.yakable.application.session;
 import io.yakable.application.model.ModelGateway;
 import io.yakable.application.model.ModelReply;
 import io.yakable.application.model.ModelRequest;
+import io.yakable.application.model.ModelUsage;
 import io.yakable.application.transaction.TransactionRunner;
 import io.yakable.domain.session.Session;
 import io.yakable.domain.session.SessionMessage;
 import io.yakable.domain.session.SessionNotFoundException;
 import io.yakable.domain.session.Turn;
+import io.yakable.domain.session.TurnInvocation;
 import io.yakable.domain.session.TurnStatus;
+import io.yakable.domain.session.TurnTokenUsage;
 import io.yakable.domain.session.repository.SessionExecutionRepository;
 import io.yakable.domain.session.repository.SessionRepository;
 
@@ -74,7 +77,12 @@ public final class TurnExecutor {
                 ));
 
         Turn runningTurn = executionRepository
-                .claimPendingTurn(turnId, Instant.now())
+                .claimPendingTurn(
+                        turnId,
+                        Instant.now(),
+                        session.provider(),
+                        session.model()
+                )
                 .orElse(null);
 
         if (runningTurn == null) {
@@ -117,12 +125,24 @@ public final class TurnExecutor {
             ModelReply response
     ) {
         Instant completedAt = Instant.now();
+        TurnInvocation completedInvocation =
+                Objects.requireNonNull(
+                        runningTurn.invocation(),
+                        "runningTurn.invocation"
+                ).completed(
+                        response.provider(),
+                        response.model(),
+                        toTurnTokenUsage(response.usage()),
+                        response.providerRequestId(),
+                        response.finishReason()
+                );
 
         transactionRunner.required(() -> {
             executionRepository.completeTurn(
                     runningTurn,
                     UUID.randomUUID().toString(),
                     response.content(),
+                    completedInvocation,
                     completedAt
             );
             sessionRepository.save(
@@ -182,6 +202,17 @@ public final class TurnExecutor {
                             && turn.status() == TurnStatus.SUCCEEDED;
                 })
                 .toList();
+    }
+
+    private static TurnTokenUsage toTurnTokenUsage(
+            ModelUsage usage
+    ) {
+        TurnTokenUsage tokenUsage = new TurnTokenUsage(
+                usage.inputTokens(),
+                usage.outputTokens(),
+                usage.totalTokens()
+        );
+        return tokenUsage.empty() ? null : tokenUsage;
     }
 
     private static String failureMessage(

@@ -73,6 +73,7 @@ public final class SessionCommandService {
                 null,
                 null,
                 null,
+                null,
                 now,
                 now
         );

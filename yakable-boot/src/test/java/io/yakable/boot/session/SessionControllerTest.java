@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.yakable.application.async.TurnDispatcher;
 import io.yakable.application.model.ModelGateway;
 import io.yakable.application.model.ModelReply;
+import io.yakable.application.model.ModelUsage;
 import io.yakable.application.session.TurnExecutor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,7 +49,14 @@ class SessionControllerTest {
     @BeforeEach
     void setUpModelGateway() {
         when(modelGateway.chat(anyString(), any())).thenReturn(
-                new ModelReply("I am Yakable.")
+                new ModelReply(
+                        "I am Yakable.",
+                        "deepseek",
+                        "deepseek-flash",
+                        new ModelUsage(8L, 4L, 12L),
+                        "req-deepseek-1",
+                        "stop"
+                )
         );
     }
 
@@ -106,6 +114,21 @@ class SessionControllerTest {
                         .value(initialTurnId))
                 .andExpect(jsonPath("$.latestTurn.status")
                         .value("SUCCEEDED"))
+                .andExpect(jsonPath("$.latestTurn.invocation.provider")
+                        .value("deepseek"))
+                .andExpect(jsonPath("$.latestTurn.invocation.model")
+                        .value("deepseek-flash"))
+                .andExpect(jsonPath("$.latestTurn.invocation.usage.inputTokens")
+                        .value(8))
+                .andExpect(jsonPath("$.latestTurn.invocation.usage.outputTokens")
+                        .value(4))
+                .andExpect(jsonPath("$.latestTurn.invocation.usage.totalTokens")
+                        .value(12))
+                .andExpect(jsonPath("$.latestTurn.invocation.providerRequestId")
+                        .value("req-deepseek-1"))
+                .andExpect(jsonPath("$.latestTurn.invocation.finishReason")
+                        .value("stop"))
+                .andExpect(jsonPath("$.latestTurn.durationMs").isNumber())
                 .andExpect(jsonPath("$.messages.length()")
                         .value(1))
                 .andExpect(jsonPath("$.messages[0].role")

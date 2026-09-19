@@ -1,23 +1,51 @@
-package io.yakable.application.model;
+package io.yakable.domain.session;
 
 import java.util.Objects;
 
-public record ModelReply(
-        String content,
+public record TurnInvocation(
         String provider,
         String model,
-        ModelUsage usage,
+        TurnTokenUsage usage,
         String providerRequestId,
         String finishReason
 ) {
 
-    public ModelReply {
-        content = requireText(content, "content");
+    public TurnInvocation {
         provider = requireText(provider, "provider");
         model = requireText(model, "model");
-        Objects.requireNonNull(usage, "usage");
         providerRequestId = normalizeOptionalText(providerRequestId);
         finishReason = normalizeOptionalText(finishReason);
+    }
+
+    public static TurnInvocation started(
+            String provider,
+            String model
+    ) {
+        return new TurnInvocation(
+                provider,
+                model,
+                null,
+                null,
+                null
+        );
+    }
+
+    public TurnInvocation completed(
+            String actualProvider,
+            String actualModel,
+            TurnTokenUsage actualUsage,
+            String actualProviderRequestId,
+            String actualFinishReason
+    ) {
+        return new TurnInvocation(
+                actualProvider,
+                actualModel,
+                actualUsage != null && actualUsage.empty()
+                        ? null
+                        : actualUsage,
+                actualProviderRequestId,
+                actualFinishReason
+        );
     }
 
     private static String requireText(
@@ -38,6 +66,7 @@ public record ModelReply(
         if (value == null) {
             return null;
         }
+
         String normalized = value.strip();
         return normalized.isEmpty() ? null : normalized;
     }

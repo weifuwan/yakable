@@ -17,13 +17,29 @@ export interface SessionInfo {
   updatedAt: string;
 }
 
+export interface TurnTokenUsage {
+  inputTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+}
+
+export interface TurnInvocation {
+  provider: string;
+  model: string;
+  usage: TurnTokenUsage | null;
+  providerRequestId: string | null;
+  finishReason: string | null;
+}
+
 export interface SessionTurn {
   id: string;
   status: TurnStatus;
   attemptCount: number;
   errorMessage: string | null;
+  invocation: TurnInvocation | null;
   startedAt: string | null;
   finishedAt: string | null;
+  durationMs: number | null;
   createdAt: string;
   updatedAt: string;
 }

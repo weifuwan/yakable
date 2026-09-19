@@ -13,6 +13,8 @@ import io.yakable.domain.project.repository.ProjectRepository;
 import io.yakable.domain.session.Session;
 import io.yakable.domain.session.SessionStatus;
 import io.yakable.domain.session.Turn;
+import io.yakable.domain.session.TurnInvocation;
+import io.yakable.domain.session.TurnTokenUsage;
 import io.yakable.domain.session.TurnStartResult;
 import io.yakable.domain.session.TurnStatus;
 import io.yakable.domain.session.repository.SessionExecutionRepository;
@@ -160,12 +162,23 @@ class ReadModelIntegrationTest {
                 );
         Turn running = executionRepository.claimPendingTurn(
                 started.turn().id(),
-                base.plusSeconds(2)
+                base.plusSeconds(2),
+                "deepseek",
+                "deepseek-flash"
         ).orElseThrow();
+        TurnInvocation completedInvocation =
+                running.invocation().completed(
+                        "deepseek",
+                        "deepseek-flash",
+                        new TurnTokenUsage(10L, 5L, 15L),
+                        "req-read-model",
+                        "stop"
+                );
         executionRepository.completeTurn(
                 running,
                 "message-assistant",
                 "Answer",
+                completedInvocation,
                 base.plusSeconds(3)
         );
 
@@ -177,6 +190,18 @@ class ReadModelIntegrationTest {
 
         assertThat(changes.latestTurn().status())
                 .isEqualTo(TurnStatus.SUCCEEDED);
+        assertThat(changes.latestTurn().invocation().provider())
+                .isEqualTo("deepseek");
+        assertThat(changes.latestTurn().invocation().model())
+                .isEqualTo("deepseek-flash");
+        assertThat(changes.latestTurn().invocation().usage().totalTokens())
+                .isEqualTo(15L);
+        assertThat(changes.latestTurn().invocation().providerRequestId())
+                .isEqualTo("req-read-model");
+        assertThat(changes.latestTurn().invocation().finishReason())
+                .isEqualTo("stop");
+        assertThat(changes.latestTurn().durationMillis())
+                .isEqualTo(1000L);
         assertThat(changes.messages())
                 .extracting(
                         io.yakable.domain.session.SessionMessage::sequence,
@@ -221,12 +246,23 @@ class ReadModelIntegrationTest {
                 );
         Turn running = executionRepository.claimPendingTurn(
                 started.turn().id(),
-                base.plusSeconds(2)
+                base.plusSeconds(2),
+                "deepseek",
+                "deepseek-flash"
         ).orElseThrow();
+        TurnInvocation completedInvocation =
+                running.invocation().completed(
+                        "deepseek",
+                        "deepseek-flash",
+                        new TurnTokenUsage(10L, 5L, 15L),
+                        "req-read-model",
+                        "stop"
+                );
         executionRepository.completeTurn(
                 running,
                 "message-history-assistant",
                 "Answer",
+                completedInvocation,
                 base.plusSeconds(3)
         );
 
@@ -304,6 +340,7 @@ class ReadModelIntegrationTest {
                 sessionId,
                 TurnStatus.PENDING,
                 0,
+                null,
                 null,
                 null,
                 null,

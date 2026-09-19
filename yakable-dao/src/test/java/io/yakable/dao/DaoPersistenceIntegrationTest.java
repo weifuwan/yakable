@@ -9,6 +9,8 @@ import io.yakable.domain.session.SessionBusyException;
 import io.yakable.domain.session.SessionMessage;
 import io.yakable.domain.session.SessionStatus;
 import io.yakable.domain.session.Turn;
+import io.yakable.domain.session.TurnInvocation;
+import io.yakable.domain.session.TurnTokenUsage;
 import io.yakable.domain.session.TurnStartResult;
 import io.yakable.domain.session.TurnStatus;
 import io.yakable.domain.session.repository.SessionExecutionRepository;
@@ -76,7 +78,9 @@ class DaoPersistenceIntegrationTest {
         Turn running = executionRepository
                 .claimPendingTurn(
                         first.turn().id(),
-                        fixture.now().plusSeconds(1)
+                        fixture.now().plusSeconds(1),
+                        "deepseek",
+                        "deepseek-flash"
                 )
                 .orElseThrow();
 
@@ -84,15 +88,36 @@ class DaoPersistenceIntegrationTest {
         assertThat(running.startedAt())
                 .isEqualTo(fixture.now().plusSeconds(1));
 
+        TurnInvocation completedInvocation =
+                running.invocation().completed(
+                        "deepseek",
+                        "deepseek-flash",
+                        new TurnTokenUsage(10L, 5L, 15L),
+                        "req-persist-1",
+                        "stop"
+                );
+
         Turn succeeded = executionRepository.completeTurn(
                 running,
                 UUID.randomUUID().toString(),
                 "First answer",
+                completedInvocation,
                 fixture.now().plusSeconds(2)
         );
 
         assertThat(succeeded.finishedAt())
                 .isEqualTo(fixture.now().plusSeconds(2));
+        assertThat(succeeded.durationMillis()).isEqualTo(1000L);
+        assertThat(succeeded.invocation().provider())
+                .isEqualTo("deepseek");
+        assertThat(succeeded.invocation().model())
+                .isEqualTo("deepseek-flash");
+        assertThat(succeeded.invocation().usage().totalTokens())
+                .isEqualTo(15L);
+        assertThat(succeeded.invocation().providerRequestId())
+                .isEqualTo("req-persist-1");
+        assertThat(succeeded.invocation().finishReason())
+                .isEqualTo("stop");
 
         Turn secondTurn = pendingTurn(
                 UUID.randomUUID().toString(),
@@ -115,14 +140,34 @@ class DaoPersistenceIntegrationTest {
                 fixture.session().id()
         )).contains(fixture.session());
 
-        assertThat(executionRepository.findTurnsBySessionId(
-                fixture.session().id()
-        ))
+        List<Turn> persistedTurns =
+                executionRepository.findTurnsBySessionId(
+                        fixture.session().id()
+                );
+        assertThat(persistedTurns)
                 .extracting(Turn::status)
                 .containsExactly(
                         TurnStatus.SUCCEEDED,
                         TurnStatus.PENDING
                 );
+
+        Turn persistedSucceeded = persistedTurns.get(0);
+        assertThat(persistedSucceeded.invocation().provider())
+                .isEqualTo("deepseek");
+        assertThat(persistedSucceeded.invocation().model())
+                .isEqualTo("deepseek-flash");
+        assertThat(persistedSucceeded.invocation().usage().inputTokens())
+                .isEqualTo(10L);
+        assertThat(persistedSucceeded.invocation().usage().outputTokens())
+                .isEqualTo(5L);
+        assertThat(persistedSucceeded.invocation().usage().totalTokens())
+                .isEqualTo(15L);
+        assertThat(persistedSucceeded.invocation().providerRequestId())
+                .isEqualTo("req-persist-1");
+        assertThat(persistedSucceeded.invocation().finishReason())
+                .isEqualTo("stop");
+        assertThat(persistedSucceeded.durationMillis())
+                .isEqualTo(1000L);
 
         assertThat(executionRepository.findMessagesBySessionId(
                 fixture.session().id()
@@ -168,7 +213,9 @@ class DaoPersistenceIntegrationTest {
         Turn running = executionRepository
                 .claimPendingTurn(
                         started.turn().id(),
-                        createdAt.plusSeconds(1)
+                        createdAt.plusSeconds(1),
+                        "deepseek",
+                        "deepseek-flash"
                 )
                 .orElseThrow();
 
@@ -188,13 +235,23 @@ class DaoPersistenceIntegrationTest {
         assertThat(persisted.attemptCount()).isEqualTo(1);
         assertThat(persisted.startedAt()).isNull();
         assertThat(persisted.finishedAt()).isNull();
+        assertThat(persisted.invocation()).isNull();
         assertThat(executionRepository.findPendingTurnIds(10))
                 .contains(running.id());
 
         Turn retried = executionRepository
-                .claimPendingTurn(running.id(), recoveredAt.plusSeconds(1))
+                .claimPendingTurn(
+                        running.id(),
+                        recoveredAt.plusSeconds(1),
+                        "deepseek",
+                        "deepseek-flash"
+                )
                 .orElseThrow();
         assertThat(retried.attemptCount()).isEqualTo(2);
+        assertThat(retried.invocation().provider())
+                .isEqualTo("deepseek");
+        assertThat(retried.invocation().model())
+                .isEqualTo("deepseek-flash");
     }
 
     @Test
@@ -365,6 +422,7 @@ class DaoPersistenceIntegrationTest {
                 sessionId,
                 TurnStatus.PENDING,
                 0,
+                null,
                 null,
                 null,
                 null,
