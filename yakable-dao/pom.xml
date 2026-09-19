@@ -18,7 +18,7 @@
     <dependencies>
         <dependency>
             <groupId>io.yakable</groupId>
-            <artifactId>yakable-api</artifactId>
+            <artifactId>yakable-service</artifactId>
         </dependency>
 
         <dependency>

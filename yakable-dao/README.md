@@ -28,11 +28,11 @@ Entity
 
 6. RepositoryImpl 直接调用 Mapper，不再增加 `Dao`、`DaoImpl`、`Adapter` 等中间层。
 
-7. Repository 接口归 Domain 或 Application 所有，`yakable-dao` 只负责实现，不在 DAO 模块重复定义 Repository 接口。
+7. Repository 接口放在 `yakable-service`，`yakable-dao` 只负责实现，不在 DAO 模块重复定义 Repository 接口。
 
 8. 多张表属于同一个持久化业务操作时，由 RepositoryImpl 直接协调多个 Mapper，不为了拆分而增加新的 DAO 层。
 
-9. Entity、Mapper、MyBatis-Plus 类型禁止泄漏到 Domain、Application 和 HTTP 层。
+9. Entity、Mapper、MyBatis-Plus 类型禁止泄漏到 Service 和 HTTP 层。
 
 10. 数据库结构变更统一使用 Flyway 管理，禁止通过业务代码隐式修改数据库结构。
 

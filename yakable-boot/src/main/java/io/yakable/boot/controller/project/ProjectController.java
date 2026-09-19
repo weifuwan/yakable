@@ -1,10 +1,9 @@
-package io.yakable.interfaces.rest.project;
+package io.yakable.boot.controller.project;
 
-import io.yakable.application.project.ProjectBootstrapService;
 import io.yakable.application.project.ProjectDetails;
-import io.yakable.application.project.ProjectOverviewQueryService;
 import io.yakable.application.project.ProjectStartResult;
 import io.yakable.application.project.ProjectSummary;
+import io.yakable.service.project.ProjectService;
 import io.yakable.application.project.StartProjectCommand;
 import io.yakable.application.query.PageResult;
 import io.yakable.domain.project.ProjectStatus;
@@ -30,15 +29,10 @@ import java.util.List;
 @RequestMapping("/api/projects")
 public class ProjectController {
 
-    private final ProjectBootstrapService bootstrapService;
-    private final ProjectOverviewQueryService queryService;
+    private final ProjectService projectService;
 
-    public ProjectController(
-            ProjectBootstrapService bootstrapService,
-            ProjectOverviewQueryService queryService
-    ) {
-        this.bootstrapService = bootstrapService;
-        this.queryService = queryService;
+    public ProjectController(ProjectService projectService) {
+        this.projectService = projectService;
     }
 
     @GetMapping
@@ -47,7 +41,7 @@ public class ProjectController {
             @RequestParam(defaultValue = "50") int pageSize
     ) {
         return ProjectPageResponse.from(
-                queryService.listProjects(current, pageSize)
+                projectService.listProjects(current, pageSize)
         );
     }
 
@@ -55,7 +49,7 @@ public class ProjectController {
     public ProjectDetailsResponse getProject(
             @PathVariable String projectId
     ) {
-        return queryService.getProject(projectId)
+        return projectService.getProject(projectId)
                 .map(ProjectDetailsResponse::from)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
@@ -68,7 +62,7 @@ public class ProjectController {
             @Valid @RequestBody CreateProjectRequest request
     ) {
         ProjectStartResult result =
-                bootstrapService.startProject(new StartProjectCommand(
+                projectService.startProject(new StartProjectCommand(
                         request.prompt(),
                         request.model().provider(),
                         request.model().model()

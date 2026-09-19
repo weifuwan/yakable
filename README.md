@@ -10,7 +10,7 @@ The backend is being rebuilt in Java. The previous TypeScript backend has been r
 yakable/
 ├── yakable-bom/             # Java dependency alignment
 ├── yakable-common/          # Business-agnostic shared types and utilities
-├── yakable-api/             # Domain, application, REST and infrastructure
+├── yakable-service/         # Project / Session business services
 ├── yakable-dao/             # MyBatis-Plus persistence + Flyway migrations
 ├── yakable-plugins/         # AutoService + ServiceLoader implementations
 ├── yakable-boot/            # Spring Boot composition root
@@ -72,14 +72,14 @@ DEEPSEEK_BASE_URL      optional, defaults to https://api.deepseek.com
 
 ```text
 yakable-boot
-  ├── yakable-api
+  ├── yakable-service
   ├── yakable-dao
   └── yakable-plugin-model-*
 
 yakable-dao
-  └── yakable-api
+  └── yakable-service
 
-yakable-api
+yakable-service
   ├── yakable-common
   └── model plugin API
 ```

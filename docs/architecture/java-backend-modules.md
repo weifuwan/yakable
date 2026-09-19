@@ -1,70 +1,52 @@
 # Java Backend Architecture
 
-Yakable backend keeps module boundaries small and package responsibilities clear.
-
-## Backend modules
-
-```text
-yakable-api          # domain + application + REST + non-database infrastructure
-yakable-dao          # MyBatis-Plus persistence + Flyway
-yakable-boot         # Spring Boot composition and runtime configuration
-yakable-plugins      # model provider plugins
-yakable-common       # business-agnostic shared code
-yakable-bom          # dependency version alignment
-```
-
-The former `yakable-spi`, `yakable-domain`, `yakable-application`,
-`yakable-infrastructure` and `yakable-interfaces` modules are merged into
-`yakable-api`.
-
-## Dependency direction
+Yakable 后端当前按三层组织：
 
 ```text
 yakable-boot
-├── yakable-api
-├── yakable-dao
-└── yakable-plugins
-
+    ↓
+yakable-service
+    ↓
 yakable-dao
-└── yakable-api
-
-yakable-api
-├── yakable-common
-└── model plugin API
-
-yakable-plugin-model-*
-└── model plugin API
 ```
 
-## yakable-api packages
+## yakable-boot
 
-Module merging does not remove code responsibilities.
+负责 Controller、Spring Boot 启动和配置。
 
 ```text
-io.yakable
-├── domain          # business model, invariants, repository contracts
-├── application     # use cases and application ports
-├── interfaces      # REST and other inbound adapters
-├── infrastructure  # async/model/external-system implementations
-└── spi             # stable extension contracts when needed
+io.yakable.boot
+├── controller
+├── configuration
+└── YakableApplication
 ```
 
-Rules:
+Controller 只负责 HTTP 输入输出和调用 Service。
 
-- package responsibility remains explicit even when code lives in one Maven module;
-- domain code must not depend on REST, persistence, provider implementations or Boot;
-- application coordinates domain objects and ports;
-- interfaces handles transport only;
-- infrastructure handles non-database technology integration;
-- do not create a new Maven module just to express a package boundary.
+## yakable-service
+
+负责业务逻辑。
+
+当前只有两个主要业务入口：
+
+```text
+io.yakable.service
+├── project
+│   └── ProjectService
+└── session
+    └── SessionService
+```
+
+原有 Domain、Application、Model、Async 等代码暂时作为
+`yakable-service` 内部支撑代码保留，不再拆成独立 Maven module。
+
+后续只有在真实复杂度出现后再决定是否继续拆分。
 
 ## yakable-dao
 
-`yakable-dao` owns relational persistence.
+负责数据库持久化。
 
 ```text
-Repository
-    ↓
 RepositoryImpl
     ↓
 Mapper
@@ -74,38 +56,38 @@ Entity
 Database
 ```
 
-Detailed persistence rules are defined in `yakable-dao/README.md`.
+详细规范见 `yakable-dao/README.md`。
 
-## yakable-plugins
+## 调用关系
 
-Model providers remain independent plugin modules and are discovered with
-AutoService / ServiceLoader.
+```text
+Controller
+    ↓
+Service
+    ↓
+Repository
+    ↓
+RepositoryImpl
+    ↓
+Mapper
+    ↓
+Entity
+```
 
-`yakable-api` depends only on the model plugin API, never on a concrete
-provider implementation.
+## 其他模块
 
-## yakable-boot
+```text
+yakable-plugins   # 模型插件
+yakable-common    # 通用代码
+yakable-bom       # 依赖版本管理
+```
 
-`yakable-boot` is the composition root.
+## 当前原则
 
-It owns:
-
-- Spring Boot entrypoint;
-- runtime configuration;
-- configuration properties;
-- bean wiring.
-
-Business rules do not belong in Boot.
-
-## yakable-common
-
-`yakable-common` contains business-agnostic shared code only.
-
-Do not move domain/application code into common just to reuse it.
-
-## Design rule
-
-Prefer package boundaries before Maven module boundaries.
-
-Create a new Maven module only when there is a real independent build,
-dependency, extension or deployment boundary.
+- Controller 放在 `yakable-boot`。
+- 业务逻辑统一从 `ProjectService`、`SessionService` 进入。
+- 数据库访问统一走 Repository。
+- Mapper、Entity 只属于 `yakable-dao`。
+- 不为了架构形式新增 Maven module。
+- 不为了分层而分层，先保持简单。
+- 后续根据真实业务复杂度再拆。
