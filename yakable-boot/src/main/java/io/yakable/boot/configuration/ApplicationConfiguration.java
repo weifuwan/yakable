@@ -6,9 +6,9 @@ import io.yakable.application.project.ProjectBootstrapService;
 import io.yakable.application.project.ProjectOverviewQueryService;
 import io.yakable.application.project.ProjectQueryRepository;
 import io.yakable.application.session.SessionCommandService;
+import io.yakable.application.session.SessionQueryRepository;
 import io.yakable.application.session.SessionQueryService;
 import io.yakable.application.session.SessionTurnService;
-import io.yakable.application.session.TurnExecutionRecoveryService;
 import io.yakable.application.session.TurnExecutor;
 import io.yakable.application.session.TurnPromptAssembler;
 import io.yakable.application.transaction.TransactionRunner;
@@ -34,13 +34,9 @@ public class ApplicationConfiguration {
 
     @Bean
     SessionQueryService sessionQueryService(
-            SessionRepository sessionRepository,
-            SessionExecutionRepository executionRepository
+            SessionQueryRepository queryRepository
     ) {
-        return new SessionQueryService(
-                sessionRepository,
-                executionRepository
-        );
+        return new SessionQueryService(queryRepository);
     }
 
     @Bean

@@ -3,8 +3,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { isAbortError } from '@/shared/api';
 import { PromptComposer } from '@/shared/ui';
 
-import { getSession, startSessionTurn } from '../api/session-api';
-import type { SessionSnapshot } from '../types';
+import {
+  getSession,
+  getSessionChanges,
+  startSessionTurn,
+} from '../api/session-api';
+import type {
+  SessionChanges,
+  SessionSnapshot,
+} from '../types';
 import { MessageItem } from './MessageItem';
 
 const SESSION_POLL_INTERVAL_MS = 1000;
@@ -15,6 +22,37 @@ function hasActiveTurn(snapshot: SessionSnapshot | null) {
       (turn) => turn.status === 'PENDING' || turn.status === 'RUNNING',
     ),
   );
+}
+
+function mergeChanges(
+  snapshot: SessionSnapshot,
+  changes: SessionChanges,
+): SessionSnapshot {
+  const hasLatestTurn = snapshot.turns.some(
+    (turn) => turn.id === changes.latestTurn.id,
+  );
+
+  const turns = hasLatestTurn
+    ? snapshot.turns.map((turn) =>
+        turn.id === changes.latestTurn.id ? changes.latestTurn : turn,
+      )
+    : [...snapshot.turns, changes.latestTurn];
+
+  const existingSequences = new Set(
+    snapshot.messages.map((message) => message.sequence),
+  );
+  const messages = [
+    ...snapshot.messages,
+    ...changes.messages.filter(
+      (message) => !existingSequences.has(message.sequence),
+    ),
+  ].sort((left, right) => left.sequence - right.sequence);
+
+  return {
+    ...snapshot,
+    turns,
+    messages,
+  };
 }
 
 export function SessionWorkspace({
@@ -52,6 +90,7 @@ export function SessionWorkspace({
   }, [projectId, sessionId]);
 
   const activeTurn = hasActiveTurn(snapshot);
+  const latestSequence = snapshot?.messages.at(-1)?.sequence ?? 0;
 
   useEffect(() => {
     if (!activeTurn) return;
@@ -59,10 +98,16 @@ export function SessionWorkspace({
     let disposed = false;
 
     const timer = window.setInterval(() => {
-      void getSession(projectId, sessionId)
-        .then((result) => {
+      void getSessionChanges(
+        projectId,
+        sessionId,
+        latestSequence,
+      )
+        .then((changes) => {
           if (disposed) return;
-          setSnapshot(result);
+          setSnapshot((current) =>
+            current ? mergeChanges(current, changes) : current,
+          );
           setLoadError(null);
         })
         .catch((requestError: unknown) => {
@@ -79,7 +124,7 @@ export function SessionWorkspace({
       disposed = true;
       window.clearInterval(timer);
     };
-  }, [activeTurn, projectId, sessionId]);
+  }, [activeTurn, latestSequence, projectId, sessionId]);
 
   const latestTurn = useMemo(
     () => snapshot?.turns.at(-1) ?? null,

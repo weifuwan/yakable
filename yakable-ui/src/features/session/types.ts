@@ -20,7 +20,10 @@ export interface SessionInfo {
 export interface SessionTurn {
   id: string;
   status: TurnStatus;
+  attemptCount: number;
   errorMessage: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -38,6 +41,18 @@ export interface SessionSnapshot {
   session: SessionInfo;
   turns: SessionTurn[];
   messages: SessionMessage[];
+}
+
+export interface SessionChanges {
+  latestTurn: SessionTurn;
+  messages: SessionMessage[];
+  latestSequence: number;
+}
+
+export interface SessionMessagePage {
+  messages: SessionMessage[];
+  nextBeforeSequence: number | null;
+  hasMore: boolean;
 }
 
 export interface TurnStartResult {
