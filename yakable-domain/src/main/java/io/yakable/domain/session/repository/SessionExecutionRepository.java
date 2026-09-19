@@ -35,6 +35,13 @@ public interface SessionExecutionRepository {
             Instant failedAt
     );
 
+    int recoverStaleRunningTurns(
+            Instant staleBefore,
+            Instant recoveredAt
+    );
+
+    List<String> findPendingTurnIds(int limit);
+
     Optional<Turn> findTurnById(String turnId);
 
     List<Turn> findTurnsBySessionId(String sessionId);

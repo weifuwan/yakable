@@ -158,6 +158,26 @@ public class SessionExecutionRepositoryAdapter
     }
 
     @Override
+    @Transactional
+    public int recoverStaleRunningTurns(
+            Instant staleBefore,
+            Instant recoveredAt
+    ) {
+        Objects.requireNonNull(staleBefore, "staleBefore");
+        Objects.requireNonNull(recoveredAt, "recoveredAt");
+        return executionDao.recoverStaleRunningTurns(
+                staleBefore,
+                recoveredAt
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<String> findPendingTurnIds(int limit) {
+        return executionDao.findPendingTurnIds(limit);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public Optional<Turn> findTurnById(String turnId) {
         return executionDao.findTurnById(turnId)
@@ -203,7 +223,10 @@ public class SessionExecutionRepositoryAdapter
         po.setId(turn.id());
         po.setSessionId(turn.sessionId());
         po.setStatus(turn.status().name());
+        po.setAttemptCount(turn.attemptCount());
         po.setErrorMessage(turn.errorMessage());
+        po.setStartedAt(turn.startedAt());
+        po.setFinishedAt(turn.finishedAt());
         po.setCreatedAt(turn.createdAt());
         po.setUpdatedAt(turn.updatedAt());
         return po;
@@ -214,7 +237,12 @@ public class SessionExecutionRepositoryAdapter
                 po.getId(),
                 po.getSessionId(),
                 TurnStatus.valueOf(po.getStatus()),
+                po.getAttemptCount() == null
+                        ? 0
+                        : po.getAttemptCount(),
                 po.getErrorMessage(),
+                po.getStartedAt(),
+                po.getFinishedAt(),
                 po.getCreatedAt(),
                 po.getUpdatedAt()
         );

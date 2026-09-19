@@ -3,5 +3,11 @@ package io.yakable.application.async;
 @FunctionalInterface
 public interface TurnDispatcher {
 
-    void dispatch(String turnId);
+    /**
+     * Best-effort low-latency dispatch.
+     *
+     * <p>Durable execution is owned by persisted PENDING Turns. Implementations
+     * should return false for transient scheduling failures.</p>
+     */
+    boolean dispatch(String turnId);
 }

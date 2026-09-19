@@ -69,6 +69,9 @@ public final class SessionCommandService {
                 UUID.randomUUID().toString(),
                 sessionId,
                 TurnStatus.PENDING,
+                0,
+                null,
+                null,
                 null,
                 now,
                 now

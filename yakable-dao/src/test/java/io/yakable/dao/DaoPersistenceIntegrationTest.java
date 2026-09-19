@@ -20,6 +20,7 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.ComponentScan;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -63,7 +64,7 @@ class DaoPersistenceIntegrationTest {
 
     @Test
     void persistsProjectSessionTurnAndOrderedMessages() {
-        Fixture fixture = createFixture();
+        Fixture fixture = createFixture(now());
 
         TurnStartResult first = executionRepository.createPendingTurn(
                 fixture.pendingTurn(),
@@ -79,19 +80,23 @@ class DaoPersistenceIntegrationTest {
                 )
                 .orElseThrow();
 
-        executionRepository.completeTurn(
+        assertThat(running.attemptCount()).isEqualTo(1);
+        assertThat(running.startedAt())
+                .isEqualTo(fixture.now().plusSeconds(1));
+
+        Turn succeeded = executionRepository.completeTurn(
                 running,
                 UUID.randomUUID().toString(),
                 "First answer",
                 fixture.now().plusSeconds(2)
         );
 
-        Turn secondTurn = new Turn(
+        assertThat(succeeded.finishedAt())
+                .isEqualTo(fixture.now().plusSeconds(2));
+
+        Turn secondTurn = pendingTurn(
                 UUID.randomUUID().toString(),
                 fixture.session().id(),
-                TurnStatus.PENDING,
-                null,
-                fixture.now().plusSeconds(3),
                 fixture.now().plusSeconds(3)
         );
 
@@ -149,6 +154,50 @@ class DaoPersistenceIntegrationTest {
     }
 
     @Test
+    void recoversStaleRunningTurnToPending() {
+        Instant createdAt = now().minus(Duration.ofMinutes(20));
+        Fixture fixture = createFixture(createdAt);
+
+        TurnStartResult started = executionRepository.createPendingTurn(
+                fixture.pendingTurn(),
+                UUID.randomUUID().toString(),
+                "Recover me",
+                createdAt
+        );
+
+        Turn running = executionRepository
+                .claimPendingTurn(
+                        started.turn().id(),
+                        createdAt.plusSeconds(1)
+                )
+                .orElseThrow();
+
+        Instant recoveredAt = now();
+        int recovered = executionRepository.recoverStaleRunningTurns(
+                recoveredAt.minus(Duration.ofMinutes(10)),
+                recoveredAt
+        );
+
+        assertThat(recovered).isEqualTo(1);
+
+        Turn persisted = executionRepository
+                .findTurnById(running.id())
+                .orElseThrow();
+
+        assertThat(persisted.status()).isEqualTo(TurnStatus.PENDING);
+        assertThat(persisted.attemptCount()).isEqualTo(1);
+        assertThat(persisted.startedAt()).isNull();
+        assertThat(persisted.finishedAt()).isNull();
+        assertThat(executionRepository.findPendingTurnIds(10))
+                .contains(running.id());
+
+        Turn retried = executionRepository
+                .claimPendingTurn(running.id(), recoveredAt.plusSeconds(1))
+                .orElseThrow();
+        assertThat(retried.attemptCount()).isEqualTo(2);
+    }
+
+    @Test
     void transactionRunnerRollsBackAggregateBootstrap() {
         Instant now = now();
         String projectId = UUID.randomUUID().toString();
@@ -185,7 +234,7 @@ class DaoPersistenceIntegrationTest {
     @Test
     void concurrentTurnCreationAllowsOnlyOneActiveTurn()
             throws Exception {
-        Fixture fixture = createFixture();
+        Fixture fixture = createFixture(now());
 
         int workers = 8;
         CountDownLatch ready = new CountDownLatch(workers);
@@ -243,8 +292,7 @@ class DaoPersistenceIntegrationTest {
         }
     }
 
-    private Fixture createFixture() {
-        Instant now = now();
+    private Fixture createFixture(Instant now) {
         Project project = project(
                 UUID.randomUUID().toString(),
                 now
@@ -316,6 +364,9 @@ class DaoPersistenceIntegrationTest {
                 id,
                 sessionId,
                 TurnStatus.PENDING,
+                0,
+                null,
+                null,
                 null,
                 now,
                 now

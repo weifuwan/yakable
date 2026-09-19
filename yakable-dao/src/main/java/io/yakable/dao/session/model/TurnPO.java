@@ -19,8 +19,17 @@ public class TurnPO {
     @TableField("status")
     private String status;
 
+    @TableField("attempt_count")
+    private Integer attemptCount;
+
     @TableField("error_message")
     private String errorMessage;
+
+    @TableField("started_at")
+    private Instant startedAt;
+
+    @TableField("finished_at")
+    private Instant finishedAt;
 
     @TableField("created_at")
     private Instant createdAt;
@@ -52,12 +61,36 @@ public class TurnPO {
         this.status = status;
     }
 
+    public Integer getAttemptCount() {
+        return attemptCount;
+    }
+
+    public void setAttemptCount(Integer attemptCount) {
+        this.attemptCount = attemptCount;
+    }
+
     public String getErrorMessage() {
         return errorMessage;
     }
 
     public void setErrorMessage(String errorMessage) {
         this.errorMessage = errorMessage;
+    }
+
+    public Instant getStartedAt() {
+        return startedAt;
+    }
+
+    public void setStartedAt(Instant startedAt) {
+        this.startedAt = startedAt;
+    }
+
+    public Instant getFinishedAt() {
+        return finishedAt;
+    }
+
+    public void setFinishedAt(Instant finishedAt) {
+        this.finishedAt = finishedAt;
     }
 
     public Instant getCreatedAt() {

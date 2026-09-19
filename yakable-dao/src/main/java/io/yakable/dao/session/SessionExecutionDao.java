@@ -32,6 +32,13 @@ public interface SessionExecutionDao {
             Instant failedAt
     );
 
+    int recoverStaleRunningTurns(
+            Instant staleBefore,
+            Instant recoveredAt
+    );
+
+    List<String> findPendingTurnIds(int limit);
+
     long nextMessageSequence(String sessionId);
 
     int insertMessage(MessagePO message);
