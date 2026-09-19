@@ -56,9 +56,7 @@ public class MessageDao {
         }
 
         var query = Wrappers.<MessagePO>lambdaQuery()
-                .eq(MessagePO::getSessionId, sessionId)
-                .orderByDesc(MessagePO::getMessageSequence)
-                .last("LIMIT " + limit);
+                .eq(MessagePO::getSessionId, sessionId);
 
         if (beforeSequence != null) {
             query.lt(
@@ -66,6 +64,9 @@ public class MessageDao {
                     beforeSequence
             );
         }
+
+        query.orderByDesc(MessagePO::getMessageSequence)
+                .last("LIMIT " + limit);
         return mapper.selectList(query);
     }
 

@@ -55,7 +55,7 @@ public class SessionExecutionRepositoryAdapter
             throw new SessionBusyException(turn.sessionId());
         }
 
-        turnDao.insert(TurnPersistenceMapper.toPO(turn));
+        turnDao.insert(TurnPersistenceConverter.toPO(turn));
 
         long sequence = messageDao.nextSequence(turn.sessionId());
         SessionMessage userMessage = new SessionMessage(
@@ -91,7 +91,7 @@ public class SessionExecutionRepositoryAdapter
         }
 
         return turnDao.findById(turnId)
-                .map(TurnPersistenceMapper::toDomain);
+                .map(TurnPersistenceConverter::toDomain);
     }
 
     @Override
@@ -196,7 +196,7 @@ public class SessionExecutionRepositoryAdapter
     @Transactional(readOnly = true)
     public Optional<Turn> findTurnById(String turnId) {
         return turnDao.findById(turnId)
-                .map(TurnPersistenceMapper::toDomain);
+                .map(TurnPersistenceConverter::toDomain);
     }
 
     @Override
@@ -204,7 +204,7 @@ public class SessionExecutionRepositoryAdapter
     public List<Turn> findTurnsBySessionId(String sessionId) {
         return turnDao.findBySessionId(sessionId)
                 .stream()
-                .map(TurnPersistenceMapper::toDomain)
+                .map(TurnPersistenceConverter::toDomain)
                 .sorted(Comparator.comparing(Turn::createdAt))
                 .toList();
     }

@@ -59,7 +59,7 @@ public class SessionQueryRepositoryAdapter
         return Optional.of(new SessionSnapshot(
                 toDomain(session.get()),
                 turnDao.findBySessionId(sessionId).stream()
-                        .map(TurnPersistenceMapper::toDomain)
+                        .map(TurnPersistenceConverter::toDomain)
                         .toList(),
                 messageDao.findBySessionId(sessionId).stream()
                         .map(SessionQueryRepositoryAdapter::toMessageDomain)
@@ -90,7 +90,7 @@ public class SessionQueryRepositoryAdapter
                         .toList();
 
         return Optional.of(new SessionChanges(
-                TurnPersistenceMapper.toDomain(latestTurn.get()),
+                TurnPersistenceConverter.toDomain(latestTurn.get()),
                 messages,
                 messageDao.latestSequence(sessionId)
         ));
