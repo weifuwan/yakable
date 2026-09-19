@@ -9,8 +9,8 @@ Yakable's backend follows the same boundary idea that makes Dify's backend maint
 | controllers | `yakable-interfaces` / `interfaces.rest` |
 | services | `yakable-application` |
 | core | `yakable-domain` |
-| models | `yakable-dao` persistence models |
-| repositories | Domain repository ports + DAO repository adapters |
+| models | `yakable-dao` persistence entities |
+| repositories | Domain/Application repository ports + DAO RepositoryImpls |
 | extensions | `yakable-infrastructure` |
 | events | Domain/Application events when a real event boundary exists |
 | tasks | Application job ports + Infrastructure async/worker adapters |
@@ -42,7 +42,7 @@ yakable-common
   └── business-agnostic shared code only
 ```
 
-Dependencies point toward business policy. Domain and Application never depend on Boot, REST, MyBatis, Flyway, concrete persistence adapters, or concrete LLM providers.
+Dependencies point toward business policy. Domain and Application never depend on Boot, REST, MyBatis, Flyway, concrete persistence implementations, or concrete LLM providers.
 
 ## Module ownership
 
@@ -146,7 +146,7 @@ Rules:
 - map Application/Domain results to HTTP responses;
 - translate Domain/Application failures at the transport boundary;
 - do not query repositories directly;
-- do not call DAO/Mapper directly;
+- do not call persistence Mapper/Entity directly; use Repository ports;
 - do not dispatch background work directly;
 - do not call model plugins directly.
 
@@ -157,30 +157,35 @@ Owns relational persistence.
 Persistence corridor:
 
 ```text
-Application
-  -> Domain Repository Port
-  -> Repository Adapter
-  -> DAO
+Application / Domain
+  -> Repository Port
+  -> RepositoryImpl
   -> MyBatis-Plus Mapper
-  -> PO
+  -> Entity
   -> MySQL
 ```
 
 Current package roles:
 
 ```text
-dao/project
-  ├── ProjectRepositoryAdapter
-  ├── ProjectDao / MybatisProjectDao
-  ├── mapper/ProjectMapper
-  └── model/ProjectPO
+dao/entity
+  ├── ProjectEntity
+  ├── SessionEntity
+  ├── TurnEntity
+  └── MessageEntity
 
-dao/session
-  ├── SessionRepositoryAdapter
-  ├── SessionExecutionRepositoryAdapter
-  ├── SessionDao / SessionExecutionDao
-  ├── mapper/*
-  └── model/*
+dao/mapper
+  ├── ProjectMapper
+  ├── SessionMapper
+  ├── TurnMapper
+  └── MessageMapper
+
+dao/repository/impl
+  ├── ProjectRepositoryImpl
+  ├── ProjectQueryRepositoryImpl
+  ├── SessionRepositoryImpl
+  ├── SessionExecutionRepositoryImpl
+  └── SessionQueryRepositoryImpl
 
 dao/transaction
   └── SpringTransactionRunner
@@ -191,12 +196,15 @@ db/migration/yakable
 
 Rules:
 
-- Repository Adapter owns Domain <-> PO translation;
-- DAO/Mapper never accepts HTTP DTOs or returns HTTP VOs;
+- RepositoryImpl is the only persistence implementation entry point;
+- RepositoryImpl owns Domain/Application <-> Entity translation;
+- Mapper corresponds to a physical table and extends BaseMapper<Entity>;
+- Entity/Mapper never accepts HTTP DTOs or returns HTTP VOs;
 - MyBatis-Plus types never cross into Domain/Application;
-- PO classes never leave `yakable-dao`;
-- simple single-table access uses MyBatis-Plus;
-- atomic/CAS SQL may use explicit Mapper SQL;
+- Entity classes never leave `yakable-dao`;
+- simple single-table access uses MyBatis-Plus lambda wrappers in RepositoryImpl;
+- complex joins/aggregates use Mapper methods backed by XML;
+- do not add Dao/DaoImpl or RepositoryAdapter layers;
 - Flyway is the only owner of schema evolution;
 - `yakable_schema_history` is the dedicated migration history table.
 
@@ -399,14 +407,14 @@ Domain repositories:
 ```text
 ProjectOverviewQueryService
   -> ProjectQueryRepository
-  -> ProjectQueryRepositoryAdapter
+  -> ProjectQueryRepositoryImpl
   -> ProjectQueryDao
   -> ProjectQueryMapper
   -> paged SQL projection
 
 SessionQueryService
   -> SessionQueryRepository
-  -> SessionQueryRepositoryAdapter
+  -> SessionQueryRepositoryImpl
   -> SessionQueryDao
   -> dedicated read mappers
 ```
