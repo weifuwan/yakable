@@ -1,24 +1,34 @@
 package io.yakable.core.conversation;
 
-import io.yakable.core.llm.LlmMessage;
-import io.yakable.core.llm.LlmProvider;
-import io.yakable.core.llm.LlmRequest;
-import io.yakable.core.llm.LlmResponse;
-import io.yakable.core.llm.LlmUsage;
+import io.yakable.core.model.ModelPluginRegistry;
+import io.yakable.core.model.ModelRuntime;
+import io.yakable.plugin.model.api.LlmMessage;
+import io.yakable.plugin.model.api.LlmRequest;
+import io.yakable.plugin.model.api.LlmResponse;
+import io.yakable.plugin.model.api.LlmUsage;
+import io.yakable.plugin.model.api.ModelCapability;
+import io.yakable.plugin.model.api.ModelPlugin;
+import io.yakable.plugin.model.api.ModelPluginConfiguration;
+import io.yakable.plugin.model.api.ModelPluginDescriptor;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ConversationServiceTest {
 
     @Test
-    void sendsCompleteConversationHistoryToTheLlmProvider() {
+    void sendsCompleteConversationHistoryThroughTheModelRuntime() {
         RecordingRepository repository = new RecordingRepository();
-        RecordingLlmProvider provider = new RecordingLlmProvider();
-        ConversationService service = new ConversationService(repository, provider);
+        RecordingModelPlugin plugin = new RecordingModelPlugin();
+        ModelRuntime runtime = new ModelRuntime(
+                ModelPluginRegistry.from(List.of(plugin)),
+                provider -> new ModelPluginConfiguration("test-key", "https://example.test")
+        );
+        ConversationService service = new ConversationService(repository, runtime);
 
         service.sendMessage(
                 "project-1",
@@ -33,7 +43,7 @@ class ConversationServiceTest {
                 "Second question"
         );
 
-        LlmRequest secondRequest = provider.requests.get(1);
+        LlmRequest secondRequest = plugin.requests.get(1);
 
         assertThat(secondRequest.model()).isEqualTo("deepseek-flash");
         assertThat(secondRequest.messages())
@@ -94,17 +104,28 @@ class ConversationServiceTest {
         }
     }
 
-    private static final class RecordingLlmProvider implements LlmProvider {
+    private static final class RecordingModelPlugin implements ModelPlugin {
+
+        private static final ModelPluginDescriptor DESCRIPTOR =
+                new ModelPluginDescriptor(
+                        "deepseek",
+                        "DeepSeek",
+                        ModelPluginDescriptor.CURRENT_API_VERSION,
+                        Set.of(ModelCapability.CHAT)
+                );
 
         private final List<LlmRequest> requests = new ArrayList<>();
 
         @Override
-        public String provider() {
-            return "deepseek";
+        public ModelPluginDescriptor descriptor() {
+            return DESCRIPTOR;
         }
 
         @Override
-        public LlmResponse chat(LlmRequest request) {
+        public LlmResponse chat(
+                ModelPluginConfiguration configuration,
+                LlmRequest request
+        ) {
             requests.add(request);
             return new LlmResponse(
                     "Assistant " + requests.size(),

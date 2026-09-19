@@ -1,15 +1,15 @@
-package io.yakable.boot.llm;
+package io.yakable.plugin.model.deepseek;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
-import io.yakable.core.llm.LlmMessage;
-import io.yakable.core.llm.LlmRequest;
-import io.yakable.core.llm.LlmResponse;
+import io.yakable.plugin.model.api.LlmMessage;
+import io.yakable.plugin.model.api.LlmRequest;
+import io.yakable.plugin.model.api.LlmResponse;
+import io.yakable.plugin.model.api.ModelPluginConfiguration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class DeepSeekLlmProviderTest {
+class DeepSeekModelPluginTest {
 
     private HttpServer server;
 
@@ -66,16 +66,13 @@ class DeepSeekLlmProviderTest {
         });
         server.start();
 
-        ObjectMapper objectMapper = new ObjectMapper();
-        DeepSeekLlmProvider provider = new DeepSeekLlmProvider(
-                new DeepSeekProperties(
+        DeepSeekModelPlugin plugin = new DeepSeekModelPlugin();
+
+        LlmResponse response = plugin.chat(
+                new ModelPluginConfiguration(
                         "test-key",
                         "http://127.0.0.1:" + server.getAddress().getPort()
                 ),
-                objectMapper
-        );
-
-        LlmResponse response = provider.chat(
                 new LlmRequest(
                         "deepseek-flash",
                         "You are Yakable.",
@@ -92,7 +89,7 @@ class DeepSeekLlmProviderTest {
         assertThat(response.content()).isEqualTo("Hello from DeepSeek");
         assertThat(response.usage().totalTokens()).isEqualTo(15L);
 
-        JsonNode request = objectMapper.readTree(requestBody.get());
+        JsonNode request = new ObjectMapper().readTree(requestBody.get());
         assertThat(request.path("model").asText()).isEqualTo("deepseek-flash");
         assertThat(request.path("stream").asBoolean()).isFalse();
         assertThat(request.path("messages").path(0).path("role").asText())

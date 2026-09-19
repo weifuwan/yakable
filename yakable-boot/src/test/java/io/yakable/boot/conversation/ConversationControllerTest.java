@@ -2,9 +2,9 @@ package io.yakable.boot.conversation;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.yakable.core.llm.LlmProvider;
-import io.yakable.core.llm.LlmResponse;
-import io.yakable.core.llm.LlmUsage;
+import io.yakable.core.model.ModelRuntime;
+import io.yakable.plugin.model.api.LlmResponse;
+import io.yakable.plugin.model.api.LlmUsage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -33,12 +34,11 @@ class ConversationControllerTest {
     private ObjectMapper objectMapper;
 
     @MockBean
-    private LlmProvider llmProvider;
+    private ModelRuntime modelRuntime;
 
     @BeforeEach
-    void setUpLlmProvider() {
-        when(llmProvider.provider()).thenReturn("deepseek");
-        when(llmProvider.chat(any())).thenReturn(
+    void setUpModelRuntime() {
+        when(modelRuntime.chat(anyString(), any())).thenReturn(
                 new LlmResponse(
                         "I am Yakable.",
                         new LlmUsage(8L, 4L, 12L)
