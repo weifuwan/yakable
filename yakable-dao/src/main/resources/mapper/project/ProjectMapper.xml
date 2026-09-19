@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.yakable.dao.project.mapper.ProjectMapper">
+
+    <resultMap id="projectQueryRow"
+               type="io.yakable.dao.project.model.ProjectQueryRow">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="latestSessionId" column="latest_session_id"/>
+        <result property="status" column="status"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <select id="selectProjectPage" resultMap="projectQueryRow">
+        SELECT
+            p.id,
+            p.name,
+            s.id AS latest_session_id,
+            p.status,
+            p.created_at,
+            CASE
+                WHEN p.updated_at >= s.updated_at
+                    THEN p.updated_at
+                ELSE s.updated_at
+            END AS updated_at
+        FROM yak_project p
+        JOIN (
+            SELECT id, project_id, updated_at
+            FROM (
+                SELECT
+                    id,
+                    project_id,
+                    updated_at,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY project_id
+                        ORDER BY updated_at DESC, id DESC
+                    ) AS rn
+                FROM yak_session
+            ) ranked_session
+            WHERE rn = 1
+        ) s ON s.project_id = p.id
+        ORDER BY updated_at DESC, p.id DESC
+        LIMIT #{limit}
+        OFFSET #{offset}
+    </select>
+
+    <select id="countProjectsWithSession" resultType="long">
+        SELECT COUNT(*)
+        FROM yak_project p
+        WHERE EXISTS (
+            SELECT 1
+            FROM yak_session s
+            WHERE s.project_id = p.id
+        )
+    </select>
+
+    <select id="selectProjectDetails" resultMap="projectQueryRow">
+        SELECT
+            p.id,
+            p.name,
+            s.id AS latest_session_id,
+            p.status,
+            p.created_at,
+            CASE
+                WHEN p.updated_at >= s.updated_at
+                    THEN p.updated_at
+                ELSE s.updated_at
+            END AS updated_at
+        FROM yak_project p
+        JOIN (
+            SELECT id, project_id, updated_at
+            FROM (
+                SELECT
+                    id,
+                    project_id,
+                    updated_at,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY project_id
+                        ORDER BY updated_at DESC, id DESC
+                    ) AS rn
+                FROM yak_session
+                WHERE project_id = #{projectId}
+            ) ranked_session
+            WHERE rn = 1
+        ) s ON s.project_id = p.id
+        WHERE p.id = #{projectId}
+    </select>
+
+</mapper>

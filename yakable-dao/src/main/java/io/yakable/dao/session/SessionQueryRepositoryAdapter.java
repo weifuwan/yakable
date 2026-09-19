@@ -6,7 +6,6 @@ import io.yakable.application.session.SessionQueryRepository;
 import io.yakable.application.session.SessionSnapshot;
 import io.yakable.dao.session.model.MessagePO;
 import io.yakable.dao.session.model.SessionPO;
-import io.yakable.dao.session.model.TurnPO;
 import io.yakable.domain.session.Session;
 import io.yakable.domain.session.SessionMessage;
 import io.yakable.domain.session.SessionStatus;
@@ -23,10 +22,24 @@ import java.util.Optional;
 public class SessionQueryRepositoryAdapter
         implements SessionQueryRepository {
 
-    private final SessionQueryDao dao;
+    private final SessionDao sessionDao;
+    private final TurnDao turnDao;
+    private final MessageDao messageDao;
 
-    public SessionQueryRepositoryAdapter(SessionQueryDao dao) {
-        this.dao = Objects.requireNonNull(dao, "dao");
+    public SessionQueryRepositoryAdapter(
+            SessionDao sessionDao,
+            TurnDao turnDao,
+            MessageDao messageDao
+    ) {
+        this.sessionDao = Objects.requireNonNull(
+                sessionDao,
+                "sessionDao"
+        );
+        this.turnDao = Objects.requireNonNull(turnDao, "turnDao");
+        this.messageDao = Objects.requireNonNull(
+                messageDao,
+                "messageDao"
+        );
     }
 
     @Override
@@ -35,7 +48,7 @@ public class SessionQueryRepositoryAdapter
             String projectId,
             String sessionId
     ) {
-        Optional<SessionPO> session = dao.findOwnedSession(
+        Optional<SessionPO> session = sessionDao.findOwned(
                 projectId,
                 sessionId
         );
@@ -45,10 +58,10 @@ public class SessionQueryRepositoryAdapter
 
         return Optional.of(new SessionSnapshot(
                 toDomain(session.get()),
-                dao.findTurns(sessionId).stream()
+                turnDao.findBySessionId(sessionId).stream()
                         .map(TurnPersistenceMapper::toDomain)
                         .toList(),
-                dao.findMessages(sessionId).stream()
+                messageDao.findBySessionId(sessionId).stream()
                         .map(SessionQueryRepositoryAdapter::toMessageDomain)
                         .toList()
         ));
@@ -61,17 +74,17 @@ public class SessionQueryRepositoryAdapter
             String sessionId,
             long afterSequence
     ) {
-        if (dao.findOwnedSession(projectId, sessionId).isEmpty()) {
+        if (sessionDao.findOwned(projectId, sessionId).isEmpty()) {
             return Optional.empty();
         }
 
-        Optional<TurnPO> latestTurn = dao.findLatestTurn(sessionId);
+        var latestTurn = turnDao.findLatest(sessionId);
         if (latestTurn.isEmpty()) {
             return Optional.empty();
         }
 
         List<SessionMessage> messages =
-                dao.findMessagesAfter(sessionId, afterSequence)
+                messageDao.findAfter(sessionId, afterSequence)
                         .stream()
                         .map(SessionQueryRepositoryAdapter::toMessageDomain)
                         .toList();
@@ -79,7 +92,7 @@ public class SessionQueryRepositoryAdapter
         return Optional.of(new SessionChanges(
                 TurnPersistenceMapper.toDomain(latestTurn.get()),
                 messages,
-                dao.latestMessageSequence(sessionId)
+                messageDao.latestSequence(sessionId)
         ));
     }
 
@@ -91,11 +104,11 @@ public class SessionQueryRepositoryAdapter
             Long beforeSequence,
             int limit
     ) {
-        if (dao.findOwnedSession(projectId, sessionId).isEmpty()) {
+        if (sessionDao.findOwned(projectId, sessionId).isEmpty()) {
             return Optional.empty();
         }
 
-        List<MessagePO> rows = dao.findMessagesBefore(
+        List<MessagePO> rows = messageDao.findBefore(
                 sessionId,
                 beforeSequence,
                 limit + 1

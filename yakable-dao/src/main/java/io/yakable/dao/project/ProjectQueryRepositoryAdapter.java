@@ -4,6 +4,7 @@ import io.yakable.application.project.ProjectDetails;
 import io.yakable.application.project.ProjectQueryRepository;
 import io.yakable.application.project.ProjectSummary;
 import io.yakable.application.query.PageResult;
+import io.yakable.dao.project.mapper.ProjectMapper;
 import io.yakable.dao.project.model.ProjectQueryRow;
 import io.yakable.domain.project.ProjectStatus;
 import org.springframework.stereotype.Repository;
@@ -17,10 +18,10 @@ import java.util.Optional;
 public class ProjectQueryRepositoryAdapter
         implements ProjectQueryRepository {
 
-    private final ProjectQueryDao dao;
+    private final ProjectMapper mapper;
 
-    public ProjectQueryRepositoryAdapter(ProjectQueryDao dao) {
-        this.dao = Objects.requireNonNull(dao, "dao");
+    public ProjectQueryRepositoryAdapter(ProjectMapper mapper) {
+        this.mapper = Objects.requireNonNull(mapper, "mapper");
     }
 
     @Override
@@ -29,11 +30,11 @@ public class ProjectQueryRepositoryAdapter
             int current,
             int pageSize
     ) {
-        long total = dao.countProjects();
+        long total = mapper.countProjectsWithSession();
         long offset = (long) (current - 1) * pageSize;
 
         List<ProjectSummary> records =
-                dao.findProjectPage(offset, pageSize)
+                mapper.selectProjectPage(offset, pageSize)
                         .stream()
                         .map(ProjectQueryRepositoryAdapter::toSummary)
                         .toList();
@@ -52,8 +53,9 @@ public class ProjectQueryRepositoryAdapter
     public Optional<ProjectDetails> findProjectDetails(
             String projectId
     ) {
-        return dao.findProjectDetails(projectId)
-                .map(ProjectQueryRepositoryAdapter::toDetails);
+        return Optional.ofNullable(
+                mapper.selectProjectDetails(projectId)
+        ).map(ProjectQueryRepositoryAdapter::toDetails);
     }
 
     private static ProjectSummary toSummary(

@@ -22,19 +22,22 @@ public class SessionExecutionRepositoryAdapter
         implements SessionExecutionRepository {
 
     private final SessionDao sessionDao;
-    private final SessionExecutionDao executionDao;
+    private final TurnDao turnDao;
+    private final MessageDao messageDao;
 
     public SessionExecutionRepositoryAdapter(
             SessionDao sessionDao,
-            SessionExecutionDao executionDao
+            TurnDao turnDao,
+            MessageDao messageDao
     ) {
         this.sessionDao = Objects.requireNonNull(
                 sessionDao,
                 "sessionDao"
         );
-        this.executionDao = Objects.requireNonNull(
-                executionDao,
-                "executionDao"
+        this.turnDao = Objects.requireNonNull(turnDao, "turnDao");
+        this.messageDao = Objects.requireNonNull(
+                messageDao,
+                "messageDao"
         );
     }
 
@@ -48,17 +51,13 @@ public class SessionExecutionRepositoryAdapter
     ) {
         lockSession(turn.sessionId());
 
-        if (executionDao.countActiveTurns(turn.sessionId()) > 0) {
+        if (turnDao.countActive(turn.sessionId()) > 0) {
             throw new SessionBusyException(turn.sessionId());
         }
 
-        executionDao.insertTurn(
-                TurnPersistenceMapper.toPO(turn)
-        );
+        turnDao.insert(TurnPersistenceMapper.toPO(turn));
 
-        long sequence = executionDao.nextMessageSequence(
-                turn.sessionId()
-        );
+        long sequence = messageDao.nextSequence(turn.sessionId());
         SessionMessage userMessage = new SessionMessage(
                 userMessageId,
                 turn.sessionId(),
@@ -68,7 +67,7 @@ public class SessionExecutionRepositoryAdapter
                 sequence,
                 createdAt
         );
-        executionDao.insertMessage(toPO(userMessage));
+        messageDao.insert(toPO(userMessage));
 
         return new TurnStartResult(turn, userMessage);
     }
@@ -81,7 +80,7 @@ public class SessionExecutionRepositoryAdapter
             String provider,
             String model
     ) {
-        int updated = executionDao.claimPendingTurn(
+        int updated = turnDao.claimPending(
                 turnId,
                 claimedAt,
                 provider,
@@ -91,7 +90,7 @@ public class SessionExecutionRepositoryAdapter
             return Optional.empty();
         }
 
-        return executionDao.findTurnById(turnId)
+        return turnDao.findById(turnId)
                 .map(TurnPersistenceMapper::toDomain);
     }
 
@@ -112,7 +111,7 @@ public class SessionExecutionRepositoryAdapter
         );
 
         TurnTokenUsage usage = completedInvocation.usage();
-        int updated = executionDao.completeRunningTurn(
+        int updated = turnDao.completeRunning(
                 runningTurn.id(),
                 runningTurn.sessionId(),
                 completedInvocation.provider(),
@@ -131,7 +130,7 @@ public class SessionExecutionRepositoryAdapter
             );
         }
 
-        long sequence = executionDao.nextMessageSequence(
+        long sequence = messageDao.nextSequence(
                 runningTurn.sessionId()
         );
         SessionMessage assistantMessage = new SessionMessage(
@@ -143,7 +142,7 @@ public class SessionExecutionRepositoryAdapter
                 sequence,
                 completedAt
         );
-        executionDao.insertMessage(toPO(assistantMessage));
+        messageDao.insert(toPO(assistantMessage));
 
         return succeeded;
     }
@@ -160,7 +159,7 @@ public class SessionExecutionRepositoryAdapter
                 failedAt
         );
 
-        int updated = executionDao.failRunningTurn(
+        int updated = turnDao.failRunning(
                 runningTurn.id(),
                 runningTurn.sessionId(),
                 errorMessage,
@@ -184,29 +183,26 @@ public class SessionExecutionRepositoryAdapter
     ) {
         Objects.requireNonNull(staleBefore, "staleBefore");
         Objects.requireNonNull(recoveredAt, "recoveredAt");
-        return executionDao.recoverStaleRunningTurns(
-                staleBefore,
-                recoveredAt
-        );
+        return turnDao.recoverStale(staleBefore, recoveredAt);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<String> findPendingTurnIds(int limit) {
-        return executionDao.findPendingTurnIds(limit);
+        return turnDao.findPendingIds(limit);
     }
 
     @Override
     @Transactional(readOnly = true)
     public Optional<Turn> findTurnById(String turnId) {
-        return executionDao.findTurnById(turnId)
+        return turnDao.findById(turnId)
                 .map(TurnPersistenceMapper::toDomain);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<Turn> findTurnsBySessionId(String sessionId) {
-        return executionDao.findTurnsBySessionId(sessionId)
+        return turnDao.findBySessionId(sessionId)
                 .stream()
                 .map(TurnPersistenceMapper::toDomain)
                 .sorted(Comparator.comparing(Turn::createdAt))
@@ -218,7 +214,7 @@ public class SessionExecutionRepositoryAdapter
     public List<SessionMessage> findMessagesBySessionId(
             String sessionId
     ) {
-        return executionDao.findMessagesBySessionId(sessionId)
+        return messageDao.findBySessionId(sessionId)
                 .stream()
                 .map(SessionExecutionRepositoryAdapter::toDomain)
                 .sorted(
