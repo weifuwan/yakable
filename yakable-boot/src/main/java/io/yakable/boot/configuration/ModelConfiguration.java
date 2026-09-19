@@ -1,8 +1,10 @@
-package io.yakable.boot.model;
+package io.yakable.boot.configuration;
 
-import io.yakable.core.model.ModelPluginConfigurationResolver;
-import io.yakable.core.model.ModelPluginRegistry;
-import io.yakable.core.model.ModelRuntime;
+import io.yakable.application.model.ModelGateway;
+import io.yakable.boot.configuration.properties.ModelProperties;
+import io.yakable.infrastructure.model.ModelPluginConfigurationResolver;
+import io.yakable.infrastructure.model.ModelPluginRegistry;
+import io.yakable.infrastructure.model.PluginModelGateway;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,10 +26,13 @@ public class ModelConfiguration {
     }
 
     @Bean
-    ModelRuntime modelRuntime(
+    ModelGateway modelGateway(
             ModelPluginRegistry registry,
             ModelPluginConfigurationResolver configurationResolver
     ) {
-        return new ModelRuntime(registry, configurationResolver);
+        return new PluginModelGateway(
+                registry,
+                configurationResolver
+        );
     }
 }

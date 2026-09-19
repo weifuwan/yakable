@@ -1,4 +1,4 @@
-package io.yakable.boot.model;
+package io.yakable.boot.configuration.properties;
 
 import io.yakable.plugin.model.api.ModelPluginConfiguration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -12,7 +12,9 @@ public record ModelProperties(
 ) {
 
     public ModelProperties {
-        providers = providers == null ? Map.of() : Map.copyOf(providers);
+        providers = providers == null
+                ? Map.of()
+                : Map.copyOf(providers);
     }
 
     public ModelPluginConfiguration resolve(String provider) {

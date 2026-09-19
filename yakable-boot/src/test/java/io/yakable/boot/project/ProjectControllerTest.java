@@ -2,7 +2,7 @@ package io.yakable.boot.project;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.yakable.boot.session.SessionTurnDispatcher;
+import io.yakable.application.async.TurnDispatcher;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -30,7 +30,7 @@ class ProjectControllerTest {
     private ObjectMapper objectMapper;
 
     @MockBean
-    private SessionTurnDispatcher turnDispatcher;
+    private TurnDispatcher turnDispatcher;
 
     @Test
     void listsProjects() throws Exception {
@@ -40,7 +40,8 @@ class ProjectControllerTest {
     }
 
     @Test
-    void createsProjectWithInitialSessionAndReadsItById() throws Exception {
+    void createsProjectWithInitialSessionAndReadsItById()
+            throws Exception {
         MvcResult result = mockMvc.perform(post("/api/projects")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -53,7 +54,8 @@ class ProjectControllerTest {
                                 }
                                 """))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.name").value("Build a CRM dashboard"))
+                .andExpect(jsonPath("$.name")
+                        .value("Build a CRM dashboard"))
                 .andExpect(jsonPath("$.latestSessionId").isString())
                 .andExpect(jsonPath("$.status").value("CREATED"))
                 .andReturn();
