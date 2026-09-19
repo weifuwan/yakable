@@ -13,7 +13,7 @@ function isProjectSummary(value: unknown): value is ProjectSummary {
   return (
     typeof project.id === 'string' &&
     typeof project.name === 'string' &&
-    typeof project.sessionId === 'string' &&
+    typeof project.latestSessionId === 'string' &&
     typeof project.updatedAt === 'string'
   );
 }

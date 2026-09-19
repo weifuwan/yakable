@@ -8,7 +8,7 @@ import { CreateProjectComposer } from './CreateProjectComposer';
 const createdProject = {
   id: 'project-123',
   name: 'Build a CRM dashboard',
-  sessionId: 'session-123',
+  latestSessionId: 'session-123',
   status: 'CREATED',
   createdAt: '2026-09-19T00:00:00Z',
   updatedAt: '2026-09-19T00:00:00Z',

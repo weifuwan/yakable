@@ -1,9 +1,11 @@
 package io.yakable.boot.session;
 
 import io.yakable.core.session.Session;
+import io.yakable.core.session.SessionBusyException;
+import io.yakable.core.session.SessionCommandService;
 import io.yakable.core.session.SessionMessage;
 import io.yakable.core.session.SessionNotFoundException;
-import io.yakable.core.session.SessionService;
+import io.yakable.core.session.SessionQueryService;
 import io.yakable.core.session.SessionSnapshot;
 import io.yakable.core.session.Turn;
 import io.yakable.core.session.TurnStartResult;
@@ -21,27 +23,31 @@ import java.time.Instant;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/sessions")
+@RequestMapping("/api/projects/{projectId}/sessions")
 public class SessionController {
 
-    private final SessionService sessionService;
+    private final SessionCommandService commandService;
+    private final SessionQueryService queryService;
     private final SessionTurnDispatcher turnDispatcher;
 
     public SessionController(
-            SessionService sessionService,
+            SessionCommandService commandService,
+            SessionQueryService queryService,
             SessionTurnDispatcher turnDispatcher
     ) {
-        this.sessionService = sessionService;
+        this.commandService = commandService;
+        this.queryService = queryService;
         this.turnDispatcher = turnDispatcher;
     }
 
     @GetMapping("/{sessionId}")
     public SessionSnapshotResponse getSession(
+            @PathVariable String projectId,
             @PathVariable String sessionId
     ) {
         try {
             return SessionSnapshotResponse.from(
-                    sessionService.getSnapshot(sessionId)
+                    queryService.getSnapshot(projectId, sessionId)
             );
         } catch (SessionNotFoundException exception) {
             throw new ResponseStatusException(
@@ -54,6 +60,7 @@ public class SessionController {
 
     @PostMapping("/{sessionId}/turns")
     public ResponseEntity<TurnStartResponse> startTurn(
+            @PathVariable String projectId,
             @PathVariable String sessionId,
             @RequestBody StartTurnRequest request
     ) {
@@ -66,7 +73,8 @@ public class SessionController {
 
         TurnStartResult result;
         try {
-            result = sessionService.startTurn(
+            result = commandService.startTurn(
+                    projectId,
                     sessionId,
                     request.content()
             );
@@ -76,7 +84,7 @@ public class SessionController {
                     exception.getMessage(),
                     exception
             );
-        } catch (IllegalStateException exception) {
+        } catch (SessionBusyException | IllegalStateException exception) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     exception.getMessage(),

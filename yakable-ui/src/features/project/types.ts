@@ -1,7 +1,7 @@
 export interface ProjectSummary {
   id: string;
   name: string;
-  sessionId: string;
+  latestSessionId: string;
   updatedAt: string;
 }
 

@@ -59,7 +59,12 @@ describe('SessionWorkspace', () => {
 
     vi.stubGlobal('fetch', fetchMock);
 
-    render(<SessionWorkspace sessionId="session-1" />);
+    render(
+      <SessionWorkspace
+        projectId="project-1"
+        sessionId="session-1"
+      />,
+    );
 
     expect(await screen.findByText('I am Yakable.')).toBeTruthy();
     expect(screen.getByText('Who are you?')).toBeTruthy();
@@ -69,7 +74,7 @@ describe('SessionWorkspace', () => {
     );
     expect(writeCall).toBeUndefined();
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/sessions/session-1',
+      '/api/projects/project-1/sessions/session-1',
       expect.objectContaining({
         signal: expect.any(AbortSignal),
       }),
@@ -113,7 +118,12 @@ describe('SessionWorkspace', () => {
 
     vi.stubGlobal('fetch', fetchMock);
 
-    render(<SessionWorkspace sessionId="session-1" />);
+    render(
+      <SessionWorkspace
+        projectId="project-1"
+        sessionId="session-1"
+      />,
+    );
 
     const input = await screen.findByRole('textbox', {
       name: 'Send a message',
@@ -127,7 +137,9 @@ describe('SessionWorkspace', () => {
     const postCall = fetchMock.mock.calls.find(
       ([, init]) => init?.method === 'POST',
     );
-    expect(postCall?.[0]).toBe('/api/sessions/session-1/turns');
+    expect(postCall?.[0]).toBe(
+      '/api/projects/project-1/sessions/session-1/turns',
+    );
     expect(JSON.parse(String(postCall?.[1]?.body))).toEqual({
       content: 'Tell me more',
     });

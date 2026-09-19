@@ -17,7 +17,13 @@ function hasActiveTurn(snapshot: SessionSnapshot | null) {
   );
 }
 
-export function SessionWorkspace({ sessionId }: { sessionId: string }) {
+export function SessionWorkspace({
+  projectId,
+  sessionId,
+}: {
+  projectId: string;
+  sessionId: string;
+}) {
   const [snapshot, setSnapshot] = useState<SessionSnapshot | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -25,7 +31,7 @@ export function SessionWorkspace({ sessionId }: { sessionId: string }) {
   useEffect(() => {
     const controller = new AbortController();
 
-    void getSession(sessionId, controller.signal)
+    void getSession(projectId, sessionId, controller.signal)
       .then((result) => {
         setSnapshot(result);
         setLoadError(null);
@@ -43,7 +49,7 @@ export function SessionWorkspace({ sessionId }: { sessionId: string }) {
     return () => {
       controller.abort();
     };
-  }, [sessionId]);
+  }, [projectId, sessionId]);
 
   const activeTurn = hasActiveTurn(snapshot);
 
@@ -53,7 +59,7 @@ export function SessionWorkspace({ sessionId }: { sessionId: string }) {
     let disposed = false;
 
     const timer = window.setInterval(() => {
-      void getSession(sessionId)
+      void getSession(projectId, sessionId)
         .then((result) => {
           if (disposed) return;
           setSnapshot(result);
@@ -73,7 +79,7 @@ export function SessionWorkspace({ sessionId }: { sessionId: string }) {
       disposed = true;
       window.clearInterval(timer);
     };
-  }, [activeTurn, sessionId]);
+  }, [activeTurn, projectId, sessionId]);
 
   const latestTurn = useMemo(
     () => snapshot?.turns.at(-1) ?? null,
@@ -84,7 +90,11 @@ export function SessionWorkspace({ sessionId }: { sessionId: string }) {
     setSendError(null);
 
     try {
-      const started = await startSessionTurn(sessionId, content);
+      const started = await startSessionTurn(
+        projectId,
+        sessionId,
+        content,
+      );
 
       setSnapshot((current) => {
         if (!current) return current;

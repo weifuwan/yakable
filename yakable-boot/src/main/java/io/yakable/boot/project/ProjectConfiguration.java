@@ -1,10 +1,10 @@
 package io.yakable.boot.project;
 
-import io.yakable.core.project.ProjectCommandService;
-import io.yakable.core.project.ProjectQueryService;
+import io.yakable.core.application.project.ProjectBootstrapService;
+import io.yakable.core.application.project.ProjectOverviewQueryService;
 import io.yakable.core.project.ProjectRepository;
-import io.yakable.core.session.SessionRepository;
-import io.yakable.core.session.SessionService;
+import io.yakable.core.session.SessionCommandService;
+import io.yakable.core.session.SessionQueryService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -17,24 +17,24 @@ public class ProjectConfiguration {
     }
 
     @Bean
-    ProjectCommandService projectCommandService(
+    ProjectBootstrapService projectBootstrapService(
             ProjectRepository projectRepository,
-            SessionService sessionService
+            SessionCommandService sessionCommandService
     ) {
-        return new ProjectCommandService(
+        return new ProjectBootstrapService(
                 projectRepository,
-                sessionService
+                sessionCommandService
         );
     }
 
     @Bean
-    ProjectQueryService projectQueryService(
+    ProjectOverviewQueryService projectOverviewQueryService(
             ProjectRepository projectRepository,
-            SessionRepository sessionRepository
+            SessionQueryService sessionQueryService
     ) {
-        return new ProjectQueryService(
+        return new ProjectOverviewQueryService(
                 projectRepository,
-                sessionRepository
+                sessionQueryService
         );
     }
 }
