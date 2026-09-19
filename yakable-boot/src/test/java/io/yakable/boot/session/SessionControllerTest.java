@@ -71,12 +71,66 @@ class SessionControllerTest {
                         .value("deepseek"))
                 .andExpect(jsonPath("$.turns[0].status")
                         .value("PENDING"))
+                .andExpect(jsonPath("$.turns[0].attemptCount")
+                        .value(0))
                 .andExpect(jsonPath("$.messages[0].role")
                         .value("USER"))
                 .andExpect(jsonPath("$.messages[0].content")
                         .value("Who are you?"))
                 .andExpect(jsonPath("$.messages[0].sequence")
                         .value(1));
+    }
+
+    @Test
+    void readsOnlyChangesAfterMessageSequence()
+            throws Exception {
+        ProjectRef project = createProject("First question");
+
+        JsonNode initialSnapshot = getSession(project);
+        String initialTurnId = initialSnapshot
+                .path("turns")
+                .path(0)
+                .path("id")
+                .asText();
+
+        turnExecutor.execute(initialTurnId);
+
+        mockMvc.perform(get(
+                            "/api/projects/{projectId}/sessions/{sessionId}/changes",
+                            project.projectId(),
+                            project.sessionId()
+                        )
+                        .queryParam("afterSequence", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.latestTurn.id")
+                        .value(initialTurnId))
+                .andExpect(jsonPath("$.latestTurn.status")
+                        .value("SUCCEEDED"))
+                .andExpect(jsonPath("$.messages.length()")
+                        .value(1))
+                .andExpect(jsonPath("$.messages[0].role")
+                        .value("ASSISTANT"))
+                .andExpect(jsonPath("$.messages[0].sequence")
+                        .value(2))
+                .andExpect(jsonPath("$.latestSequence")
+                        .value(2));
+    }
+
+    @Test
+    void pagesHistoricalMessages()
+            throws Exception {
+        ProjectRef project = createProject("First question");
+
+        mockMvc.perform(get(
+                            "/api/projects/{projectId}/sessions/{sessionId}/messages",
+                            project.projectId(),
+                            project.sessionId()
+                        )
+                        .queryParam("limit", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.messages.length()").value(1))
+                .andExpect(jsonPath("$.messages[0].sequence").value(1))
+                .andExpect(jsonPath("$.hasMore").value(false));
     }
 
     @Test
@@ -108,6 +162,8 @@ class SessionControllerTest {
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.turn.status")
                         .value("PENDING"))
+                .andExpect(jsonPath("$.turn.attemptCount")
+                        .value(0))
                 .andExpect(jsonPath("$.userMessage.role")
                         .value("USER"))
                 .andExpect(jsonPath("$.userMessage.content")

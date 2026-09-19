@@ -15,14 +15,20 @@ describe('RecentProjects', () => {
       id: `project-${index + 1}`,
       name: `Project ${index + 1}`,
       latestSessionId: `session-${index + 1}`,
-      updatedAt: new Date(Date.UTC(2026, 8, index + 1)).toISOString(),
+      updatedAt: new Date(Date.UTC(2026, 8, 6 - index)).toISOString(),
     }));
 
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => projects,
+        json: async () => ({
+          records: projects,
+          total: projects.length,
+          pages: 1,
+          current: 1,
+          pageSize: 50,
+        }),
       }),
     );
 
@@ -38,8 +44,8 @@ describe('RecentProjects', () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole('link', { name: 'Project 6' })).toBeTruthy();
-    expect(screen.queryByRole('link', { name: 'Project 1' })).toBeNull();
+    expect(await screen.findByRole('link', { name: 'Project 1' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Project 6' })).toBeNull();
     expect(screen.getAllByRole('link')).toHaveLength(5);
     expect(
       screen.getByRole('link', { name: 'Project 5' }).getAttribute('aria-current'),
