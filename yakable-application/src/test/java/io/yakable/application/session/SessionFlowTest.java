@@ -198,7 +198,7 @@ class SessionFlowTest {
         Fixture fixture = new Fixture();
         Session session = fixture.createSession();
 
-        Instant claimedAt = Instant.now().minus(Duration.ofMinutes(20));
+        Instant claimedAt = Instant.now();
         TurnStartResult started = fixture.commandService.startTurn(
                 "project-1",
                 session.id(),
@@ -223,7 +223,9 @@ class SessionFlowTest {
                 );
 
         TurnExecutionRecoveryService.TurnRecoveryResult result =
-                recoveryService.recoverAndDispatch(Instant.now());
+                recoveryService.recoverAndDispatch(
+                        claimedAt.plus(Duration.ofMinutes(20))
+                );
 
         assertThat(result.recoveredRunningTurns()).isEqualTo(1);
         assertThat(result.pendingTurns()).isEqualTo(1);
