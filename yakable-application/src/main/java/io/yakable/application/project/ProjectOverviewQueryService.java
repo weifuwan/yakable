@@ -1,101 +1,66 @@
 package io.yakable.application.project;
 
-import io.yakable.application.session.SessionQueryService;
-import io.yakable.domain.project.Project;
-import io.yakable.domain.project.repository.ProjectRepository;
-import io.yakable.domain.session.Session;
+import io.yakable.application.query.PageResult;
 
-import java.time.Instant;
-import java.util.Comparator;
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
 public final class ProjectOverviewQueryService {
 
-    private final ProjectRepository projectRepository;
-    private final SessionQueryService sessionQueryService;
+    private static final int MAX_PAGE_SIZE = 100;
+
+    private final ProjectQueryRepository queryRepository;
 
     public ProjectOverviewQueryService(
-            ProjectRepository projectRepository,
-            SessionQueryService sessionQueryService
+            ProjectQueryRepository queryRepository
     ) {
-        this.projectRepository = Objects.requireNonNull(
-                projectRepository,
-                "projectRepository"
-        );
-        this.sessionQueryService = Objects.requireNonNull(
-                sessionQueryService,
-                "sessionQueryService"
+        this.queryRepository = Objects.requireNonNull(
+                queryRepository,
+                "queryRepository"
         );
     }
 
-    public List<ProjectSummary> listProjects() {
-        return projectRepository.findAll().stream()
-                .map(this::toSummary)
-                .flatMap(Optional::stream)
-                .sorted(
-                        Comparator.comparing(
-                                ProjectSummary::updatedAt
-                        ).reversed()
-                )
-                .toList();
+    public PageResult<ProjectSummary> listProjects(
+            int current,
+            int pageSize
+    ) {
+        if (current <= 0) {
+            throw new IllegalArgumentException(
+                    "current must be greater than zero"
+            );
+        }
+        if (pageSize <= 0 || pageSize > MAX_PAGE_SIZE) {
+            throw new IllegalArgumentException(
+                    "pageSize must be between 1 and "
+                            + MAX_PAGE_SIZE
+            );
+        }
+
+        return queryRepository.findProjectSummaries(
+                current,
+                pageSize
+        );
     }
 
     public Optional<ProjectDetails> getProject(
             String projectId
     ) {
-        return projectRepository.findById(projectId)
-                .flatMap(project -> latestSession(project.id())
-                        .map(session -> toDetails(
-                                project,
-                                session
-                        )));
-    }
-
-    private Optional<ProjectSummary> toSummary(Project project) {
-        return latestSession(project.id())
-                .map(session -> new ProjectSummary(
-                        project.id(),
-                        project.name(),
-                        session.id(),
-                        latest(
-                                project.updatedAt(),
-                                session.updatedAt()
-                        )
-                ));
-    }
-
-    private ProjectDetails toDetails(
-            Project project,
-            Session session
-    ) {
-        return new ProjectDetails(
-                project.id(),
-                project.name(),
-                session.id(),
-                project.status(),
-                project.createdAt(),
-                latest(
-                        project.updatedAt(),
-                        session.updatedAt()
-                )
+        return queryRepository.findProjectDetails(
+                requireText(projectId, "projectId")
         );
     }
 
-    private Optional<Session> latestSession(
-            String projectId
+    private static String requireText(
+            String value,
+            String field
     ) {
-        return sessionQueryService
-                .listProjectSessions(projectId)
-                .stream()
-                .findFirst();
-    }
-
-    private static Instant latest(
-            Instant left,
-            Instant right
-    ) {
-        return left.isAfter(right) ? left : right;
+        Objects.requireNonNull(value, field);
+        String normalized = value.strip();
+        if (normalized.isEmpty()) {
+            throw new IllegalArgumentException(
+                    field + " must not be blank"
+            );
+        }
+        return normalized;
     }
 }

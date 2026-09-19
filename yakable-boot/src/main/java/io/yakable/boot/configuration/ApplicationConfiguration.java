@@ -4,9 +4,11 @@ import io.yakable.application.async.TurnDispatcher;
 import io.yakable.application.model.ModelGateway;
 import io.yakable.application.project.ProjectBootstrapService;
 import io.yakable.application.project.ProjectOverviewQueryService;
+import io.yakable.application.project.ProjectQueryRepository;
 import io.yakable.application.session.SessionCommandService;
 import io.yakable.application.session.SessionQueryService;
 import io.yakable.application.session.SessionTurnService;
+import io.yakable.application.session.TurnExecutionRecoveryService;
 import io.yakable.application.session.TurnExecutor;
 import io.yakable.application.session.TurnPromptAssembler;
 import io.yakable.application.transaction.TransactionRunner;
@@ -93,12 +95,10 @@ public class ApplicationConfiguration {
 
     @Bean
     ProjectOverviewQueryService projectOverviewQueryService(
-            ProjectRepository projectRepository,
-            SessionQueryService sessionQueryService
+            ProjectQueryRepository queryRepository
     ) {
         return new ProjectOverviewQueryService(
-                projectRepository,
-                sessionQueryService
+                queryRepository
         );
     }
 }
