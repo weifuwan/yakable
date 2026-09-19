@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 
 import { cx } from '@/shared/ui';
 
@@ -27,7 +27,9 @@ export function RecentProjects({
 }: {
   limit?: number;
 }) {
-  const { pathname } = useLocation();
+  const { projectId: activeProjectId } = useParams<{
+    projectId: string;
+  }>();
   const { projects, isLoading, error } = useProjects();
 
   const recentProjects = useMemo(
@@ -47,29 +49,29 @@ export function RecentProjects({
         Recents
       </h2>
 
-      {isLoading && (
+      {recentProjects.length === 0 && isLoading && (
         <p className="m-0 px-2 py-1 text-xs text-black/35" role="status">
           Loading...
         </p>
       )}
 
-      {!isLoading && error && (
+      {recentProjects.length === 0 && !isLoading && error && (
         <p className="m-0 px-2 py-1 text-xs leading-5 text-black/35">
           Recent projects unavailable
         </p>
       )}
 
-      {!isLoading && !error && recentProjects.length === 0 && (
+      {recentProjects.length === 0 && !isLoading && !error && (
         <p className="m-0 px-2 py-1 text-xs text-black/35">
           No recent projects
         </p>
       )}
 
-      {!isLoading && !error && recentProjects.length > 0 && (
+      {recentProjects.length > 0 && (
         <nav aria-label="Recent projects" className="flex flex-col gap-0.5">
           {recentProjects.map((project) => {
             const href = projectHref(project);
-            const active = pathname === href;
+            const active = project.id === activeProjectId;
 
             return (
               <Link
