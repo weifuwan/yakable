@@ -1,6 +1,17 @@
 spring:
   application:
     name: yakable
+  datasource:
+    url: ${YAKABLE_DB_URL:jdbc:mysql://127.0.0.1:3306/yakable?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC}
+    username: ${YAKABLE_DB_USERNAME:root}
+    password: ${YAKABLE_DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
 
 yakable:
   model:

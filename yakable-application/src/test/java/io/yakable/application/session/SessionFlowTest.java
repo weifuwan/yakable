@@ -4,6 +4,7 @@ import io.yakable.application.model.ModelGateway;
 import io.yakable.application.model.ModelMessage;
 import io.yakable.application.model.ModelReply;
 import io.yakable.application.model.ModelRequest;
+import io.yakable.application.transaction.TransactionRunner;
 import io.yakable.domain.session.Session;
 import io.yakable.domain.session.SessionBusyException;
 import io.yakable.domain.session.SessionMessage;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -69,9 +71,13 @@ class SessionFlowTest {
                 .extracting(SessionMessage::sequence)
                 .containsExactly(1L, 2L, 3L, 4L);
 
-        ModelRequest secondRequest = fixture.modelGateway.requests.get(1);
+        ModelRequest secondRequest =
+                fixture.modelGateway.requests.get(1);
         assertThat(secondRequest.messages())
-                .extracting(ModelMessage::role, ModelMessage::content)
+                .extracting(
+                        ModelMessage::role,
+                        ModelMessage::content
+                )
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple(
                                 ModelMessage.Role.USER,
@@ -106,7 +112,9 @@ class SessionFlowTest {
         );
 
         assertThatThrownBy(
-                () -> fixture.turnExecutor.execute(failed.turn().id())
+                () -> fixture.turnExecutor.execute(
+                        failed.turn().id()
+                )
         ).isInstanceOf(IllegalStateException.class);
 
         SessionSnapshot failedSnapshot = fixture.queryService.getSnapshot(
@@ -123,9 +131,13 @@ class SessionFlowTest {
         );
         fixture.turnExecutor.execute(retry.turn().id());
 
-        ModelRequest retryRequest = fixture.modelGateway.requests.get(0);
+        ModelRequest retryRequest =
+                fixture.modelGateway.requests.get(0);
         assertThat(retryRequest.messages())
-                .extracting(ModelMessage::role, ModelMessage::content)
+                .extracting(
+                        ModelMessage::role,
+                        ModelMessage::content
+                )
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple(
                                 ModelMessage.Role.USER,
@@ -203,7 +215,8 @@ class SessionFlowTest {
                 .isInstanceOf(IllegalStateException.class);
 
         Turn failed = running.markFailed("boom", now);
-        assertThat(failed.status()).isEqualTo(TurnStatus.FAILED);
+        assertThat(failed.status())
+                .isEqualTo(TurnStatus.FAILED);
         assertThat(failed.errorMessage()).isEqualTo("boom");
         assertThatThrownBy(() -> failed.markSucceeded(now))
                 .isInstanceOf(IllegalStateException.class);
@@ -223,6 +236,9 @@ class SessionFlowTest {
         private final TurnExecutor turnExecutor;
 
         private Fixture() {
+            TransactionRunner transactionRunner =
+                    new DirectTransactionRunner();
+
             commandService = new SessionCommandService(
                     sessionRepository,
                     executionRepository
@@ -235,8 +251,18 @@ class SessionFlowTest {
                     sessionRepository,
                     executionRepository,
                     modelGateway,
-                    new TurnPromptAssembler()
+                    new TurnPromptAssembler(),
+                    transactionRunner
             );
+        }
+    }
+
+    private static final class DirectTransactionRunner
+            implements TransactionRunner {
+
+        @Override
+        public <T> T required(Supplier<T> action) {
+            return action.get();
         }
     }
 

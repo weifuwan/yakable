@@ -9,6 +9,7 @@ import io.yakable.application.session.SessionQueryService;
 import io.yakable.application.session.SessionTurnService;
 import io.yakable.application.session.TurnExecutor;
 import io.yakable.application.session.TurnPromptAssembler;
+import io.yakable.application.transaction.TransactionRunner;
 import io.yakable.domain.project.repository.ProjectRepository;
 import io.yakable.domain.session.repository.SessionExecutionRepository;
 import io.yakable.domain.session.repository.SessionRepository;
@@ -50,24 +51,28 @@ public class ApplicationConfiguration {
             SessionRepository sessionRepository,
             SessionExecutionRepository executionRepository,
             ModelGateway modelGateway,
-            TurnPromptAssembler promptAssembler
+            TurnPromptAssembler promptAssembler,
+            TransactionRunner transactionRunner
     ) {
         return new TurnExecutor(
                 sessionRepository,
                 executionRepository,
                 modelGateway,
-                promptAssembler
+                promptAssembler,
+                transactionRunner
         );
     }
 
     @Bean
     SessionTurnService sessionTurnService(
             SessionCommandService commandService,
-            TurnDispatcher turnDispatcher
+            TurnDispatcher turnDispatcher,
+            TransactionRunner transactionRunner
     ) {
         return new SessionTurnService(
                 commandService,
-                turnDispatcher
+                turnDispatcher,
+                transactionRunner
         );
     }
 
@@ -75,12 +80,14 @@ public class ApplicationConfiguration {
     ProjectBootstrapService projectBootstrapService(
             ProjectRepository projectRepository,
             SessionCommandService sessionCommandService,
-            TurnDispatcher turnDispatcher
+            TurnDispatcher turnDispatcher,
+            TransactionRunner transactionRunner
     ) {
         return new ProjectBootstrapService(
                 projectRepository,
                 sessionCommandService,
-                turnDispatcher
+                turnDispatcher,
+                transactionRunner
         );
     }
 

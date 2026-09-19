@@ -13,13 +13,9 @@
     <artifactId>yakable-infrastructure</artifactId>
 
     <name>Yakable Infrastructure</name>
-    <description>Persistence, model-plugin, async, and external-system adapters</description>
+    <description>Model-plugin, async, and external-system adapters</description>
 
     <dependencies>
-        <dependency>
-            <groupId>io.yakable</groupId>
-            <artifactId>yakable-domain</artifactId>
-        </dependency>
         <dependency>
             <groupId>io.yakable</groupId>
             <artifactId>yakable-application</artifactId>
