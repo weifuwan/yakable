@@ -1,5 +1,6 @@
 package io.yakable.application.session;
 
+import io.yakable.application.async.TurnDispatcher;
 import io.yakable.application.model.ModelGateway;
 import io.yakable.application.model.ModelMessage;
 import io.yakable.application.model.ModelReply;
@@ -16,8 +17,10 @@ import io.yakable.domain.session.repository.SessionExecutionRepository;
 import io.yakable.domain.session.repository.SessionRepository;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,12 +36,7 @@ class SessionFlowTest {
     @Test
     void successfulTurnsBuildContextFromSucceededHistory() {
         Fixture fixture = new Fixture();
-        Session session = fixture.commandService.createSession(
-                "project-1",
-                "CRM",
-                "deepseek",
-                "deepseek-flash"
-        );
+        Session session = fixture.createSession();
 
         TurnStartResult first = fixture.commandService.startTurn(
                 "project-1",
@@ -71,6 +69,11 @@ class SessionFlowTest {
                 .extracting(SessionMessage::sequence)
                 .containsExactly(1L, 2L, 3L, 4L);
 
+        Turn firstTurn = snapshot.turns().get(0);
+        assertThat(firstTurn.attemptCount()).isEqualTo(1);
+        assertThat(firstTurn.startedAt()).isNotNull();
+        assertThat(firstTurn.finishedAt()).isNotNull();
+
         ModelRequest secondRequest =
                 fixture.modelGateway.requests.get(1);
         assertThat(secondRequest.messages())
@@ -97,12 +100,7 @@ class SessionFlowTest {
     @Test
     void failedTurnDoesNotPolluteNextContext() {
         Fixture fixture = new Fixture();
-        Session session = fixture.commandService.createSession(
-                "project-1",
-                "CRM",
-                "deepseek",
-                "deepseek-flash"
-        );
+        Session session = fixture.createSession();
 
         fixture.modelGateway.failNext = true;
         TurnStartResult failed = fixture.commandService.startTurn(
@@ -121,8 +119,11 @@ class SessionFlowTest {
                 "project-1",
                 session.id()
         );
-        assertThat(failedSnapshot.turns().get(0).status())
+        Turn failedTurn = failedSnapshot.turns().get(0);
+        assertThat(failedTurn.status())
                 .isEqualTo(TurnStatus.FAILED);
+        assertThat(failedTurn.startedAt()).isNotNull();
+        assertThat(failedTurn.finishedAt()).isNotNull();
 
         TurnStartResult retry = fixture.commandService.startTurn(
                 "project-1",
@@ -147,14 +148,37 @@ class SessionFlowTest {
     }
 
     @Test
+    void contextFailureAfterClaimMarksTurnFailed() {
+        Fixture fixture = new Fixture();
+        Session session = fixture.createSession();
+
+        TurnStartResult turn = fixture.commandService.startTurn(
+                "project-1",
+                session.id(),
+                "Hello"
+        );
+        fixture.executionRepository.failNextMessageRead = true;
+
+        assertThatThrownBy(
+                () -> fixture.turnExecutor.execute(turn.turn().id())
+        )
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("context failed");
+
+        Turn persisted = fixture.executionRepository
+                .findTurnById(turn.turn().id())
+                .orElseThrow();
+
+        assertThat(persisted.status()).isEqualTo(TurnStatus.FAILED);
+        assertThat(persisted.errorMessage()).isEqualTo("context failed");
+        assertThat(persisted.startedAt()).isNotNull();
+        assertThat(persisted.finishedAt()).isNotNull();
+    }
+
+    @Test
     void duplicateExecutionIsIgnoredAfterTurnIsClaimed() {
         Fixture fixture = new Fixture();
-        Session session = fixture.commandService.createSession(
-                "project-1",
-                "CRM",
-                "deepseek",
-                "deepseek-flash"
-        );
+        Session session = fixture.createSession();
 
         TurnStartResult turn = fixture.commandService.startTurn(
                 "project-1",
@@ -170,14 +194,55 @@ class SessionFlowTest {
     }
 
     @Test
+    void recoveryRequeuesStaleRunningAndDispatchesPending() {
+        Fixture fixture = new Fixture();
+        Session session = fixture.createSession();
+
+        Instant claimedAt = Instant.now().minus(Duration.ofMinutes(20));
+        TurnStartResult started = fixture.commandService.startTurn(
+                "project-1",
+                session.id(),
+                "Recover me"
+        );
+        Turn running = fixture.executionRepository
+                .claimPendingTurn(started.turn().id(), claimedAt)
+                .orElseThrow();
+
+        List<String> dispatched = new ArrayList<>();
+        TurnDispatcher dispatcher = turnId -> {
+            dispatched.add(turnId);
+            return true;
+        };
+
+        TurnExecutionRecoveryService recoveryService =
+                new TurnExecutionRecoveryService(
+                        fixture.executionRepository,
+                        dispatcher,
+                        Duration.ofMinutes(10),
+                        10
+                );
+
+        TurnExecutionRecoveryService.TurnRecoveryResult result =
+                recoveryService.recoverAndDispatch(Instant.now());
+
+        assertThat(result.recoveredRunningTurns()).isEqualTo(1);
+        assertThat(result.pendingTurns()).isEqualTo(1);
+        assertThat(result.acceptedDispatches()).isEqualTo(1);
+        assertThat(dispatched).containsExactly(running.id());
+
+        Turn recovered = fixture.executionRepository
+                .findTurnById(running.id())
+                .orElseThrow();
+        assertThat(recovered.status()).isEqualTo(TurnStatus.PENDING);
+        assertThat(recovered.attemptCount()).isEqualTo(1);
+        assertThat(recovered.startedAt()).isNull();
+        assertThat(recovered.finishedAt()).isNull();
+    }
+
+    @Test
     void projectIdentityIsPartOfTheSessionBoundary() {
         Fixture fixture = new Fixture();
-        Session session = fixture.commandService.createSession(
-                "project-1",
-                "CRM",
-                "deepseek",
-                "deepseek-flash"
-        );
+        Session session = fixture.createSession();
 
         assertThatThrownBy(
                 () -> fixture.queryService.getSnapshot(
@@ -196,30 +261,58 @@ class SessionFlowTest {
     }
 
     @Test
-    void turnOwnsItsStateTransitionRules() {
+    void turnOwnsExecutionAndRecoveryTransitions() {
         Instant now = Instant.now();
-        Turn pending = new Turn(
+        Turn pending = pendingTurn(
                 "turn-1",
                 "session-1",
-                TurnStatus.PENDING,
-                null,
-                now,
                 now
         );
 
         assertThatThrownBy(() -> pending.markSucceeded(now))
                 .isInstanceOf(IllegalStateException.class);
 
-        Turn running = pending.markRunning(now);
-        assertThatThrownBy(() -> running.markRunning(now))
-                .isInstanceOf(IllegalStateException.class);
+        Turn running = pending.markRunning(now.plusSeconds(1));
+        assertThat(running.attemptCount()).isEqualTo(1);
+        assertThat(running.startedAt()).isEqualTo(now.plusSeconds(1));
 
-        Turn failed = running.markFailed("boom", now);
-        assertThat(failed.status())
-                .isEqualTo(TurnStatus.FAILED);
-        assertThat(failed.errorMessage()).isEqualTo("boom");
-        assertThatThrownBy(() -> failed.markSucceeded(now))
-                .isInstanceOf(IllegalStateException.class);
+        Turn recovered = running.recoverToPending(
+                now.plusSeconds(2)
+        );
+        assertThat(recovered.status()).isEqualTo(TurnStatus.PENDING);
+        assertThat(recovered.attemptCount()).isEqualTo(1);
+        assertThat(recovered.startedAt()).isNull();
+
+        Turn retried = recovered.markRunning(now.plusSeconds(3));
+        assertThat(retried.attemptCount()).isEqualTo(2);
+
+        Turn failed = retried.markFailed(
+                "boom",
+                now.plusSeconds(4)
+        );
+        assertThat(failed.status()).isEqualTo(TurnStatus.FAILED);
+        assertThat(failed.finishedAt()).isEqualTo(now.plusSeconds(4));
+        assertThatThrownBy(
+                () -> failed.markSucceeded(now.plusSeconds(5))
+        ).isInstanceOf(IllegalStateException.class);
+    }
+
+    private static Turn pendingTurn(
+            String id,
+            String sessionId,
+            Instant now
+    ) {
+        return new Turn(
+                id,
+                sessionId,
+                TurnStatus.PENDING,
+                0,
+                null,
+                null,
+                null,
+                now,
+                now
+        );
     }
 
     private static final class Fixture {
@@ -253,6 +346,15 @@ class SessionFlowTest {
                     modelGateway,
                     new TurnPromptAssembler(),
                     transactionRunner
+            );
+        }
+
+        private Session createSession() {
+            return commandService.createSession(
+                    "project-1",
+                    "CRM",
+                    "deepseek",
+                    "deepseek-flash"
             );
         }
     }
@@ -298,6 +400,7 @@ class SessionFlowTest {
         private final Map<String, Turn> turns = new HashMap<>();
         private final List<SessionMessage> messages = new ArrayList<>();
         private final Map<String, AtomicLong> sequences = new HashMap<>();
+        private boolean failNextMessageRead;
 
         @Override
         public TurnStartResult createPendingTurn(
@@ -382,6 +485,38 @@ class SessionFlowTest {
         }
 
         @Override
+        public int recoverStaleRunningTurns(
+                Instant staleBefore,
+                Instant recoveredAt
+        ) {
+            int recovered = 0;
+            for (Map.Entry<String, Turn> entry : turns.entrySet()) {
+                Turn turn = entry.getValue();
+                if (turn.status() == TurnStatus.RUNNING
+                        && turn.startedAt() != null
+                        && turn.startedAt().isBefore(staleBefore)) {
+                    entry.setValue(
+                            turn.recoverToPending(recoveredAt)
+                    );
+                    recovered++;
+                }
+            }
+            return recovered;
+        }
+
+        @Override
+        public List<String> findPendingTurnIds(int limit) {
+            return turns.values().stream()
+                    .filter(turn ->
+                            turn.status() == TurnStatus.PENDING
+                    )
+                    .sorted(Comparator.comparing(Turn::createdAt))
+                    .limit(limit)
+                    .map(Turn::id)
+                    .toList();
+        }
+
+        @Override
         public Optional<Turn> findTurnById(String turnId) {
             return Optional.ofNullable(turns.get(turnId));
         }
@@ -392,6 +527,7 @@ class SessionFlowTest {
                     .filter(turn ->
                             turn.sessionId().equals(sessionId)
                     )
+                    .sorted(Comparator.comparing(Turn::createdAt))
                     .toList();
         }
 
@@ -399,6 +535,11 @@ class SessionFlowTest {
         public List<SessionMessage> findMessagesBySessionId(
                 String sessionId
         ) {
+            if (failNextMessageRead) {
+                failNextMessageRead = false;
+                throw new IllegalStateException("context failed");
+            }
+
             return messages.stream()
                     .filter(message ->
                             message.sessionId().equals(sessionId)

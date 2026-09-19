@@ -123,7 +123,10 @@ public class SessionController {
     public record TurnResponse(
             String id,
             String status,
+            int attemptCount,
             String errorMessage,
+            Instant startedAt,
+            Instant finishedAt,
             Instant createdAt,
             Instant updatedAt
     ) {
@@ -132,7 +135,10 @@ public class SessionController {
             return new TurnResponse(
                     turn.id(),
                     turn.status().name(),
+                    turn.attemptCount(),
                     turn.errorMessage(),
+                    turn.startedAt(),
+                    turn.finishedAt(),
                     turn.createdAt(),
                     turn.updatedAt()
             );
