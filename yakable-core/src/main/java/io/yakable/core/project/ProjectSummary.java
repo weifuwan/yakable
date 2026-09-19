@@ -6,14 +6,14 @@ import java.util.Objects;
 public record ProjectSummary(
         String id,
         String name,
-        String sessionId,
+        String latestSessionId,
         Instant updatedAt
 ) {
 
     public ProjectSummary {
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(name, "name");
-        Objects.requireNonNull(sessionId, "sessionId");
+        Objects.requireNonNull(latestSessionId, "latestSessionId");
         Objects.requireNonNull(updatedAt, "updatedAt");
     }
 }

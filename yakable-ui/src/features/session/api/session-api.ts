@@ -79,22 +79,29 @@ async function readJson(response: Response, errorMessage: string) {
   }
 }
 
+function sessionPath(projectId: string, sessionId: string) {
+  return (
+    '/api/projects/' +
+    encodeURIComponent(projectId) +
+    '/sessions/' +
+    encodeURIComponent(sessionId)
+  );
+}
+
 export async function getSession(
+  projectId: string,
   sessionId: string,
   signal?: AbortSignal,
 ): Promise<SessionSnapshot> {
   let response: Response;
 
   try {
-    response = await fetch(
-      '/api/sessions/' + encodeURIComponent(sessionId),
-      {
-        headers: {
-          Accept: 'application/json',
-        },
-        signal,
+    response = await fetch(sessionPath(projectId, sessionId), {
+      headers: {
+        Accept: 'application/json',
       },
-    );
+      signal,
+    });
   } catch (error) {
     if (signal?.aborted) throw error;
     throw new Error('Unable to load session.', { cause: error });
@@ -117,6 +124,7 @@ export async function getSession(
 }
 
 export async function startSessionTurn(
+  projectId: string,
   sessionId: string,
   content: string,
 ): Promise<TurnStartResult> {
@@ -124,7 +132,7 @@ export async function startSessionTurn(
 
   try {
     response = await fetch(
-      '/api/sessions/' + encodeURIComponent(sessionId) + '/turns',
+      sessionPath(projectId, sessionId) + '/turns',
       {
         method: 'POST',
         headers: {

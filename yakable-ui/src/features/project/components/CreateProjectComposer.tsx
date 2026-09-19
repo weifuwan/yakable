@@ -38,7 +38,9 @@ export function CreateProjectComposer() {
       });
 
       upsertProject(project);
-      navigate(projectSessionPath(project.id, project.sessionId));
+      navigate(
+        projectSessionPath(project.id, project.latestSessionId),
+      );
       return true;
     } catch (requestError) {
       setError(

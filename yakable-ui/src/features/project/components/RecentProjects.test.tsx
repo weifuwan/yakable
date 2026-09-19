@@ -14,7 +14,7 @@ describe('RecentProjects', () => {
     const projects = Array.from({ length: 6 }, (_, index) => ({
       id: `project-${index + 1}`,
       name: `Project ${index + 1}`,
-      sessionId: `session-${index + 1}`,
+      latestSessionId: `session-${index + 1}`,
       updatedAt: new Date(Date.UTC(2026, 8, index + 1)).toISOString(),
     }));
 

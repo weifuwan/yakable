@@ -7,7 +7,7 @@ function projectHref(project: ProjectSummary): string {
     '/dashboard/project/' +
     encodeURIComponent(project.id) +
     '/session/' +
-    encodeURIComponent(project.sessionId)
+    encodeURIComponent(project.latestSessionId)
   );
 }
 

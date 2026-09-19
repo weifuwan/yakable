@@ -3,7 +3,7 @@ package io.yakable.boot.session;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.yakable.core.model.ModelRuntime;
-import io.yakable.core.session.SessionService;
+import io.yakable.core.session.TurnExecutor;
 import io.yakable.plugin.model.api.LlmResponse;
 import io.yakable.plugin.model.api.LlmUsage;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,7 +37,7 @@ class SessionControllerTest {
     private ObjectMapper objectMapper;
 
     @Autowired
-    private SessionService sessionService;
+    private TurnExecutor turnExecutor;
 
     @MockBean
     private SessionTurnDispatcher turnDispatcher;
@@ -59,7 +59,11 @@ class SessionControllerTest {
     void projectCreationPersistsInitialPendingTurnBeforeNavigation() throws Exception {
         ProjectRef project = createProject("Who are you?");
 
-        mockMvc.perform(get("/api/sessions/{sessionId}", project.sessionId()))
+        mockMvc.perform(get(
+                            "/api/projects/{projectId}/sessions/{sessionId}",
+                            project.projectId(),
+                            project.sessionId()
+                        ))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.session.id").value(project.sessionId()))
                 .andExpect(jsonPath("$.session.projectId").value(project.projectId()))
@@ -74,18 +78,19 @@ class SessionControllerTest {
     void startsANewTurnAfterThePreviousTurnCompletes() throws Exception {
         ProjectRef project = createProject("First question");
 
-        JsonNode initialSnapshot = getSession(project.sessionId());
+        JsonNode initialSnapshot = getSession(project);
         String initialTurnId = initialSnapshot
                 .path("turns")
                 .path(0)
                 .path("id")
                 .asText();
 
-        sessionService.executeTurn(initialTurnId);
+        turnExecutor.execute(initialTurnId);
         reset(turnDispatcher);
 
         mockMvc.perform(post(
-                            "/api/sessions/{sessionId}/turns",
+                            "/api/projects/{projectId}/sessions/{sessionId}/turns",
+                            project.projectId(),
                             project.sessionId()
                         )
                         .contentType(MediaType.APPLICATION_JSON)
@@ -108,7 +113,8 @@ class SessionControllerTest {
         ProjectRef project = createProject("First question");
 
         mockMvc.perform(post(
-                            "/api/sessions/{sessionId}/turns",
+                            "/api/projects/{projectId}/sessions/{sessionId}/turns",
+                            project.projectId(),
                             project.sessionId()
                         )
                         .contentType(MediaType.APPLICATION_JSON)
@@ -121,15 +127,30 @@ class SessionControllerTest {
     }
 
     @Test
-    void returnsNotFoundForUnknownSession() throws Exception {
-        mockMvc.perform(get("/api/sessions/missing"))
+    void returnsNotFoundWhenSessionDoesNotBelongToProject() throws Exception {
+        ProjectRef project = createProject("First question");
+
+        mockMvc.perform(get(
+                            "/api/projects/project-other/sessions/{sessionId}",
+                            project.sessionId()
+                        ))
                 .andExpect(status().isNotFound());
     }
 
-    private JsonNode getSession(String sessionId) throws Exception {
-        MvcResult result = mockMvc.perform(
-                        get("/api/sessions/{sessionId}", sessionId)
-                )
+    @Test
+    void returnsNotFoundForUnknownSession() throws Exception {
+        mockMvc.perform(get(
+                            "/api/projects/project-1/sessions/missing"
+                        ))
+                .andExpect(status().isNotFound());
+    }
+
+    private JsonNode getSession(ProjectRef project) throws Exception {
+        MvcResult result = mockMvc.perform(get(
+                            "/api/projects/{projectId}/sessions/{sessionId}",
+                            project.projectId(),
+                            project.sessionId()
+                        ))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -158,7 +179,7 @@ class SessionControllerTest {
         );
         return new ProjectRef(
                 project.get("id").asText(),
-                project.get("sessionId").asText()
+                project.get("latestSessionId").asText()
         );
     }
 

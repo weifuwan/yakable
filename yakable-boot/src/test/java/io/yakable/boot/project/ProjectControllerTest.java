@@ -54,23 +54,25 @@ class ProjectControllerTest {
                                 """))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.name").value("Build a CRM dashboard"))
-                .andExpect(jsonPath("$.sessionId").isString())
+                .andExpect(jsonPath("$.latestSessionId").isString())
                 .andExpect(jsonPath("$.status").value("CREATED"))
                 .andReturn();
 
-        JsonNode createdProject =
-                objectMapper.readTree(
-                        result.getResponse().getContentAsString()
-                );
+        JsonNode createdProject = objectMapper.readTree(
+                result.getResponse().getContentAsString()
+        );
         String projectId = createdProject.get("id").asText();
-        String sessionId = createdProject.get("sessionId").asText();
+        String latestSessionId = createdProject
+                .get("latestSessionId")
+                .asText();
 
         verify(turnDispatcher).dispatch(anyString());
 
         mockMvc.perform(get("/api/projects/{projectId}", projectId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(projectId))
-                .andExpect(jsonPath("$.sessionId").value(sessionId));
+                .andExpect(jsonPath("$.latestSessionId")
+                        .value(latestSessionId));
     }
 
     @Test

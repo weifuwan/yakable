@@ -12,5 +12,10 @@ export function ProjectPage() {
     return <Navigate to="/dashboard" replace />;
   }
 
-  return <SessionWorkspace sessionId={sessionId} />;
+  return (
+    <SessionWorkspace
+      projectId={projectId}
+      sessionId={sessionId}
+    />
+  );
 }

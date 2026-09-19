@@ -1,10 +1,12 @@
 package io.yakable.boot.session;
 
 import io.yakable.core.model.ModelRuntime;
-import io.yakable.core.session.SessionMessageRepository;
+import io.yakable.core.session.SessionCommandService;
+import io.yakable.core.session.SessionExecutionRepository;
+import io.yakable.core.session.SessionQueryService;
 import io.yakable.core.session.SessionRepository;
-import io.yakable.core.session.SessionService;
-import io.yakable.core.session.TurnRepository;
+import io.yakable.core.session.TurnExecutor;
+import io.yakable.core.session.TurnPromptAssembler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -20,27 +22,49 @@ public class SessionConfiguration {
     }
 
     @Bean
-    TurnRepository turnRepository() {
-        return new InMemoryTurnRepository();
+    SessionExecutionRepository sessionExecutionRepository() {
+        return new InMemorySessionExecutionRepository();
     }
 
     @Bean
-    SessionMessageRepository sessionMessageRepository() {
-        return new InMemorySessionMessageRepository();
-    }
-
-    @Bean
-    SessionService sessionService(
+    SessionCommandService sessionCommandService(
             SessionRepository sessionRepository,
-            TurnRepository turnRepository,
-            SessionMessageRepository messageRepository,
-            ModelRuntime modelRuntime
+            SessionExecutionRepository executionRepository
     ) {
-        return new SessionService(
+        return new SessionCommandService(
                 sessionRepository,
-                turnRepository,
-                messageRepository,
-                modelRuntime
+                executionRepository
+        );
+    }
+
+    @Bean
+    SessionQueryService sessionQueryService(
+            SessionRepository sessionRepository,
+            SessionExecutionRepository executionRepository
+    ) {
+        return new SessionQueryService(
+                sessionRepository,
+                executionRepository
+        );
+    }
+
+    @Bean
+    TurnPromptAssembler turnPromptAssembler() {
+        return new TurnPromptAssembler();
+    }
+
+    @Bean
+    TurnExecutor turnExecutor(
+            SessionRepository sessionRepository,
+            SessionExecutionRepository executionRepository,
+            ModelRuntime modelRuntime,
+            TurnPromptAssembler promptAssembler
+    ) {
+        return new TurnExecutor(
+                sessionRepository,
+                executionRepository,
+                modelRuntime,
+                promptAssembler
         );
     }
 
@@ -52,11 +76,11 @@ public class SessionConfiguration {
     @Bean
     SessionTurnDispatcher sessionTurnDispatcher(
             ExecutorService sessionTurnExecutor,
-            SessionService sessionService
+            TurnExecutor turnExecutor
     ) {
         return new SessionTurnDispatcher(
                 sessionTurnExecutor,
-                sessionService
+                turnExecutor
         );
     }
 }

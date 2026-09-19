@@ -6,7 +6,7 @@ import java.util.Objects;
 public record ProjectDetails(
         String id,
         String name,
-        String sessionId,
+        String latestSessionId,
         ProjectStatus status,
         Instant createdAt,
         Instant updatedAt
@@ -15,7 +15,7 @@ public record ProjectDetails(
     public ProjectDetails {
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(name, "name");
-        Objects.requireNonNull(sessionId, "sessionId");
+        Objects.requireNonNull(latestSessionId, "latestSessionId");
         Objects.requireNonNull(status, "status");
         Objects.requireNonNull(createdAt, "createdAt");
         Objects.requireNonNull(updatedAt, "updatedAt");

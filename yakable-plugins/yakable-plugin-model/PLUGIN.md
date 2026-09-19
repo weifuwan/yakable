@@ -155,7 +155,7 @@ For an OpenAI-compatible provider:
 9. add provider protocol/configuration tests
 ```
 
-Do not modify `SessionService` when adding a provider.
+Do not modify `TurnExecutor` when adding a provider.
 
 If a provider requires a protocol the platform does not have yet, introduce a protocol module instead of adding provider-specific HTTP code to Core or Boot.
 
@@ -170,5 +170,5 @@ If a provider requires a protocol the platform does not have yet, introduce a pr
 [ ] duplicate provider registration is rejected
 [ ] secrets are not logged
 [ ] shared protocol logic is not copied into provider plugins
-[ ] SessionService does not know concrete providers
+[ ] TurnExecutor does not know concrete providers
 ```

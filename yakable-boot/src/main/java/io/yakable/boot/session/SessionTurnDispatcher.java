@@ -1,6 +1,6 @@
 package io.yakable.boot.session;
 
-import io.yakable.core.session.SessionService;
+import io.yakable.core.session.TurnExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -13,23 +13,29 @@ public final class SessionTurnDispatcher {
             LoggerFactory.getLogger(SessionTurnDispatcher.class);
 
     private final Executor executor;
-    private final SessionService sessionService;
+    private final TurnExecutor turnExecutor;
 
     public SessionTurnDispatcher(
             Executor executor,
-            SessionService sessionService
+            TurnExecutor turnExecutor
     ) {
         this.executor = Objects.requireNonNull(executor, "executor");
-        this.sessionService = Objects.requireNonNull(
-                sessionService,
-                "sessionService"
+        this.turnExecutor = Objects.requireNonNull(
+                turnExecutor,
+                "turnExecutor"
         );
     }
 
     public void dispatch(String turnId) {
         executor.execute(() -> {
             try {
-                sessionService.executeTurn(turnId);
+                boolean claimed = turnExecutor.execute(turnId);
+                if (!claimed) {
+                    log.debug(
+                            "Session turn was already claimed or completed: turnId={}",
+                            turnId
+                    );
+                }
             } catch (RuntimeException exception) {
                 log.warn(
                         "Session turn execution failed: turnId={}",
