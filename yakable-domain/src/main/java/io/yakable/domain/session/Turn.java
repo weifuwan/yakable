@@ -7,7 +7,10 @@ public record Turn(
         String id,
         String sessionId,
         TurnStatus status,
+        int attemptCount,
         String errorMessage,
+        Instant startedAt,
+        Instant finishedAt,
         Instant createdAt,
         Instant updatedAt
 ) {
@@ -16,38 +19,85 @@ public record Turn(
         id = requireText(id, "id");
         sessionId = requireText(sessionId, "sessionId");
         Objects.requireNonNull(status, "status");
+        if (attemptCount < 0) {
+            throw new IllegalArgumentException(
+                    "attemptCount must not be negative"
+            );
+        }
         errorMessage = normalizeOptionalText(errorMessage);
         Objects.requireNonNull(createdAt, "createdAt");
         Objects.requireNonNull(updatedAt, "updatedAt");
 
-        if (status != TurnStatus.FAILED && errorMessage != null) {
-            throw new IllegalArgumentException(
-                    "Only FAILED turns may contain an error message"
-            );
-        }
-        if (status == TurnStatus.FAILED && errorMessage == null) {
-            throw new IllegalArgumentException(
-                    "FAILED turn requires an error message"
-            );
-        }
+        validateExecutionState(
+                status,
+                attemptCount,
+                errorMessage,
+                startedAt,
+                finishedAt
+        );
     }
 
     public Turn markRunning(Instant now) {
         requireStatus(TurnStatus.PENDING, TurnStatus.RUNNING);
-        return withStatus(TurnStatus.RUNNING, null, now);
+        Instant started = Objects.requireNonNull(now, "now");
+        return new Turn(
+                id,
+                sessionId,
+                TurnStatus.RUNNING,
+                attemptCount + 1,
+                null,
+                started,
+                null,
+                createdAt,
+                started
+        );
     }
 
     public Turn markSucceeded(Instant now) {
         requireStatus(TurnStatus.RUNNING, TurnStatus.SUCCEEDED);
-        return withStatus(TurnStatus.SUCCEEDED, null, now);
+        Instant finished = Objects.requireNonNull(now, "now");
+        return new Turn(
+                id,
+                sessionId,
+                TurnStatus.SUCCEEDED,
+                attemptCount,
+                null,
+                startedAt,
+                finished,
+                createdAt,
+                finished
+        );
     }
 
     public Turn markFailed(String errorMessage, Instant now) {
         requireStatus(TurnStatus.RUNNING, TurnStatus.FAILED);
-        return withStatus(
+        Instant finished = Objects.requireNonNull(now, "now");
+        return new Turn(
+                id,
+                sessionId,
                 TurnStatus.FAILED,
+                attemptCount,
                 requireText(errorMessage, "errorMessage"),
-                now
+                startedAt,
+                finished,
+                createdAt,
+                finished
+        );
+    }
+
+    public Turn recoverToPending(Instant now) {
+        requireStatus(TurnStatus.RUNNING, TurnStatus.PENDING);
+        Instant recoveredAt = Objects.requireNonNull(now, "now");
+        return new Turn(
+                id,
+                sessionId,
+                TurnStatus.PENDING,
+                attemptCount,
+                null,
+                null,
+                null,
+                createdAt,
+                recoveredAt
         );
     }
 
@@ -65,19 +115,78 @@ public record Turn(
         }
     }
 
-    private Turn withStatus(
-            TurnStatus nextStatus,
-            String nextErrorMessage,
-            Instant now
+    private static void validateExecutionState(
+            TurnStatus status,
+            int attemptCount,
+            String errorMessage,
+            Instant startedAt,
+            Instant finishedAt
     ) {
-        return new Turn(
-                id,
-                sessionId,
-                nextStatus,
-                nextErrorMessage,
-                createdAt,
-                Objects.requireNonNull(now, "now")
-        );
+        switch (status) {
+            case PENDING -> {
+                if (errorMessage != null
+                        || startedAt != null
+                        || finishedAt != null) {
+                    throw new IllegalArgumentException(
+                            "PENDING turn cannot contain execution result state"
+                    );
+                }
+            }
+            case RUNNING -> {
+                requireAttempt(attemptCount, status);
+                if (errorMessage != null
+                        || startedAt == null
+                        || finishedAt != null) {
+                    throw new IllegalArgumentException(
+                            "RUNNING turn requires startedAt only"
+                    );
+                }
+            }
+            case SUCCEEDED -> {
+                requireAttempt(attemptCount, status);
+                if (errorMessage != null
+                        || startedAt == null
+                        || finishedAt == null) {
+                    throw new IllegalArgumentException(
+                            "SUCCEEDED turn requires execution timestamps"
+                    );
+                }
+                validateFinishedAt(startedAt, finishedAt);
+            }
+            case FAILED -> {
+                requireAttempt(attemptCount, status);
+                if (errorMessage == null
+                        || startedAt == null
+                        || finishedAt == null) {
+                    throw new IllegalArgumentException(
+                            "FAILED turn requires error and execution timestamps"
+                    );
+                }
+                validateFinishedAt(startedAt, finishedAt);
+            }
+        }
+    }
+
+    private static void requireAttempt(
+            int attemptCount,
+            TurnStatus status
+    ) {
+        if (attemptCount <= 0) {
+            throw new IllegalArgumentException(
+                    status + " turn requires at least one attempt"
+            );
+        }
+    }
+
+    private static void validateFinishedAt(
+            Instant startedAt,
+            Instant finishedAt
+    ) {
+        if (finishedAt.isBefore(startedAt)) {
+            throw new IllegalArgumentException(
+                    "finishedAt must not be before startedAt"
+            );
+        }
     }
 
     private static String requireText(String value, String field) {

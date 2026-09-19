@@ -103,6 +103,25 @@ public class MybatisSessionExecutionDao
     }
 
     @Override
+    public int recoverStaleRunningTurns(
+            Instant staleBefore,
+            Instant recoveredAt
+    ) {
+        return turnMapper.recoverStaleRunningTurns(
+                staleBefore,
+                recoveredAt
+        );
+    }
+
+    @Override
+    public List<String> findPendingTurnIds(int limit) {
+        if (limit <= 0) {
+            return List.of();
+        }
+        return turnMapper.selectPendingTurnIds(limit);
+    }
+
+    @Override
     public long nextMessageSequence(String sessionId) {
         return messageMapper.selectMaxSequence(sessionId) + 1L;
     }
