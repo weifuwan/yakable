@@ -1,6 +1,7 @@
 import type {
   CreateProjectInput,
   ProjectDetails,
+  ProjectPage,
   ProjectSummary,
 } from '../types';
 
@@ -29,13 +30,7 @@ function isProjectDetails(value: unknown): value is ProjectDetails {
   );
 }
 
-function isProjectPage(value: unknown): value is {
-  records: ProjectSummary[];
-  total: number;
-  pages: number;
-  current: number;
-  pageSize: number;
-} {
+function isProjectPage(value: unknown): value is ProjectPage {
   if (!isRecord(value)) return false;
 
   return (
@@ -57,12 +52,19 @@ async function readJson(response: Response, errorMessage: string) {
 }
 
 export async function getProjects(
+  current = 1,
+  pageSize = 50,
   signal?: AbortSignal,
-): Promise<ProjectSummary[]> {
+): Promise<ProjectPage> {
   let response: Response;
 
+  const params = new URLSearchParams({
+    current: String(current),
+    pageSize: String(pageSize),
+  });
+
   try {
-    response = await fetch('/api/projects?current=1&pageSize=50', {
+    response = await fetch('/api/projects?' + params.toString(), {
       headers: {
         Accept: 'application/json',
       },
@@ -83,7 +85,7 @@ export async function getProjects(
     throw new Error('Project API returned an invalid response.');
   }
 
-  return data.records;
+  return data;
 }
 
 export async function getProject(

@@ -12,18 +12,37 @@ import { isAbortError } from '@/shared/api';
 import { getProjects } from '../api/project-api';
 import type { ProjectSummary } from '../types';
 
+const PROJECT_PAGE_SIZE = 50;
+
 export interface ProjectsState {
   projects: ProjectSummary[];
   isLoading: boolean;
+  isLoadingMore: boolean;
+  hasMore: boolean;
   error: string | null;
+  loadMore: () => Promise<void>;
   upsertProject: (project: ProjectSummary) => void;
 }
 
 const ProjectsContext = createContext<ProjectsState | null>(null);
 
+function mergeProjects(
+  current: ProjectSummary[],
+  incoming: ProjectSummary[],
+) {
+  const incomingIds = new Set(incoming.map((project) => project.id));
+  return [
+    ...current.filter((project) => !incomingIds.has(project.id)),
+    ...incoming,
+  ];
+}
+
 export function ProjectsProvider({ children }: { children: ReactNode }) {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const upsertProject = useCallback((project: ProjectSummary) => {
@@ -36,15 +55,19 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const controller = new AbortController();
 
-    void getProjects(controller.signal)
-      .then((result) => {
+    void getProjects(1, PROJECT_PAGE_SIZE, controller.signal)
+      .then((page) => {
         setProjects((current) => {
-          const resultIds = new Set(result.map((project) => project.id));
-          const locallyCreated = current.filter(
-            (project) => !resultIds.has(project.id),
+          const serverIds = new Set(
+            page.records.map((project) => project.id),
           );
-          return [...locallyCreated, ...result];
+          const locallyCreated = current.filter(
+            (project) => !serverIds.has(project.id),
+          );
+          return [...locallyCreated, ...page.records];
         });
+        setCurrentPage(page.current);
+        setHasMore(page.current < page.pages);
         setError(null);
       })
       .catch((requestError: unknown) => {
@@ -65,9 +88,43 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const loadMore = useCallback(async () => {
+    if (!hasMore || isLoadingMore) return;
+
+    setIsLoadingMore(true);
+    try {
+      const page = await getProjects(
+        currentPage + 1,
+        PROJECT_PAGE_SIZE,
+      );
+      setProjects((current) =>
+        mergeProjects(current, page.records),
+      );
+      setCurrentPage(page.current);
+      setHasMore(page.current < page.pages);
+      setError(null);
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Unable to load more projects.',
+      );
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [currentPage, hasMore, isLoadingMore]);
+
   return (
     <ProjectsContext.Provider
-      value={{ projects, isLoading, error, upsertProject }}
+      value={{
+        projects,
+        isLoading,
+        isLoadingMore,
+        hasMore,
+        error,
+        loadMore,
+        upsertProject,
+      }}
     >
       {children}
     </ProjectsContext.Provider>
