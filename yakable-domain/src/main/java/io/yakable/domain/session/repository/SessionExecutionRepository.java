@@ -2,6 +2,7 @@ package io.yakable.domain.session.repository;
 
 import io.yakable.domain.session.SessionMessage;
 import io.yakable.domain.session.Turn;
+import io.yakable.domain.session.TurnInvocation;
 import io.yakable.domain.session.TurnStartResult;
 
 import java.time.Instant;
@@ -19,13 +20,16 @@ public interface SessionExecutionRepository {
 
     Optional<Turn> claimPendingTurn(
             String turnId,
-            Instant claimedAt
+            Instant claimedAt,
+            String provider,
+            String model
     );
 
     Turn completeTurn(
             Turn runningTurn,
             String assistantMessageId,
             String content,
+            TurnInvocation completedInvocation,
             Instant completedAt
     );
 

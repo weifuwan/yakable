@@ -8,6 +8,8 @@ import io.yakable.application.session.SessionTurnService;
 import io.yakable.domain.session.Session;
 import io.yakable.domain.session.SessionMessage;
 import io.yakable.domain.session.Turn;
+import io.yakable.domain.session.TurnInvocation;
+import io.yakable.domain.session.TurnTokenUsage;
 import io.yakable.domain.session.TurnStartResult;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -198,8 +200,10 @@ public class SessionController {
             String status,
             int attemptCount,
             String errorMessage,
+            InvocationResponse invocation,
             Instant startedAt,
             Instant finishedAt,
+            Long durationMs,
             Instant createdAt,
             Instant updatedAt
     ) {
@@ -210,10 +214,58 @@ public class SessionController {
                     turn.status().name(),
                     turn.attemptCount(),
                     turn.errorMessage(),
+                    InvocationResponse.from(turn.invocation()),
                     turn.startedAt(),
                     turn.finishedAt(),
+                    turn.durationMillis(),
                     turn.createdAt(),
                     turn.updatedAt()
+            );
+        }
+    }
+
+    public record InvocationResponse(
+            String provider,
+            String model,
+            TokenUsageResponse usage,
+            String providerRequestId,
+            String finishReason
+    ) {
+
+        static InvocationResponse from(
+                TurnInvocation invocation
+        ) {
+            if (invocation == null) {
+                return null;
+            }
+
+            return new InvocationResponse(
+                    invocation.provider(),
+                    invocation.model(),
+                    TokenUsageResponse.from(invocation.usage()),
+                    invocation.providerRequestId(),
+                    invocation.finishReason()
+            );
+        }
+    }
+
+    public record TokenUsageResponse(
+            Long inputTokens,
+            Long outputTokens,
+            Long totalTokens
+    ) {
+
+        static TokenUsageResponse from(
+                TurnTokenUsage usage
+        ) {
+            if (usage == null) {
+                return null;
+            }
+
+            return new TokenUsageResponse(
+                    usage.inputTokens(),
+                    usage.outputTokens(),
+                    usage.totalTokens()
             );
         }
     }

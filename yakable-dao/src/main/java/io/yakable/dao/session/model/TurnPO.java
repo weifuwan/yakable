@@ -25,6 +25,27 @@ public class TurnPO {
     @TableField("error_message")
     private String errorMessage;
 
+    @TableField("provider")
+    private String provider;
+
+    @TableField("model")
+    private String model;
+
+    @TableField("input_tokens")
+    private Long inputTokens;
+
+    @TableField("output_tokens")
+    private Long outputTokens;
+
+    @TableField("total_tokens")
+    private Long totalTokens;
+
+    @TableField("provider_request_id")
+    private String providerRequestId;
+
+    @TableField("finish_reason")
+    private String finishReason;
+
     @TableField("started_at")
     private Instant startedAt;
 
@@ -75,6 +96,62 @@ public class TurnPO {
 
     public void setErrorMessage(String errorMessage) {
         this.errorMessage = errorMessage;
+    }
+
+    public String getProvider() {
+        return provider;
+    }
+
+    public void setProvider(String provider) {
+        this.provider = provider;
+    }
+
+    public String getModel() {
+        return model;
+    }
+
+    public void setModel(String model) {
+        this.model = model;
+    }
+
+    public Long getInputTokens() {
+        return inputTokens;
+    }
+
+    public void setInputTokens(Long inputTokens) {
+        this.inputTokens = inputTokens;
+    }
+
+    public Long getOutputTokens() {
+        return outputTokens;
+    }
+
+    public void setOutputTokens(Long outputTokens) {
+        this.outputTokens = outputTokens;
+    }
+
+    public Long getTotalTokens() {
+        return totalTokens;
+    }
+
+    public void setTotalTokens(Long totalTokens) {
+        this.totalTokens = totalTokens;
+    }
+
+    public String getProviderRequestId() {
+        return providerRequestId;
+    }
+
+    public void setProviderRequestId(String providerRequestId) {
+        this.providerRequestId = providerRequestId;
+    }
+
+    public String getFinishReason() {
+        return finishReason;
+    }
+
+    public void setFinishReason(String finishReason) {
+        this.finishReason = finishReason;
     }
 
     public Instant getStartedAt() {

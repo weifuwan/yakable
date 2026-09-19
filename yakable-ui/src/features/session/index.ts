@@ -7,6 +7,8 @@ export type {
   SessionSnapshot,
   SessionStatus,
   SessionTurn,
+  TurnInvocation,
   TurnStartResult,
   TurnStatus,
+  TurnTokenUsage,
 } from './types';

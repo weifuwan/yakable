@@ -4,9 +4,11 @@ import io.yakable.application.model.ModelGateway;
 import io.yakable.application.model.ModelMessage;
 import io.yakable.application.model.ModelReply;
 import io.yakable.application.model.ModelRequest;
+import io.yakable.application.model.ModelUsage;
 import io.yakable.plugin.model.api.LlmMessage;
 import io.yakable.plugin.model.api.LlmRequest;
 import io.yakable.plugin.model.api.LlmResponse;
+import io.yakable.plugin.model.api.LlmUsage;
 import io.yakable.plugin.model.api.ModelPlugin;
 import io.yakable.plugin.model.api.ModelPluginConfiguration;
 
@@ -22,7 +24,10 @@ public final class PluginModelGateway implements ModelGateway {
             ModelPluginRegistry registry,
             ModelPluginConfigurationResolver configurationResolver
     ) {
-        this.registry = Objects.requireNonNull(registry, "registry");
+        this.registry = Objects.requireNonNull(
+                registry,
+                "registry"
+        );
         this.configurationResolver = Objects.requireNonNull(
                 configurationResolver,
                 "configurationResolver"
@@ -57,7 +62,24 @@ public final class PluginModelGateway implements ModelGateway {
                 )
         );
 
-        return new ModelReply(response.content());
+        return new ModelReply(
+                response.content(),
+                plugin.provider(),
+                response.model() == null
+                        ? request.model()
+                        : response.model(),
+                toModelUsage(response.usage()),
+                response.providerRequestId(),
+                response.finishReason()
+        );
+    }
+
+    private static ModelUsage toModelUsage(LlmUsage usage) {
+        return new ModelUsage(
+                usage.inputTokens(),
+                usage.outputTokens(),
+                usage.totalTokens()
+        );
     }
 
     private static LlmMessage toLlmMessage(

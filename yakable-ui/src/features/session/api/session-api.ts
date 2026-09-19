@@ -4,6 +4,7 @@ import type {
   SessionMessagePage,
   SessionSnapshot,
   SessionTurn,
+  TurnInvocation,
   TurnStartResult,
 } from '../types';
 
@@ -13,6 +14,32 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isNullableString(value: unknown) {
   return value === null || typeof value === 'string';
+}
+
+function isNullableNumber(value: unknown) {
+  return value === null || typeof value === 'number';
+}
+
+function isTurnInvocation(value: unknown): value is TurnInvocation {
+  if (!isRecord(value)) return false;
+
+  const usage = value.usage;
+  const validUsage =
+    usage === null ||
+    (
+      isRecord(usage) &&
+      isNullableNumber(usage.inputTokens) &&
+      isNullableNumber(usage.outputTokens) &&
+      isNullableNumber(usage.totalTokens)
+    );
+
+  return (
+    typeof value.provider === 'string' &&
+    typeof value.model === 'string' &&
+    validUsage &&
+    isNullableString(value.providerRequestId) &&
+    isNullableString(value.finishReason)
+  );
 }
 
 function isSessionMessage(value: unknown): value is SessionMessage {
@@ -41,8 +68,10 @@ function isSessionTurn(value: unknown): value is SessionTurn {
     ) &&
     typeof value.attemptCount === 'number' &&
     isNullableString(value.errorMessage) &&
+    (value.invocation === null || isTurnInvocation(value.invocation)) &&
     isNullableString(value.startedAt) &&
     isNullableString(value.finishedAt) &&
+    isNullableNumber(value.durationMs) &&
     typeof value.createdAt === 'string' &&
     typeof value.updatedAt === 'string'
   );

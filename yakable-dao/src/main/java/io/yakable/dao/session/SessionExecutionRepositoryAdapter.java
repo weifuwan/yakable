@@ -1,12 +1,12 @@
 package io.yakable.dao.session;
 
 import io.yakable.dao.session.model.MessagePO;
-import io.yakable.dao.session.model.TurnPO;
 import io.yakable.domain.session.SessionBusyException;
 import io.yakable.domain.session.SessionMessage;
 import io.yakable.domain.session.Turn;
+import io.yakable.domain.session.TurnInvocation;
 import io.yakable.domain.session.TurnStartResult;
-import io.yakable.domain.session.TurnStatus;
+import io.yakable.domain.session.TurnTokenUsage;
 import io.yakable.domain.session.repository.SessionExecutionRepository;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -52,7 +52,9 @@ public class SessionExecutionRepositoryAdapter
             throw new SessionBusyException(turn.sessionId());
         }
 
-        executionDao.insertTurn(toPO(turn));
+        executionDao.insertTurn(
+                TurnPersistenceMapper.toPO(turn)
+        );
 
         long sequence = executionDao.nextMessageSequence(
                 turn.sessionId()
@@ -75,18 +77,22 @@ public class SessionExecutionRepositoryAdapter
     @Transactional
     public Optional<Turn> claimPendingTurn(
             String turnId,
-            Instant claimedAt
+            Instant claimedAt,
+            String provider,
+            String model
     ) {
         int updated = executionDao.claimPendingTurn(
                 turnId,
-                claimedAt
+                claimedAt,
+                provider,
+                model
         );
         if (updated == 0) {
             return Optional.empty();
         }
 
         return executionDao.findTurnById(turnId)
-                .map(SessionExecutionRepositoryAdapter::toDomain);
+                .map(TurnPersistenceMapper::toDomain);
     }
 
     @Override
@@ -95,14 +101,27 @@ public class SessionExecutionRepositoryAdapter
             Turn runningTurn,
             String assistantMessageId,
             String content,
+            TurnInvocation completedInvocation,
             Instant completedAt
     ) {
         lockSession(runningTurn.sessionId());
 
-        Turn succeeded = runningTurn.markSucceeded(completedAt);
+        Turn succeeded = runningTurn.markSucceeded(
+                completedAt,
+                completedInvocation
+        );
+
+        TurnTokenUsage usage = completedInvocation.usage();
         int updated = executionDao.completeRunningTurn(
                 runningTurn.id(),
                 runningTurn.sessionId(),
+                completedInvocation.provider(),
+                completedInvocation.model(),
+                usage == null ? null : usage.inputTokens(),
+                usage == null ? null : usage.outputTokens(),
+                usage == null ? null : usage.totalTokens(),
+                completedInvocation.providerRequestId(),
+                completedInvocation.finishReason(),
                 completedAt
         );
         if (updated != 1) {
@@ -181,7 +200,7 @@ public class SessionExecutionRepositoryAdapter
     @Transactional(readOnly = true)
     public Optional<Turn> findTurnById(String turnId) {
         return executionDao.findTurnById(turnId)
-                .map(SessionExecutionRepositoryAdapter::toDomain);
+                .map(TurnPersistenceMapper::toDomain);
     }
 
     @Override
@@ -189,7 +208,7 @@ public class SessionExecutionRepositoryAdapter
     public List<Turn> findTurnsBySessionId(String sessionId) {
         return executionDao.findTurnsBySessionId(sessionId)
                 .stream()
-                .map(SessionExecutionRepositoryAdapter::toDomain)
+                .map(TurnPersistenceMapper::toDomain)
                 .sorted(Comparator.comparing(Turn::createdAt))
                 .toList();
     }
@@ -216,36 +235,6 @@ public class SessionExecutionRepositoryAdapter
                     "Session does not exist: " + sessionId
             );
         }
-    }
-
-    private static TurnPO toPO(Turn turn) {
-        TurnPO po = new TurnPO();
-        po.setId(turn.id());
-        po.setSessionId(turn.sessionId());
-        po.setStatus(turn.status().name());
-        po.setAttemptCount(turn.attemptCount());
-        po.setErrorMessage(turn.errorMessage());
-        po.setStartedAt(turn.startedAt());
-        po.setFinishedAt(turn.finishedAt());
-        po.setCreatedAt(turn.createdAt());
-        po.setUpdatedAt(turn.updatedAt());
-        return po;
-    }
-
-    private static Turn toDomain(TurnPO po) {
-        return new Turn(
-                po.getId(),
-                po.getSessionId(),
-                TurnStatus.valueOf(po.getStatus()),
-                po.getAttemptCount() == null
-                        ? 0
-                        : po.getAttemptCount(),
-                po.getErrorMessage(),
-                po.getStartedAt(),
-                po.getFinishedAt(),
-                po.getCreatedAt(),
-                po.getUpdatedAt()
-        );
     }
 
     private static MessagePO toPO(SessionMessage message) {

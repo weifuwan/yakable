@@ -45,6 +45,22 @@ LlmResponse chat(
 );
 ```
 
+`LlmResponse` carries the assistant content plus optional invocation
+observability metadata:
+
+```text
+usage.inputTokens
+usage.outputTokens
+usage.totalTokens
+providerRequestId
+finishReason
+```
+
+Providers should populate these values when the upstream API exposes them.
+Missing metadata must not change the semantic success or failure of the model
+call. Yakable persists the available values on the Turn for diagnostics and
+future usage/cost analysis.
+
 Plugins must be registered with AutoService:
 
 ```java

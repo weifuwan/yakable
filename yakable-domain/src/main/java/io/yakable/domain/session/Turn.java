@@ -1,5 +1,6 @@
 package io.yakable.domain.session;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 
@@ -9,6 +10,7 @@ public record Turn(
         TurnStatus status,
         int attemptCount,
         String errorMessage,
+        TurnInvocation invocation,
         Instant startedAt,
         Instant finishedAt,
         Instant createdAt,
@@ -32,13 +34,18 @@ public record Turn(
                 status,
                 attemptCount,
                 errorMessage,
+                invocation,
                 startedAt,
                 finishedAt,
                 createdAt
         );
     }
 
-    public Turn markRunning(Instant now) {
+    public Turn markRunning(
+            Instant now,
+            String provider,
+            String model
+    ) {
         requireStatus(TurnStatus.PENDING, TurnStatus.RUNNING);
         Instant started = Objects.requireNonNull(now, "now");
         return new Turn(
@@ -47,6 +54,7 @@ public record Turn(
                 TurnStatus.RUNNING,
                 attemptCount + 1,
                 null,
+                TurnInvocation.started(provider, model),
                 started,
                 null,
                 createdAt,
@@ -54,15 +62,24 @@ public record Turn(
         );
     }
 
-    public Turn markSucceeded(Instant now) {
+    public Turn markSucceeded(
+            Instant now,
+            TurnInvocation completedInvocation
+    ) {
         requireStatus(TurnStatus.RUNNING, TurnStatus.SUCCEEDED);
         Instant finished = Objects.requireNonNull(now, "now");
+        Objects.requireNonNull(
+                completedInvocation,
+                "completedInvocation"
+        );
+
         return new Turn(
                 id,
                 sessionId,
                 TurnStatus.SUCCEEDED,
                 attemptCount,
                 null,
+                completedInvocation,
                 startedAt,
                 finished,
                 createdAt,
@@ -79,6 +96,7 @@ public record Turn(
                 TurnStatus.FAILED,
                 attemptCount,
                 requireText(errorMessage, "errorMessage"),
+                invocation,
                 startedAt,
                 finished,
                 createdAt,
@@ -97,9 +115,21 @@ public record Turn(
                 null,
                 null,
                 null,
+                null,
                 createdAt,
                 recoveredAt
         );
+    }
+
+    public Long durationMillis() {
+        if (startedAt == null || finishedAt == null) {
+            return null;
+        }
+
+        return Duration.between(
+                startedAt,
+                finishedAt
+        ).toMillis();
     }
 
     private void requireStatus(
@@ -120,6 +150,7 @@ public record Turn(
             TurnStatus status,
             int attemptCount,
             String errorMessage,
+            TurnInvocation invocation,
             Instant startedAt,
             Instant finishedAt,
             Instant createdAt
@@ -127,6 +158,7 @@ public record Turn(
         switch (status) {
             case PENDING -> {
                 if (errorMessage != null
+                        || invocation != null
                         || startedAt != null
                         || finishedAt != null) {
                     throw new IllegalArgumentException(
@@ -137,10 +169,11 @@ public record Turn(
             case RUNNING -> {
                 requireAttempt(attemptCount, status);
                 if (errorMessage != null
+                        || invocation == null
                         || startedAt == null
                         || finishedAt != null) {
                     throw new IllegalArgumentException(
-                            "RUNNING turn requires startedAt only"
+                            "RUNNING turn requires invocation and startedAt"
                     );
                 }
                 validateStartedAt(createdAt, startedAt);
@@ -148,10 +181,11 @@ public record Turn(
             case SUCCEEDED -> {
                 requireAttempt(attemptCount, status);
                 if (errorMessage != null
+                        || invocation == null
                         || startedAt == null
                         || finishedAt == null) {
                     throw new IllegalArgumentException(
-                            "SUCCEEDED turn requires execution timestamps"
+                            "SUCCEEDED turn requires invocation and execution timestamps"
                     );
                 }
                 validateStartedAt(createdAt, startedAt);
@@ -160,10 +194,11 @@ public record Turn(
             case FAILED -> {
                 requireAttempt(attemptCount, status);
                 if (errorMessage == null
+                        || invocation == null
                         || startedAt == null
                         || finishedAt == null) {
                     throw new IllegalArgumentException(
-                            "FAILED turn requires error and execution timestamps"
+                            "FAILED turn requires error, invocation, and execution timestamps"
                     );
                 }
                 validateStartedAt(createdAt, startedAt);

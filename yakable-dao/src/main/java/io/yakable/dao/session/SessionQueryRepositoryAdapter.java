@@ -10,8 +10,6 @@ import io.yakable.dao.session.model.TurnPO;
 import io.yakable.domain.session.Session;
 import io.yakable.domain.session.SessionMessage;
 import io.yakable.domain.session.SessionStatus;
-import io.yakable.domain.session.Turn;
-import io.yakable.domain.session.TurnStatus;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,10 +46,10 @@ public class SessionQueryRepositoryAdapter
         return Optional.of(new SessionSnapshot(
                 toDomain(session.get()),
                 dao.findTurns(sessionId).stream()
-                        .map(SessionQueryRepositoryAdapter::toDomain)
+                        .map(TurnPersistenceMapper::toDomain)
                         .toList(),
                 dao.findMessages(sessionId).stream()
-                        .map(SessionQueryRepositoryAdapter::toDomain)
+                        .map(SessionQueryRepositoryAdapter::toMessageDomain)
                         .toList()
         ));
     }
@@ -75,11 +73,11 @@ public class SessionQueryRepositoryAdapter
         List<SessionMessage> messages =
                 dao.findMessagesAfter(sessionId, afterSequence)
                         .stream()
-                        .map(SessionQueryRepositoryAdapter::toDomain)
+                        .map(SessionQueryRepositoryAdapter::toMessageDomain)
                         .toList();
 
         return Optional.of(new SessionChanges(
-                toDomain(latestTurn.get()),
+                TurnPersistenceMapper.toDomain(latestTurn.get()),
                 messages,
                 dao.latestMessageSequence(sessionId)
         ));
@@ -110,7 +108,7 @@ public class SessionQueryRepositoryAdapter
 
         List<SessionMessage> messages = new ArrayList<>(
                 pageRows.stream()
-                        .map(SessionQueryRepositoryAdapter::toDomain)
+                        .map(SessionQueryRepositoryAdapter::toMessageDomain)
                         .toList()
         );
         Collections.reverse(messages);
@@ -140,23 +138,7 @@ public class SessionQueryRepositoryAdapter
         );
     }
 
-    private static Turn toDomain(TurnPO po) {
-        return new Turn(
-                po.getId(),
-                po.getSessionId(),
-                TurnStatus.valueOf(po.getStatus()),
-                po.getAttemptCount() == null
-                        ? 0
-                        : po.getAttemptCount(),
-                po.getErrorMessage(),
-                po.getStartedAt(),
-                po.getFinishedAt(),
-                po.getCreatedAt(),
-                po.getUpdatedAt()
-        );
-    }
-
-    private static SessionMessage toDomain(MessagePO po) {
+    private static SessionMessage toMessageDomain(MessagePO po) {
         return new SessionMessage(
                 po.getId(),
                 po.getSessionId(),
