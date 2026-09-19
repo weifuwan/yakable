@@ -1,84 +1,308 @@
-# Java Backend Modules
+# Java Backend Architecture
 
-Yakable adopts the same high-level Maven multi-module shape used by Yak Ops, while keeping the first backend baseline intentionally small.
+Yakable's backend follows the same boundary idea that makes Dify's backend
+maintainable, translated into Java modules instead of copying Python directory
+names literally.
+
+## Dify to Yakable mapping
+
+| Dify | Yakable |
+| --- | --- |
+| controllers | `yakable-interfaces` / `interfaces.rest` |
+| services | `yakable-application` |
+| core | `yakable-domain` |
+| models | infrastructure persistence entities, when database persistence exists |
+| repositories | domain repository ports + infrastructure adapters |
+| extensions | `yakable-infrastructure` |
+| events | domain/application events, only when a real event boundary exists |
+| tasks | application job handlers + infrastructure async/worker adapters |
+| libs | `yakable-common` |
+| configs | `yakable-boot.configuration` |
+
+The mapping is about responsibility, not directory imitation.
+
+## Module graph
 
 ```text
-yakable-bom
-  └── dependency version alignment
-
 yakable-boot
-    ↓
-yakable-core
-    ↓
-yakable-spi
-    ↓
+  ├── yakable-interfaces
+  │     └── yakable-application
+  │             └── yakable-domain
+  │
+  └── yakable-infrastructure
+        ├── yakable-application
+        ├── yakable-domain
+        └── model plugin API
+
+yakable-plugin-model-*
+  └── provider implementations discovered with AutoService / ServiceLoader
+
 yakable-common
+  └── business-agnostic shared code only
 ```
 
-The browser application lives in `yakable-ui/`.
+Dependencies point toward business policy. Domain and Application never depend
+on Boot, REST, Spring configuration, persistence implementations, or concrete
+LLM providers.
 
 ## Module ownership
 
-### yakable-bom
+### yakable-domain
 
-Owns dependency alignment for Yakable Java modules.
+Owns business concepts, invariants, domain exceptions, and repository contracts.
 
-It contains no runtime code.
+Current examples:
 
-### yakable-common
+```text
+Project
+Session
+Turn
+SessionMessage
 
-Owns framework-independent shared value objects and utilities.
-
-Rules:
-
-- no Spring dependency;
-- no dependency on SPI, Core, or Boot;
-- do not put business orchestration here.
-
-### yakable-spi
-
-Owns stable extension contracts and ports.
-
-Future examples may include model, workspace, storage, or tool extension contracts, but they should only be added when a concrete boundary is understood.
+ProjectRepository
+SessionRepository
+SessionExecutionRepository
+```
 
 Rules:
 
-- may depend on Common;
-- must not depend on Core or Boot;
-- provider implementations do not belong here.
+- framework independent;
+- no Spring annotations;
+- no HTTP types;
+- no plugin/provider SDK;
+- repository interfaces belong here when persistence is part of the domain
+  boundary;
+- state-transition rules belong on the domain model where possible.
 
-### yakable-core
+### yakable-application
 
-Owns Yakable's frontend-domain capabilities and runtime coordination.
+Owns use cases and orchestration.
 
-This is the future home of deterministic Harness behavior and backend orchestration.
+Current examples:
+
+```text
+ProjectBootstrapService
+ProjectOverviewQueryService
+SessionCommandService
+SessionQueryService
+SessionTurnService
+TurnExecutor
+TurnPromptAssembler
+
+ModelGateway
+TurnDispatcher
+```
 
 Rules:
 
-- may depend on SPI and Common;
-- must not depend on Boot;
-- HTTP controllers and browser-specific code do not belong here.
+- coordinates domain objects and ports;
+- owns use-case ordering and transaction boundaries;
+- must not know REST or concrete persistence;
+- must not instantiate DeepSeek, Kimi, OpenAI, or another provider;
+- external capabilities are expressed as application ports.
+
+`ProjectBootstrapService`, not the REST controller, owns:
+
+```text
+create Project
+  -> create Session
+  -> create initial Turn
+  -> dispatch execution
+```
+
+`SessionTurnService`, not the REST controller, owns:
+
+```text
+persist new Turn
+  -> dispatch execution
+```
+
+### yakable-interfaces
+
+Owns inbound transport adapters.
+
+Current adapter:
+
+```text
+interfaces/rest
+```
+
+Rules:
+
+- parse and validate HTTP input;
+- call one application use case;
+- map application/domain results to HTTP responses;
+- translate domain/application failures at the transport boundary;
+- do not query repositories directly;
+- do not dispatch background work directly;
+- do not call model plugins directly.
+
+### yakable-infrastructure
+
+Owns implementations that touch the outside world.
+
+Current adapters:
+
+```text
+infrastructure/persistence/memory
+infrastructure/model
+infrastructure/async
+```
+
+Rules:
+
+- implements ports owned by Domain or Application;
+- provider discovery and plugin API mapping live here;
+- persistence implementation details live here;
+- asynchronous executor details live here;
+- business decisions do not originate here.
+
+When database persistence is introduced, ORM entities belong under a path such
+as:
+
+```text
+io.yakable.infrastructure.persistence.jpa.entity
+```
+
+Domain models remain persistence-framework independent.
 
 ### yakable-boot
 
-Owns application assembly, Spring Boot startup, and HTTP-facing adapters.
-
-It is the outermost Java module.
-
-## Dependency direction
-
-Dependencies flow inward only:
+Owns composition only:
 
 ```text
-Boot -> Core -> SPI -> Common
+Spring Boot entrypoint
+configuration
+configuration properties
+bean wiring
 ```
 
-A lower module must never depend on a higher module.
+Boot may depend on all runtime modules because it is the composition root.
 
-## Current migration boundary
+Business logic, REST controllers, repositories, and provider protocol code do
+not belong in Boot.
 
-This commit only establishes the Java build and module boundaries.
+### yakable-common
 
-The previous TypeScript backend has been removed. Backend capabilities will be rebuilt incrementally in Java after their ownership and contract are understood.
+Owns business-agnostic utilities and shared primitives only.
 
-Browser-native behavior stays in `yakable-ui/`.
+Do not create `ProjectUtils`, `SessionUtils`, `ModelUtils`, or similar
+business dumping grounds here.
+
+### yakable-spi and plugins
+
+`yakable-spi` is reserved for stable extension contracts that are broader
+than one application use case.
+
+LLM providers continue to use the dedicated model plugin API and AutoService
+registration. The Application layer sees only `ModelGateway`; the
+Infrastructure layer adapts that gateway to the plugin runtime.
+
+## Programming rules
+
+### Controller rule
+
+A controller should look conceptually like:
+
+```text
+validate request
+  -> create command
+  -> call application service
+  -> map response
+```
+
+If a controller starts coordinating repositories, LLM calls, async dispatch,
+or domain state transitions, the logic is in the wrong layer.
+
+### Transaction rule
+
+Write transactions must be explicit and bounded.
+
+Do not keep a database transaction open while waiting for an LLM or another
+slow external service unless atomicity genuinely requires it.
+
+For a future persistent Turn flow, prefer:
+
+```text
+transaction
+  -> persist pending Turn and USER Message
+commit
+
+external model call
+
+transaction
+  -> persist ASSISTANT Message and complete Turn
+commit
+```
+
+The repository contract must preserve the Session consistency invariants.
+
+### Repository rule
+
+A repository interface describes business-required persistence semantics.
+
+An adapter describes how those semantics are implemented.
+
+For example:
+
+```text
+domain
+  SessionExecutionRepository
+
+infrastructure
+  InMemorySessionExecutionRepository
+  JpaSessionExecutionRepository   # future
+```
+
+### Async rule
+
+Application code requests asynchronous work through a port such as
+`TurnDispatcher`.
+
+Thread pools, virtual threads, queues, Celery-like workers, retries, and message
+brokers are infrastructure details.
+
+When retries or distributed workers are introduced, handlers must be
+idempotent.
+
+### Configuration rule
+
+Runtime configuration is strongly typed under
+`yakable-boot.configuration.properties`.
+
+Do not scatter `System.getenv(...)` calls through business code.
+
+### Events rule
+
+Do not add empty event packages just to match an architecture diagram.
+
+Introduce domain or application events when there is a real side effect that
+should be decoupled from a use case, for example audit, indexing, notification,
+or cleanup.
+
+## Why yakable-core was removed
+
+The old `yakable-core` mixed two different responsibilities:
+
+```text
+domain model
++
+application orchestration
++
+model plugin runtime
+```
+
+That made the dependency boundary ambiguous.
+
+The replacement makes ownership explicit:
+
+```text
+domain          = business truth
+application     = use-case orchestration
+interfaces      = inbound transport
+infrastructure  = outbound technology
+boot            = composition
+```
+
+This is the baseline for later database persistence, SSE, Agent execution, and
+Frontend Taste Harness capabilities.

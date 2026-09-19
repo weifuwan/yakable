@@ -1,15 +1,18 @@
-package io.yakable.core.session;
+package io.yakable.application.session;
 
-import io.yakable.core.model.ModelPluginRegistry;
-import io.yakable.core.model.ModelRuntime;
-import io.yakable.plugin.model.api.LlmMessage;
-import io.yakable.plugin.model.api.LlmRequest;
-import io.yakable.plugin.model.api.LlmResponse;
-import io.yakable.plugin.model.api.LlmUsage;
-import io.yakable.plugin.model.api.ModelCapability;
-import io.yakable.plugin.model.api.ModelPlugin;
-import io.yakable.plugin.model.api.ModelPluginConfiguration;
-import io.yakable.plugin.model.api.ModelPluginDescriptor;
+import io.yakable.application.model.ModelGateway;
+import io.yakable.application.model.ModelMessage;
+import io.yakable.application.model.ModelReply;
+import io.yakable.application.model.ModelRequest;
+import io.yakable.domain.session.Session;
+import io.yakable.domain.session.SessionBusyException;
+import io.yakable.domain.session.SessionMessage;
+import io.yakable.domain.session.SessionNotFoundException;
+import io.yakable.domain.session.Turn;
+import io.yakable.domain.session.TurnStartResult;
+import io.yakable.domain.session.TurnStatus;
+import io.yakable.domain.session.repository.SessionExecutionRepository;
+import io.yakable.domain.session.repository.SessionRepository;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -18,7 +21,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -67,20 +69,20 @@ class SessionFlowTest {
                 .extracting(SessionMessage::sequence)
                 .containsExactly(1L, 2L, 3L, 4L);
 
-        LlmRequest secondRequest = fixture.plugin.requests.get(1);
+        ModelRequest secondRequest = fixture.modelGateway.requests.get(1);
         assertThat(secondRequest.messages())
-                .extracting(LlmMessage::role, LlmMessage::content)
+                .extracting(ModelMessage::role, ModelMessage::content)
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple(
-                                LlmMessage.Role.USER,
+                                ModelMessage.Role.USER,
                                 "First question"
                         ),
                         org.assertj.core.groups.Tuple.tuple(
-                                LlmMessage.Role.ASSISTANT,
+                                ModelMessage.Role.ASSISTANT,
                                 "Assistant 1"
                         ),
                         org.assertj.core.groups.Tuple.tuple(
-                                LlmMessage.Role.USER,
+                                ModelMessage.Role.USER,
                                 "Second question"
                         )
                 );
@@ -96,7 +98,7 @@ class SessionFlowTest {
                 "deepseek-flash"
         );
 
-        fixture.plugin.failNext = true;
+        fixture.modelGateway.failNext = true;
         TurnStartResult failed = fixture.commandService.startTurn(
                 "project-1",
                 session.id(),
@@ -121,12 +123,12 @@ class SessionFlowTest {
         );
         fixture.turnExecutor.execute(retry.turn().id());
 
-        LlmRequest retryRequest = fixture.plugin.requests.get(0);
+        ModelRequest retryRequest = fixture.modelGateway.requests.get(0);
         assertThat(retryRequest.messages())
-                .extracting(LlmMessage::role, LlmMessage::content)
+                .extracting(ModelMessage::role, ModelMessage::content)
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple(
-                                LlmMessage.Role.USER,
+                                ModelMessage.Role.USER,
                                 "Try again"
                         )
                 );
@@ -152,7 +154,7 @@ class SessionFlowTest {
                 .isTrue();
         assertThat(fixture.turnExecutor.execute(turn.turn().id()))
                 .isFalse();
-        assertThat(fixture.plugin.requests).hasSize(1);
+        assertThat(fixture.modelGateway.requests).hasSize(1);
     }
 
     @Test
@@ -213,22 +215,14 @@ class SessionFlowTest {
                 new MemorySessionRepository();
         private final MemoryExecutionRepository executionRepository =
                 new MemoryExecutionRepository();
-        private final RecordingModelPlugin plugin =
-                new RecordingModelPlugin();
+        private final RecordingModelGateway modelGateway =
+                new RecordingModelGateway();
 
         private final SessionCommandService commandService;
         private final SessionQueryService queryService;
         private final TurnExecutor turnExecutor;
 
         private Fixture() {
-            ModelRuntime runtime = new ModelRuntime(
-                    ModelPluginRegistry.from(List.of(plugin)),
-                    provider -> new ModelPluginConfiguration(
-                            "test-key",
-                            "https://example.test"
-                    )
-            );
-
             commandService = new SessionCommandService(
                     sessionRepository,
                     executionRepository
@@ -240,7 +234,7 @@ class SessionFlowTest {
             turnExecutor = new TurnExecutor(
                     sessionRepository,
                     executionRepository,
-                    runtime,
+                    modelGateway,
                     new TurnPromptAssembler()
             );
         }
@@ -265,7 +259,9 @@ class SessionFlowTest {
         @Override
         public List<Session> findByProjectId(String projectId) {
             return sessions.values().stream()
-                    .filter(session -> session.projectId().equals(projectId))
+                    .filter(session ->
+                            session.projectId().equals(projectId)
+                    )
                     .toList();
         }
     }
@@ -312,7 +308,8 @@ class SessionFlowTest {
                 Instant claimedAt
         ) {
             Turn current = turns.get(turnId);
-            if (current == null || current.status() != TurnStatus.PENDING) {
+            if (current == null
+                    || current.status() != TurnStatus.PENDING) {
                 return Optional.empty();
             }
 
@@ -366,7 +363,20 @@ class SessionFlowTest {
         @Override
         public List<Turn> findTurnsBySessionId(String sessionId) {
             return turns.values().stream()
-                    .filter(turn -> turn.sessionId().equals(sessionId))
+                    .filter(turn ->
+                            turn.sessionId().equals(sessionId)
+                    )
+                    .toList();
+        }
+
+        @Override
+        public List<SessionMessage> findMessagesBySessionId(
+                String sessionId
+        ) {
+            return messages.stream()
+                    .filter(message ->
+                            message.sessionId().equals(sessionId)
+                    )
                     .toList();
         }
 
@@ -393,41 +403,18 @@ class SessionFlowTest {
                     createdAt
             );
         }
-
-        @Override
-        public List<SessionMessage> findMessagesBySessionId(
-                String sessionId
-        ) {
-            return messages.stream()
-                    .filter(message ->
-                            message.sessionId().equals(sessionId)
-                    )
-                    .toList();
-        }
     }
 
-    private static final class RecordingModelPlugin implements ModelPlugin {
+    private static final class RecordingModelGateway
+            implements ModelGateway {
 
-        private static final ModelPluginDescriptor DESCRIPTOR =
-                new ModelPluginDescriptor(
-                        "deepseek",
-                        "DeepSeek",
-                        ModelPluginDescriptor.CURRENT_API_VERSION,
-                        Set.of(ModelCapability.CHAT)
-                );
-
-        private final List<LlmRequest> requests = new ArrayList<>();
+        private final List<ModelRequest> requests = new ArrayList<>();
         private boolean failNext;
 
         @Override
-        public ModelPluginDescriptor descriptor() {
-            return DESCRIPTOR;
-        }
-
-        @Override
-        public LlmResponse chat(
-                ModelPluginConfiguration configuration,
-                LlmRequest request
+        public ModelReply chat(
+                String provider,
+                ModelRequest request
         ) {
             if (failNext) {
                 failNext = false;
@@ -435,9 +422,8 @@ class SessionFlowTest {
             }
 
             requests.add(request);
-            return new LlmResponse(
-                    "Assistant " + requests.size(),
-                    new LlmUsage(null, null, null)
+            return new ModelReply(
+                    "Assistant " + requests.size()
             );
         }
     }

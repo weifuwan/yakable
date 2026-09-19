@@ -1,4 +1,4 @@
-package io.yakable.core.model;
+package io.yakable.infrastructure.model;
 
 import io.yakable.plugin.model.api.LlmRequest;
 import io.yakable.plugin.model.api.LlmResponse;
