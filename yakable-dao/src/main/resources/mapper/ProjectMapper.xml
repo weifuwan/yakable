@@ -2,10 +2,10 @@
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="io.yakable.dao.project.mapper.ProjectMapper">
+<mapper namespace="io.yakable.dao.mapper.ProjectMapper">
 
-    <resultMap id="projectQueryRow"
-               type="io.yakable.dao.project.model.ProjectQueryRow">
+    <resultMap id="projectEntity"
+               type="io.yakable.dao.entity.ProjectEntity">
         <id property="id" column="id"/>
         <result property="name" column="name"/>
         <result property="latestSessionId" column="latest_session_id"/>
@@ -14,7 +14,7 @@
         <result property="updatedAt" column="updated_at"/>
     </resultMap>
 
-    <select id="selectProjectPage" resultMap="projectQueryRow">
+    <select id="selectProjectPage" resultMap="projectEntity">
         SELECT
             p.id,
             p.name,
@@ -57,7 +57,7 @@
         )
     </select>
 
-    <select id="selectProjectDetails" resultMap="projectQueryRow">
+    <select id="selectProjectDetails" resultMap="projectEntity">
         SELECT
             p.id,
             p.name,

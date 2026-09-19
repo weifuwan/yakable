@@ -1,4 +1,4 @@
-package io.yakable.dao.session.model;
+package io.yakable.dao.project.model;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
@@ -7,23 +7,14 @@ import com.baomidou.mybatisplus.annotation.TableName;
 
 import java.time.Instant;
 
-@TableName("yak_session")
-public class SessionPO {
+@TableName("yak_project")
+public class ProjectEntity {
 
     @TableId(value = "id", type = IdType.INPUT)
     private String id;
 
-    @TableField("project_id")
-    private String projectId;
-
-    @TableField("title")
-    private String title;
-
-    @TableField("provider")
-    private String provider;
-
-    @TableField("model")
-    private String model;
+    @TableField("name")
+    private String name;
 
     @TableField("status")
     private String status;
@@ -34,6 +25,9 @@ public class SessionPO {
     @TableField("updated_at")
     private Instant updatedAt;
 
+    @TableField(exist = false)
+    private String latestSessionId;
+
     public String getId() {
         return id;
     }
@@ -42,36 +36,12 @@ public class SessionPO {
         this.id = id;
     }
 
-    public String getProjectId() {
-        return projectId;
+    public String getName() {
+        return name;
     }
 
-    public void setProjectId(String projectId) {
-        this.projectId = projectId;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
-    public String getProvider() {
-        return provider;
-    }
-
-    public void setProvider(String provider) {
-        this.provider = provider;
-    }
-
-    public String getModel() {
-        return model;
-    }
-
-    public void setModel(String model) {
-        this.model = model;
+    public void setName(String name) {
+        this.name = name;
     }
 
     public String getStatus() {
@@ -96,5 +66,13 @@ public class SessionPO {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getLatestSessionId() {
+        return latestSessionId;
+    }
+
+    public void setLatestSessionId(String latestSessionId) {
+        this.latestSessionId = latestSessionId;
     }
 }

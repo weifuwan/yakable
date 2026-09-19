@@ -1,97 +1,117 @@
 # yakable-dao
 
-yakable-dao is the persistence implementation module. Its job is to persist
-Domain/Application data, not to introduce another application architecture.
+yakable-dao is Yakable's persistence implementation module.
 
-## Persistence rules
+The module keeps one persistence path only:
 
-### One table, one Mapper
+~~~text
+Domain/Application Repository interface
+                |
+                v
+        RepositoryImpl
+                |
+                v
+              Mapper
+                |
+                v
+              Entity
+~~~
 
-Each physical table owns one MyBatis-Plus BaseMapper<PO>.
+## Package structure
 
-Examples:
+~~~text
+io.yakable.dao
+├── config
+├── entity
+│   ├── ProjectEntity
+│   ├── SessionEntity
+│   ├── TurnEntity
+│   └── MessageEntity
+├── mapper
+│   ├── ProjectMapper
+│   ├── SessionMapper
+│   ├── TurnMapper
+│   └── MessageMapper
+├── repository
+│   └── impl
+│       ├── ProjectRepositoryImpl
+│       ├── ProjectQueryRepositoryImpl
+│       ├── SessionRepositoryImpl
+│       ├── SessionExecutionRepositoryImpl
+│       └── SessionQueryRepositoryImpl
+├── transaction
+└── config
+~~~
+
+## Entity
+
+Database persistence objects use the Entity suffix and live only in
+io.yakable.dao.entity.
+
+Entity classes may contain MyBatis-Plus mapping annotations. Persistence
+entities must not leak into Domain, Application or HTTP code.
+
+Do not introduce PO/DO naming alongside Entity.
+
+## Mapper
+
+One physical table owns one Mapper:
 
 - ProjectMapper -> yak_project
 - SessionMapper -> yak_session
 - TurnMapper -> yak_turn
 - MessageMapper -> yak_message
 
-Do not create separate read/write/query mappers for the same table unless the
-database itself requires a genuinely different persistence boundary.
+Each Mapper extends BaseMapper<Entity>.
 
-### Single-table SQL stays in a concrete DAO
+Simple single-table CRUD, filters, ordering, cursors and conditional updates
+use MyBatis-Plus lambda wrappers from RepositoryImpl.
 
-Simple CRUD, filters, ordering, pagination cursors, conditional updates and
-state transitions use MyBatis-Plus lambda wrappers in a concrete DAO.
+Complex SQL, joins, aggregates and dedicated read queries are declared on the
+relevant Mapper and implemented in XML.
 
-~~~text
-ProjectDao  -> ProjectMapper
-SessionDao  -> SessionMapper
-TurnDao     -> TurnMapper
-MessageDao  -> MessageMapper
-~~~
+Large Select/Update annotations are not used.
 
-The DAO is a small table-oriented persistence helper. It is intentionally a
-concrete class. Do not add a FooDao interface plus MybatisFooDao implementation
-when there is only one persistence implementation.
+## Repository
 
-### Multi-table queries use Mapper XML
+Repository is the only persistence entry point used outside yakable-dao.
 
-When a query joins tables or builds a dedicated read projection, declare the
-method on the relevant Mapper and put the SQL in src/main/resources/mapper/**.
+Repository contracts remain owned by Domain/Application. yakable-dao provides
+their implementation under io.yakable.dao.repository.impl.
 
-Example:
+RepositoryImpl is responsible for:
 
-~~~text
-ProjectQueryRepositoryAdapter
-        |
-        v
-ProjectMapper
-        |
-        v
-mapper/project/ProjectMapper.xml
-~~~
+- translating Domain/Application objects to and from Entity;
+- transaction boundaries;
+- coordinating multiple table Mappers when one persistence operation spans
+  several tables;
+- using lambda wrappers for single-table operations;
+- calling Mapper XML methods for complex queries.
 
-Keep large SQL out of Java annotations.
+There is no second Dao layer between RepositoryImpl and Mapper.
 
-### RepositoryAdapter is the architecture boundary
+## Rules
 
-Repository adapters implement Domain/Application repository interfaces. They
-may coordinate several table DAOs, map PO objects to Domain/Application models,
-and define transaction boundaries.
+Use this decision table when adding persistence code:
 
-~~~text
-Domain/Application Repository
-            |
-            v
-RepositoryAdapter
-      |           |
-      v           v
-single-table DAO  multi-table Mapper/XML
-      |
-      v
-BaseMapper<PO>
-~~~
-
-Do not insert another QueryDao -> MybatisQueryDao -> QueryMapper chain between
-a RepositoryAdapter and the database.
-
-## Decision table
-
-| Need | Use |
+| Need | Location |
 | --- | --- |
-| Insert/update/select by id | table DAO + BaseMapper |
-| Single-table filter/order/cursor | table DAO + LambdaQueryWrapper |
-| Single-table conditional state update | table DAO + LambdaUpdateWrapper |
-| Row lock / small DB-specific suffix | table DAO + wrapper last(...) when safe |
-| Multi-table join/read projection | Mapper method + XML |
-| Domain/Application conversion | RepositoryAdapter |
+| Table mapping | entity |
+| Basic table access | mapper BaseMapper |
+| Single-table condition/query/update | repository/impl + lambda wrapper |
+| Multi-table query / aggregate / complex SQL | mapper method + XML |
+| Domain/Application conversion | repository/impl |
+| Transaction boundary | repository/impl |
 | Schema migration | Flyway |
 
-## Things we intentionally avoid
+Do not add:
 
-- one interface for every DAO class;
-- MybatisXxxDao classes that only forward calls to a Mapper;
-- separate XxxQueryDao and XxxQueryMapper for ordinary single-table reads;
-- large Select/Update annotation SQL blocks in Java;
-- persistence types leaking into Application, Domain or HTTP layers.
+- XxxDao / XxxDaoImpl;
+- XxxRepositoryAdapter;
+- XxxQueryMapper for the same physical table;
+- MybatisXxxRepository naming;
+- PO/DO classes alongside Entity;
+- persistence types to Domain/Application/HTTP APIs.
+
+When a new table is added, the default is one Entity + one Mapper. Add or
+extend a RepositoryImpl only when upper layers need that persistence behavior.

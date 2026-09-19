@@ -1,14 +1,13 @@
 /**
- * Yakable persistence boundary.
+ * Yakable persistence implementation.
  *
- * <p>Persistence rules:</p>
- * <ul>
- *     <li>one MyBatis-Plus BaseMapper per physical table;</li>
- *     <li>single-table queries and updates live in concrete DAO classes and use
- *     lambda wrappers;</li>
- *     <li>multi-table queries are declared on a Mapper and implemented in XML;</li>
- *     <li>Repository adapters translate Domain/Application models and orchestrate
- *     persistence, without another DAO interface/implementation pair.</li>
- * </ul>
+ * <p>The only persistence path is:</p>
+ * <pre>
+ * Domain/Application Repository -> RepositoryImpl -> Mapper -> Entity
+ * </pre>
+ *
+ * <p>Entities model database rows, Mappers correspond to physical tables,
+ * and Repository implementations own persistence orchestration,
+ * transaction boundaries and model conversion.</p>
  */
 package io.yakable.dao;

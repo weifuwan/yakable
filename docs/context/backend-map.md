@@ -48,16 +48,19 @@ Start with `ProjectOverviewQueryService` when changing project list/detail reads
 ### Persistence
 
 ```text
-yakable-dao/src/main/java/io/yakable/dao/project/
-├── ProjectRepositoryAdapter.java
-├── ProjectDao.java
-├── MybatisProjectDao.java
-├── ProjectQueryRepositoryAdapter.java
-├── ProjectQueryDao.java
-├── MybatisProjectQueryDao.java
+yakable-dao/src/main/java/io/yakable/dao/
+├── entity/
+│   └── ProjectEntity.java
 ├── mapper/
-└── model/
+│   └── ProjectMapper.java
+└── repository/impl/
+    ├── ProjectRepositoryImpl.java
+    └── ProjectQueryRepositoryImpl.java
 ```
+
+Project persistence is accessed only through the Domain/Application Repository
+contracts. RepositoryImpl owns Entity conversion and uses ProjectMapper
+directly; there is no intermediate Dao or Adapter layer.
 
 ### REST
 
@@ -135,28 +138,23 @@ Use these entry points:
 ### Persistence
 
 ```text
-yakable-dao/src/main/java/io/yakable/dao/session/
-├── SessionRepositoryAdapter.java
-├── SessionExecutionRepositoryAdapter.java
-├── SessionQueryRepositoryAdapter.java
-├── SessionDao.java
-├── SessionExecutionDao.java
-├── SessionQueryDao.java
-├── MybatisSessionDao.java
-├── MybatisSessionExecutionDao.java
-├── MybatisSessionQueryDao.java
+yakable-dao/src/main/java/io/yakable/dao/
+├── entity/
+│   ├── SessionEntity.java
+│   ├── TurnEntity.java
+│   └── MessageEntity.java
 ├── mapper/
 │   ├── SessionMapper.java
 │   ├── TurnMapper.java
-│   ├── MessageMapper.java
-│   ├── SessionQueryMapper.java
-│   ├── TurnQueryMapper.java
-│   └── MessageQueryMapper.java
-└── model/
-    ├── SessionPO.java
-    ├── TurnPO.java
-    └── MessagePO.java
+│   └── MessageMapper.java
+└── repository/impl/
+    ├── SessionRepositoryImpl.java
+    ├── SessionExecutionRepositoryImpl.java
+    └── SessionQueryRepositoryImpl.java
 ```
+
+Session/Turn/Message persistence is coordinated directly by RepositoryImpl
+classes over the table Mappers.
 
 ### REST
 
@@ -410,7 +408,7 @@ Load:
 
 ```text
 the Domain repository contract
-the RepositoryAdapter
+the RepositoryImpl
 the DAO interface
 the MyBatis implementation / Mapper
 the relevant PO

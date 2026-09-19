@@ -8,7 +8,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.Instant;
 
 @TableName("yak_turn")
-public class TurnPO {
+public class TurnEntity {
 
     @TableId(value = "id", type = IdType.INPUT)
     private String id;

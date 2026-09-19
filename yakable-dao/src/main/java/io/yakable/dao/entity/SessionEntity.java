@@ -1,4 +1,4 @@
-package io.yakable.dao.project.model;
+package io.yakable.dao.session.model;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
@@ -7,14 +7,23 @@ import com.baomidou.mybatisplus.annotation.TableName;
 
 import java.time.Instant;
 
-@TableName("yak_project")
-public class ProjectPO {
+@TableName("yak_session")
+public class SessionEntity {
 
     @TableId(value = "id", type = IdType.INPUT)
     private String id;
 
-    @TableField("name")
-    private String name;
+    @TableField("project_id")
+    private String projectId;
+
+    @TableField("title")
+    private String title;
+
+    @TableField("provider")
+    private String provider;
+
+    @TableField("model")
+    private String model;
 
     @TableField("status")
     private String status;
@@ -33,12 +42,36 @@ public class ProjectPO {
         this.id = id;
     }
 
-    public String getName() {
-        return name;
+    public String getProjectId() {
+        return projectId;
     }
 
-    public void setName(String name) {
-        this.name = name;
+    public void setProjectId(String projectId) {
+        this.projectId = projectId;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
+    }
+
+    public String getProvider() {
+        return provider;
+    }
+
+    public void setProvider(String provider) {
+        this.provider = provider;
+    }
+
+    public String getModel() {
+        return model;
+    }
+
+    public void setModel(String model) {
+        this.model = model;
     }
 
     public String getStatus() {

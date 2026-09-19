@@ -13,7 +13,7 @@
     <artifactId>yakable-dao</artifactId>
 
     <name>Yakable DAO</name>
-    <description>MyBatis-Plus persistence adapters and Flyway migrations</description>
+    <description>MyBatis-Plus repository implementations and Flyway migrations</description>
 
     <dependencies>
         <dependency>
