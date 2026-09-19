@@ -1,8 +1,6 @@
 package io.yakable.boot.controller;
 
-import io.yakable.domain.session.SessionBusyException;
-import io.yakable.domain.session.SessionInactiveException;
-import io.yakable.domain.session.SessionNotFoundException;
+import io.yakable.service.session.SessionService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -11,9 +9,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class RestExceptionHandler {
 
-    @ExceptionHandler(SessionNotFoundException.class)
+    @ExceptionHandler(SessionService.SessionNotFoundException.class)
     ProblemDetail handleNotFound(
-            SessionNotFoundException exception
+            SessionService.SessionNotFoundException exception
     ) {
         return ProblemDetail.forStatusAndDetail(
                 HttpStatus.NOT_FOUND,
@@ -22,8 +20,8 @@ public class RestExceptionHandler {
     }
 
     @ExceptionHandler({
-            SessionBusyException.class,
-            SessionInactiveException.class
+            SessionService.SessionBusyException.class,
+            SessionService.SessionInactiveException.class
     })
     ProblemDetail handleConflict(RuntimeException exception) {
         return ProblemDetail.forStatusAndDetail(

@@ -1,22 +1,18 @@
-package io.yakable.infrastructure.async;
-
-import io.yakable.application.async.TurnDispatcher;
-import io.yakable.application.session.TurnExecutor;
+package io.yakable.service.turn;
 
 import java.util.Objects;
 import java.util.concurrent.Executor;
 
-public final class VirtualThreadTurnDispatcher
-        implements TurnDispatcher {
+public final class TurnDispatcher {
 
     private static final System.Logger log = System.getLogger(
-            VirtualThreadTurnDispatcher.class.getName()
+            TurnDispatcher.class.getName()
     );
 
     private final Executor executor;
     private final TurnExecutor turnExecutor;
 
-    public VirtualThreadTurnDispatcher(
+    public TurnDispatcher(
             Executor executor,
             TurnExecutor turnExecutor
     ) {
@@ -27,7 +23,6 @@ public final class VirtualThreadTurnDispatcher
         );
     }
 
-    @Override
     public boolean dispatch(String turnId) {
         try {
             executor.execute(() -> executeSafely(turnId));
@@ -35,7 +30,7 @@ public final class VirtualThreadTurnDispatcher
         } catch (RuntimeException exception) {
             log.log(
                     System.Logger.Level.WARNING,
-                    "Session turn dispatch was rejected: " + turnId,
+                    "Turn dispatch rejected: " + turnId,
                     exception
             );
             return false;
@@ -44,18 +39,11 @@ public final class VirtualThreadTurnDispatcher
 
     private void executeSafely(String turnId) {
         try {
-            boolean claimed = turnExecutor.execute(turnId);
-            if (!claimed) {
-                log.log(
-                        System.Logger.Level.DEBUG,
-                        "Session turn was already claimed or completed: "
-                                + turnId
-                );
-            }
+            turnExecutor.execute(turnId);
         } catch (RuntimeException exception) {
             log.log(
                     System.Logger.Level.WARNING,
-                    "Session turn execution failed: " + turnId,
+                    "Turn execution failed: " + turnId,
                     exception
             );
         }

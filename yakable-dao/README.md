@@ -5,9 +5,9 @@
 固定调用链：
 
 ```text
-Repository
+Service
     ↓
-RepositoryImpl
+Repository
     ↓
 Mapper
     ↓
@@ -24,23 +24,23 @@ Entity
 
 4. 禁止在 Mapper 中使用大段 `@Select`、`@Update` 等注解 SQL，复杂 SQL 统一放 XML。
 
-5. Repository 是 `yakable-dao` 唯一对外的数据访问入口，具体实现统一放在 `repository.impl`。
+5. Repository 是 `yakable-dao` 唯一对外的数据访问入口，统一放在 `repository` 包。
 
-6. RepositoryImpl 直接调用 Mapper，不再增加 `Dao`、`DaoImpl`、`Adapter` 等中间层。
+6. Repository 直接调用 Mapper，不再增加 Repository 接口、`Impl`、`Dao`、`Adapter` 等中间层。
 
-7. Repository 接口放在 `yakable-service`，`yakable-dao` 只负责实现，不在 DAO 模块重复定义 Repository 接口。
+7. Service 只能调用 Repository，不能直接调用 Mapper。
 
-8. 多张表属于同一个持久化业务操作时，由 RepositoryImpl 直接协调多个 Mapper，不为了拆分而增加新的 DAO 层。
+8. 同一业务的数据访问优先收口到一个 Repository，不为了读写、查询、执行再拆多个 Repository。
 
-9. Entity、Mapper、MyBatis-Plus 类型禁止泄漏到 Service 和 HTTP 层。
+9. Entity 可以在 Service 内部用于持久化编排，但禁止直接作为 HTTP 返回对象。
 
-10. 数据库结构变更统一使用 Flyway 管理，禁止通过业务代码隐式修改数据库结构。
+10. 数据库结构变更统一使用 Flyway 管理。
 
-11. 新增持久化代码时优先保持现有结构，不新增 `QueryMapper`、`RepositoryAdapter`、`MybatisXxxRepository` 等重复角色。
+11. 新增持久化代码时优先保持现有结构，不新增 `QueryMapper`、`QueryRepository`、`RepositoryAdapter` 等重复角色。
 
 ## 核心原则
 
-**Entity 对应表，Mapper 对应表，Repository 对应持久化能力。**
+**Entity 对应表，Mapper 对应表，Repository 对应数据访问能力。**
 
 **Lambda 能解决的，不写 XML；Lambda 开始难看了，就 Mapper + XML。**
 

@@ -1,6 +1,6 @@
-package io.yakable.infrastructure.async;
+package io.yakable.service.turn;
 
-import io.yakable.application.session.TurnExecutionRecoveryService;
+import io.yakable.dao.repository.SessionRepository;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -16,27 +16,45 @@ public final class TurnRecoveryWorker implements AutoCloseable {
     );
 
     private final ScheduledExecutorService scheduler;
-    private final TurnExecutionRecoveryService recoveryService;
+    private final SessionRepository repository;
+    private final TurnDispatcher dispatcher;
     private final Duration interval;
+    private final Duration runningTimeout;
+    private final int batchSize;
     private final boolean enabled;
 
     private ScheduledFuture<?> task;
 
     public TurnRecoveryWorker(
             ScheduledExecutorService scheduler,
-            TurnExecutionRecoveryService recoveryService,
+            SessionRepository repository,
+            TurnDispatcher dispatcher,
             Duration interval,
+            Duration runningTimeout,
+            int batchSize,
             boolean enabled
     ) {
         this.scheduler = Objects.requireNonNull(
                 scheduler,
                 "scheduler"
         );
-        this.recoveryService = Objects.requireNonNull(
-                recoveryService,
-                "recoveryService"
+        this.repository = Objects.requireNonNull(
+                repository,
+                "repository"
         );
-        this.interval = requirePositive(interval, "interval");
+        this.dispatcher = Objects.requireNonNull(
+                dispatcher,
+                "dispatcher"
+        );
+        this.interval = Objects.requireNonNull(
+                interval,
+                "interval"
+        );
+        this.runningTimeout = Objects.requireNonNull(
+                runningTimeout,
+                "runningTimeout"
+        );
+        this.batchSize = batchSize;
         this.enabled = enabled;
     }
 
@@ -45,24 +63,28 @@ public final class TurnRecoveryWorker implements AutoCloseable {
             return;
         }
 
-        long delayMillis = Math.max(1L, interval.toMillis());
         task = scheduler.scheduleWithFixedDelay(
                 this::runSafely,
                 0L,
-                delayMillis,
+                Math.max(1L, interval.toMillis()),
                 TimeUnit.MILLISECONDS
         );
     }
 
     public void runOnce() {
-        TurnExecutionRecoveryService.TurnRecoveryResult result =
-                recoveryService.recoverAndDispatch(Instant.now());
+        Instant now = Instant.now();
+        int recovered = repository.recoverStaleRunningTurns(
+                now.minus(runningTimeout),
+                now
+        );
 
-        if (result.recoveredRunningTurns() > 0) {
+        repository.findPendingTurnIds(batchSize)
+                .forEach(dispatcher::dispatch);
+
+        if (recovered > 0) {
             log.log(
                     System.Logger.Level.WARNING,
-                    "Recovered stale RUNNING turns: "
-                            + result.recoveredRunningTurns()
+                    "Recovered stale RUNNING turns: " + recovered
             );
         }
     }
@@ -85,18 +107,5 @@ public final class TurnRecoveryWorker implements AutoCloseable {
             task.cancel(false);
             task = null;
         }
-    }
-
-    private static Duration requirePositive(
-            Duration value,
-            String field
-    ) {
-        Objects.requireNonNull(value, field);
-        if (value.isZero() || value.isNegative()) {
-            throw new IllegalArgumentException(
-                    field + " must be positive"
-            );
-        }
-        return value;
     }
 }

@@ -1,8 +1,6 @@
 # Session Domain
 
-Yakable separates long-lived Project identity from conversational and execution state.
-
-## Domain model
+当前数据关系：
 
 ```text
 Project
@@ -11,62 +9,15 @@ Project
             └── Message
 ```
 
-### Project
+## Session
 
-A Project is the long-lived frontend workspace.
+Session 保存一次会话的模型配置和状态。
 
-It owns:
+## Turn
 
-```text
-id
-name
-status
-createdAt
-updatedAt
-```
+Turn 表示一次用户输入对应的执行。
 
-Cross-aggregate Project/Session orchestration belongs to `yakable-service` 的 `application` package.
-
-### Session
-
-A Session is one working context inside a Project.
-
-It owns:
-
-```text
-id
-projectId
-title
-provider
-model
-status
-createdAt
-updatedAt
-```
-
-A Session is the consistency boundary for Turn creation and Message ordering.
-
-### Turn
-
-A Turn is one durable execution initiated by one user input.
-
-It owns:
-
-```text
-id
-sessionId
-status
-attemptCount
-errorMessage
-invocation
-startedAt
-finishedAt
-durationMs (derived)
-createdAt
-updatedAt
-```
-
-Lifecycle:
+状态：
 
 ```text
 PENDING -> RUNNING -> SUCCEEDED
@@ -75,268 +26,54 @@ PENDING -> RUNNING -> SUCCEEDED
 RUNNING --recovery--> PENDING
 ```
 
-A recovery keeps `attemptCount` and clears the timestamps for the abandoned attempt. The next successful claim increments `attemptCount`.
+同一个 Session 同一时间只允许一个 PENDING / RUNNING Turn。
 
-State rules:
+## Message
 
-```text
-PENDING
-  -> no startedAt / finishedAt / error
+Message 是会话消息记录，通过 `message_sequence` 保证顺序。
 
-RUNNING
-  -> attemptCount > 0
-  -> provider/model invocation route required
-  -> startedAt required
-  -> finishedAt absent
-
-SUCCEEDED
-  -> invocation + startedAt + finishedAt required
-  -> token usage / provider request id / finish reason retained when available
-
-FAILED
-  -> invocation route + startedAt + finishedAt + errorMessage required
-```
-
-A Turn is not exactly one USER Message plus one ASSISTANT Message. Future Agent execution may attach tool calls, tool results, file changes, approvals, and other events to the same Turn.
-
-Only one active Turn is allowed in a Session at a time.
-
-### Message
-
-A Message is an immutable conversational record.
+## 创建 Turn
 
 ```text
-id
-sessionId
-turnId
-role
-content
-sequence
-createdAt
+SessionService
+  -> lock Session
+  -> 检查 active Turn
+  -> insert PENDING Turn
+  -> insert USER Message
+  -> commit
+  -> TurnDispatcher
 ```
 
-Message ordering is explicit through `sequence`.
-
-## Durable execution model
-
-Persisted Turn state is the execution source of truth.
-
-```text
-POST user input
-  -> transaction
-       -> PENDING Turn
-       -> USER Message
-     commit
-
-  -> best-effort immediate dispatch
-  -> periodic recovery worker also scans PENDING Turns
-```
-
-The in-process virtual-thread dispatcher is only a low-latency wake-up mechanism. Losing one dispatch does not lose the task because the PENDING Turn remains in MySQL.
-
-### Claim
-
-```sql
-UPDATE yak_turn
-SET status = 'RUNNING',
-    attempt_count = attempt_count + 1,
-    provider = ?,
-    model = ?,
-    started_at = ?
-WHERE id = ?
-  AND status = 'PENDING'
-```
-
-The conditional update is the execution claim. Duplicate dispatches are safe because only one claimant can update one PENDING Turn.
-
-### Failure boundary
-
-Once a Turn has been claimed, the whole execution phase is guarded:
-
-```text
-build context
-assemble prompt
-call model
-persist success
-```
-
-A RuntimeException anywhere in that phase attempts to persist FAILED state. If failure persistence itself is unavailable, the original exception is preserved and the stale-RUNNING recovery path remains the fallback.
-
-### Stale RUNNING recovery
-
-A periodic worker:
-
-```text
-RUNNING with startedAt < now - runningTimeout
-  -> PENDING
-  -> clear invocation metadata / startedAt / finishedAt / error
-  -> redispatch
-```
-
-Default baseline:
-
-```text
-recovery interval = 5s
-running timeout   = 10m
-batch size        = 100
-```
-
-Configuration:
-
-```yaml
-yakable:
-  turn-execution:
-    recovery-enabled: true
-    recovery-interval: 5s
-    running-timeout: 10m
-    recovery-batch-size: 100
-```
-
-This is intentionally a single-node recovery baseline. Before running long-lived Agent Turns or multiple active application nodes, this timeout model should evolve into an explicit renewable execution lease.
-
-## Persistence boundary
-
-Repository contracts live in `yakable-service` 的 `domain` package; MyBatis-Plus implementations live in `yakable-dao`.
-
-`SessionExecutionRepository` owns atomic execution semantics:
-
-```text
-createPendingTurn
-claimPendingTurn
-completeTurn
-failTurn
-recoverStaleRunningTurns
-findPendingTurnIds
-```
-
-Database constraints preserve Session Message ordering and relational integrity.
-
-Flyway migration `V5__add_turn_execution_recovery.sql` adds execution timestamps, attempt count, and the recovery scan index without mutating older migrations.
-
-Flyway migration `V7__add_turn_invocation_metadata.sql` adds the durable model invocation fields:
-
-```text
-provider
-model
-inputTokens
-outputTokens
-totalTokens
-providerRequestId
-finishReason
-```
-
-`durationMs` is deliberately not stored. It is derived from `startedAt` and `finishedAt` so execution duration has one source of truth.
-
-## Service transactions
-
-Project bootstrap:
-
-```text
-transaction
-  -> Project
-  -> Session
-  -> initial Turn + USER Message
-commit
-  -> best-effort dispatch
-```
-
-New Turn:
-
-```text
-transaction
-  -> PENDING Turn + USER Message
-  -> touch Session
-commit
-  -> best-effort dispatch
-```
-
-Model execution:
-
-```text
-claim Turn transaction
-commit
-
-build context
-call ModelGateway
-
-success:
-  transaction
-    -> SUCCEEDED
-    -> ASSISTANT Message
-    -> touch Session
-  commit
-
-failure:
-  transaction
-    -> FAILED
-    -> touch Session
-  commit
-```
-
-The slow external model call remains outside a database transaction.
-
-## Session API
-
-```http
-GET /api/projects/{projectId}/sessions/{sessionId}
-
-POST /api/projects/{projectId}/sessions/{sessionId}/turns
-```
-
-The Turn response exposes execution and invocation metadata:
-
-```text
-attemptCount
-invocation.provider
-invocation.model
-invocation.usage
-invocation.providerRequestId
-invocation.finishReason
-startedAt
-finishedAt
-durationMs
-```
-
-PENDING Turns have no invocation. RUNNING/FAILED Turns retain the claimed provider/model route, while SUCCEEDED Turns also retain response metadata when the provider supplies it.
-
-## Model boundary
+## 执行 Turn
 
 ```text
 TurnExecutor
-  -> TurnPromptAssembler
-  -> ModelGateway
-  -> PluginModelGateway
-  -> ModelPlugin
+  -> claim PENDING
+  -> build context
+  -> ModelClient
+  -> persist SUCCEEDED / FAILED
 ```
 
-Domain and Service do not know concrete model providers.
+模型调用不放在数据库事务中。
 
-## Context rules
+## 恢复
 
-Model history contains:
+`TurnRecoveryWorker` 定期把超时的 RUNNING Turn 恢复为 PENDING，并重新调度。
+
+## Context
+
+模型上下文只包含：
 
 ```text
-all Messages from SUCCEEDED prior Turns
+之前 SUCCEEDED Turn 的 Messages
 +
-Messages belonging to the current Turn
+当前 Turn 的 Messages
 ```
 
-Messages from FAILED Turns are retained for audit/UI state but excluded from automatic future model context.
+FAILED Turn 保留在数据库中，但默认不进入后续模型上下文。
 
-## Not in this phase
+## 当前原则
 
-This recovery baseline intentionally does not introduce:
+这套结构先保持简单。
 
-```text
-distributed execution lease
-worker ownership / heartbeat
-MQ
-retry backoff
-maximum-attempt policy
-SSE / token streaming
-Agent events
-Tool calls
-context compression
-```
-
-Those can extend the durable Turn boundary later.
+以后只有出现真实需求时，再增加分布式 lease、MQ、重试策略、SSE、Tool Call 等能力。

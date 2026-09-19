@@ -32,8 +32,8 @@
         <module>yakable-bom</module>
         <module>yakable-common</module>
         <module>yakable-plugins/yakable-plugin-model</module>
-        <module>yakable-service</module>
         <module>yakable-dao</module>
+        <module>yakable-service</module>
         <module>yakable-boot</module>
     </modules>
 
