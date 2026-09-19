@@ -133,7 +133,7 @@ Read:
 
 ```text
 docs/context/backend-map.md
-yakable-service/.../project/ProjectBootstrapService.java
+yakable-service/src/main/java/io/yakable/service/project/ProjectService.java
 yakable-service/.../project/
 yakable-service/.../project/repository/ProjectRepository.java
 ```
