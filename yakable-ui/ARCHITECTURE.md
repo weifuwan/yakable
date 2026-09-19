@@ -17,12 +17,9 @@ src/
 │   ├── dashboard/
 │   └── project/
 ├── features/
-│   ├── agent-run/
-│   ├── editor/
-│   ├── preview/
+│   ├── conversation/
 │   ├── model/
-│   ├── project/
-│   └── workspace/
+│   └── project/
 ├── shared/
 │   ├── api/
 │   ├── lib/
@@ -81,11 +78,13 @@ Creating a project returns the id first, then navigation moves immediately to th
 
 Features own product capabilities.
 
-`project` owns Dashboard project interactions and project-query state. `model` owns model identity and selection UI; its current catalog is local until a real model API exists.
+`project` owns Dashboard project interactions and project-query state. `model` owns model identity and selection UI; its current catalog is local until a real model API exists. `conversation` owns project messages and the Project chat surface.
 
-Add one feature at a time only after its ownership and contract are understood. Likely future areas include Workspace, Editor, Preview, and Agent Run.
+Add one feature at a time only after its ownership and contract are understood. The current product stage intentionally stops at conversation; Agent execution, planning, generated files, and Preview remain future work.
 
 Feature-specific types, APIs, state, hooks, and components stay with their owning feature.
+
+The Project page is conversation-first: user messages render on the right, assistant messages render on the left, and the shared PromptComposer stays fixed at the bottom. The browser never fabricates assistant replies; assistant messages appear only when the backend actually provides them.
 
 The current Project backend persists through a repository port with a Boot-owned in-memory adapter. This is a development persistence boundary, not durable storage; replacing it with a database must not require changing Project command/query services.
 
