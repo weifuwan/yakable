@@ -50,6 +50,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       project,
       ...current.filter((item) => item.id !== project.id),
     ]);
+    setError(null);
   }, []);
 
   useEffect(() => {
