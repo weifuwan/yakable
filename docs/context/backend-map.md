@@ -313,33 +313,6 @@ Use Boot for composition and runtime configuration only.
 
 Do not move business rules into configuration classes.
 
-## Important tests
-
-### Application flow
-
-```text
-yakable-api/src/test/java/io/yakable/application/session/
-└── SessionFlowTest.java
-```
-
-### Persistence
-
-```text
-yakable-dao/src/test/java/io/yakable/dao/
-├── DaoPersistenceIntegrationTest.java
-└── ReadModelIntegrationTest.java
-```
-
-### HTTP / boot integration
-
-```text
-yakable-boot/src/test/java/io/yakable/boot/
-├── project/ProjectControllerTest.java
-└── session/SessionControllerTest.java
-```
-
-When changing behavior, include the closest relevant test in context before expanding to unrelated code.
-
 ## Task-to-context recipes
 
 These are baseline context recipes. They are intentionally small.
@@ -352,7 +325,6 @@ Load:
 docs/architecture/session-domain.md
 yakable-api/.../session/
 yakable-api/.../session/
-SessionFlowTest.java
 ```
 
 Add DAO only if the question touches persistence or atomicity.
@@ -369,7 +341,6 @@ Turn.java
 TurnStatus.java
 SessionExecutionRepository.java
 ModelGateway.java
-SessionFlowTest.java
 ```
 
 Then expand according to the concrete failure or behavior.
@@ -399,7 +370,6 @@ PluginModelGateway.java
 ModelPlugin.java
 LlmRequest.java
 the concrete provider plugin
-its provider test
 ```
 
 ### Change a database operation
@@ -412,7 +382,6 @@ the RepositoryImpl
 the RepositoryImpl
 the Mapper
 the relevant Entity
-the closest integration test
 ```
 
 ### Change API behavior
@@ -423,7 +392,6 @@ Load:
 the Controller
 the called Application service
 the request/result domain/application types
-the controller integration test
 ```
 
 ## Context expansion rule
@@ -434,7 +402,6 @@ Expand only when one of these is true:
 
 - a referenced type is required to understand behavior;
 - a cross-module invariant is involved;
-- a test exposes behavior not visible in the entry point;
 - persistence or provider details materially affect the task;
 - current evidence is insufficient to make a safe change.
 

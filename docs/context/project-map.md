@@ -218,7 +218,6 @@ project map
 + relevant domain map / architecture rule
 + task entry point
 + directly related domain/application contracts
-+ related tests
 + extra files requested only when evidence is missing
 ```
 
