@@ -12,3 +12,7 @@ mybatis-plus:
     map-underscore-to-camel-case: true
   global-config:
     banner: false
+
+yakable:
+  turn-execution:
+    recovery-enabled: false

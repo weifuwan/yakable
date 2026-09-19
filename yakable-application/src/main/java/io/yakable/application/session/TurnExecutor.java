@@ -81,36 +81,34 @@ public final class TurnExecutor {
             return false;
         }
 
-        List<SessionMessage> context = buildModelContext(
-                session.id(),
-                runningTurn.id()
-        );
-        ModelRequest request = promptAssembler.assemble(
-                session,
-                context
-        );
-
-        ModelReply response;
         try {
-            response = modelGateway.chat(
+            List<SessionMessage> context = buildModelContext(
+                    session.id(),
+                    runningTurn.id()
+            );
+            ModelRequest request = promptAssembler.assemble(
+                    session,
+                    context
+            );
+            ModelReply response = modelGateway.chat(
                     session.provider(),
                     request
             );
+
+            persistSuccess(
+                    session,
+                    runningTurn,
+                    response
+            );
+            return true;
         } catch (RuntimeException exception) {
-            persistFailure(
+            persistFailureBestEffort(
                     session,
                     runningTurn,
                     exception
             );
             throw exception;
         }
-
-        persistSuccess(
-                session,
-                runningTurn,
-                response
-        );
-        return true;
     }
 
     private void persistSuccess(
@@ -134,24 +132,28 @@ public final class TurnExecutor {
         });
     }
 
-    private void persistFailure(
+    private void persistFailureBestEffort(
             Session session,
             Turn runningTurn,
-            RuntimeException exception
+            RuntimeException originalFailure
     ) {
         Instant failedAt = Instant.now();
 
-        transactionRunner.required(() -> {
-            executionRepository.failTurn(
-                    runningTurn,
-                    failureMessage(exception),
-                    failedAt
-            );
-            sessionRepository.save(
-                    session.touch(failedAt)
-            );
-            return Boolean.TRUE;
-        });
+        try {
+            transactionRunner.required(() -> {
+                executionRepository.failTurn(
+                        runningTurn,
+                        failureMessage(originalFailure),
+                        failedAt
+                );
+                sessionRepository.save(
+                        session.touch(failedAt)
+                );
+                return Boolean.TRUE;
+            });
+        } catch (RuntimeException persistenceFailure) {
+            originalFailure.addSuppressed(persistenceFailure);
+        }
     }
 
     private List<SessionMessage> buildModelContext(

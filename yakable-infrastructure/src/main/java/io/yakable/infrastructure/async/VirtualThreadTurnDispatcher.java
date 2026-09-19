@@ -28,24 +28,36 @@ public final class VirtualThreadTurnDispatcher
     }
 
     @Override
-    public void dispatch(String turnId) {
-        executor.execute(() -> {
-            try {
-                boolean claimed = turnExecutor.execute(turnId);
-                if (!claimed) {
-                    log.log(
-                            System.Logger.Level.DEBUG,
-                            "Session turn was already claimed or completed: "
-                                    + turnId
-                    );
-                }
-            } catch (RuntimeException exception) {
+    public boolean dispatch(String turnId) {
+        try {
+            executor.execute(() -> executeSafely(turnId));
+            return true;
+        } catch (RuntimeException exception) {
+            log.log(
+                    System.Logger.Level.WARNING,
+                    "Session turn dispatch was rejected: " + turnId,
+                    exception
+            );
+            return false;
+        }
+    }
+
+    private void executeSafely(String turnId) {
+        try {
+            boolean claimed = turnExecutor.execute(turnId);
+            if (!claimed) {
                 log.log(
-                        System.Logger.Level.WARNING,
-                        "Session turn execution failed: " + turnId,
-                        exception
+                        System.Logger.Level.DEBUG,
+                        "Session turn was already claimed or completed: "
+                                + turnId
                 );
             }
-        });
+        } catch (RuntimeException exception) {
+            log.log(
+                    System.Logger.Level.WARNING,
+                    "Session turn execution failed: " + turnId,
+                    exception
+            );
+        }
     }
 }
