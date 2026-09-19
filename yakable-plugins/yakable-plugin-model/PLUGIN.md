@@ -18,11 +18,15 @@ yakable-plugin-model-all
   -> runtime aggregation of built-in model plugins
 ```
 
-Core/runtime responsibilities:
+Runtime responsibilities:
 
 ```text
-yakable-core
-  -> ServiceLoader discovery, registry validation and provider routing
+yakable-application
+  -> ModelGateway port; no plugin API dependency
+
+yakable-infrastructure
+  -> ServiceLoader discovery, registry validation, provider routing,
+     and ModelGateway-to-plugin adaptation
 
 yakable-boot
   -> application assembly and provider configuration only
@@ -56,9 +60,10 @@ AutoService generates:
 META-INF/services/io.yakable.plugin.model.api.ModelPlugin
 ```
 
-at compile time. Runtime discovery still uses standard Java `ServiceLoader`.
+at compile time. Runtime discovery uses standard Java `ServiceLoader`.
 
-Core and Business code must never instantiate a concrete provider plugin directly.
+Domain and Application code must never instantiate a concrete provider plugin
+or import the plugin API.
 
 ## Descriptor
 
@@ -105,11 +110,13 @@ Provider plugins own provider identity and defaults.
 
 Protocol modules own HTTP request/response mapping.
 
-Do not copy `/chat/completions`, authorization, message mapping, SSE parsing, or usage parsing into every provider plugin when the providers share the same protocol.
+Do not copy `/chat/completions`, authorization, message mapping, SSE parsing,
+or usage parsing into every provider plugin when providers share a protocol.
 
 ## Lifecycle
 
-`ModelPlugin` implementations are discovered once and may be reused by the registry.
+`ModelPlugin` implementations are discovered once and may be reused by the
+registry.
 
 Plugins must not keep request-level mutable state.
 
@@ -124,7 +131,8 @@ Secrets must not be logged or included in exceptions.
 
 ## Configuration
 
-Boot maps application configuration to `ModelPluginConfiguration`.
+Boot maps strongly typed application configuration to
+`ModelPluginConfiguration`.
 
 Current provider configuration:
 
@@ -137,7 +145,8 @@ yakable:
         base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
 ```
 
-A plugin owns provider defaults. Boot must not import or construct the concrete plugin class.
+A plugin owns provider defaults. Boot must not import or construct a concrete
+plugin implementation.
 
 ## Adding a provider
 
@@ -157,18 +166,20 @@ For an OpenAI-compatible provider:
 
 Do not modify `TurnExecutor` when adding a provider.
 
-If a provider requires a protocol the platform does not have yet, introduce a protocol module instead of adding provider-specific HTTP code to Core or Boot.
+If a provider requires a protocol the platform does not have yet, introduce a
+protocol module instead of adding provider-specific HTTP code to Domain,
+Application, Interfaces, or Boot.
 
 ## Review checklist
 
 ```text
 [ ] Plugin API has no Spring dependency
-[ ] Concrete provider is outside yakable-core and yakable-boot
+[ ] Concrete provider is outside Domain/Application/Boot
 [ ] @AutoService(ModelPlugin.class) is present
 [ ] ServiceLoader assembly test passes
 [ ] descriptor provider/apiVersion/capabilities are valid
 [ ] duplicate provider registration is rejected
 [ ] secrets are not logged
 [ ] shared protocol logic is not copied into provider plugins
-[ ] TurnExecutor does not know concrete providers
+[ ] TurnExecutor only knows ModelGateway
 ```

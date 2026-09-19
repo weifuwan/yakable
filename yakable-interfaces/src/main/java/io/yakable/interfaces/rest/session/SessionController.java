@@ -1,0 +1,175 @@
+package io.yakable.interfaces.rest.session;
+
+import io.yakable.application.session.SessionQueryService;
+import io.yakable.application.session.SessionSnapshot;
+import io.yakable.application.session.SessionTurnService;
+import io.yakable.domain.session.Session;
+import io.yakable.domain.session.SessionMessage;
+import io.yakable.domain.session.Turn;
+import io.yakable.domain.session.TurnStartResult;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.time.Instant;
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/projects/{projectId}/sessions")
+public class SessionController {
+
+    private final SessionTurnService turnService;
+    private final SessionQueryService queryService;
+
+    public SessionController(
+            SessionTurnService turnService,
+            SessionQueryService queryService
+    ) {
+        this.turnService = turnService;
+        this.queryService = queryService;
+    }
+
+    @GetMapping("/{sessionId}")
+    public SessionSnapshotResponse getSession(
+            @PathVariable String projectId,
+            @PathVariable String sessionId
+    ) {
+        return SessionSnapshotResponse.from(
+                queryService.getSnapshot(projectId, sessionId)
+        );
+    }
+
+    @PostMapping("/{sessionId}/turns")
+    public ResponseEntity<TurnStartResponse> startTurn(
+            @PathVariable String projectId,
+            @PathVariable String sessionId,
+            @Valid @RequestBody StartTurnRequest request
+    ) {
+        TurnStartResult result = turnService.startTurn(
+                projectId,
+                sessionId,
+                request.content()
+        );
+
+        return ResponseEntity
+                .accepted()
+                .body(TurnStartResponse.from(result));
+    }
+
+    public record StartTurnRequest(
+            @NotBlank String content
+    ) {
+    }
+
+    public record SessionSnapshotResponse(
+            SessionResponse session,
+            List<TurnResponse> turns,
+            List<MessageResponse> messages
+    ) {
+
+        static SessionSnapshotResponse from(
+                SessionSnapshot snapshot
+        ) {
+            return new SessionSnapshotResponse(
+                    SessionResponse.from(snapshot.session()),
+                    snapshot.turns().stream()
+                            .map(TurnResponse::from)
+                            .toList(),
+                    snapshot.messages().stream()
+                            .map(MessageResponse::from)
+                            .toList()
+            );
+        }
+    }
+
+    public record SessionResponse(
+            String id,
+            String projectId,
+            String title,
+            ModelResponse model,
+            String status,
+            Instant createdAt,
+            Instant updatedAt
+    ) {
+
+        static SessionResponse from(Session session) {
+            return new SessionResponse(
+                    session.id(),
+                    session.projectId(),
+                    session.title(),
+                    new ModelResponse(
+                            session.provider(),
+                            session.model()
+                    ),
+                    session.status().name(),
+                    session.createdAt(),
+                    session.updatedAt()
+            );
+        }
+    }
+
+    public record ModelResponse(
+            String provider,
+            String model
+    ) {
+    }
+
+    public record TurnResponse(
+            String id,
+            String status,
+            String errorMessage,
+            Instant createdAt,
+            Instant updatedAt
+    ) {
+
+        static TurnResponse from(Turn turn) {
+            return new TurnResponse(
+                    turn.id(),
+                    turn.status().name(),
+                    turn.errorMessage(),
+                    turn.createdAt(),
+                    turn.updatedAt()
+            );
+        }
+    }
+
+    public record MessageResponse(
+            String id,
+            String turnId,
+            String role,
+            String content,
+            long sequence,
+            Instant createdAt
+    ) {
+
+        static MessageResponse from(SessionMessage message) {
+            return new MessageResponse(
+                    message.id(),
+                    message.turnId(),
+                    message.role().name(),
+                    message.content(),
+                    message.sequence(),
+                    message.createdAt()
+            );
+        }
+    }
+
+    public record TurnStartResponse(
+            TurnResponse turn,
+            MessageResponse userMessage
+    ) {
+
+        static TurnStartResponse from(TurnStartResult result) {
+            return new TurnStartResponse(
+                    TurnResponse.from(result.turn()),
+                    MessageResponse.from(result.userMessage())
+            );
+        }
+    }
+}

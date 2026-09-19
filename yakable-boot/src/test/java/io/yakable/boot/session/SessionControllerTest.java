@@ -2,10 +2,10 @@ package io.yakable.boot.session;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.yakable.core.model.ModelRuntime;
-import io.yakable.core.session.TurnExecutor;
-import io.yakable.plugin.model.api.LlmResponse;
-import io.yakable.plugin.model.api.LlmUsage;
+import io.yakable.application.async.TurnDispatcher;
+import io.yakable.application.model.ModelGateway;
+import io.yakable.application.model.ModelReply;
+import io.yakable.application.session.TurnExecutor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,23 +40,21 @@ class SessionControllerTest {
     private TurnExecutor turnExecutor;
 
     @MockBean
-    private SessionTurnDispatcher turnDispatcher;
+    private TurnDispatcher turnDispatcher;
 
     @MockBean
-    private ModelRuntime modelRuntime;
+    private ModelGateway modelGateway;
 
     @BeforeEach
-    void setUpModelRuntime() {
-        when(modelRuntime.chat(anyString(), any())).thenReturn(
-                new LlmResponse(
-                        "I am Yakable.",
-                        new LlmUsage(8L, 4L, 12L)
-                )
+    void setUpModelGateway() {
+        when(modelGateway.chat(anyString(), any())).thenReturn(
+                new ModelReply("I am Yakable.")
         );
     }
 
     @Test
-    void projectCreationPersistsInitialPendingTurnBeforeNavigation() throws Exception {
+    void projectCreationPersistsInitialPendingTurnBeforeNavigation()
+            throws Exception {
         ProjectRef project = createProject("Who are you?");
 
         mockMvc.perform(get(
@@ -65,17 +63,25 @@ class SessionControllerTest {
                             project.sessionId()
                         ))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.session.id").value(project.sessionId()))
-                .andExpect(jsonPath("$.session.projectId").value(project.projectId()))
-                .andExpect(jsonPath("$.session.model.provider").value("deepseek"))
-                .andExpect(jsonPath("$.turns[0].status").value("PENDING"))
-                .andExpect(jsonPath("$.messages[0].role").value("USER"))
-                .andExpect(jsonPath("$.messages[0].content").value("Who are you?"))
-                .andExpect(jsonPath("$.messages[0].sequence").value(1));
+                .andExpect(jsonPath("$.session.id")
+                        .value(project.sessionId()))
+                .andExpect(jsonPath("$.session.projectId")
+                        .value(project.projectId()))
+                .andExpect(jsonPath("$.session.model.provider")
+                        .value("deepseek"))
+                .andExpect(jsonPath("$.turns[0].status")
+                        .value("PENDING"))
+                .andExpect(jsonPath("$.messages[0].role")
+                        .value("USER"))
+                .andExpect(jsonPath("$.messages[0].content")
+                        .value("Who are you?"))
+                .andExpect(jsonPath("$.messages[0].sequence")
+                        .value(1));
     }
 
     @Test
-    void startsANewTurnAfterThePreviousTurnCompletes() throws Exception {
+    void startsANewTurnAfterThePreviousTurnCompletes()
+            throws Exception {
         ProjectRef project = createProject("First question");
 
         JsonNode initialSnapshot = getSession(project);
@@ -100,16 +106,21 @@ class SessionControllerTest {
                                 }
                                 """))
                 .andExpect(status().isAccepted())
-                .andExpect(jsonPath("$.turn.status").value("PENDING"))
-                .andExpect(jsonPath("$.userMessage.role").value("USER"))
-                .andExpect(jsonPath("$.userMessage.content").value("Second question"))
-                .andExpect(jsonPath("$.userMessage.sequence").value(3));
+                .andExpect(jsonPath("$.turn.status")
+                        .value("PENDING"))
+                .andExpect(jsonPath("$.userMessage.role")
+                        .value("USER"))
+                .andExpect(jsonPath("$.userMessage.content")
+                        .value("Second question"))
+                .andExpect(jsonPath("$.userMessage.sequence")
+                        .value(3));
 
         verify(turnDispatcher).dispatch(anyString());
     }
 
     @Test
-    void rejectsAnotherTurnWhileTheSessionIsBusy() throws Exception {
+    void rejectsAnotherTurnWhileTheSessionIsBusy()
+            throws Exception {
         ProjectRef project = createProject("First question");
 
         mockMvc.perform(post(
@@ -127,7 +138,8 @@ class SessionControllerTest {
     }
 
     @Test
-    void returnsNotFoundWhenSessionDoesNotBelongToProject() throws Exception {
+    void returnsNotFoundWhenSessionDoesNotBelongToProject()
+            throws Exception {
         ProjectRef project = createProject("First question");
 
         mockMvc.perform(get(
