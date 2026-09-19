@@ -30,7 +30,7 @@ Requirements:
 Build:
 
 ```bash
-./mvnw test
+./mvnw package
 ```
 
 Create an empty MySQL database named `yakable` (or point Yakable at another database). Flyway owns the application tables and migration history.
