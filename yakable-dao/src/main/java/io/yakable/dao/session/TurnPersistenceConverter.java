@@ -6,9 +6,9 @@ import io.yakable.domain.session.TurnInvocation;
 import io.yakable.domain.session.TurnStatus;
 import io.yakable.domain.session.TurnTokenUsage;
 
-final class TurnPersistenceMapper {
+final class TurnPersistenceConverter {
 
-    private TurnPersistenceMapper() {
+    private TurnPersistenceConverter() {
     }
 
     static TurnPO toPO(Turn turn) {
