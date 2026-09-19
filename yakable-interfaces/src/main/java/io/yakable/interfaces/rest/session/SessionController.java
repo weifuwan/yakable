@@ -1,5 +1,7 @@
 package io.yakable.interfaces.rest.session;
 
+import io.yakable.application.session.SessionChanges;
+import io.yakable.application.session.SessionMessagePage;
 import io.yakable.application.session.SessionQueryService;
 import io.yakable.application.session.SessionSnapshot;
 import io.yakable.application.session.SessionTurnService;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
@@ -42,6 +45,38 @@ public class SessionController {
     ) {
         return SessionSnapshotResponse.from(
                 queryService.getSnapshot(projectId, sessionId)
+        );
+    }
+
+    @GetMapping("/{sessionId}/changes")
+    public SessionChangesResponse getChanges(
+            @PathVariable String projectId,
+            @PathVariable String sessionId,
+            @RequestParam(defaultValue = "0") long afterSequence
+    ) {
+        return SessionChangesResponse.from(
+                queryService.getChanges(
+                        projectId,
+                        sessionId,
+                        afterSequence
+                )
+        );
+    }
+
+    @GetMapping("/{sessionId}/messages")
+    public MessagePageResponse getMessages(
+            @PathVariable String projectId,
+            @PathVariable String sessionId,
+            @RequestParam(required = false) Long beforeSequence,
+            @RequestParam(defaultValue = "50") int limit
+    ) {
+        return MessagePageResponse.from(
+                queryService.getMessagePage(
+                        projectId,
+                        sessionId,
+                        beforeSequence,
+                        limit
+                )
         );
     }
 
@@ -84,6 +119,44 @@ public class SessionController {
                     snapshot.messages().stream()
                             .map(MessageResponse::from)
                             .toList()
+            );
+        }
+    }
+
+    public record SessionChangesResponse(
+            TurnResponse latestTurn,
+            List<MessageResponse> messages,
+            long latestSequence
+    ) {
+
+        static SessionChangesResponse from(
+                SessionChanges changes
+        ) {
+            return new SessionChangesResponse(
+                    TurnResponse.from(changes.latestTurn()),
+                    changes.messages().stream()
+                            .map(MessageResponse::from)
+                            .toList(),
+                    changes.latestSequence()
+            );
+        }
+    }
+
+    public record MessagePageResponse(
+            List<MessageResponse> messages,
+            Long nextBeforeSequence,
+            boolean hasMore
+    ) {
+
+        static MessagePageResponse from(
+                SessionMessagePage page
+        ) {
+            return new MessagePageResponse(
+                    page.messages().stream()
+                            .map(MessageResponse::from)
+                            .toList(),
+                    page.nextBeforeSequence(),
+                    page.hasMore()
             );
         }
     }

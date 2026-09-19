@@ -339,8 +339,10 @@ class SessionFlowTest {
                     executionRepository
             );
             queryService = new SessionQueryService(
-                    sessionRepository,
-                    executionRepository
+                    new MemorySessionQueryRepository(
+                            sessionRepository,
+                            executionRepository
+                    )
             );
             turnExecutor = new TurnExecutor(
                     sessionRepository,
@@ -571,6 +573,149 @@ class SessionFlowTest {
                     sequence,
                     createdAt
             );
+        }
+    }
+
+    private static final class MemorySessionQueryRepository
+            implements SessionQueryRepository {
+
+        private final MemorySessionRepository sessionRepository;
+        private final MemoryExecutionRepository executionRepository;
+
+        private MemorySessionQueryRepository(
+                MemorySessionRepository sessionRepository,
+                MemoryExecutionRepository executionRepository
+        ) {
+            this.sessionRepository = sessionRepository;
+            this.executionRepository = executionRepository;
+        }
+
+        @Override
+        public Optional<SessionSnapshot> findSnapshot(
+                String projectId,
+                String sessionId
+        ) {
+            Optional<Session> session = ownedSession(
+                    projectId,
+                    sessionId
+            );
+            if (session.isEmpty()) {
+                return Optional.empty();
+            }
+
+            return Optional.of(new SessionSnapshot(
+                    session.get(),
+                    executionRepository.findTurnsBySessionId(sessionId),
+                    executionRepository.findMessagesBySessionId(sessionId)
+                            .stream()
+                            .sorted(
+                                    Comparator.comparingLong(
+                                            SessionMessage::sequence
+                                    )
+                            )
+                            .toList()
+            ));
+        }
+
+        @Override
+        public Optional<SessionChanges> findChanges(
+                String projectId,
+                String sessionId,
+                long afterSequence
+        ) {
+            if (ownedSession(projectId, sessionId).isEmpty()) {
+                return Optional.empty();
+            }
+
+            List<Turn> turns =
+                    executionRepository.findTurnsBySessionId(sessionId);
+            if (turns.isEmpty()) {
+                return Optional.empty();
+            }
+
+            List<SessionMessage> messages =
+                    executionRepository.findMessagesBySessionId(sessionId)
+                            .stream()
+                            .filter(message ->
+                                    message.sequence() > afterSequence
+                            )
+                            .sorted(
+                                    Comparator.comparingLong(
+                                            SessionMessage::sequence
+                                    )
+                            )
+                            .toList();
+
+            long latestSequence = messages.isEmpty()
+                    ? afterSequence
+                    : messages.get(messages.size() - 1).sequence();
+
+            return Optional.of(new SessionChanges(
+                    turns.get(turns.size() - 1),
+                    messages,
+                    latestSequence
+            ));
+        }
+
+        @Override
+        public Optional<SessionMessagePage> findMessagePage(
+                String projectId,
+                String sessionId,
+                Long beforeSequence,
+                int limit
+        ) {
+            if (ownedSession(projectId, sessionId).isEmpty()) {
+                return Optional.empty();
+            }
+
+            List<SessionMessage> descending =
+                    executionRepository.findMessagesBySessionId(sessionId)
+                            .stream()
+                            .filter(message ->
+                                    beforeSequence == null
+                                            || message.sequence()
+                                            < beforeSequence
+                            )
+                            .sorted(
+                                    Comparator.comparingLong(
+                                            SessionMessage::sequence
+                                    ).reversed()
+                            )
+                            .limit(limit + 1L)
+                            .toList();
+
+            boolean hasMore = descending.size() > limit;
+            List<SessionMessage> page = new ArrayList<>(
+                    hasMore
+                            ? descending.subList(0, limit)
+                            : descending
+            );
+            page.sort(
+                    Comparator.comparingLong(
+                            SessionMessage::sequence
+                    )
+            );
+
+            Long nextBeforeSequence =
+                    hasMore && !page.isEmpty()
+                            ? page.get(0).sequence()
+                            : null;
+
+            return Optional.of(new SessionMessagePage(
+                    page,
+                    nextBeforeSequence,
+                    hasMore
+            ));
+        }
+
+        private Optional<Session> ownedSession(
+                String projectId,
+                String sessionId
+        ) {
+            return sessionRepository.findById(sessionId)
+                    .filter(session ->
+                            session.projectId().equals(projectId)
+                    );
         }
     }
 

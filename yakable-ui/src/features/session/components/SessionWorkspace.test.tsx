@@ -20,7 +20,10 @@ const completedSnapshot = {
     {
       id: 'turn-1',
       status: 'SUCCEEDED',
+      attemptCount: 1,
       errorMessage: null,
+      startedAt: '2026-09-19T00:00:00Z',
+      finishedAt: '2026-09-19T00:00:01Z',
       createdAt: '2026-09-19T00:00:00Z',
       updatedAt: '2026-09-19T00:00:01Z',
     },
@@ -92,7 +95,10 @@ describe('SessionWorkspace', () => {
               turn: {
                 id: 'turn-2',
                 status: 'PENDING',
+                attemptCount: 0,
                 errorMessage: null,
+                startedAt: null,
+                finishedAt: null,
                 createdAt: '2026-09-19T00:00:02Z',
                 updatedAt: '2026-09-19T00:00:02Z',
               },

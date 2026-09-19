@@ -1,12 +1,10 @@
 package io.yakable.dao.session;
 
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import io.yakable.dao.session.mapper.SessionMapper;
 import io.yakable.dao.session.model.SessionPO;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Repository;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -34,14 +32,6 @@ public class MybatisSessionDao implements SessionDao {
     @Override
     public Optional<SessionPO> findById(String sessionId) {
         return Optional.ofNullable(mapper.selectById(sessionId));
-    }
-
-    @Override
-    public List<SessionPO> findByProjectId(String projectId) {
-        return mapper.selectList(
-                Wrappers.<SessionPO>lambdaQuery()
-                        .eq(SessionPO::getProjectId, projectId)
-        );
     }
 
     @Override

@@ -1,5 +1,7 @@
 import type {
+  SessionChanges,
   SessionMessage,
+  SessionMessagePage,
   SessionSnapshot,
   SessionTurn,
   TurnStartResult,
@@ -7,6 +9,10 @@ import type {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isNullableString(value: unknown) {
+  return value === null || typeof value === 'string';
 }
 
 function isSessionMessage(value: unknown): value is SessionMessage {
@@ -33,7 +39,10 @@ function isSessionTurn(value: unknown): value is SessionTurn {
       value.status === 'SUCCEEDED' ||
       value.status === 'FAILED'
     ) &&
-    (value.errorMessage === null || typeof value.errorMessage === 'string') &&
+    typeof value.attemptCount === 'number' &&
+    isNullableString(value.errorMessage) &&
+    isNullableString(value.startedAt) &&
+    isNullableString(value.finishedAt) &&
     typeof value.createdAt === 'string' &&
     typeof value.updatedAt === 'string'
   );
@@ -59,6 +68,29 @@ function isSessionSnapshot(value: unknown): value is SessionSnapshot {
     value.turns.every(isSessionTurn) &&
     Array.isArray(value.messages) &&
     value.messages.every(isSessionMessage)
+  );
+}
+
+function isSessionChanges(value: unknown): value is SessionChanges {
+  return (
+    isRecord(value) &&
+    isSessionTurn(value.latestTurn) &&
+    Array.isArray(value.messages) &&
+    value.messages.every(isSessionMessage) &&
+    typeof value.latestSequence === 'number'
+  );
+}
+
+function isSessionMessagePage(value: unknown): value is SessionMessagePage {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.messages) &&
+    value.messages.every(isSessionMessage) &&
+    (
+      value.nextBeforeSequence === null ||
+      typeof value.nextBeforeSequence === 'number'
+    ) &&
+    typeof value.hasMore === 'boolean'
   );
 }
 
@@ -118,6 +150,86 @@ export async function getSession(
 
   if (!isSessionSnapshot(data)) {
     throw new Error('Session API returned an invalid response.');
+  }
+
+  return data;
+}
+
+export async function getSessionChanges(
+  projectId: string,
+  sessionId: string,
+  afterSequence: number,
+  signal?: AbortSignal,
+): Promise<SessionChanges> {
+  const params = new URLSearchParams({
+    afterSequence: String(afterSequence),
+  });
+
+  const response = await fetch(
+    sessionPath(projectId, sessionId) + '/changes?' + params.toString(),
+    {
+      headers: {
+        Accept: 'application/json',
+      },
+      signal,
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      'Unable to refresh session (HTTP ' + response.status + ').',
+    );
+  }
+
+  const data = await readJson(
+    response,
+    'Session changes API returned invalid JSON.',
+  );
+
+  if (!isSessionChanges(data)) {
+    throw new Error('Session changes API returned an invalid response.');
+  }
+
+  return data;
+}
+
+export async function getSessionMessages(
+  projectId: string,
+  sessionId: string,
+  beforeSequence?: number,
+  limit = 50,
+  signal?: AbortSignal,
+): Promise<SessionMessagePage> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (beforeSequence !== undefined) {
+    params.set('beforeSequence', String(beforeSequence));
+  }
+
+  const response = await fetch(
+    sessionPath(projectId, sessionId) + '/messages?' + params.toString(),
+    {
+      headers: {
+        Accept: 'application/json',
+      },
+      signal,
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      'Unable to load session messages (HTTP ' + response.status + ').',
+    );
+  }
+
+  const data = await readJson(
+    response,
+    'Session messages API returned invalid JSON.',
+  );
+
+  if (!isSessionMessagePage(data)) {
+    throw new Error(
+      'Session messages API returned an invalid response.',
+    );
   }
 
   return data;

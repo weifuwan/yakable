@@ -5,7 +5,6 @@ import io.yakable.dao.project.model.ProjectPO;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Repository;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -33,10 +32,5 @@ public class MybatisProjectDao implements ProjectDao {
     @Override
     public Optional<ProjectPO> findById(String projectId) {
         return Optional.ofNullable(mapper.selectById(projectId));
-    }
-
-    @Override
-    public List<ProjectPO> findAll() {
-        return mapper.selectList(null);
     }
 }

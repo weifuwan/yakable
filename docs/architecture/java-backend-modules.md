@@ -381,3 +381,57 @@ boot            = composition
 ```
 
 This is the baseline for database-backed Sessions, SSE, Agent execution, and Frontend Taste Harness capabilities.
+
+
+## Read model boundary
+
+Command-side repositories remain business persistence ports:
+
+```text
+ProjectRepository
+SessionRepository
+SessionExecutionRepository
+```
+
+UI-oriented reads use Application query ports instead of assembling views through
+Domain repositories:
+
+```text
+ProjectOverviewQueryService
+  -> ProjectQueryRepository
+  -> ProjectQueryRepositoryAdapter
+  -> ProjectQueryDao
+  -> ProjectQueryMapper
+  -> paged SQL projection
+
+SessionQueryService
+  -> SessionQueryRepository
+  -> SessionQueryRepositoryAdapter
+  -> SessionQueryDao
+  -> dedicated read mappers
+```
+
+Rules:
+
+- do not add list-screen joins or pagination concerns to Domain Repository ports;
+- query adapters may return Application read models;
+- SQL owns ordering, latest-row selection, limits, and cursors;
+- Project list queries must not perform per-Project Session lookups;
+- active Session polling uses Message sequence cursors rather than reloading the
+  full conversation;
+- historical Message pagination uses `beforeSequence` so inserts at the tail do
+  not shift older pages.
+
+Current HTTP read contracts:
+
+```text
+GET /api/projects?current=1&pageSize=50
+GET /api/projects/{projectId}
+GET /api/projects/{projectId}/sessions/{sessionId}
+GET /api/projects/{projectId}/sessions/{sessionId}/changes?afterSequence=N
+GET /api/projects/{projectId}/sessions/{sessionId}/messages?beforeSequence=N&limit=50
+```
+
+The full Session snapshot remains the initial-load contract for now. Polling uses
+the incremental changes endpoint. A later UI change can move initial history
+loading to the Message page endpoint without changing the command model.

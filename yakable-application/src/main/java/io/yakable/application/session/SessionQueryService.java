@@ -1,75 +1,25 @@
 package io.yakable.application.session;
 
-import io.yakable.domain.session.Session;
-import io.yakable.domain.session.SessionMessage;
 import io.yakable.domain.session.SessionNotFoundException;
-import io.yakable.domain.session.Turn;
-import io.yakable.domain.session.repository.SessionExecutionRepository;
-import io.yakable.domain.session.repository.SessionRepository;
 
-import java.util.Comparator;
-import java.util.List;
 import java.util.Objects;
 
 public final class SessionQueryService {
 
-    private final SessionRepository sessionRepository;
-    private final SessionExecutionRepository executionRepository;
+    private static final int MAX_MESSAGE_PAGE_SIZE = 100;
+
+    private final SessionQueryRepository queryRepository;
 
     public SessionQueryService(
-            SessionRepository sessionRepository,
-            SessionExecutionRepository executionRepository
+            SessionQueryRepository queryRepository
     ) {
-        this.sessionRepository = Objects.requireNonNull(
-                sessionRepository,
-                "sessionRepository"
-        );
-        this.executionRepository = Objects.requireNonNull(
-                executionRepository,
-                "executionRepository"
+        this.queryRepository = Objects.requireNonNull(
+                queryRepository,
+                "queryRepository"
         );
     }
 
     public SessionSnapshot getSnapshot(
-            String projectId,
-            String sessionId
-    ) {
-        Session session = requireOwnedSession(
-                projectId,
-                sessionId
-        );
-
-        List<Turn> turns = executionRepository
-                .findTurnsBySessionId(session.id())
-                .stream()
-                .sorted(Comparator.comparing(Turn::createdAt))
-                .toList();
-
-        List<SessionMessage> messages = executionRepository
-                .findMessagesBySessionId(session.id())
-                .stream()
-                .sorted(Comparator.comparingLong(SessionMessage::sequence))
-                .toList();
-
-        return new SessionSnapshot(session, turns, messages);
-    }
-
-    public List<Session> listProjectSessions(String projectId) {
-        String normalizedProjectId =
-                requireText(projectId, "projectId");
-
-        return sessionRepository
-                .findByProjectId(normalizedProjectId)
-                .stream()
-                .sorted(
-                        Comparator.comparing(
-                                Session::updatedAt
-                        ).reversed()
-                )
-                .toList();
-    }
-
-    private Session requireOwnedSession(
             String projectId,
             String sessionId
     ) {
@@ -78,19 +28,73 @@ public final class SessionQueryService {
         String normalizedSessionId =
                 requireText(sessionId, "sessionId");
 
-        Session session = sessionRepository
-                .findById(normalizedSessionId)
+        return queryRepository.findSnapshot(
+                        normalizedProjectId,
+                        normalizedSessionId
+                )
                 .orElseThrow(() -> new SessionNotFoundException(
                         normalizedSessionId
                 ));
+    }
 
-        if (!session.projectId().equals(normalizedProjectId)) {
-            throw new SessionNotFoundException(
-                    normalizedSessionId
+    public SessionChanges getChanges(
+            String projectId,
+            String sessionId,
+            long afterSequence
+    ) {
+        if (afterSequence < 0) {
+            throw new IllegalArgumentException(
+                    "afterSequence must not be negative"
             );
         }
 
-        return session;
+        String normalizedProjectId =
+                requireText(projectId, "projectId");
+        String normalizedSessionId =
+                requireText(sessionId, "sessionId");
+
+        return queryRepository.findChanges(
+                        normalizedProjectId,
+                        normalizedSessionId,
+                        afterSequence
+                )
+                .orElseThrow(() -> new SessionNotFoundException(
+                        normalizedSessionId
+                ));
+    }
+
+    public SessionMessagePage getMessagePage(
+            String projectId,
+            String sessionId,
+            Long beforeSequence,
+            int limit
+    ) {
+        if (beforeSequence != null && beforeSequence <= 0) {
+            throw new IllegalArgumentException(
+                    "beforeSequence must be positive"
+            );
+        }
+        if (limit <= 0 || limit > MAX_MESSAGE_PAGE_SIZE) {
+            throw new IllegalArgumentException(
+                    "limit must be between 1 and "
+                            + MAX_MESSAGE_PAGE_SIZE
+            );
+        }
+
+        String normalizedProjectId =
+                requireText(projectId, "projectId");
+        String normalizedSessionId =
+                requireText(sessionId, "sessionId");
+
+        return queryRepository.findMessagePage(
+                        normalizedProjectId,
+                        normalizedSessionId,
+                        beforeSequence,
+                        limit
+                )
+                .orElseThrow(() -> new SessionNotFoundException(
+                        normalizedSessionId
+                ));
     }
 
     private static String requireText(

@@ -33,10 +33,23 @@ class ProjectControllerTest {
     private TurnDispatcher turnDispatcher;
 
     @Test
-    void listsProjects() throws Exception {
-        mockMvc.perform(get("/api/projects"))
+    void listsProjectsAsAPage() throws Exception {
+        mockMvc.perform(get("/api/projects")
+                        .queryParam("current", "1")
+                        .queryParam("pageSize", "20"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$").isArray());
+                .andExpect(jsonPath("$.records").isArray())
+                .andExpect(jsonPath("$.total").isNumber())
+                .andExpect(jsonPath("$.pages").isNumber())
+                .andExpect(jsonPath("$.current").value(1))
+                .andExpect(jsonPath("$.pageSize").value(20));
+    }
+
+    @Test
+    void rejectsInvalidProjectPageSize() throws Exception {
+        mockMvc.perform(get("/api/projects")
+                        .queryParam("pageSize", "101"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

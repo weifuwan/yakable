@@ -7,7 +7,6 @@ import io.yakable.domain.session.repository.SessionRepository;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -34,14 +33,6 @@ public class SessionRepositoryAdapter
         return dao.findById(sessionId).map(
                 SessionRepositoryAdapter::toDomain
         );
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<Session> findByProjectId(String projectId) {
-        return dao.findByProjectId(projectId).stream()
-                .map(SessionRepositoryAdapter::toDomain)
-                .toList();
     }
 
     private static SessionPO toPO(Session session) {

@@ -1,20 +1,22 @@
 import type {
   CreateProjectInput,
   ProjectDetails,
+  ProjectPage,
   ProjectSummary,
 } from '../types';
 
-function isProjectSummary(value: unknown): value is ProjectSummary {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    return false;
-  }
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
-  const project = value as Record<string, unknown>;
+function isProjectSummary(value: unknown): value is ProjectSummary {
+  if (!isRecord(value)) return false;
+
   return (
-    typeof project.id === 'string' &&
-    typeof project.name === 'string' &&
-    typeof project.latestSessionId === 'string' &&
-    typeof project.updatedAt === 'string'
+    typeof value.id === 'string' &&
+    typeof value.name === 'string' &&
+    typeof value.latestSessionId === 'string' &&
+    typeof value.updatedAt === 'string'
   );
 }
 
@@ -28,6 +30,19 @@ function isProjectDetails(value: unknown): value is ProjectDetails {
   );
 }
 
+function isProjectPage(value: unknown): value is ProjectPage {
+  if (!isRecord(value)) return false;
+
+  return (
+    Array.isArray(value.records) &&
+    value.records.every(isProjectSummary) &&
+    typeof value.total === 'number' &&
+    typeof value.pages === 'number' &&
+    typeof value.current === 'number' &&
+    typeof value.pageSize === 'number'
+  );
+}
+
 async function readJson(response: Response, errorMessage: string) {
   try {
     return await response.json() as unknown;
@@ -37,12 +52,19 @@ async function readJson(response: Response, errorMessage: string) {
 }
 
 export async function getProjects(
+  current = 1,
+  pageSize = 50,
   signal?: AbortSignal,
-): Promise<ProjectSummary[]> {
+): Promise<ProjectPage> {
   let response: Response;
 
+  const params = new URLSearchParams({
+    current: String(current),
+    pageSize: String(pageSize),
+  });
+
   try {
-    response = await fetch('/api/projects', {
+    response = await fetch('/api/projects?' + params.toString(), {
       headers: {
         Accept: 'application/json',
       },
@@ -59,7 +81,7 @@ export async function getProjects(
 
   const data = await readJson(response, 'Project API returned invalid JSON.');
 
-  if (!Array.isArray(data) || !data.every(isProjectSummary)) {
+  if (!isProjectPage(data)) {
     throw new Error('Project API returned an invalid response.');
   }
 

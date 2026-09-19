@@ -6,6 +6,7 @@ import io.yakable.application.project.ProjectOverviewQueryService;
 import io.yakable.application.project.ProjectStartResult;
 import io.yakable.application.project.ProjectSummary;
 import io.yakable.application.project.StartProjectCommand;
+import io.yakable.application.query.PageResult;
 import io.yakable.domain.project.ProjectStatus;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -40,10 +42,13 @@ public class ProjectController {
     }
 
     @GetMapping
-    public List<ProjectSummaryResponse> listProjects() {
-        return queryService.listProjects().stream()
-                .map(ProjectSummaryResponse::from)
-                .toList();
+    public ProjectPageResponse listProjects(
+            @RequestParam(defaultValue = "1") int current,
+            @RequestParam(defaultValue = "50") int pageSize
+    ) {
+        return ProjectPageResponse.from(
+                queryService.listProjects(current, pageSize)
+        );
     }
 
     @GetMapping("/{projectId}")
@@ -86,6 +91,29 @@ public class ProjectController {
             @NotBlank String provider,
             @NotBlank String model
     ) {
+    }
+
+    public record ProjectPageResponse(
+            List<ProjectSummaryResponse> records,
+            long total,
+            long pages,
+            int current,
+            int pageSize
+    ) {
+
+        static ProjectPageResponse from(
+                PageResult<ProjectSummary> page
+        ) {
+            return new ProjectPageResponse(
+                    page.records().stream()
+                            .map(ProjectSummaryResponse::from)
+                            .toList(),
+                    page.total(),
+                    page.pages(),
+                    page.current(),
+                    page.pageSize()
+            );
+        }
     }
 
     public record ProjectSummaryResponse(
