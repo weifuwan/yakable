@@ -13,16 +13,20 @@
     <artifactId>yakable-service</artifactId>
 
     <name>Yakable Service</name>
-    <description>Yakable business services and runtime support</description>
+    <description>Yakable business services</description>
 
     <dependencies>
         <dependency>
             <groupId>io.yakable</groupId>
-            <artifactId>yakable-common</artifactId>
+            <artifactId>yakable-dao</artifactId>
         </dependency>
         <dependency>
             <groupId>io.yakable</groupId>
             <artifactId>yakable-plugin-model-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-tx</artifactId>
         </dependency>
     </dependencies>
 </project>

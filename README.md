@@ -2,21 +2,19 @@
 
 Yakable is a frontend-domain Harness for building and editing frontend applications with stronger engineering boundaries and less model guesswork.
 
-The backend is being rebuilt in Java. The previous TypeScript backend has been removed instead of being maintained as a compatibility layer.
-
 ## Repository structure
 
 ```text
 yakable/
-├── yakable-bom/             # Java dependency alignment
-├── yakable-common/          # Business-agnostic shared types and utilities
-├── yakable-service/         # Project / Session business services
-├── yakable-dao/             # MyBatis-Plus persistence + Flyway migrations
-├── yakable-plugins/         # AutoService + ServiceLoader implementations
-├── yakable-boot/            # Spring Boot composition root
-├── yakable-ui/              # React + TypeScript browser application
-├── templates/               # Frontend project templates and capability assets
-└── docs/                    # Architecture documentation
+├── yakable-boot/            # Controller + Spring Boot
+├── yakable-service/         # Project / Session business logic
+├── yakable-dao/             # Repository + Mapper + Entity + Flyway
+├── yakable-plugins/         # Model provider plugins
+├── yakable-common/          # Shared code
+├── yakable-bom/             # Dependency alignment
+├── yakable-ui/              # React frontend
+├── templates/               # Generated frontend foundation
+└── docs/
 ```
 
 ## Backend
@@ -25,30 +23,12 @@ Requirements:
 
 - Java 21
 - MySQL 8+
-- Maven Wrapper is included
+- Maven Wrapper
 
 Build:
 
 ```bash
 ./mvnw package
-```
-
-Create an empty MySQL database named `yakable` (or point Yakable at another database). Flyway owns the application tables and migration history.
-
-Runtime database configuration:
-
-```text
-YAKABLE_DB_URL
-YAKABLE_DB_USERNAME
-YAKABLE_DB_PASSWORD
-```
-
-Defaults:
-
-```text
-YAKABLE_DB_URL=jdbc:mysql://127.0.0.1:3306/yakable?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
-YAKABLE_DB_USERNAME=root
-YAKABLE_DB_PASSWORD=
 ```
 
 Run:
@@ -61,50 +41,52 @@ export DEEPSEEK_API_KEY=your-api-key
 ./mvnw -pl yakable-boot -am spring-boot:run
 ```
 
-The first built-in model plugin is DeepSeek. Plugins are registered with AutoService and discovered at runtime through Java ServiceLoader. Model configuration:
+Runtime database configuration:
 
 ```text
-DEEPSEEK_API_KEY       required for LLM calls
-DEEPSEEK_BASE_URL      optional, defaults to https://api.deepseek.com
+YAKABLE_DB_URL
+YAKABLE_DB_USERNAME
+YAKABLE_DB_PASSWORD
 ```
 
-## Backend dependency direction
+Model configuration:
+
+```text
+DEEPSEEK_API_KEY
+DEEPSEEK_BASE_URL
+```
+
+## Backend structure
+
+```text
+Controller
+    ↓
+Service
+    ↓
+Repository
+    ↓
+Mapper
+    ↓
+Entity
+```
+
+Module dependency:
 
 ```text
 yakable-boot
-  ├── yakable-service
-  ├── yakable-dao
-  └── yakable-plugin-model-*
-
-yakable-dao
-  └── yakable-service
-
+    ↓
 yakable-service
-  ├── yakable-common
-  └── model plugin API
+    ↓
+yakable-dao
 ```
 
-The persistence corridor is:
+Model providers remain independent plugins discovered through AutoService / ServiceLoader.
+
+Flyway migrations live in:
 
 ```text
-Repository
-  -> RepositoryImpl
-  -> MyBatis-Plus Mapper
-  -> Entity
-  -> MySQL
+yakable-dao/src/main/resources/db/migration/yakable
 ```
-
-Flyway migrations live in `yakable-dao/src/main/resources/db/migration/yakable`.
-
-The interaction domain is explicitly separated:
-
-```text
-Project -> Session -> Turn -> Message
-```
-
-Project is the long-lived workspace, Session owns conversation/model context, Turn owns execution lifecycle, and Message is the ordered conversational record. See `docs/architecture/session-domain.md`.
-
-`yakable-bom` manages dependency versions and is not part of the runtime dependency chain.
 
 ## Frontend
 
@@ -116,8 +98,6 @@ npm run dev
 
 The frontend development server proxies `/api` to Spring Boot on port `8080`.
 
-## Current baseline
+## Current principle
 
-Yakable now has explicit Domain, Application, Persistence, Infrastructure, Interface, and Boot boundaries. New backend capabilities should extend those boundaries rather than bypass them.
-
-Browser-only behavior remains in `yakable-ui`; backend orchestration and Harness capabilities belong in Java.
+**先保持简单，复杂度真实出现以后再拆。**

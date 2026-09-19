@@ -1,29 +1,15 @@
 package io.yakable.boot.controller.project;
 
-import io.yakable.application.project.ProjectDetails;
-import io.yakable.application.project.ProjectStartResult;
-import io.yakable.application.project.ProjectSummary;
 import io.yakable.service.project.ProjectService;
-import io.yakable.application.project.StartProjectCommand;
-import io.yakable.application.query.PageResult;
-import io.yakable.domain.project.ProjectStatus;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.net.URI;
-import java.time.Instant;
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/projects")
@@ -36,21 +22,18 @@ public class ProjectController {
     }
 
     @GetMapping
-    public ProjectPageResponse listProjects(
+    public ProjectService.ProjectPage listProjects(
             @RequestParam(defaultValue = "1") int current,
             @RequestParam(defaultValue = "50") int pageSize
     ) {
-        return ProjectPageResponse.from(
-                projectService.listProjects(current, pageSize)
-        );
+        return projectService.listProjects(current, pageSize);
     }
 
     @GetMapping("/{projectId}")
-    public ProjectDetailsResponse getProject(
+    public ProjectService.ProjectDetails getProject(
             @PathVariable String projectId
     ) {
         return projectService.getProject(projectId)
-                .map(ProjectDetailsResponse::from)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "Project not found"
@@ -58,21 +41,21 @@ public class ProjectController {
     }
 
     @PostMapping
-    public ResponseEntity<ProjectDetailsResponse> createProject(
+    public ResponseEntity<ProjectService.ProjectDetails> createProject(
             @Valid @RequestBody CreateProjectRequest request
     ) {
-        ProjectStartResult result =
-                projectService.startProject(new StartProjectCommand(
+        ProjectService.ProjectDetails project =
+                projectService.createProject(
                         request.prompt(),
                         request.model().provider(),
                         request.model().model()
-                ));
+                );
 
         return ResponseEntity
                 .created(URI.create(
-                        "/api/projects/" + result.project().id()
+                        "/api/projects/" + project.id()
                 ))
-                .body(ProjectDetailsResponse.from(result));
+                .body(project);
     }
 
     public record CreateProjectRequest(
@@ -85,83 +68,5 @@ public class ProjectController {
             @NotBlank String provider,
             @NotBlank String model
     ) {
-    }
-
-    public record ProjectPageResponse(
-            List<ProjectSummaryResponse> records,
-            long total,
-            long pages,
-            int current,
-            int pageSize
-    ) {
-
-        static ProjectPageResponse from(
-                PageResult<ProjectSummary> page
-        ) {
-            return new ProjectPageResponse(
-                    page.records().stream()
-                            .map(ProjectSummaryResponse::from)
-                            .toList(),
-                    page.total(),
-                    page.pages(),
-                    page.current(),
-                    page.pageSize()
-            );
-        }
-    }
-
-    public record ProjectSummaryResponse(
-            String id,
-            String name,
-            String latestSessionId,
-            Instant updatedAt
-    ) {
-
-        static ProjectSummaryResponse from(
-                ProjectSummary project
-        ) {
-            return new ProjectSummaryResponse(
-                    project.id(),
-                    project.name(),
-                    project.latestSessionId(),
-                    project.updatedAt()
-            );
-        }
-    }
-
-    public record ProjectDetailsResponse(
-            String id,
-            String name,
-            String latestSessionId,
-            ProjectStatus status,
-            Instant createdAt,
-            Instant updatedAt
-    ) {
-
-        static ProjectDetailsResponse from(
-                ProjectDetails project
-        ) {
-            return new ProjectDetailsResponse(
-                    project.id(),
-                    project.name(),
-                    project.latestSessionId(),
-                    project.status(),
-                    project.createdAt(),
-                    project.updatedAt()
-            );
-        }
-
-        static ProjectDetailsResponse from(
-                ProjectStartResult result
-        ) {
-            return new ProjectDetailsResponse(
-                    result.project().id(),
-                    result.project().name(),
-                    result.session().id(),
-                    result.project().status(),
-                    result.project().createdAt(),
-                    result.session().updatedAt()
-            );
-        }
     }
 }

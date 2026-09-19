@@ -1,12 +1,16 @@
-package io.yakable.dao.session.model;
+package io.yakable.dao.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.time.Instant;
 
+@Getter
+@Setter
 @TableName("yak_message")
 public class MessageEntity {
 
@@ -19,10 +23,7 @@ public class MessageEntity {
     @TableField("turn_id")
     private String turnId;
 
-    @TableField("role")
     private String role;
-
-    @TableField("content")
     private String content;
 
     @TableField("message_sequence")
@@ -30,60 +31,4 @@ public class MessageEntity {
 
     @TableField("created_at")
     private Instant createdAt;
-
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    public String getSessionId() {
-        return sessionId;
-    }
-
-    public void setSessionId(String sessionId) {
-        this.sessionId = sessionId;
-    }
-
-    public String getTurnId() {
-        return turnId;
-    }
-
-    public void setTurnId(String turnId) {
-        this.turnId = turnId;
-    }
-
-    public String getRole() {
-        return role;
-    }
-
-    public void setRole(String role) {
-        this.role = role;
-    }
-
-    public String getContent() {
-        return content;
-    }
-
-    public void setContent(String content) {
-        this.content = content;
-    }
-
-    public Long getMessageSequence() {
-        return messageSequence;
-    }
-
-    public void setMessageSequence(Long messageSequence) {
-        this.messageSequence = messageSequence;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(Instant createdAt) {
-        this.createdAt = createdAt;
-    }
 }

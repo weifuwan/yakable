@@ -1,12 +1,10 @@
 package io.yakable.boot.configuration;
 
-import io.yakable.application.async.TurnDispatcher;
-import io.yakable.application.session.TurnExecutionRecoveryService;
-import io.yakable.application.session.TurnExecutor;
 import io.yakable.boot.configuration.properties.TurnExecutionProperties;
-import io.yakable.domain.session.repository.SessionExecutionRepository;
-import io.yakable.infrastructure.async.TurnRecoveryWorker;
-import io.yakable.infrastructure.async.VirtualThreadTurnDispatcher;
+import io.yakable.dao.repository.SessionRepository;
+import io.yakable.service.turn.TurnDispatcher;
+import io.yakable.service.turn.TurnExecutor;
+import io.yakable.service.turn.TurnRecoveryWorker;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -29,23 +27,9 @@ public class AsyncConfiguration {
             ExecutorService sessionTurnExecutor,
             TurnExecutor turnExecutor
     ) {
-        return new VirtualThreadTurnDispatcher(
+        return new TurnDispatcher(
                 sessionTurnExecutor,
                 turnExecutor
-        );
-    }
-
-    @Bean
-    TurnExecutionRecoveryService turnExecutionRecoveryService(
-            SessionExecutionRepository executionRepository,
-            TurnDispatcher turnDispatcher,
-            TurnExecutionProperties properties
-    ) {
-        return new TurnExecutionRecoveryService(
-                executionRepository,
-                turnDispatcher,
-                properties.runningTimeout(),
-                properties.recoveryBatchSize()
         );
     }
 
@@ -57,13 +41,17 @@ public class AsyncConfiguration {
     @Bean(initMethod = "start", destroyMethod = "close")
     TurnRecoveryWorker turnRecoveryWorker(
             ScheduledExecutorService turnRecoveryScheduler,
-            TurnExecutionRecoveryService recoveryService,
+            SessionRepository sessionRepository,
+            TurnDispatcher turnDispatcher,
             TurnExecutionProperties properties
     ) {
         return new TurnRecoveryWorker(
                 turnRecoveryScheduler,
-                recoveryService,
+                sessionRepository,
+                turnDispatcher,
                 properties.recoveryInterval(),
+                properties.runningTimeout(),
+                properties.recoveryBatchSize(),
                 properties.recoveryEnabled()
         );
     }
