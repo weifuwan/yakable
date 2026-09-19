@@ -31,10 +31,10 @@ public interface ProjectQueryMapper {
                         ROW_NUMBER() OVER (
                             PARTITION BY project_id
                             ORDER BY updated_at DESC, id DESC
-                        ) AS row_number
+                        ) AS rn
                     FROM yak_session
                 ) ranked_session
-                WHERE row_number = 1
+                WHERE rn = 1
             ) s ON s.project_id = p.id
             ORDER BY updated_at DESC, p.id DESC
             LIMIT #{limit}
@@ -79,11 +79,11 @@ public interface ProjectQueryMapper {
                         ROW_NUMBER() OVER (
                             PARTITION BY project_id
                             ORDER BY updated_at DESC, id DESC
-                        ) AS row_number
+                        ) AS rn
                     FROM yak_session
                     WHERE project_id = #{projectId}
                 ) ranked_session
-                WHERE row_number = 1
+                WHERE rn = 1
             ) s ON s.project_id = p.id
             WHERE p.id = #{projectId}
             """)

@@ -22,9 +22,10 @@ function isProjectSummary(value: unknown): value is ProjectSummary {
 function isProjectDetails(value: unknown): value is ProjectDetails {
   if (!isProjectSummary(value)) return false;
 
+  const project = value as unknown as Record<string, unknown>;
   return (
-    value.status === 'CREATED' &&
-    typeof value.createdAt === 'string'
+    project.status === 'CREATED' &&
+    typeof project.createdAt === 'string'
   );
 }
 
