@@ -1,117 +1,47 @@
-# yakable-dao
+# yakable-dao 开发规范
 
-yakable-dao is Yakable's persistence implementation module.
+`yakable-dao` 只负责数据库持久化。
 
-The module keeps one persistence path only:
+固定调用链：
 
-~~~text
-Domain/Application Repository interface
-                |
-                v
-        RepositoryImpl
-                |
-                v
-              Mapper
-                |
-                v
-              Entity
-~~~
+```text
+Repository
+    ↓
+RepositoryImpl
+    ↓
+Mapper
+    ↓
+Entity
+```
 
-## Package structure
+## 规范
 
-~~~text
-io.yakable.dao
-├── config
-├── entity
-│   ├── ProjectEntity
-│   ├── SessionEntity
-│   ├── TurnEntity
-│   └── MessageEntity
-├── mapper
-│   ├── ProjectMapper
-│   ├── SessionMapper
-│   ├── TurnMapper
-│   └── MessageMapper
-├── repository
-│   └── impl
-│       ├── ProjectRepositoryImpl
-│       ├── ProjectQueryRepositoryImpl
-│       ├── SessionRepositoryImpl
-│       ├── SessionExecutionRepositoryImpl
-│       └── SessionQueryRepositoryImpl
-├── transaction
-└── config
-~~~
+1. 数据库实体统一放在 `entity` 包，类名统一以 `Entity` 结尾，并使用 Lombok，禁止使用 `PO`、`DO` 等命名。
 
-## Entity
+2. 一张物理表只对应一个 Mapper，Mapper 统一放在 `mapper` 包，并继承 MyBatis-Plus `BaseMapper<Entity>`。
 
-Database persistence objects use the Entity suffix and live only in
-io.yakable.dao.entity.
+3. Lambda 能解决的，不写 XML；Lambda 开始复杂、难读、难维护时，使用 `Mapper + XML`。
 
-Entity classes may contain MyBatis-Plus mapping annotations. Persistence
-entities must not leak into Domain, Application or HTTP code.
+4. 禁止在 Mapper 中使用大段 `@Select`、`@Update` 等注解 SQL，复杂 SQL 统一放 XML。
 
-Do not introduce PO/DO naming alongside Entity.
+5. Repository 是 `yakable-dao` 唯一对外的数据访问入口，具体实现统一放在 `repository.impl`。
 
-## Mapper
+6. RepositoryImpl 直接调用 Mapper，不再增加 `Dao`、`DaoImpl`、`Adapter` 等中间层。
 
-One physical table owns one Mapper:
+7. Repository 接口归 Domain 或 Application 所有，`yakable-dao` 只负责实现，不在 DAO 模块重复定义 Repository 接口。
 
-- ProjectMapper -> yak_project
-- SessionMapper -> yak_session
-- TurnMapper -> yak_turn
-- MessageMapper -> yak_message
+8. 多张表属于同一个持久化业务操作时，由 RepositoryImpl 直接协调多个 Mapper，不为了拆分而增加新的 DAO 层。
 
-Each Mapper extends BaseMapper<Entity>.
+9. Entity、Mapper、MyBatis-Plus 类型禁止泄漏到 Domain、Application 和 HTTP 层。
 
-Simple single-table CRUD, filters, ordering, cursors and conditional updates
-use MyBatis-Plus lambda wrappers from RepositoryImpl.
+10. 数据库结构变更统一使用 Flyway 管理，禁止通过业务代码隐式修改数据库结构。
 
-Complex SQL, joins, aggregates and dedicated read queries are declared on the
-relevant Mapper and implemented in XML.
+11. 新增持久化代码时优先保持现有结构，不新增 `QueryMapper`、`RepositoryAdapter`、`MybatisXxxRepository` 等重复角色。
 
-Large Select/Update annotations are not used.
+## 核心原则
 
-## Repository
+**Entity 对应表，Mapper 对应表，Repository 对应持久化能力。**
 
-Repository is the only persistence entry point used outside yakable-dao.
+**Lambda 能解决的，不写 XML；Lambda 开始难看了，就 Mapper + XML。**
 
-Repository contracts remain owned by Domain/Application. yakable-dao provides
-their implementation under io.yakable.dao.repository.impl.
-
-RepositoryImpl is responsible for:
-
-- translating Domain/Application objects to and from Entity;
-- transaction boundaries;
-- coordinating multiple table Mappers when one persistence operation spans
-  several tables;
-- using lambda wrappers for single-table operations;
-- calling Mapper XML methods for complex queries.
-
-There is no second Dao layer between RepositoryImpl and Mapper.
-
-## Rules
-
-Use this decision table when adding persistence code:
-
-| Need | Location |
-| --- | --- |
-| Table mapping | entity |
-| Basic table access | mapper BaseMapper |
-| Single-table condition/query/update | repository/impl + lambda wrapper |
-| Multi-table query / aggregate / complex SQL | mapper method + XML |
-| Domain/Application conversion | repository/impl |
-| Transaction boundary | repository/impl |
-| Schema migration | Flyway |
-
-Do not add:
-
-- XxxDao / XxxDaoImpl;
-- XxxRepositoryAdapter;
-- XxxQueryMapper for the same physical table;
-- MybatisXxxRepository naming;
-- PO/DO classes alongside Entity;
-- persistence types to Domain/Application/HTTP APIs.
-
-When a new table is added, the default is one Entity + one Mapper. Add or
-extend a RepositoryImpl only when upper layers need that persistence behavior.
+**能少一层，就不要多一层。**
