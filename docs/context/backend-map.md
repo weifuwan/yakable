@@ -16,6 +16,14 @@ plugins = provider implementations
 
 For architecture rules, read `docs/architecture/java-backend-modules.md`.
 
+## Module context anchors
+
+Every Maven module in the backend reactor has a short `MODULE.md`.
+
+After this map identifies the relevant module, read that module's `MODULE.md` before scanning implementation files. It defines what the module owns, what it must not own, its dependency boundary, and when it belongs in task context.
+
+Model-provider submodules have their own anchors, so a provider-specific task should load only the relevant plugin module rather than the whole plugin tree.
+
 ## Project domain
 
 ### Business model
