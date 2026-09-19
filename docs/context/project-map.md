@@ -22,14 +22,12 @@ Do not scan the whole repository by default.
 
 | Path | Responsibility | Start here when |
 | --- | --- | --- |
-| `yakable-api/` | Business concepts, invariants, repository contracts | Changing Project / Session / Turn / Message semantics |
-| `yakable-api/` | Use cases, orchestration, model execution, application ports | Changing workflows or cross-domain coordination |
-| `yakable-dao/` | MyBatis-Plus persistence, repository adapters, Flyway | Changing database reads/writes or schema |
-| `yakable-api/` | REST transport boundary | Changing HTTP request/response contracts |
-| `yakable-api/` | Non-database outbound adapters | Model runtime, async execution, future workspace/shell/git adapters |
+| `yakable-boot/` | Controller、启动、配置 | HTTP 接口和运行时装配 |
+| `yakable-service/` | Project / Session 业务逻辑 | 后端业务流程 |
+| `yakable-dao/` | MyBatis-Plus persistence, Repository, Flyway | 数据库读写和 Schema |
 | `yakable-boot/` | Spring Boot composition and configuration | Wiring beans or runtime properties |
 | `yakable-common/` | Business-agnostic shared primitives only | Truly generic shared code |
-| `yakable-api/` | Stable extension contracts broader than one use case | Adding cross-module extension contracts |
+| `yakable-service/` | Stable extension contracts broader than one use case | Adding cross-module extension contracts |
 | `yakable-plugins/` | Pluggable provider implementations | Adding or changing LLM providers |
 | `yakable-ui/` | Yakable product frontend | Dashboard, Project, Session UI work |
 | `templates/` | Yakable-owned generated frontend foundation | Frontend Harness templates, component packs, ownership rules |
@@ -135,9 +133,9 @@ Read:
 
 ```text
 docs/context/backend-map.md
-yakable-api/.../project/ProjectBootstrapService.java
-yakable-api/.../project/
-yakable-api/.../project/repository/ProjectRepository.java
+yakable-service/.../project/ProjectBootstrapService.java
+yakable-service/.../project/
+yakable-service/.../project/repository/ProjectRepository.java
 ```
 
 Expand into `yakable-dao/.../project/` only when persistence behavior matters.
@@ -149,8 +147,8 @@ Read:
 ```text
 docs/architecture/session-domain.md
 docs/context/backend-map.md
-yakable-api/.../session/
-yakable-api/.../session/
+yakable-service/.../session/
+yakable-service/.../session/
 ```
 
 Expand into DAO or async infrastructure only when the task requires it.
@@ -161,8 +159,8 @@ Read:
 
 ```text
 docs/context/backend-map.md
-yakable-api/.../model/
-yakable-api/.../model/
+yakable-service/.../model/
+yakable-service/.../model/
 yakable-plugins/yakable-plugin-model/
 ```
 
@@ -182,7 +180,7 @@ Do not modify an already-applied Flyway migration.
 Read:
 
 ```text
-yakable-api/src/main/java/io/yakable/interfaces/rest/
+yakable-service/src/main/java/io/yakable/interfaces/rest/
 ```
 
 Then follow the called Application use case instead of jumping directly to DAO.
