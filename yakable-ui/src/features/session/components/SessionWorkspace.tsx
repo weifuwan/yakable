@@ -482,7 +482,7 @@ export function SessionWorkspace({
         )}
       </div>
 
-      <div className="shrink-0 border-t border-black/[0.06] bg-white px-6 py-4">
+      <div className="shrink-0 bg-white px-6 py-4">
         <div className="mx-auto w-full max-w-3xl">
           <PromptComposer
             ariaLabel="Send a message"
