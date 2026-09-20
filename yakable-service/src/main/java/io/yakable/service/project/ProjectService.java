@@ -12,6 +12,7 @@ import io.yakable.service.session.SessionService;
 import io.yakable.service.turn.TurnDispatcher;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.lang3.StringUtils;
@@ -53,7 +54,7 @@ public class ProjectService {
      * @param dto 新增 Project 入参
      * @return Project 详情
      */
-    public ProjectDetails addProject(@Valid AddProjectDTO dto) {
+    public ProjectDetails addProject(@NotNull @Valid AddProjectDTO dto) {
         String prompt = StringUtils.strip(dto.prompt());
         String provider = StringUtils.strip(dto.model().provider());
         String model = StringUtils.strip(dto.model().model());
@@ -101,7 +102,7 @@ public class ProjectService {
      * @return Project 分页数据
      */
     public PageData<ProjectSummary> queryProject(
-            @Valid QueryProjectPageDTO dto
+            @NotNull @Valid QueryProjectPageDTO dto
     ) {
         long total = projectRepository.countProjectsWithSession();
         long offset = (long) (dto.current() - 1) * dto.pageSize();
@@ -127,7 +128,7 @@ public class ProjectService {
      * @return Project 详情
      */
     public Optional<ProjectDetails> queryProject(
-            @Valid QueryProjectDTO dto
+            @NotNull @Valid QueryProjectDTO dto
     ) {
         return projectRepository.findProjectDetails(
                         StringUtils.strip(dto.projectId())
