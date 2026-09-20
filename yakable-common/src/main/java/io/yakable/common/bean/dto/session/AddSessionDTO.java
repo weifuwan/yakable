@@ -1,14 +1,16 @@
 package io.yakable.common.bean.dto.session;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 
 /**
  * 新增 Session 入参。
  */
+@Schema(description = "新增 Session 参数")
 public record AddSessionDTO(
-        @NotBlank String projectId,
-        @NotBlank String title,
-        @NotBlank String provider,
-        @NotBlank String model,
-        @NotBlank String content) {
+        @Schema(description = "Project ID") @NotBlank String projectId,
+        @Schema(description = "Session 标题") @NotBlank String title,
+        @Schema(description = "模型提供商", example = "deepseek") @NotBlank String provider,
+        @Schema(description = "模型名称", example = "deepseek-chat") @NotBlank String model,
+        @Schema(description = "用户输入内容") @NotBlank String content) {
 }
