@@ -38,6 +38,29 @@ function UpsertProjectButton() {
 }
 
 describe('RecentProjects', () => {
+  it('shows skeleton rows while recent projects are loading', () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockReturnValue(new Promise<Response>(() => undefined)),
+    );
+
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <ProjectsProvider>
+          <RecentProjects />
+        </ProjectsProvider>
+      </MemoryRouter>,
+    );
+
+    const skeleton = screen.getByTestId('recent-projects-skeleton');
+
+    expect(screen.getByRole('status').textContent).toContain(
+      'Loading recent projects',
+    );
+    expect(skeleton.children).toHaveLength(5);
+    expect(screen.queryByText('Loading...')).toBeNull();
+  });
+
   it('shows the five most recently updated projects and marks the project route active', async () => {
     const projects = Array.from({ length: 6 }, (_, index) => ({
       id: `project-${index + 1}`,
