@@ -19,9 +19,7 @@ import io.yakable.common.bean.vo.TurnVO;
 import io.yakable.common.enums.MessageRoleEnum;
 import io.yakable.common.enums.SessionStatusEnum;
 import io.yakable.common.enums.TurnStatusEnum;
-import io.yakable.common.exception.SessionBusyException;
-import io.yakable.common.exception.SessionInactiveException;
-import io.yakable.common.exception.SessionNotFoundException;
+import io.yakable.common.exception.SessionException;
 import io.yakable.common.utils.ConverUtils;
 import io.yakable.dao.entity.MessageEntity;
 import io.yakable.dao.entity.SessionEntity;
@@ -98,7 +96,7 @@ public class SessionService {
         TurnStartVO result = transactionTemplate.execute(status -> {
             SessionEntity session = queryOwnedSession(projectId, sessionId);
             if (session.getStatus() != SessionStatusEnum.ACTIVE) {
-                throw new SessionInactiveException(sessionId);
+                throw new SessionException(SessionErrorCode.INACTIVE);
             }
             return addPendingTurn(session, content);
         });
@@ -137,7 +135,7 @@ public class SessionService {
         queryOwnedSession(projectId, sessionId);
 
         TurnEntity latest = sessionRepository.findLatestTurn(sessionId)
-                .orElseThrow(() -> new SessionNotFoundException(sessionId));
+                .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
 
         SessionChangesVO result = new SessionChangesVO();
         result.setLatestTurn(toTurnVO(latest));
@@ -174,10 +172,10 @@ public class SessionService {
 
     private TurnStartVO addPendingTurn(SessionEntity session, String content) {
         if (!sessionRepository.lockSession(session.getId())) {
-            throw new SessionNotFoundException(session.getId());
+            throw new SessionException(SessionErrorCode.NOT_FOUND);
         }
         if (sessionRepository.countActiveTurns(session.getId()) > 0) {
-            throw new SessionBusyException(session.getId());
+            throw new SessionException(SessionErrorCode.BUSY);
         }
 
         TurnEntity turn = new TurnEntity();
@@ -207,7 +205,7 @@ public class SessionService {
 
     private SessionEntity queryOwnedSession(String projectId, String sessionId) {
         return sessionRepository.findOwnedSession(projectId, sessionId)
-                .orElseThrow(() -> new SessionNotFoundException(sessionId));
+                .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
     }
 
     private static SessionVO toSessionVO(SessionEntity entity) {
