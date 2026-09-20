@@ -60,7 +60,7 @@ public class ProjectService {
             ProjectEntity project = new ProjectEntity();
             project.initCreate();
             project.setName(projectName(prompt));
-            project.setStatus(ProjectStatusEnum.CREATED.getValue());
+            project.setStatus(ProjectStatusEnum.CREATED);
             projectRepository.save(project);
 
             SessionService.InitialSession session = sessionService.createInitialSession(
@@ -105,7 +105,7 @@ public class ProjectService {
 
     private static ProjectDetailVO toDetailVO(ProjectEntity entity) {
         ProjectDetailVO detailVO = ConverUtils.convert(entity, ProjectDetailVO.class);
-        detailVO.setStatus(ProjectStatusEnum.fromValue(entity.getStatus()).name());
+        detailVO.setStatus(entity.getStatus().name());
         detailVO.setCreatedAt(entity.getCreateTime());
         detailVO.setUpdatedAt(entity.getUpdateTime());
         return detailVO;
