@@ -72,7 +72,7 @@ public class SessionService {
         session.setProvider(StringUtils.strip(dto.provider()));
         session.setModel(StringUtils.strip(dto.model()));
         session.setStatus(SessionStatusEnum.ACTIVE);
-        sessionRepository.saveSession(session);
+        sessionRepository.add(session);
 
         TurnStartVO turn = addPendingTurn(session, StringUtils.strip(dto.content()));
 
@@ -119,8 +119,8 @@ public class SessionService {
 
         SessionDetailVO result = new SessionDetailVO();
         result.setSession(toSessionVO(session));
-        result.setTurns(sessionRepository.findTurnsBySessionId(sessionId).stream().map(SessionService::toTurnVO).toList());
-        result.setMessages(sessionRepository.findMessagesBySessionId(sessionId).stream().map(SessionService::toMessageVO).toList());
+        result.setTurns(sessionRepository.queryTurnList(sessionId).stream().map(SessionService::toTurnVO).toList());
+        result.setMessages(sessionRepository.queryMessageList(sessionId).stream().map(SessionService::toMessageVO).toList());
         return result;
     }
 
@@ -135,14 +135,14 @@ public class SessionService {
         String sessionId = StringUtils.strip(dto.sessionId());
         queryOwnedSession(projectId, sessionId);
 
-        TurnEntity latest = sessionRepository.findLatestTurn(sessionId)
+        TurnEntity latest = sessionRepository.queryLatestTurn(sessionId)
                 .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
 
         SessionChangesVO result = new SessionChangesVO();
         result.setLatestTurn(toTurnVO(latest));
-        result.setMessages(sessionRepository.findMessagesAfter(sessionId, dto.afterSequence())
+        result.setMessages(sessionRepository.queryMessageAfter(sessionId, dto.afterSequence())
                 .stream().map(SessionService::toMessageVO).toList());
-        result.setLatestSequence(sessionRepository.latestMessageSequence(sessionId));
+        result.setLatestSequence(sessionRepository.queryLatestMessageSequence(sessionId));
         return result;
     }
 
@@ -157,7 +157,7 @@ public class SessionService {
         String sessionId = StringUtils.strip(dto.sessionId());
         queryOwnedSession(projectId, sessionId);
 
-        List<MessageEntity> rows = sessionRepository.findMessagesBefore(sessionId, dto.beforeSequence(), dto.limit() + 1);
+        List<MessageEntity> rows = sessionRepository.queryMessageBefore(sessionId, dto.beforeSequence(), dto.limit() + 1);
         boolean hasMore = rows.size() > dto.limit();
         List<MessageEntity> pageRows = hasMore ? rows.subList(0, dto.limit()) : rows;
 
@@ -172,10 +172,10 @@ public class SessionService {
     }
 
     private TurnStartVO addPendingTurn(SessionEntity session, String content) {
-        if (!sessionRepository.lockSession(session.getId())) {
+        if (!sessionRepository.querySessionForUpdate(session.getId())) {
             throw new SessionException(SessionErrorCode.NOT_FOUND);
         }
-        if (sessionRepository.countActiveTurns(session.getId()) > 0) {
+        if (sessionRepository.queryActiveTurnCount(session.getId()) > 0) {
             throw new SessionException(SessionErrorCode.BUSY);
         }
 
@@ -184,7 +184,7 @@ public class SessionService {
         turn.setSessionId(session.getId());
         turn.setStatus(TurnStatusEnum.PENDING);
         turn.setAttemptCount(0);
-        sessionRepository.insertTurn(turn);
+        sessionRepository.addTurn(turn);
 
         MessageEntity message = new MessageEntity();
         message.initCreate();
@@ -192,11 +192,11 @@ public class SessionService {
         message.setTurnId(turn.getId());
         message.setRole(MessageRoleEnum.USER);
         message.setContent(content);
-        message.setMessageSequence(sessionRepository.nextMessageSequence(session.getId()));
-        sessionRepository.insertMessage(message);
+        message.setMessageSequence(sessionRepository.queryNextMessageSequence(session.getId()));
+        sessionRepository.addMessage(message);
 
         session.initUpdate();
-        sessionRepository.saveSession(session);
+        sessionRepository.update(session);
 
         TurnStartVO result = new TurnStartVO();
         result.setTurn(toTurnVO(turn));
@@ -205,7 +205,7 @@ public class SessionService {
     }
 
     private SessionEntity queryOwnedSession(String projectId, String sessionId) {
-        return sessionRepository.findOwnedSession(projectId, sessionId)
+        return sessionRepository.querySession(projectId, sessionId)
                 .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
     }
 

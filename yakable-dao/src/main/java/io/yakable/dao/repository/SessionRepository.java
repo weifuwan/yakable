@@ -1,238 +1,108 @@
 package io.yakable.dao.repository;
 
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import io.yakable.common.constant.SystemConstant;
-import io.yakable.common.enums.session.TurnStatusEnum;
 import io.yakable.dao.entity.MessageEntity;
 import io.yakable.dao.entity.SessionEntity;
 import io.yakable.dao.entity.TurnEntity;
-import io.yakable.dao.mapper.MessageMapper;
-import io.yakable.dao.mapper.SessionMapper;
-import io.yakable.dao.mapper.TurnMapper;
-import org.springframework.context.annotation.DependsOn;
-import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 
-@Repository
-@DependsOn("yakableFlyway")
-public class SessionRepository {
+/**
+ * Session 领域数据访问入口。
+ */
+public interface SessionRepository extends BaseRepository<SessionEntity> {
 
-    private final SessionMapper sessionMapper;
-    private final TurnMapper turnMapper;
-    private final MessageMapper messageMapper;
+    /**
+     * 查询指定 Project 下的 Session。
+     */
+    Optional<SessionEntity> querySession(String projectId, String sessionId);
 
-    public SessionRepository(SessionMapper sessionMapper, TurnMapper turnMapper, MessageMapper messageMapper) {
-        this.sessionMapper = Objects.requireNonNull(sessionMapper, "sessionMapper");
-        this.turnMapper = Objects.requireNonNull(turnMapper, "turnMapper");
-        this.messageMapper = Objects.requireNonNull(messageMapper, "messageMapper");
-    }
+    /**
+     * 查询并锁定 Session。
+     */
+    boolean querySessionForUpdate(String sessionId);
 
-    public SessionEntity saveSession(SessionEntity entity) {
-        Objects.requireNonNull(entity, "entity");
-        if (sessionMapper.selectById(entity.getId()) == null) {
-            sessionMapper.insert(entity);
-        } else {
-            sessionMapper.updateById(entity);
-        }
-        return entity;
-    }
+    /**
+     * 查询 Session 当前活跃 Turn 数量。
+     */
+    long queryActiveTurnCount(String sessionId);
 
-    public Optional<SessionEntity> findSessionById(String sessionId) {
-        return Optional.ofNullable(sessionMapper.selectById(sessionId));
-    }
+    /**
+     * 新增 Turn。
+     */
+    int addTurn(TurnEntity entity);
 
-    public Optional<SessionEntity> findOwnedSession(String projectId, String sessionId) {
-        return Optional.ofNullable(sessionMapper.selectOne(
-                Wrappers.<SessionEntity>lambdaQuery()
-                        .eq(SessionEntity::getId, sessionId)
-                        .eq(SessionEntity::getProjectId, projectId)));
-    }
+    /**
+     * 新增 Message。
+     */
+    int addMessage(MessageEntity entity);
 
-    public boolean lockSession(String sessionId) {
-        return sessionMapper.selectOne(
-                Wrappers.<SessionEntity>lambdaQuery()
-                        .eq(SessionEntity::getId, sessionId)
-                        .last("FOR UPDATE")) != null;
-    }
+    /**
+     * 查询下一条 Message 序号。
+     */
+    long queryNextMessageSequence(String sessionId);
 
-    public long countActiveTurns(String sessionId) {
-        return turnMapper.selectCount(
-                Wrappers.<TurnEntity>lambdaQuery()
-                        .eq(TurnEntity::getSessionId, sessionId)
-                        .in(TurnEntity::getStatus,
-                                TurnStatusEnum.PENDING,
-                                TurnStatusEnum.RUNNING));
-    }
+    /**
+     * 查询最新 Message 序号。
+     */
+    long queryLatestMessageSequence(String sessionId);
 
-    public int insertTurn(TurnEntity entity) {
-        return turnMapper.insert(entity);
-    }
+    /**
+     * 根据 ID 查询 Turn。
+     */
+    Optional<TurnEntity> queryTurn(String turnId);
 
-    public int insertMessage(MessageEntity entity) {
-        return messageMapper.insert(entity);
-    }
+    /**
+     * 查询 Session 下的 Turn 列表。
+     */
+    List<TurnEntity> queryTurnList(String sessionId);
 
-    public long nextMessageSequence(String sessionId) {
-        MessageEntity latest = messageMapper.selectOne(
-                Wrappers.<MessageEntity>lambdaQuery()
-                        .select(MessageEntity::getMessageSequence)
-                        .eq(MessageEntity::getSessionId, sessionId)
-                        .orderByDesc(MessageEntity::getMessageSequence)
-                        .last("LIMIT 1"));
-        return latest == null || latest.getMessageSequence() == null ? 1L : latest.getMessageSequence() + 1L;
-    }
+    /**
+     * 查询 Session 最新 Turn。
+     */
+    Optional<TurnEntity> queryLatestTurn(String sessionId);
 
-    public long latestMessageSequence(String sessionId) {
-        return Math.max(0L, nextMessageSequence(sessionId) - 1L);
-    }
+    /**
+     * 查询 Session 下的 Message 列表。
+     */
+    List<MessageEntity> queryMessageList(String sessionId);
 
-    public Optional<TurnEntity> findTurnById(String turnId) {
-        return Optional.ofNullable(turnMapper.selectById(turnId));
-    }
+    /**
+     * 查询指定序号之后的 Message。
+     */
+    List<MessageEntity> queryMessageAfter(String sessionId, long afterSequence);
 
-    public List<TurnEntity> findTurnsBySessionId(String sessionId) {
-        return turnMapper.selectList(
-                Wrappers.<TurnEntity>lambdaQuery()
-                        .eq(TurnEntity::getSessionId, sessionId)
-                        .orderByAsc(TurnEntity::getCreateTime, TurnEntity::getId));
-    }
+    /**
+     * 查询指定序号之前的 Message。
+     */
+    List<MessageEntity> queryMessageBefore(String sessionId, Long beforeSequence, int limit);
 
-    public Optional<TurnEntity> findLatestTurn(String sessionId) {
-        return Optional.ofNullable(turnMapper.selectOne(
-                Wrappers.<TurnEntity>lambdaQuery()
-                        .eq(TurnEntity::getSessionId, sessionId)
-                        .orderByDesc(TurnEntity::getCreateTime, TurnEntity::getId)
-                        .last("LIMIT 1")));
-    }
+    /**
+     * 将待执行 Turn 更新为运行中状态。
+     */
+    Optional<TurnEntity> updatePendingTurn(String turnId, LocalDateTime claimedAt, String provider, String model);
 
-    public List<MessageEntity> findMessagesBySessionId(String sessionId) {
-        return messageMapper.selectList(
-                Wrappers.<MessageEntity>lambdaQuery()
-                        .eq(MessageEntity::getSessionId, sessionId)
-                        .orderByAsc(MessageEntity::getMessageSequence));
-    }
-
-    public List<MessageEntity> findMessagesAfter(String sessionId, long afterSequence) {
-        return messageMapper.selectList(
-                Wrappers.<MessageEntity>lambdaQuery()
-                        .eq(MessageEntity::getSessionId, sessionId)
-                        .gt(MessageEntity::getMessageSequence, afterSequence)
-                        .orderByAsc(MessageEntity::getMessageSequence));
-    }
-
-    public List<MessageEntity> findMessagesBefore(String sessionId, Long beforeSequence, int limit) {
-        if (limit <= 0) {
-            return List.of();
-        }
-
-        var query = Wrappers.<MessageEntity>lambdaQuery().eq(MessageEntity::getSessionId, sessionId);
-        if (beforeSequence != null) {
-            query.lt(MessageEntity::getMessageSequence, beforeSequence);
-        }
-        query.orderByDesc(MessageEntity::getMessageSequence).last("LIMIT " + limit);
-        return messageMapper.selectList(query);
-    }
-
-    public Optional<TurnEntity> claimPendingTurn(
-            String turnId, LocalDateTime claimedAt, String provider, String model) {
-        int updated = turnMapper.update(
-                null,
-                Wrappers.<TurnEntity>lambdaUpdate()
-                        .eq(TurnEntity::getId, turnId)
-                        .eq(TurnEntity::getStatus, TurnStatusEnum.PENDING)
-                        .set(TurnEntity::getStatus, TurnStatusEnum.RUNNING)
-                        .setSql("attempt_count = attempt_count + 1")
-                        .set(TurnEntity::getErrorMessage, null)
-                        .set(TurnEntity::getProvider, provider)
-                        .set(TurnEntity::getModel, model)
-                        .set(TurnEntity::getInputTokens, null)
-                        .set(TurnEntity::getOutputTokens, null)
-                        .set(TurnEntity::getTotalTokens, null)
-                        .set(TurnEntity::getProviderRequestId, null)
-                        .set(TurnEntity::getFinishReason, null)
-                        .set(TurnEntity::getStartedAt, claimedAt)
-                        .set(TurnEntity::getFinishedAt, null)
-                        .set(TurnEntity::getUpdateTime, claimedAt)
-                        .set(TurnEntity::getUpdateBy, SystemConstant.SYSTEM_USER));
-        return updated == 0 ? Optional.empty() : Optional.ofNullable(turnMapper.selectById(turnId));
-    }
-
-    public int completeRunningTurn(
+    /**
+     * 将运行中 Turn 更新为成功状态。
+     */
+    int updateTurnSucceeded(
             String turnId, String sessionId, String provider, String model,
             Long inputTokens, Long outputTokens, Long totalTokens,
-            String providerRequestId, String finishReason, LocalDateTime completedAt) {
-        return turnMapper.update(
-                null,
-                Wrappers.<TurnEntity>lambdaUpdate()
-                        .eq(TurnEntity::getId, turnId)
-                        .eq(TurnEntity::getSessionId, sessionId)
-                        .eq(TurnEntity::getStatus, TurnStatusEnum.RUNNING)
-                        .set(TurnEntity::getStatus, TurnStatusEnum.SUCCEEDED)
-                        .set(TurnEntity::getErrorMessage, null)
-                        .set(TurnEntity::getProvider, provider)
-                        .set(TurnEntity::getModel, model)
-                        .set(TurnEntity::getInputTokens, inputTokens)
-                        .set(TurnEntity::getOutputTokens, outputTokens)
-                        .set(TurnEntity::getTotalTokens, totalTokens)
-                        .set(TurnEntity::getProviderRequestId, providerRequestId)
-                        .set(TurnEntity::getFinishReason, finishReason)
-                        .set(TurnEntity::getFinishedAt, completedAt)
-                        .set(TurnEntity::getUpdateTime, completedAt)
-                        .set(TurnEntity::getUpdateBy, SystemConstant.SYSTEM_USER));
-    }
+            String providerRequestId, String finishReason, LocalDateTime completedAt);
 
-    public int failRunningTurn(String turnId, String sessionId, String errorMessage, LocalDateTime failedAt) {
-        return turnMapper.update(
-                null,
-                Wrappers.<TurnEntity>lambdaUpdate()
-                        .eq(TurnEntity::getId, turnId)
-                        .eq(TurnEntity::getSessionId, sessionId)
-                        .eq(TurnEntity::getStatus, TurnStatusEnum.RUNNING)
-                        .set(TurnEntity::getStatus, TurnStatusEnum.FAILED)
-                        .set(TurnEntity::getErrorMessage, errorMessage)
-                        .set(TurnEntity::getFinishedAt, failedAt)
-                        .set(TurnEntity::getUpdateTime, failedAt)
-                        .set(TurnEntity::getUpdateBy, SystemConstant.SYSTEM_USER));
-    }
+    /**
+     * 将运行中 Turn 更新为失败状态。
+     */
+    int updateTurnFailed(String turnId, String sessionId, String errorMessage, LocalDateTime failedAt);
 
-    public int recoverStaleRunningTurns(LocalDateTime staleBefore, LocalDateTime recoveredAt) {
-        return turnMapper.update(
-                null,
-                Wrappers.<TurnEntity>lambdaUpdate()
-                        .eq(TurnEntity::getStatus, TurnStatusEnum.RUNNING)
-                        .isNotNull(TurnEntity::getStartedAt)
-                        .lt(TurnEntity::getStartedAt, staleBefore)
-                        .set(TurnEntity::getStatus, TurnStatusEnum.PENDING)
-                        .set(TurnEntity::getErrorMessage, null)
-                        .set(TurnEntity::getProvider, null)
-                        .set(TurnEntity::getModel, null)
-                        .set(TurnEntity::getInputTokens, null)
-                        .set(TurnEntity::getOutputTokens, null)
-                        .set(TurnEntity::getTotalTokens, null)
-                        .set(TurnEntity::getProviderRequestId, null)
-                        .set(TurnEntity::getFinishReason, null)
-                        .set(TurnEntity::getStartedAt, null)
-                        .set(TurnEntity::getFinishedAt, null)
-                        .set(TurnEntity::getUpdateTime, recoveredAt)
-                        .set(TurnEntity::getUpdateBy, SystemConstant.SYSTEM_USER));
-    }
+    /**
+     * 将超时运行中的 Turn 恢复为待执行状态。
+     */
+    int updateStaleTurnPending(LocalDateTime staleBefore, LocalDateTime recoveredAt);
 
-    public List<String> findPendingTurnIds(int limit) {
-        if (limit <= 0) {
-            return List.of();
-        }
-        return turnMapper.selectList(
-                        Wrappers.<TurnEntity>lambdaQuery()
-                                .select(TurnEntity::getId)
-                                .eq(TurnEntity::getStatus, TurnStatusEnum.PENDING)
-                                .orderByAsc(TurnEntity::getCreateTime, TurnEntity::getId)
-                                .last("LIMIT " + limit))
-                .stream()
-                .map(TurnEntity::getId)
-                .toList();
-    }
+    /**
+     * 查询待执行 Turn ID 列表。
+     */
+    List<String> queryPendingTurnIdList(int limit);
 }
