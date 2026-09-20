@@ -6,6 +6,7 @@ import {
   useState,
 } from 'react';
 
+import { ProjectHeader } from '@/features/project';
 import {
   SessionService,
   type SessionChanges,
@@ -13,6 +14,7 @@ import {
   type SessionSnapshot,
 } from '@/service/session';
 import {
+  cx,
   Icon,
   IconButton,
   PromptComposer,
@@ -93,6 +95,7 @@ export function SessionWorkspace({
     useState<SessionMessage | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const streamAbortRef = useRef<AbortController | null>(null);
   const currentTurnIdRef = useRef<string | null>(null);
@@ -101,6 +104,21 @@ export function SessionWorkspace({
   const initialScrollDoneRef = useRef(false);
   const loadedSessionId = snapshot?.session.id ?? null;
   const messageCount = snapshot?.messages.length ?? 0;
+
+  useEffect(() => {
+    if (!expanded) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setExpanded(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [expanded]);
 
   const scrollToBottom = useCallback(() => {
     const element = scrollRef.current;
@@ -377,7 +395,18 @@ export function SessionWorkspace({
   }, [activeTurnId, latestSequence, projectId, sessionId]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-white">
+    <div
+      className={cx(
+        'flex min-h-0 flex-col bg-white',
+        expanded ? 'fixed inset-0 z-50 h-screen' : 'h-full',
+      )}
+    >
+      <ProjectHeader
+        title={snapshot?.session.title ?? 'Project'}
+        expanded={expanded}
+        onToggleExpanded={() => setExpanded((current) => !current)}
+      />
+
       <div className="relative min-h-0 flex-1">
         <div
           ref={scrollRef}
