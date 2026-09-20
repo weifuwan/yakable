@@ -236,11 +236,22 @@ describe('SessionWorkspace', () => {
     );
   });
 
-  it('loads a user message into the composer for editing', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(apiResponse(completedSnapshot)),
+  it('regenerates from the inline user message editor', async () => {
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (
+          init?.method === 'POST' &&
+          String(input).endsWith('/turns/stream')
+        ) {
+          return streamResponse();
+        }
+        if (String(input).includes('/changes?')) {
+          return apiResponse(completedChanges);
+        }
+        return apiResponse(completedSnapshot);
+      },
     );
+    vi.stubGlobal('fetch', fetchMock);
 
     render(
       <SessionWorkspace
@@ -251,15 +262,42 @@ describe('SessionWorkspace', () => {
 
     await screen.findByText('I am Yakable.');
 
-    const input = screen.getByRole('textbox', {
+    const composer = screen.getByRole('textbox', {
       name: 'Send a message',
     }) as HTMLTextAreaElement;
-
-    expect(input.value).toBe('');
+    expect(composer.value).toBe('');
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit message' }));
 
-    expect(input.value).toBe('Who are you?');
+    const editor = screen.getByRole('textbox', {
+      name: 'Edit user message',
+    }) as HTMLTextAreaElement;
+    expect(editor.value).toBe('Who are you?');
+
+    fireEvent.change(editor, {
+      target: { value: 'What can you do?' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => {
+      const postCall = fetchMock.mock.calls.find(
+        ([url, init]) =>
+          init?.method === 'POST' &&
+          String(url).endsWith('/turns/stream'),
+      );
+
+      expect(postCall).toBeTruthy();
+      expect(JSON.parse(String(postCall?.[1]?.body))).toEqual({
+        content: 'What can you do?',
+      });
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('textbox', { name: 'Edit user message' }),
+      ).toBeNull();
+    });
+    expect(composer.value).toBe('');
   });
 
   it('renders the project header and toggles workspace expansion', async () => {
