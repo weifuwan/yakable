@@ -1,4 +1,4 @@
-package io.yakable.dao.handler;
+package io.yakable.boot.configuration.mybatisplus;
 
 import com.baomidou.mybatisplus.core.handlers.MetaObjectHandler;
 import io.yakable.common.constant.SystemConstant;
