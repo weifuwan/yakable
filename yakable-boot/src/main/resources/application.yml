@@ -6,8 +6,13 @@ spring:
     username: ${YAKABLE_DB_USERNAME:root}
     password: ${YAKABLE_DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
+  mvc:
+    async:
+      request-timeout: ${YAKABLE_SSE_TIMEOUT:10m}
 
 yakable:
+  sse:
+    timeout: ${YAKABLE_SSE_TIMEOUT:10m}
   turn-execution:
     recovery-interval: 5s
     running-timeout: 10m

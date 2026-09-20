@@ -27,6 +27,7 @@ import io.yakable.core.llm.LlmClient;
 import io.yakable.core.llm.LlmMessage;
 import io.yakable.core.llm.LlmRequest;
 import io.yakable.core.llm.LlmResponse;
+import io.yakable.core.llm.LlmStreamEvent;
 import io.yakable.core.llm.LlmUsage;
 import io.yakable.dao.entity.SessionEntity;
 import io.yakable.dao.repository.SessionRepository;
@@ -48,6 +49,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -108,21 +110,31 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     public TurnStartVO addTurn(AddTurnDTO dto) {
-        TurnStartVO result = transactionTemplate.execute(status -> {
-            SessionEntity session = queryOwnedSession(dto.projectId(), dto.sessionId());
-            if (session.getStatus() != SessionStatusEnum.ACTIVE) {
-                throw new SessionException(SessionErrorCode.INACTIVE);
-            }
-            return addPendingTurn(session, dto.content());
-        });
-
+        TurnStartVO result = createTurn(dto);
         executeTurnAsync(result.getTurn().getId());
         return result;
     }
 
     @Override
+    public TurnStartVO addStreamingTurn(AddTurnDTO dto) {
+        return createTurn(dto);
+    }
+
+    @Override
     public void executeTurnAsync(String turnId) {
         ThreadUtils.execute("turn-" + turnId, () -> executeTurn(turnId));
+    }
+
+    @Override
+    public void executeTurnStreamingAsync(
+            String turnId, Consumer<LlmStreamEvent> consumer, Consumer<RuntimeException> errorHandler) {
+        ThreadUtils.execute("turn-stream-" + turnId, () -> {
+            try {
+                executeTurnStreaming(turnId, consumer);
+            } catch (RuntimeException exception) {
+                errorHandler.accept(exception);
+            }
+        });
     }
 
     @Override
@@ -181,6 +193,16 @@ public class SessionServiceImpl implements SessionService {
         return result;
     }
 
+    private TurnStartVO createTurn(AddTurnDTO dto) {
+        return transactionTemplate.execute(status -> {
+            SessionEntity session = queryOwnedSession(dto.projectId(), dto.sessionId());
+            if (session.getStatus() != SessionStatusEnum.ACTIVE) {
+                throw new SessionException(SessionErrorCode.INACTIVE);
+            }
+            return addPendingTurn(session, dto.content());
+        });
+    }
+
     private TurnStartVO addPendingTurn(SessionEntity session, String content) {
         if (!sessionRepository.querySessionForUpdate(session.getId())) {
             throw new SessionException(SessionErrorCode.NOT_FOUND);
@@ -217,16 +239,39 @@ public class SessionServiceImpl implements SessionService {
         }
 
         try {
-            LlmResponse response = llmClient.chat(new LlmRequest(
-                    session.getProvider(),
-                    session.getModel(),
-                    SYSTEM_PROMPT,
-                    buildContext(session.getId(), running.getId())));
+            LlmResponse response = llmClient.chat(request(session, running));
             persistSuccess(session.getId(), running, response);
         } catch (RuntimeException exception) {
             persistFailure(session.getId(), running, exception);
             throw exception;
         }
+    }
+
+    private void executeTurnStreaming(String turnId, Consumer<LlmStreamEvent> consumer) {
+        TurnExecutionVO snapshot = turnService.queryTurnExecution(turnId)
+                .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
+        SessionEntity session = sessionRepository.queryById(snapshot.getSessionId())
+                .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
+        TurnVO running = turnService.updatePendingTurn(
+                turnId, DateUtils.now(), session.getProvider(), session.getModel())
+                .orElseThrow(() -> new SessionException(SessionErrorCode.BUSY));
+
+        try {
+            llmClient.streamingChat(request(session, running), event -> {
+                if (event.type() == LlmStreamEvent.Type.COMPLETE) {
+                    persistSuccess(session.getId(), running, event.response());
+                }
+                consumer.accept(event);
+            });
+        } catch (RuntimeException exception) {
+            persistFailure(session.getId(), running, exception);
+            throw exception;
+        }
+    }
+
+    private LlmRequest request(SessionEntity session, TurnVO running) {
+        return new LlmRequest(
+                session.getProvider(), session.getModel(), SYSTEM_PROMPT, buildContext(session.getId(), running.getId()));
     }
 
     private List<LlmMessage> buildContext(String sessionId, String currentTurnId) {
@@ -253,16 +298,9 @@ public class SessionServiceImpl implements SessionService {
 
         transactionTemplate.executeWithoutResult(status -> {
             int updated = turnService.updateTurnSucceeded(
-                    running.getId(),
-                    sessionId,
-                    response.provider(),
-                    response.model(),
-                    usage.inputTokens(),
-                    usage.outputTokens(),
-                    usage.totalTokens(),
-                    response.providerRequestId(),
-                    response.finishReason(),
-                    completedAt);
+                    running.getId(), sessionId, response.provider(), response.model(),
+                    usage.inputTokens(), usage.outputTokens(), usage.totalTokens(),
+                    response.providerRequestId(), response.finishReason(), completedAt);
             if (updated != 1) {
                 throw new IllegalStateException("Turn is no longer RUNNING: " + running.getId());
             }

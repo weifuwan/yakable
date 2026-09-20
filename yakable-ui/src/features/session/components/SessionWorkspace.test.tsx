@@ -60,18 +60,101 @@ const completedSnapshot = {
   ],
 } as const;
 
+const streamedTurn = {
+  turn: {
+    id: 'turn-2',
+    status: 'PENDING',
+    attemptCount: 0,
+    errorMessage: null,
+    invocation: null,
+    startedAt: null,
+    finishedAt: null,
+    durationMs: null,
+    createdAt: '2026-09-19T00:00:02Z',
+    updatedAt: '2026-09-19T00:00:02Z',
+  },
+  userMessage: {
+    id: 'message-3',
+    turnId: 'turn-2',
+    role: 'USER',
+    content: 'Tell me more',
+    sequence: 3,
+    createdAt: '2026-09-19T00:00:02Z',
+  },
+} as const;
+
+const completedChanges = {
+  latestTurn: {
+    ...streamedTurn.turn,
+    status: 'SUCCEEDED',
+    attemptCount: 1,
+    invocation: {
+      provider: 'deepseek',
+      model: 'deepseek-flash',
+      usage: {
+        inputTokens: 20,
+        outputTokens: 6,
+        totalTokens: 26,
+      },
+      providerRequestId: 'req-2',
+      finishReason: 'stop',
+    },
+    startedAt: '2026-09-19T00:00:02Z',
+    finishedAt: '2026-09-19T00:00:03Z',
+    durationMs: 1000,
+    updatedAt: '2026-09-19T00:00:03Z',
+  },
+  messages: [
+    streamedTurn.userMessage,
+    {
+      id: 'message-4',
+      turnId: 'turn-2',
+      role: 'ASSISTANT',
+      content: 'Streaming reply.',
+      sequence: 4,
+      createdAt: '2026-09-19T00:00:03Z',
+    },
+  ],
+  latestSequence: 4,
+} as const;
+
+function jsonResponse(data: unknown) {
+  return new Response(JSON.stringify(data), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+function streamResponse() {
+  const encoder = new TextEncoder();
+  const chunks = [
+    'event: started\ndata: ' + JSON.stringify(streamedTurn) + '\n\n' +
+      'event: delta\ndata: {"content":"Streaming "}\n\n',
+    'event: delta\ndata: {"content":"reply."}\n\n' +
+      'event: complete\ndata: {"turnId":"turn-2"}\n\n',
+  ];
+
+  return new Response(
+    new ReadableStream({
+      start(controller) {
+        chunks.forEach((chunk) => controller.enqueue(encoder.encode(chunk)));
+        controller.close();
+      },
+    }),
+    {
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' },
+    },
+  );
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
 describe('SessionWorkspace', () => {
   it('loads an existing session without creating messages on mount', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => completedSnapshot,
-    });
-
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(completedSnapshot));
     vi.stubGlobal('fetch', fetchMock);
 
     render(
@@ -96,46 +179,18 @@ describe('SessionWorkspace', () => {
     );
   });
 
-  it('creates a turn and appends the accepted user message', async () => {
+  it('streams assistant content through SSE', async () => {
     const fetchMock = vi.fn(
-      async (_input: RequestInfo | URL, init?: RequestInit) => {
+      async (input: RequestInfo | URL, init?: RequestInit) => {
         if (init?.method === 'POST') {
-          return {
-            ok: true,
-            status: 202,
-            json: async () => ({
-              turn: {
-                id: 'turn-2',
-                status: 'PENDING',
-                attemptCount: 0,
-                errorMessage: null,
-                invocation: null,
-                startedAt: null,
-                finishedAt: null,
-                durationMs: null,
-                createdAt: '2026-09-19T00:00:02Z',
-                updatedAt: '2026-09-19T00:00:02Z',
-              },
-              userMessage: {
-                id: 'message-3',
-                turnId: 'turn-2',
-                role: 'USER',
-                content: 'Tell me more',
-                sequence: 3,
-                createdAt: '2026-09-19T00:00:02Z',
-              },
-            }),
-          };
+          return streamResponse();
         }
-
-        return {
-          ok: true,
-          status: 200,
-          json: async () => completedSnapshot,
-        };
+        if (String(input).includes('/changes?')) {
+          return jsonResponse(completedChanges);
+        }
+        return jsonResponse(completedSnapshot);
       },
     );
-
     vi.stubGlobal('fetch', fetchMock);
 
     render(
@@ -152,13 +207,16 @@ describe('SessionWorkspace', () => {
     fireEvent.keyDown(input, { key: 'Enter' });
 
     expect(await screen.findByText('Tell me more')).toBeTruthy();
-    expect(await screen.findByText('Yakable is working...')).toBeTruthy();
+    expect(await screen.findByText('Streaming reply.')).toBeTruthy();
 
     const postCall = fetchMock.mock.calls.find(
       ([, init]) => init?.method === 'POST',
     );
     expect(postCall?.[0]).toBe(
-      '/api/projects/project-1/sessions/session-1/turns',
+      '/api/projects/project-1/sessions/session-1/turns/stream',
+    );
+    expect(postCall?.[1]?.headers).toEqual(
+      expect.objectContaining({ Accept: 'text/event-stream' }),
     );
     expect(JSON.parse(String(postCall?.[1]?.body))).toEqual({
       content: 'Tell me more',

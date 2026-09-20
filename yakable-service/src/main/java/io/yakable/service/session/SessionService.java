@@ -11,12 +11,14 @@ import io.yakable.common.bean.vo.session.SessionInitVO;
 import io.yakable.common.bean.vo.session.SessionMessagePageVO;
 import io.yakable.common.bean.vo.session.SessionVO;
 import io.yakable.common.bean.vo.session.TurnStartVO;
+import io.yakable.core.llm.LlmStreamEvent;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 /**
  * Session 业务服务。
@@ -34,9 +36,20 @@ public interface SessionService {
     TurnStartVO addTurn(@NotNull @Valid AddTurnDTO dto);
 
     /**
+     * 新增流式 Turn。
+     */
+    TurnStartVO addStreamingTurn(@NotNull @Valid AddTurnDTO dto);
+
+    /**
      * 异步执行 Turn。
      */
     void executeTurnAsync(String turnId);
+
+    /**
+     * 异步流式执行 Turn。
+     */
+    void executeTurnStreamingAsync(
+            String turnId, Consumer<LlmStreamEvent> consumer, Consumer<RuntimeException> errorHandler);
 
     /**
      * 查询 Session 详情。

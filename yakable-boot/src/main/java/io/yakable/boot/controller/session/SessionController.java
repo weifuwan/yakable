@@ -12,11 +12,23 @@ import io.yakable.common.bean.vo.session.SessionChangesVO;
 import io.yakable.common.bean.vo.session.SessionDetailVO;
 import io.yakable.common.bean.vo.session.SessionMessagePageVO;
 import io.yakable.common.bean.vo.session.TurnStartVO;
+import io.yakable.common.utils.StringUtils;
+import io.yakable.core.llm.LlmStreamEvent;
 import io.yakable.service.session.SessionService;
 import jakarta.annotation.Resource;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+import java.io.IOException;
+import java.time.Duration;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Tag(name = "Session", description = "Session 会话管理")
 @RestController
@@ -25,6 +37,9 @@ public class SessionController {
 
     @Resource
     private SessionService sessionService;
+
+    @Value("${yakable.sse.timeout:10m}")
+    private Duration sseTimeout;
 
     @Operation(summary = "查询 Session 详情")
     @GetMapping("/{sessionId}")
@@ -62,5 +77,67 @@ public class SessionController {
             @PathVariable String sessionId,
             @Valid @RequestBody AddTurnRequestDTO dto) {
         return Result.success(sessionService.addTurn(new AddTurnDTO(projectId, sessionId, dto.content())));
+    }
+
+    @Operation(summary = "流式新增 Turn")
+    @PostMapping(value = "/{sessionId}/turns/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamingTurn(
+            @PathVariable String projectId,
+            @PathVariable String sessionId,
+            @Valid @RequestBody AddTurnRequestDTO dto,
+            HttpServletResponse response) {
+        TurnStartVO started = sessionService.addStreamingTurn(new AddTurnDTO(projectId, sessionId, dto.content()));
+        SseEmitter emitter = new SseEmitter(sseTimeout.toMillis());
+        AtomicBoolean closed = new AtomicBoolean();
+
+        response.setHeader(HttpHeaders.CACHE_CONTROL, "no-cache");
+        response.setHeader("X-Accel-Buffering", "no");
+        emitter.onCompletion(() -> closed.set(true));
+        emitter.onTimeout(() -> complete(emitter, closed));
+        emitter.onError(error -> closed.set(true));
+
+        send(emitter, closed, "started", started);
+        sessionService.executeTurnStreamingAsync(
+                started.getTurn().getId(),
+                event -> handleStreamEvent(emitter, closed, started.getTurn().getId(), event),
+                exception -> handleStreamError(emitter, closed, exception));
+        return emitter;
+    }
+
+    private static void handleStreamEvent(
+            SseEmitter emitter, AtomicBoolean closed, String turnId, LlmStreamEvent event) {
+        if (event.type() == LlmStreamEvent.Type.DELTA) {
+            send(emitter, closed, "delta", Map.of("content", event.delta()));
+            return;
+        }
+        send(emitter, closed, "complete", Map.of("turnId", turnId));
+        complete(emitter, closed);
+    }
+
+    private static void handleStreamError(SseEmitter emitter, AtomicBoolean closed, RuntimeException exception) {
+        String message = StringUtils.isBlank(exception.getMessage())
+                ? "Streaming turn failed."
+                : exception.getMessage();
+        send(emitter, closed, "error", Map.of("message", message));
+        complete(emitter, closed);
+    }
+
+    private static void send(SseEmitter emitter, AtomicBoolean closed, String event, Object data) {
+        if (closed.get()) {
+            return;
+        }
+        try {
+            emitter.send(SseEmitter.event().name(event).data(data));
+        } catch (IOException exception) {
+            if (closed.compareAndSet(false, true)) {
+                emitter.completeWithError(exception);
+            }
+        }
+    }
+
+    private static void complete(SseEmitter emitter, AtomicBoolean closed) {
+        if (closed.compareAndSet(false, true)) {
+            emitter.complete();
+        }
     }
 }
