@@ -19,6 +19,7 @@ Entity
 - [CODE_README.md](./CODE_README.md)：DAO 通用代码规范、Mapper、XML、Flyway、代码格式。
 - [ENTITY_README.md](./ENTITY_README.md)：Entity、BaseEntity、时间、ID、枚举持久化规范。
 - [REPOSITORY_README.md](./REPOSITORY_README.md)：Repository 职责、依赖注入、方法命名、分页规范。
+- [FLYWAY_README.md](./FLYWAY_README.md)：Flyway、建表、字段、枚举、索引、字符集规范。
 
 ## 核心原则
 
