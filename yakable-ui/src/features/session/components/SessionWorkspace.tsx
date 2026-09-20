@@ -456,13 +456,30 @@ export function SessionWorkspace({
           </div>
         </div>
 
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-10"
+          style={{
+            background:
+              'linear-gradient(to bottom, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0.72) 45%, rgba(255, 255, 255, 0) 100%)',
+          }}
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-10"
+          style={{
+            background:
+              'linear-gradient(to top, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0.72) 45%, rgba(255, 255, 255, 0) 100%)',
+          }}
+        />
+
         {showScrollBottom && (
           <IconButton
             aria-label="Scroll to bottom"
             variant="secondary"
             size="md"
             data-allow-shadow="true"
-            className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 cursor-pointer hover:shadow-md"
+            className="absolute bottom-3 left-1/2 z-20 -translate-x-1/2 cursor-pointer hover:shadow-md"
             style={{ borderRadius: '50%', backgroundColor: '#fff' }}
             onClick={scrollToBottom}
           >
