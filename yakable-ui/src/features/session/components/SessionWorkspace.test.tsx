@@ -236,6 +236,32 @@ describe('SessionWorkspace', () => {
     );
   });
 
+  it('loads a user message into the composer for editing', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(apiResponse(completedSnapshot)),
+    );
+
+    render(
+      <SessionWorkspace
+        projectId="project-1"
+        sessionId="session-1"
+      />,
+    );
+
+    await screen.findByText('I am Yakable.');
+
+    const input = screen.getByRole('textbox', {
+      name: 'Send a message',
+    }) as HTMLTextAreaElement;
+
+    expect(input.value).toBe('');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit message' }));
+
+    expect(input.value).toBe('Who are you?');
+  });
+
   it('renders the project header and toggles workspace expansion', async () => {
     vi.stubGlobal(
       'fetch',
