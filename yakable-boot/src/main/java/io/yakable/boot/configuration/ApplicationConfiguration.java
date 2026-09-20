@@ -2,8 +2,6 @@ package io.yakable.boot.configuration;
 
 import io.yakable.dao.repository.SessionRepository;
 import io.yakable.service.model.ModelClient;
-import io.yakable.service.session.SessionService;
-import io.yakable.service.turn.TurnDispatcher;
 import io.yakable.service.turn.TurnExecutor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -33,16 +31,4 @@ public class ApplicationConfiguration {
         );
     }
 
-    @Bean
-    SessionService sessionService(
-            SessionRepository sessionRepository,
-            TurnDispatcher turnDispatcher,
-            TransactionTemplate transactionTemplate
-    ) {
-        return new SessionService(
-                sessionRepository,
-                turnDispatcher,
-                transactionTemplate
-        );
-    }
 }
