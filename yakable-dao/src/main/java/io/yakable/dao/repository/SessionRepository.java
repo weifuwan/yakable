@@ -1,6 +1,7 @@
 package io.yakable.dao.repository;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import io.yakable.common.constant.SystemConstant;
 import io.yakable.common.enums.TurnStatusEnum;
 import io.yakable.dao.entity.MessageEntity;
 import io.yakable.dao.entity.SessionEntity;
@@ -155,7 +156,8 @@ public class SessionRepository {
                         .set(TurnEntity::getFinishReason, null)
                         .set(TurnEntity::getStartedAt, claimedAt)
                         .set(TurnEntity::getFinishedAt, null)
-                        .set(TurnEntity::getUpdateTime, claimedAt));
+                        .set(TurnEntity::getUpdateTime, claimedAt)
+                        .set(TurnEntity::getUpdateBy, SystemConstant.SYSTEM_USER));
         return updated == 0 ? Optional.empty() : Optional.ofNullable(turnMapper.selectById(turnId));
     }
 
@@ -179,7 +181,8 @@ public class SessionRepository {
                         .set(TurnEntity::getProviderRequestId, providerRequestId)
                         .set(TurnEntity::getFinishReason, finishReason)
                         .set(TurnEntity::getFinishedAt, completedAt)
-                        .set(TurnEntity::getUpdateTime, completedAt));
+                        .set(TurnEntity::getUpdateTime, completedAt)
+                        .set(TurnEntity::getUpdateBy, SystemConstant.SYSTEM_USER));
     }
 
     public int failRunningTurn(String turnId, String sessionId, String errorMessage, LocalDateTime failedAt) {
@@ -192,7 +195,8 @@ public class SessionRepository {
                         .set(TurnEntity::getStatus, TurnStatusEnum.FAILED.getValue())
                         .set(TurnEntity::getErrorMessage, errorMessage)
                         .set(TurnEntity::getFinishedAt, failedAt)
-                        .set(TurnEntity::getUpdateTime, failedAt));
+                        .set(TurnEntity::getUpdateTime, failedAt)
+                        .set(TurnEntity::getUpdateBy, SystemConstant.SYSTEM_USER));
     }
 
     public int recoverStaleRunningTurns(LocalDateTime staleBefore, LocalDateTime recoveredAt) {
@@ -213,7 +217,8 @@ public class SessionRepository {
                         .set(TurnEntity::getFinishReason, null)
                         .set(TurnEntity::getStartedAt, null)
                         .set(TurnEntity::getFinishedAt, null)
-                        .set(TurnEntity::getUpdateTime, recoveredAt));
+                        .set(TurnEntity::getUpdateTime, recoveredAt)
+                        .set(TurnEntity::getUpdateBy, SystemConstant.SYSTEM_USER));
     }
 
     public List<String> findPendingTurnIds(int limit) {
