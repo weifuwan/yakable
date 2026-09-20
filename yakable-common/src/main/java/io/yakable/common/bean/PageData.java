@@ -32,7 +32,7 @@ public record PageData<T>(List<T> records, long total, long pages, int current, 
     /**
      * 转换分页数据类型并保留分页信息。
      */
-    public <R> PageData<R> map(Function<? super T, ? extends R> mapper) {
+    public <R> PageData<R> map(Function<? super T, R> mapper) {
         return new PageData<>(records.stream().map(mapper).toList(), total, pages, current, pageSize);
     }
 }
