@@ -65,12 +65,12 @@ public class SessionService {
      * @return Session 初始化结果
      */
     public SessionInitVO addSession(@NotNull @Valid AddSessionDTO dto) {
-        SessionEntity session = new SessionEntity();
+        SessionEntity session = ConverUtils.convert(dto, SessionEntity.class);
         session.initCreate();
-        session.setProjectId(StringUtils.strip(dto.projectId()));
-        session.setTitle(StringUtils.strip(dto.title()));
-        session.setProvider(StringUtils.strip(dto.provider()));
-        session.setModel(StringUtils.strip(dto.model()));
+        session.setProjectId(StringUtils.strip(session.getProjectId()));
+        session.setTitle(StringUtils.strip(session.getTitle()));
+        session.setProvider(StringUtils.strip(session.getProvider()));
+        session.setModel(StringUtils.strip(session.getModel()));
         session.setStatus(SessionStatusEnum.ACTIVE);
         sessionRepository.add(session);
 
