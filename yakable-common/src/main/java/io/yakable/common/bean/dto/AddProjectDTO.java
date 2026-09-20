@@ -15,6 +15,5 @@ public record AddProjectDTO(@NotBlank String prompt, @NotNull @Valid ModelDTO mo
     /**
      * Project 创建时使用的模型配置。
      */
-    public record ModelDTO(@NotBlank String provider, @NotBlank String model) {
-    }
+    public record ModelDTO(@NotBlank String provider, @NotBlank String model) {}
 }
