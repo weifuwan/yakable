@@ -14,15 +14,8 @@ Mapper
 Entity
 ```
 
-## 规范文档
+## 规范
 
-- [CODE_README.md](./CODE_README.md)：DAO 通用代码规范、Mapper、XML、Flyway、代码格式。
-- [ENTITY_README.md](./ENTITY_README.md)：Entity、BaseEntity、时间、ID、枚举持久化规范。
-- [REPOSITORY_README.md](./REPOSITORY_README.md)：Repository 职责、依赖注入、方法命名、分页规范。
-- [FLYWAY_README.md](./FLYWAY_README.md)：Flyway、建表、字段、枚举、索引、字符集规范。
-
-## 核心原则
-
-**Entity 对应表，Mapper 对应表，Repository 对应数据访问能力。**
-
-**公共能力只实现一次，持久化细节留在 DAO 内部。**
+- [ENTITY_README.md](./ENTITY_README.md)：Entity、BaseEntity、ID、时间、枚举和注释。
+- [REPOSITORY_README.md](./REPOSITORY_README.md)：Repository、Mapper、SQL、Update 和分页。
+- [FLYWAY_README.md](./FLYWAY_README.md)：数据库结构与 Migration。
