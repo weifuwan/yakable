@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.yakable.common.bean.PageData;
-import io.yakable.common.bean.dto.PageDTO;
+import io.yakable.common.bean.dto.common.PageDTO;
 import io.yakable.dao.entity.BaseEntity;
 import io.yakable.dao.repository.BaseRepository;
 
