@@ -20,7 +20,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.validation.annotation.Validated;
 
-import java.util.List;
 import java.util.Optional;
 
 /**
@@ -84,15 +83,7 @@ public class ProjectService {
      * @return Project 列表分页数据
      */
     public PageData<ProjectListVO> queryProject(@NotNull @Valid PageDTO dto) {
-        long total = projectRepository.countProjectsWithSession();
-        long offset = (long) (dto.getCurrent() - 1) * dto.getPageSize();
-
-        List<ProjectListVO> records = projectRepository.findProjectPage(offset, dto.getPageSize())
-                .stream()
-                .map(ProjectService::toListVO)
-                .toList();
-
-        return PageData.of(records, total, dto.getCurrent(), dto.getPageSize());
+        return projectRepository.queryProject(dto).map(ProjectService::toListVO);
     }
 
     /**
