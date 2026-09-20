@@ -1,9 +1,7 @@
 package io.yakable.boot.configuration;
 
-import io.yakable.dao.repository.ProjectRepository;
 import io.yakable.dao.repository.SessionRepository;
 import io.yakable.service.model.ModelClient;
-import io.yakable.service.project.ProjectService;
 import io.yakable.service.session.SessionService;
 import io.yakable.service.turn.TurnDispatcher;
 import io.yakable.service.turn.TurnExecutor;
@@ -43,21 +41,6 @@ public class ApplicationConfiguration {
     ) {
         return new SessionService(
                 sessionRepository,
-                turnDispatcher,
-                transactionTemplate
-        );
-    }
-
-    @Bean
-    ProjectService projectService(
-            ProjectRepository projectRepository,
-            SessionService sessionService,
-            TurnDispatcher turnDispatcher,
-            TransactionTemplate transactionTemplate
-    ) {
-        return new ProjectService(
-                projectRepository,
-                sessionService,
                 turnDispatcher,
                 transactionTemplate
         );
