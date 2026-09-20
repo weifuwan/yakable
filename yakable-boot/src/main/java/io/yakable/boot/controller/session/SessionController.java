@@ -1,13 +1,13 @@
 package io.yakable.boot.controller.session;
 
-import io.yakable.common.bean.dto.AddTurnDTO;
-import io.yakable.common.bean.dto.QuerySessionChangesDTO;
-import io.yakable.common.bean.dto.QuerySessionDTO;
-import io.yakable.common.bean.dto.QuerySessionMessagesDTO;
-import io.yakable.common.bean.vo.SessionChangesVO;
-import io.yakable.common.bean.vo.SessionDetailVO;
-import io.yakable.common.bean.vo.SessionMessagePageVO;
-import io.yakable.common.bean.vo.TurnStartVO;
+import io.yakable.common.bean.dto.session.AddTurnDTO;
+import io.yakable.common.bean.dto.session.QuerySessionChangesDTO;
+import io.yakable.common.bean.dto.session.QuerySessionDTO;
+import io.yakable.common.bean.dto.session.QuerySessionMessagesDTO;
+import io.yakable.common.bean.vo.session.SessionChangesVO;
+import io.yakable.common.bean.vo.session.SessionDetailVO;
+import io.yakable.common.bean.vo.session.SessionMessagePageVO;
+import io.yakable.common.bean.vo.session.TurnStartVO;
 import io.yakable.service.session.SessionService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
