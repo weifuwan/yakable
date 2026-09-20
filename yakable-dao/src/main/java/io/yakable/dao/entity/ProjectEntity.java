@@ -12,5 +12,4 @@ public class ProjectEntity extends BaseEntity {
 
     private String name;
     private ProjectStatusEnum status;
-    private transient String latestSessionId;
 }
