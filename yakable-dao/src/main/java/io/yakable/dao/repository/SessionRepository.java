@@ -15,6 +15,11 @@ public interface SessionRepository extends BaseRepository<SessionEntity> {
     Optional<SessionEntity> querySession(String projectId, String sessionId);
 
     /**
+     * 查询 Project 最新 Session。
+     */
+    Optional<SessionEntity> queryLatestSession(String projectId);
+
+    /**
      * 查询并锁定 Session。
      */
     boolean querySessionForUpdate(String sessionId);
