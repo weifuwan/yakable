@@ -67,6 +67,12 @@ DEEPSEEK_API_KEY
 DEEPSEEK_BASE_URL
 ```
 
+SSE configuration:
+
+```text
+YAKABLE_SSE_TIMEOUT   # default: 10m
+```
+
 ## Backend structure
 
 ```text
