@@ -28,8 +28,10 @@ function formatMessageTime(createdAt: string) {
 
 export function MessageItem({
   message,
+  onEdit,
 }: {
   message: SessionMessage;
+  onEdit?: (message: SessionMessage) => void;
 }) {
   const isUser = message.role === 'USER';
 
@@ -73,6 +75,21 @@ export function MessageItem({
               <path d="M15 9V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" />
             </Icon>
           </button>
+
+          {onEdit && (
+            <button
+              type="button"
+              aria-label="Edit message"
+              title="Edit message"
+              className="inline-flex size-5 shrink-0 items-center justify-center rounded-md text-black/40 outline-none transition-colors hover:bg-black/[0.05] hover:text-black/65 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-black/40"
+              onClick={() => onEdit(message)}
+            >
+              <Icon size={14}>
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z" />
+              </Icon>
+            </button>
+          )}
 
           {createdAtLabel && (
             <time

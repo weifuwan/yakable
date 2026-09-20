@@ -94,6 +94,7 @@ export function SessionWorkspace({
   const [optimisticMessage, setOptimisticMessage] =
     useState<SessionMessage | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [composerValue, setComposerValue] = useState('');
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -343,6 +344,10 @@ export function SessionWorkspace({
     [latestSequence, runStreamingTurn],
   );
 
+  const handleEditMessage = useCallback((message: SessionMessage) => {
+    setComposerValue(message.content);
+  }, []);
+
   const handleStop = useCallback(() => {
     const turnId = currentTurnIdRef.current ?? activeTurnId;
     stopRequestedRef.current = true;
@@ -425,7 +430,11 @@ export function SessionWorkspace({
             )}
 
             {snapshot?.messages.map((message) => (
-              <MessageItem key={message.id} message={message} />
+              <MessageItem
+                key={message.id}
+                message={message}
+                onEdit={generating ? undefined : handleEditMessage}
+              />
             ))}
 
             {optimisticMessage && (
@@ -508,6 +517,8 @@ export function SessionWorkspace({
             submitTooltip="Send prompt"
             disabled={!snapshot || snapshot.session.status !== 'ACTIVE'}
             running={generating}
+            value={composerValue}
+            onValueChange={setComposerValue}
             onStop={handleStop}
             onSubmit={handleSubmit}
           />
