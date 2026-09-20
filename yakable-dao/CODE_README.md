@@ -1,6 +1,6 @@
 # yakable-dao 通用代码规范
 
-1. 一张物理表只对应一个 Mapper，Mapper 统一放在 `mapper` 包，并继承 MyBatis-Plus `BaseMapper<Entity>`。
+1. 一张业务表固定对应一个 Entity、一个 Mapper、一个 Repository 和一个 Service。Mapper 统一放在 `mapper` 包并继承 MyBatis-Plus `BaseMapper<Entity>`；Repository 只访问本表 Mapper，Service 只直接依赖本表 Repository。跨表业务逻辑必须通过对应 Service 调用，禁止跨表直接调用 Repository 或 Mapper。
 
 2. Lambda 能解决的，不写 XML；Lambda 开始复杂、难读、难维护时，使用 `Mapper + XML`。
 
