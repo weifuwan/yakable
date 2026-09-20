@@ -16,6 +16,9 @@ yakable:
   turn-execution:
     recovery-interval: 5s
     running-timeout: 10m
+  session:
+    context:
+      max-history-turns: ${YAKABLE_CONTEXT_MAX_HISTORY_TURNS:20}
   model:
     providers:
       deepseek:

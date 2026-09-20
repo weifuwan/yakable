@@ -48,6 +48,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -90,6 +91,9 @@ public class SessionServiceImpl implements SessionService {
 
     @Value("${yakable.turn-execution.running-timeout:10m}")
     private Duration runningTimeout;
+
+    @Value("${yakable.session.context.max-history-turns:20}")
+    private int maxHistoryTurns;
 
     @PostConstruct
     void startTurnRecovery() {
@@ -344,23 +348,50 @@ public class SessionServiceImpl implements SessionService {
     }
 
     private List<LlmMessage> buildContext(String sessionId, String currentTurnId) {
-        Map<String, TurnVO> turns = turnService.queryTurnList(sessionId)
-                .stream()
-                .collect(Collectors.toMap(TurnVO::getId, Function.identity()));
+        List<MessageVO> messages = messageService.queryMessageList(sessionId);
+        Map<String, List<MessageVO>> messagesByTurn = messages.stream()
+                .collect(Collectors.groupingBy(MessageVO::getTurnId));
 
-        return messageService.queryMessageList(sessionId)
-                .stream()
-                .filter(message -> {
-                    if (currentTurnId.equals(message.getTurnId())) {
-                        return true;
-                    }
-                    TurnVO turn = turns.get(message.getTurnId());
-                    return turn != null
-                            && (TurnStatusEnum.SUCCEEDED.name().equals(turn.getStatus())
-                            || TurnStatusEnum.CANCELLED.name().equals(turn.getStatus()));
-                })
+        List<TurnVO> turns = turnService.queryTurnList(sessionId);
+        Set<String> selectedTurnIds = new HashSet<>();
+        selectedTurnIds.add(currentTurnId);
+
+        int remaining = Math.max(0, maxHistoryTurns);
+        for (int index = turns.size() - 1; index >= 0 && remaining > 0; index--) {
+            TurnVO turn = turns.get(index);
+            if (currentTurnId.equals(turn.getId()) || !isContextTurn(turn)) {
+                continue;
+            }
+            if (!hasCompleteExchange(messagesByTurn.getOrDefault(turn.getId(), List.of()))) {
+                continue;
+            }
+            selectedTurnIds.add(turn.getId());
+            remaining--;
+        }
+
+        return messages.stream()
+                .filter(message -> selectedTurnIds.contains(message.getTurnId()))
                 .map(SessionServiceImpl::toLlmMessage)
                 .toList();
+    }
+
+    private static boolean isContextTurn(TurnVO turn) {
+        return TurnStatusEnum.SUCCEEDED.name().equals(turn.getStatus())
+                || TurnStatusEnum.CANCELLED.name().equals(turn.getStatus());
+    }
+
+    private static boolean hasCompleteExchange(List<MessageVO> messages) {
+        boolean hasUser = false;
+        boolean hasAssistant = false;
+        for (MessageVO message : messages) {
+            if (MessageRoleEnum.USER.name().equals(message.getRole())) {
+                hasUser = true;
+            } else if (MessageRoleEnum.ASSISTANT.name().equals(message.getRole())
+                    && !StringUtils.isBlank(message.getContent())) {
+                hasAssistant = true;
+            }
+        }
+        return hasUser && hasAssistant;
     }
 
     private void persistSuccess(String sessionId, TurnVO running, LlmResponse response) {
