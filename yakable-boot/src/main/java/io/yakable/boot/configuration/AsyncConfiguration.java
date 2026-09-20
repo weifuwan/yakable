@@ -2,10 +2,10 @@ package io.yakable.boot.configuration;
 
 import io.yakable.boot.configuration.properties.TurnExecutionProperties;
 import io.yakable.common.utils.ThreadUtils;
-import io.yakable.dao.repository.SessionRepository;
 import io.yakable.service.turn.TurnDispatcher;
 import io.yakable.service.turn.TurnExecutor;
 import io.yakable.service.turn.TurnRecoveryWorker;
+import io.yakable.service.turn.TurnService;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -23,14 +23,8 @@ public class AsyncConfiguration {
     }
 
     @Bean
-    TurnDispatcher turnDispatcher(
-            ExecutorService sessionTurnExecutor,
-            TurnExecutor turnExecutor
-    ) {
-        return new TurnDispatcher(
-                sessionTurnExecutor,
-                turnExecutor
-        );
+    TurnDispatcher turnDispatcher(ExecutorService sessionTurnExecutor, TurnExecutor turnExecutor) {
+        return new TurnDispatcher(sessionTurnExecutor, turnExecutor);
     }
 
     @Bean(destroyMethod = "close")
@@ -41,18 +35,16 @@ public class AsyncConfiguration {
     @Bean(initMethod = "start", destroyMethod = "close")
     TurnRecoveryWorker turnRecoveryWorker(
             ScheduledExecutorService turnRecoveryScheduler,
-            SessionRepository sessionRepository,
+            TurnService turnService,
             TurnDispatcher turnDispatcher,
-            TurnExecutionProperties properties
-    ) {
+            TurnExecutionProperties properties) {
         return new TurnRecoveryWorker(
                 turnRecoveryScheduler,
-                sessionRepository,
+                turnService,
                 turnDispatcher,
                 properties.recoveryInterval(),
                 properties.runningTimeout(),
                 properties.recoveryBatchSize(),
-                properties.recoveryEnabled()
-        );
+                properties.recoveryEnabled());
     }
 }
