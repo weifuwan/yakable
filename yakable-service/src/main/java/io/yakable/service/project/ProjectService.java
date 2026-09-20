@@ -1,6 +1,8 @@
 package io.yakable.service.project;
 
 import io.yakable.common.BusinessException;
+import io.yakable.common.ConverUtils;
+import io.yakable.common.DateUtils;
 import io.yakable.common.PageData;
 import io.yakable.dao.entity.ProjectEntity;
 import io.yakable.dao.repository.ProjectRepository;
@@ -8,10 +10,10 @@ import io.yakable.service.session.SessionService;
 import io.yakable.service.turn.TurnDispatcher;
 import lombok.Getter;
 import lombok.Setter;
-import org.springframework.beans.BeanUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -51,20 +53,30 @@ public final class ProjectService {
             String provider,
             String model
     ) {
-        String normalizedPrompt = requireText(prompt, "prompt");
-        String normalizedProvider = requireText(provider, "provider");
-        String normalizedModel = requireText(model, "model");
+        if (StringUtils.isBlank(prompt)) {
+            throw new BusinessException("prompt must not be blank");
+        }
+        if (StringUtils.isBlank(provider)) {
+            throw new BusinessException("provider must not be blank");
+        }
+        if (StringUtils.isBlank(model)) {
+            throw new BusinessException("model must not be blank");
+        }
+
+        String normalizedPrompt = StringUtils.strip(prompt);
+        String normalizedProvider = StringUtils.strip(provider);
+        String normalizedModel = StringUtils.strip(model);
 
         CreatedProject created = transactionTemplate.execute(status -> {
-            Instant now = Instant.now();
+            LocalDateTime now = DateUtils.now();
             String name = projectName(normalizedPrompt);
 
             ProjectEntity project = new ProjectEntity();
             project.setId(UUID.randomUUID().toString());
             project.setName(name);
             project.setStatus("CREATED");
-            project.setCreatedAt(now);
-            project.setUpdatedAt(now);
+            project.setCreatedAt(DateUtils.toInstant(now));
+            project.setUpdatedAt(DateUtils.toInstant(now));
             repository.save(project);
 
             SessionService.InitialSession session =
@@ -83,7 +95,11 @@ public final class ProjectService {
 
         ProjectDetails details = toDetails(created.project());
         details.setLatestSessionId(created.session().sessionId());
-        details.setUpdatedAt(created.session().updatedAt());
+        details.setUpdatedAt(
+                DateUtils.toLocalDateTime(
+                        created.session().updatedAt()
+                )
+        );
         return details;
     }
 
@@ -112,8 +128,14 @@ public final class ProjectService {
      * 根据 Project ID 查询详情。
      */
     public Optional<ProjectDetails> getProject(String projectId) {
+        if (StringUtils.isBlank(projectId)) {
+            throw new BusinessException(
+                    "projectId must not be blank"
+            );
+        }
+
         return repository.findProjectDetails(
-                        requireText(projectId, "projectId")
+                        StringUtils.strip(projectId)
                 )
                 .map(ProjectService::toDetails);
     }
@@ -134,38 +156,39 @@ public final class ProjectService {
     }
 
     private static ProjectSummary toSummary(ProjectEntity entity) {
-        ProjectSummary summary = new ProjectSummary();
-        BeanUtils.copyProperties(entity, summary);
+        ProjectSummary summary = ConverUtils.convert(
+                entity,
+                ProjectSummary.class
+        );
+        summary.setUpdatedAt(
+                DateUtils.toLocalDateTime(entity.getUpdatedAt())
+        );
         return summary;
     }
 
     private static ProjectDetails toDetails(ProjectEntity entity) {
-        ProjectDetails details = new ProjectDetails();
-        BeanUtils.copyProperties(entity, details);
+        ProjectDetails details = ConverUtils.convert(
+                entity,
+                ProjectDetails.class
+        );
+        details.setCreatedAt(
+                DateUtils.toLocalDateTime(entity.getCreatedAt())
+        );
+        details.setUpdatedAt(
+                DateUtils.toLocalDateTime(entity.getUpdatedAt())
+        );
         return details;
     }
 
     private static String projectName(String prompt) {
         String firstLine = prompt.lines()
                 .findFirst()
-                .orElse(prompt)
-                .strip();
+                .orElse(prompt);
 
-        return firstLine.length() <= MAX_PROJECT_NAME_LENGTH
-                ? firstLine
-                : firstLine.substring(
-                        0,
-                        MAX_PROJECT_NAME_LENGTH - 3
-                ) + "...";
-    }
-
-    private static String requireText(String value, String field) {
-        if (value == null || value.isBlank()) {
-            throw new BusinessException(
-                    field + " must not be blank"
-            );
-        }
-        return value.strip();
+        return StringUtils.abbreviate(
+                StringUtils.strip(firstLine),
+                MAX_PROJECT_NAME_LENGTH
+        );
     }
 
     private record CreatedProject(
@@ -184,7 +207,7 @@ public final class ProjectService {
         private String id;
         private String name;
         private String latestSessionId;
-        private Instant updatedAt;
+        private LocalDateTime updatedAt;
     }
 
     /**
@@ -198,7 +221,7 @@ public final class ProjectService {
         private String name;
         private String latestSessionId;
         private String status;
-        private Instant createdAt;
-        private Instant updatedAt;
+        private LocalDateTime createdAt;
+        private LocalDateTime updatedAt;
     }
 }
