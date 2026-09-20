@@ -19,18 +19,33 @@ import java.time.LocalDateTime;
 @Setter
 public abstract class BaseEntity {
 
+    /**
+     * 主键ID
+     */
     @TableId(type = IdType.INPUT)
     private String id;
 
+    /**
+     * 创建时间
+     */
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 
+    /**
+     * 更新时间
+     */
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
 
+    /**
+     * 创建人ID
+     */
     @TableField(fill = FieldFill.INSERT)
     private String createBy;
 
+    /**
+     * 更新人ID
+     */
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private String updateBy;
 
