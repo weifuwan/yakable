@@ -1,21 +1,14 @@
 package io.yakable.dao.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.yakable.dao.entity.ProjectEntity;
 import org.apache.ibatis.annotations.Param;
 
-import java.util.List;
-
 public interface ProjectMapper extends BaseMapper<ProjectEntity> {
 
-    long countProjectsWithSession();
+    IPage<ProjectEntity> selectProjectPage(Page<ProjectEntity> page);
 
-    List<ProjectEntity> selectProjectPage(
-            @Param("offset") long offset,
-            @Param("limit") int limit
-    );
-
-    ProjectEntity selectProjectDetails(
-            @Param("projectId") String projectId
-    );
+    ProjectEntity selectProjectDetails(@Param("projectId") String projectId);
 }

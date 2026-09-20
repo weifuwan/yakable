@@ -1,6 +1,7 @@
 package io.yakable.common.bean;
 
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * 通用分页数据。
@@ -26,5 +27,12 @@ public record PageData<T>(List<T> records, long total, long pages, int current, 
     public static <T> PageData<T> of(List<T> records, long total, int current, int pageSize) {
         long pages = total == 0 ? 0 : (total + pageSize - 1) / pageSize;
         return new PageData<>(records, total, pages, current, pageSize);
+    }
+
+    /**
+     * 转换分页数据类型并保留分页信息。
+     */
+    public <R> PageData<R> map(Function<? super T, ? extends R> mapper) {
+        return new PageData<>(records.stream().map(mapper).toList(), total, pages, current, pageSize);
     }
 }

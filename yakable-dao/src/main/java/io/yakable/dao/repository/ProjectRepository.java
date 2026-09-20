@@ -1,11 +1,14 @@
 package io.yakable.dao.repository;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import io.yakable.common.bean.PageData;
+import io.yakable.common.bean.dto.PageDTO;
 import io.yakable.dao.entity.ProjectEntity;
 import io.yakable.dao.mapper.ProjectMapper;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Repository;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -33,12 +36,15 @@ public class ProjectRepository {
         return Optional.ofNullable(mapper.selectById(projectId));
     }
 
-    public long countProjectsWithSession() {
-        return mapper.countProjectsWithSession();
-    }
-
-    public List<ProjectEntity> findProjectPage(long offset, int limit) {
-        return mapper.selectProjectPage(offset, limit);
+    public PageData<ProjectEntity> queryProject(PageDTO dto) {
+        Page<ProjectEntity> page = new Page<>(dto.getCurrent(), dto.getPageSize());
+        IPage<ProjectEntity> result = mapper.selectProjectPage(page);
+        return new PageData<>(
+                result.getRecords(),
+                result.getTotal(),
+                result.getPages(),
+                Math.toIntExact(result.getCurrent()),
+                Math.toIntExact(result.getSize()));
     }
 
     public Optional<ProjectEntity> findProjectDetails(String projectId) {

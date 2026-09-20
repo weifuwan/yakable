@@ -65,10 +65,18 @@ updateBy
 
 19. 枚举持久化到数据库时统一保存数字值，例如 `0`、`1`、`2`，不直接保存枚举名称字符串。
 
+20. 分页查询统一使用 MyBatis-Plus 的 `Page / IPage`，禁止在 Service 中手动计算 `total`、`offset`、`pages`。
+
+21. Repository 负责创建 MyBatis-Plus `Page` 并调用 Mapper，Service 只接收统一的 `PageData`，不感知 MyBatis-Plus 分页实现。
+
+22. 复杂分页查询可以继续使用 `Mapper + XML`，但 XML 中不手写 `LIMIT / OFFSET`，由 MyBatis-Plus 分页插件统一处理；总数统计也交给分页插件。
+
 ## 核心原则
 
 **Entity 对应表，Mapper 对应表，Repository 对应数据访问能力。**
 
 **公共字段放 BaseEntity，公共能力只实现一次。**
+
+**分页能力交给 MyBatis-Plus，Service 不处理数据库分页细节。**
 
 **数据库值保持简单稳定，业务语义通过枚举表达。**
