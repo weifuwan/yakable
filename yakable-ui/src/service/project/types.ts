@@ -5,7 +5,6 @@ export interface ProjectSummary {
   updatedAt: string;
 }
 
-
 export interface ProjectModel {
   provider: string;
   model: string;
