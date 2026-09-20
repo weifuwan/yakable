@@ -1,4 +1,4 @@
-import { HttpUtils } from '../http';
+import { ApiError, HttpUtils } from '../http';
 import type {
   CreateProjectInput,
   ProjectDetails,
@@ -40,6 +40,10 @@ function isProjectPage(value: unknown): value is ProjectPage {
   );
 }
 
+function invalidResponse(message: string, data: unknown): never {
+  throw new ApiError(message, { kind: 'parse', data });
+}
+
 async function queryProjectPage(
   current = 1,
   pageSize = 50,
@@ -53,11 +57,9 @@ async function queryProjectPage(
     '/api/projects?' + params.toString(),
     { signal },
   );
-
-  if (!isProjectPage(data)) {
-    throw new Error('Project API returned an invalid page.');
-  }
-  return data;
+  return isProjectPage(data)
+    ? data
+    : invalidResponse('Project API returned an invalid page.', data);
 }
 
 async function queryProject(projectId: string, signal?: AbortSignal) {
@@ -65,20 +67,16 @@ async function queryProject(projectId: string, signal?: AbortSignal) {
     '/api/projects/' + encodeURIComponent(projectId),
     { signal },
   );
-
-  if (!isProjectDetails(data)) {
-    throw new Error('Project API returned an invalid project.');
-  }
-  return data;
+  return isProjectDetails(data)
+    ? data
+    : invalidResponse('Project API returned an invalid project.', data);
 }
 
 async function addProject(input: CreateProjectInput, signal?: AbortSignal) {
   const data = await HttpUtils.post<unknown>('/api/projects', input, { signal });
-
-  if (!isProjectDetails(data)) {
-    throw new Error('Project API returned an invalid project.');
-  }
-  return data;
+  return isProjectDetails(data)
+    ? data
+    : invalidResponse('Project API returned an invalid project.', data);
 }
 
 export const ProjectService = {

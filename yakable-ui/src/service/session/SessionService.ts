@@ -1,4 +1,4 @@
-import { HttpUtils } from '../http';
+import { ApiError, HttpUtils } from '../http';
 import type {
   SessionChanges,
   SessionMessage,
@@ -119,6 +119,10 @@ function isTurnStartResult(value: unknown): value is TurnStartResult {
   );
 }
 
+function invalidResponse(message: string, data: unknown): never {
+  throw new ApiError(message, { kind: 'parse', data });
+}
+
 function sessionPath(projectId: string, sessionId: string) {
   return (
     '/api/projects/' +
@@ -137,10 +141,9 @@ async function querySession(
     sessionPath(projectId, sessionId),
     { signal },
   );
-  if (!isSessionSnapshot(data)) {
-    throw new Error('Session API returned an invalid response.');
-  }
-  return data;
+  return isSessionSnapshot(data)
+    ? data
+    : invalidResponse('Session API returned an invalid response.', data);
 }
 
 async function queryChanges(
@@ -156,10 +159,9 @@ async function queryChanges(
     sessionPath(projectId, sessionId) + '/changes?' + params.toString(),
     { signal },
   );
-  if (!isSessionChanges(data)) {
-    throw new Error('Session changes API returned an invalid response.');
-  }
-  return data;
+  return isSessionChanges(data)
+    ? data
+    : invalidResponse('Session changes API returned an invalid response.', data);
 }
 
 async function queryMessages(
@@ -178,10 +180,9 @@ async function queryMessages(
     sessionPath(projectId, sessionId) + '/messages?' + params.toString(),
     { signal },
   );
-  if (!isSessionMessagePage(data)) {
-    throw new Error('Session messages API returned an invalid response.');
-  }
-  return data;
+  return isSessionMessagePage(data)
+    ? data
+    : invalidResponse('Session messages API returned an invalid response.', data);
 }
 
 async function addTurn(
@@ -195,10 +196,9 @@ async function addTurn(
     { content },
     { signal },
   );
-  if (!isTurnStartResult(data)) {
-    throw new Error('Session API returned an invalid turn.');
-  }
-  return data;
+  return isTurnStartResult(data)
+    ? data
+    : invalidResponse('Session API returned an invalid turn.', data);
 }
 
 async function streamingTurn(
@@ -219,7 +219,7 @@ async function streamingTurn(
     ({ event, data }) => {
       if (event === 'started') {
         if (!isTurnStartResult(data)) {
-          throw new Error('Streaming start event is invalid.');
+          invalidResponse('Streaming start event is invalid.', data);
         }
         handlers.onStarted(data);
         return;
@@ -227,17 +227,18 @@ async function streamingTurn(
 
       if (event === 'delta') {
         if (!isRecord(data) || typeof data.content !== 'string') {
-          throw new Error('Streaming delta event is invalid.');
+          invalidResponse('Streaming delta event is invalid.', data);
         }
         handlers.onDelta(data.content);
         return;
       }
 
       if (event === 'error') {
-        throw new Error(
+        throw new ApiError(
           isRecord(data) && typeof data.message === 'string'
             ? data.message
             : 'Streaming turn failed.',
+          { kind: 'business', data },
         );
       }
 
@@ -247,7 +248,9 @@ async function streamingTurn(
   );
 
   if (!completed) {
-    throw new Error('Streaming connection ended before completion.');
+    throw new ApiError('Streaming connection ended before completion.', {
+      kind: 'network',
+    });
   }
 }
 
