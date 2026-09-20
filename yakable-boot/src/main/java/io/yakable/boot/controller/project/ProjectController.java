@@ -2,9 +2,10 @@ package io.yakable.boot.controller.project;
 
 import io.yakable.common.PageData;
 import io.yakable.service.project.ProjectService;
+import io.yakable.service.project.dto.AddProjectDTO;
+import io.yakable.service.project.dto.QueryProjectDTO;
+import io.yakable.service.project.dto.QueryProjectPageDTO;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -23,18 +24,22 @@ public class ProjectController {
     }
 
     @GetMapping
-    public PageData<ProjectService.ProjectSummary> listProjects(
+    public PageData<ProjectService.ProjectSummary> queryProject(
             @RequestParam(defaultValue = "1") int current,
             @RequestParam(defaultValue = "50") int pageSize
     ) {
-        return projectService.listProjects(current, pageSize);
+        return projectService.queryProject(
+                new QueryProjectPageDTO(current, pageSize)
+        );
     }
 
     @GetMapping("/{projectId}")
-    public ProjectService.ProjectDetails getProject(
+    public ProjectService.ProjectDetails queryProject(
             @PathVariable String projectId
     ) {
-        return projectService.getProject(projectId)
+        return projectService.queryProject(
+                        new QueryProjectDTO(projectId)
+                )
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "Project not found"
@@ -42,32 +47,16 @@ public class ProjectController {
     }
 
     @PostMapping
-    public ResponseEntity<ProjectService.ProjectDetails> createProject(
-            @Valid @RequestBody CreateProjectRequest request
+    public ResponseEntity<ProjectService.ProjectDetails> addProject(
+            @Valid @RequestBody AddProjectDTO dto
     ) {
         ProjectService.ProjectDetails project =
-                projectService.createProject(
-                        request.prompt(),
-                        request.model().provider(),
-                        request.model().model()
-                );
+                projectService.addProject(dto);
 
         return ResponseEntity
                 .created(URI.create(
                         "/api/projects/" + project.getId()
                 ))
                 .body(project);
-    }
-
-    public record CreateProjectRequest(
-            @NotBlank String prompt,
-            @NotNull @Valid ModelRequest model
-    ) {
-    }
-
-    public record ModelRequest(
-            @NotBlank String provider,
-            @NotBlank String model
-    ) {
     }
 }

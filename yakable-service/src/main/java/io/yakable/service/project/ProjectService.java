@@ -1,17 +1,24 @@
 package io.yakable.service.project;
 
-import io.yakable.common.BusinessException;
 import io.yakable.common.ConverUtils;
 import io.yakable.common.DateUtils;
 import io.yakable.common.PageData;
 import io.yakable.dao.entity.ProjectEntity;
 import io.yakable.dao.repository.ProjectRepository;
+import io.yakable.service.project.dto.AddProjectDTO;
+import io.yakable.service.project.dto.QueryProjectDTO;
+import io.yakable.service.project.dto.QueryProjectPageDTO;
 import io.yakable.service.session.SessionService;
 import io.yakable.service.turn.TurnDispatcher;
+import jakarta.annotation.Resource;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.validation.annotation.Validated;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -21,55 +28,40 @@ import java.util.UUID;
 /**
  * Project 业务服务。
  *
- * <p>负责 Project 的创建、查询和分页列表，并协调初始 Session 与 Turn 的创建。</p>
+ * <p>负责 Project 的新增和查询，并协调初始 Session 与 Turn 的创建。</p>
  */
-public final class ProjectService {
+@Service
+@Validated
+public class ProjectService {
 
     private static final int MAX_PROJECT_NAME_LENGTH = 48;
-    private static final int MAX_PAGE_SIZE = 100;
 
-    private final ProjectRepository repository;
-    private final SessionService sessionService;
-    private final TurnDispatcher turnDispatcher;
-    private final TransactionTemplate transactionTemplate;
+    @Resource
+    private ProjectRepository projectRepository;
 
-    public ProjectService(
-            ProjectRepository repository,
-            SessionService sessionService,
-            TurnDispatcher turnDispatcher,
-            TransactionTemplate transactionTemplate
-    ) {
-        this.repository = repository;
-        this.sessionService = sessionService;
-        this.turnDispatcher = turnDispatcher;
-        this.transactionTemplate = transactionTemplate;
-    }
+    @Resource
+    private SessionService sessionService;
+
+    @Resource
+    private TurnDispatcher turnDispatcher;
+
+    @Resource
+    private TransactionTemplate transactionTemplate;
 
     /**
-     * 创建 Project，并同步创建首个 Session 和首轮 Turn。
+     * 新增 Project，并同步创建首个 Session 和首轮 Turn。
+     *
+     * @param dto 新增 Project 入参
+     * @return Project 详情
      */
-    public ProjectDetails createProject(
-            String prompt,
-            String provider,
-            String model
-    ) {
-        if (StringUtils.isBlank(prompt)) {
-            throw new BusinessException("prompt must not be blank");
-        }
-        if (StringUtils.isBlank(provider)) {
-            throw new BusinessException("provider must not be blank");
-        }
-        if (StringUtils.isBlank(model)) {
-            throw new BusinessException("model must not be blank");
-        }
-
-        String normalizedPrompt = StringUtils.strip(prompt);
-        String normalizedProvider = StringUtils.strip(provider);
-        String normalizedModel = StringUtils.strip(model);
+    public ProjectDetails addProject(@NotNull @Valid AddProjectDTO dto) {
+        String prompt = StringUtils.strip(dto.prompt());
+        String provider = StringUtils.strip(dto.model().provider());
+        String model = StringUtils.strip(dto.model().model());
 
         CreatedProject created = transactionTemplate.execute(status -> {
             LocalDateTime now = DateUtils.now();
-            String name = projectName(normalizedPrompt);
+            String name = projectName(prompt);
 
             ProjectEntity project = new ProjectEntity();
             project.setId(UUID.randomUUID().toString());
@@ -77,15 +69,15 @@ public final class ProjectService {
             project.setStatus("CREATED");
             project.setCreatedAt(DateUtils.toInstant(now));
             project.setUpdatedAt(DateUtils.toInstant(now));
-            repository.save(project);
+            projectRepository.save(project);
 
             SessionService.InitialSession session =
                     sessionService.createInitialSession(
                             project.getId(),
                             name,
-                            normalizedProvider,
-                            normalizedModel,
-                            normalizedPrompt
+                            provider,
+                            model,
+                            prompt
                     );
 
             return new CreatedProject(project, session);
@@ -105,54 +97,43 @@ public final class ProjectService {
 
     /**
      * 分页查询 Project。
+     *
+     * @param dto 分页查询入参
+     * @return Project 分页数据
      */
-    public PageData<ProjectSummary> listProjects(
-            int current,
-            int pageSize
+    public PageData<ProjectSummary> queryProject(
+            @NotNull @Valid QueryProjectPageDTO dto
     ) {
-        validatePage(current, pageSize);
+        long total = projectRepository.countProjectsWithSession();
+        long offset = (long) (dto.current() - 1) * dto.pageSize();
 
-        long total = repository.countProjectsWithSession();
-        long offset = (long) (current - 1) * pageSize;
-
-        List<ProjectSummary> records = repository
-                .findProjectPage(offset, pageSize)
+        List<ProjectSummary> records = projectRepository
+                .findProjectPage(offset, dto.pageSize())
                 .stream()
                 .map(ProjectService::toSummary)
                 .toList();
 
-        return PageData.of(records, total, current, pageSize);
+        return PageData.of(
+                records,
+                total,
+                dto.current(),
+                dto.pageSize()
+        );
     }
 
     /**
      * 根据 Project ID 查询详情。
+     *
+     * @param dto Project 查询入参
+     * @return Project 详情
      */
-    public Optional<ProjectDetails> getProject(String projectId) {
-        if (StringUtils.isBlank(projectId)) {
-            throw new BusinessException(
-                    "projectId must not be blank"
-            );
-        }
-
-        return repository.findProjectDetails(
-                        StringUtils.strip(projectId)
+    public Optional<ProjectDetails> queryProject(
+            @NotNull @Valid QueryProjectDTO dto
+    ) {
+        return projectRepository.findProjectDetails(
+                        StringUtils.strip(dto.projectId())
                 )
                 .map(ProjectService::toDetails);
-    }
-
-    private static void validatePage(int current, int pageSize) {
-        if (current <= 0) {
-            throw new BusinessException(
-                    "current must be greater than zero"
-            );
-        }
-
-        if (pageSize <= 0 || pageSize > MAX_PAGE_SIZE) {
-            throw new BusinessException(
-                    "pageSize must be between 1 and "
-                            + MAX_PAGE_SIZE
-            );
-        }
     }
 
     private static ProjectSummary toSummary(ProjectEntity entity) {
