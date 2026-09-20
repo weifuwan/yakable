@@ -2,7 +2,7 @@
 
 ## 基本原则
 
-1. 所有数据库结构变更统一使用 Flyway 管理。已经执行过的 Migration 禁止修改，只能新增新的 Migration 文件。
+1. 所有数据库结构变更统一使用 Flyway 管理。已经进入共享环境、测试环境或生产环境并执行过的 Migration 禁止修改，只能新增新的 Migration 文件；仅在项目开发初期、确认所有数据库都可以整体重建时，允许合并历史版本并重新生成单一 baseline。baseline 一旦进入共享环境后同样禁止修改。
 
 2. Migration 文件统一使用 `V{版本号}__{英文描述}.sql`，描述使用小写下划线，例如 `V10__normalize_project_table.sql`。
 
