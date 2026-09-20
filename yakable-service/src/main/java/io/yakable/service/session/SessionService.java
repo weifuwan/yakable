@@ -30,7 +30,6 @@ import io.yakable.service.turn.TurnDispatcher;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.validation.annotation.Validated;
@@ -70,7 +69,7 @@ public class SessionService {
         session.setStatus(SessionStatusEnum.ACTIVE);
         sessionRepository.add(session);
 
-        TurnStartVO turn = addPendingTurn(session, StringUtils.strip(dto.content()));
+        TurnStartVO turn = addPendingTurn(session, dto.content());
 
         SessionInitVO result = new SessionInitVO();
         result.setSessionId(session.getId());
@@ -86,9 +85,9 @@ public class SessionService {
      * @return Turn 创建结果
      */
     public TurnStartVO addTurn(@NotNull @Valid AddTurnDTO dto) {
-        String projectId = StringUtils.strip(dto.projectId());
-        String sessionId = StringUtils.strip(dto.sessionId());
-        String content = StringUtils.strip(dto.content());
+        String projectId = dto.projectId();
+        String sessionId = dto.sessionId();
+        String content = dto.content();
 
         TurnStartVO result = transactionTemplate.execute(status -> {
             SessionEntity session = queryOwnedSession(projectId, sessionId);
@@ -109,8 +108,8 @@ public class SessionService {
      * @return Session 详情
      */
     public SessionDetailVO querySession(@NotNull @Valid QuerySessionDTO dto) {
-        String projectId = StringUtils.strip(dto.projectId());
-        String sessionId = StringUtils.strip(dto.sessionId());
+        String projectId = dto.projectId();
+        String sessionId = dto.sessionId();
         SessionEntity session = queryOwnedSession(projectId, sessionId);
 
         SessionDetailVO result = new SessionDetailVO();
@@ -127,8 +126,8 @@ public class SessionService {
      * @return Session 增量变化
      */
     public SessionChangesVO querySessionChanges(@NotNull @Valid QuerySessionChangesDTO dto) {
-        String projectId = StringUtils.strip(dto.projectId());
-        String sessionId = StringUtils.strip(dto.sessionId());
+        String projectId = dto.projectId();
+        String sessionId = dto.sessionId();
         queryOwnedSession(projectId, sessionId);
 
         TurnEntity latest = sessionRepository.queryLatestTurn(sessionId)
@@ -149,8 +148,8 @@ public class SessionService {
      * @return Session 消息分页数据
      */
     public SessionMessagePageVO querySessionMessage(@NotNull @Valid QuerySessionMessagesDTO dto) {
-        String projectId = StringUtils.strip(dto.projectId());
-        String sessionId = StringUtils.strip(dto.sessionId());
+        String projectId = dto.projectId();
+        String sessionId = dto.sessionId();
         queryOwnedSession(projectId, sessionId);
 
         List<MessageEntity> rows = sessionRepository.queryMessageBefore(sessionId, dto.beforeSequence(), dto.limit() + 1);
