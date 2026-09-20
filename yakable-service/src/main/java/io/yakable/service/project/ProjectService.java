@@ -59,7 +59,7 @@ public class ProjectService {
         String model = StringUtils.strip(dto.model().model());
 
         CreatedProject created = transactionTemplate.execute(status -> {
-            ProjectEntity project = new ProjectEntity();
+            ProjectEntity project = ConverUtils.convert(dto, ProjectEntity.class);
             project.initCreate();
             project.setName(projectName(prompt));
             project.setStatus(ProjectStatusEnum.CREATED);
