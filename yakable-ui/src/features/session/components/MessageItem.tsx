@@ -189,7 +189,7 @@ export function MessageItem({
       >
         {isEditing ? (
           <div
-            className="rounded-3xl border-2 border-black/[0.12] bg-white p-3 shadow-sm"
+            className="rounded-3xl bg-black/[0.06] p-4"
             data-testid="user-message-editor"
           >
             <textarea
@@ -202,7 +202,7 @@ export function MessageItem({
               onKeyDown={handleEditInputKeyDown}
               onCompositionStart={handleCompositionStart}
               onCompositionEnd={handleCompositionEnd}
-              className="block min-h-12 w-full resize-none bg-transparent px-1 py-1 text-sm leading-6 text-[#20201e] outline-none"
+              className="block min-h-14 w-full resize-none bg-transparent px-1 py-1 text-sm leading-6 text-[#20201e] outline-none"
             />
 
             <div className="mt-3 flex items-center justify-end gap-2">
