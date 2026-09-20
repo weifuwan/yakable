@@ -54,10 +54,7 @@ public class ProjectService {
      * @return Project 详情
      */
     public ProjectDetailVO addProject(@NotNull @Valid AddProjectDTO dto) {
-        String prompt = StringUtils.strip(dto.prompt());
-        String provider = StringUtils.strip(dto.model().provider());
-        String model = StringUtils.strip(dto.model().model());
-
+        String prompt = dto.prompt();
         CreatedProject created = transactionTemplate.execute(status -> {
             ProjectEntity project = new ProjectEntity();
             project.initCreate();
@@ -66,7 +63,7 @@ public class ProjectService {
             projectRepository.add(project);
 
             SessionInitVO session = sessionService.addSession(
-                    new AddSessionDTO(project.getId(), project.getName(), provider, model, prompt));
+                    new AddSessionDTO(project.getId(), project.getName(), dto.model().provider(), dto.model().model(), prompt));
             return new CreatedProject(project, session);
         });
 
@@ -95,7 +92,7 @@ public class ProjectService {
      * @return Project 详情
      */
     public Optional<ProjectDetailVO> queryProject(@NotNull @Valid QueryProjectDTO dto) {
-        return projectRepository.queryProject(StringUtils.strip(dto.projectId()))
+        return projectRepository.queryProject(dto.projectId())
                 .map(ProjectService::toDetailVO);
     }
 
@@ -115,7 +112,7 @@ public class ProjectService {
 
     private static String projectName(String prompt) {
         String firstLine = prompt.lines().findFirst().orElse(prompt);
-        return StringUtils.abbreviate(StringUtils.strip(firstLine), MAX_PROJECT_NAME_LENGTH);
+        return StringUtils.abbreviate(firstLine.strip(), MAX_PROJECT_NAME_LENGTH);
     }
 
     private record CreatedProject(ProjectEntity project, SessionInitVO session) {
