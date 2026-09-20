@@ -298,6 +298,57 @@ describe('SessionWorkspace', () => {
     expect(button.querySelectorAll('.size-1')).toHaveLength(3);
   });
 
+  it('shows the user message and Thinking before the server starts streaming', async () => {
+    let resolveStream!: (response: Response) => void;
+    const pendingStream = new Promise<Response>((resolve) => {
+      resolveStream = resolve;
+    });
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (
+          init?.method === 'POST' &&
+          String(input).endsWith('/turns/stream')
+        ) {
+          return pendingStream;
+        }
+        if (String(input).includes('/changes?')) {
+          return apiResponse(completedChanges);
+        }
+        return apiResponse(completedSnapshot);
+      },
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(
+      <SessionWorkspace
+        projectId="project-1"
+        sessionId="session-1"
+      />,
+    );
+
+    const input = await screen.findByRole('textbox', {
+      name: 'Send a message',
+    });
+    fireEvent.change(input, { target: { value: 'Tell me more' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(await screen.findByText('Tell me more')).toBeTruthy();
+    expect(screen.getByText('Thinking...')).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: 'Stop generating' }),
+    ).toBeTruthy();
+    await waitFor(() => {
+      expect((input as HTMLTextAreaElement).value).toBe('');
+    });
+
+    resolveStream(streamResponse());
+
+    expect(await screen.findByText('Streaming reply.')).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getAllByText('Tell me more')).toHaveLength(1);
+    });
+  });
+
   it('stops an active streaming turn', async () => {
     const encoder = new TextEncoder();
     const fetchMock = vi.fn(
