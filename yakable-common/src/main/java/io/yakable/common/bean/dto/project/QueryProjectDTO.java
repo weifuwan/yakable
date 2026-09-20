@@ -1,5 +1,6 @@
 package io.yakable.common.bean.dto.project;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 
 /**
@@ -7,4 +8,6 @@ import jakarta.validation.constraints.NotBlank;
  *
  * @param projectId Project ID
  */
-public record QueryProjectDTO(@NotBlank String projectId) {}
+@Schema(description = "查询 Project 参数")
+public record QueryProjectDTO(
+        @Schema(description = "Project ID") @NotBlank String projectId) {}
