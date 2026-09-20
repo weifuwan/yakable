@@ -1,92 +1,51 @@
 # yakable-common 开发规范
 
-`yakable-common` 只放跨模块复用的公共对象、工具类、常量、枚举和异常。
+`yakable-common` 只放跨模块复用的公共对象、工具能力、常量、枚举和异常，不放具体业务逻辑。
 
-## 目录结构
+## 目录规范
 
 ```text
 io.yakable.common
 ├── bean
-│   ├── PageData
 │   ├── dto
-│   │   ├── AddProjectDTO
-│   │   ├── QueryProjectDTO
-│   │   └── PageDTO
 │   └── vo
-│       ├── ProjectListVO
-│       └── ProjectDetailVO
 ├── utils
-│   ├── ConverUtils
-│   ├── DateUtils
-│   ├── IdUtils
-│   └── ThreadUtils
 ├── constant
-│   └── SystemConstant
 ├── enums
-│   ├── ProjectStatusEnum
-│   ├── SessionStatusEnum
-│   ├── TurnStatusEnum
-│   └── MessageRoleEnum
 └── exception
-    └── BusinessException
 ```
 
-## bean
+1. 公共数据对象统一放在 `bean` 包。
 
-公共数据对象统一放在 `bean` 下。
+2. 输入参数对象统一放在 `bean.dto`，返回对象统一放在 `bean.vo`。
 
-- `PageData<T>`：统一分页返回结构，包含列表数据和分页信息。
+3. DTO 按操作和领域命名；纯分页参数使用公共分页 DTO，有额外筛选条件时由业务 DTO 继承公共分页 DTO。
 
-### dto
+4. VO 按实际页面或展示领域命名，不按数据库表或接口动作机械命名。
 
-- `AddProjectDTO`：新增 Project 的输入参数。
-- `QueryProjectDTO`：查询单个 Project 的输入参数。
-- `PageDTO`：通用分页参数，只有分页条件时直接使用；有额外查询条件时由业务 DTO 继承。
+5. 跨模块复用的工具能力统一放在 `utils`，业务模块禁止重复实现已有公共能力。
 
-### vo
+6. 对象转换统一走公共转换工具，不在业务代码中重复手写字段复制逻辑。
 
-- `ProjectListVO`：Project 列表页面返回对象。
-- `ProjectDetailVO`：Project 详情页面返回对象。
+7. 时间类型统一使用 `LocalDateTime`；时间格式化、解析、转换等公共处理统一走公共时间工具。
 
-## utils
+8. ID 统一通过公共 ID 工具生成，业务代码禁止自行实现 ID 生成逻辑。
 
-公共工具类统一放在 `utils` 下。
+9. 所有线程、线程池和调度线程池统一走公共线程工具。业务模块禁止直接使用 `new Thread`、`Executors`、`ThreadFactory`、`Thread.ofVirtual()`、`Thread.ofPlatform()` 创建线程或线程池；需要新的线程模型时先在公共线程工具中增加统一能力。
 
-- `ConverUtils`：对象类型转换，统一处理 `source -> Target.class`。
-- `DateUtils`：时间处理，统一处理 `LocalDateTime` 的获取、格式化、解析和转换。
-- `IdUtils`：统一生成雪花 ID。
-- `ThreadUtils`：统一创建和管理线程、线程池、调度线程池。
+10. 公共常量统一放在 `constant` 包，禁止在多个模块重复定义相同常量。
 
-线程相关能力统一走 `ThreadUtils`。业务模块禁止直接使用 `new Thread`、`Executors`、`ThreadFactory`、`Thread.ofVirtual()`、`Thread.ofPlatform()` 创建线程或线程池；需要新的线程模型时先在 `ThreadUtils` 中增加统一方法，再由业务代码调用。
+11. 公共枚举统一放在 `enums` 包；需要持久化的枚举使用 MyBatis-Plus `@EnumValue` 标记数据库数字值，业务代码直接使用枚举本身，不手动操作数据库枚举值。
 
-## constant
-
-公共常量统一放在 `constant` 下。
-
-- `SystemConstant`：系统级公共常量。
-
-## enums
-
-公共枚举统一放在 `enums` 下。需要持久化的枚举使用 MyBatis-Plus `@EnumValue` 标记数据库数字值，业务代码直接使用枚举本身。
-
-- `ProjectStatusEnum`：Project 状态。
-- `SessionStatusEnum`：Session 状态。
-- `TurnStatusEnum`：Turn 状态。
-- `MessageRoleEnum`：Message 角色。
-
-## exception
-
-公共异常统一放在 `exception` 下。
-
-- `BusinessException`：统一业务异常，Service 中可预期的业务错误统一使用该异常。
+12. 公共异常统一放在 `exception` 包；可预期的业务错误统一使用业务异常，不使用 `IllegalArgumentException`、`IllegalStateException` 等通用异常表达业务语义。
 
 ## 代码格式
 
-只有参数较多或单行明显过长时才允许换行；换行后必须保持结构紧凑、统一。
+13. 只有参数较多或单行明显过长时才允许换行；换行后必须保持结构紧凑、统一。
 
-简单方法、构造方法、record 声明、方法调用能一行写完就写一行，禁止为了一个参数做无意义换行。
+14. 简单方法、构造方法、record 声明、方法调用能一行写完就写一行，禁止为了一个参数做无意义换行。
 
-禁止把右括号和左花括号单独悬空，例如：
+15. 禁止把右括号和左花括号单独悬空，例如禁止：
 
 ```java
 public Optional<ProjectDetailVO> queryProject(
