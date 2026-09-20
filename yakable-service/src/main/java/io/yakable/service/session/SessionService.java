@@ -34,7 +34,10 @@ import org.springframework.validation.annotation.Validated;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Session 业务服务。
@@ -119,6 +122,16 @@ public class SessionService {
      */
     public Optional<SessionVO> queryLatestSession(String projectId) {
         return sessionRepository.queryLatestSession(projectId).map(SessionService::toSessionVO);
+    }
+
+    /**
+     * 批量查询 Project 最新 Session。
+     */
+    public Map<String, SessionVO> queryLatestSessionMap(List<String> projectIds) {
+        return sessionRepository.queryLatestSessionList(projectIds)
+                .stream()
+                .map(SessionService::toSessionVO)
+                .collect(Collectors.toMap(SessionVO::getProjectId, Function.identity()));
     }
 
     /**
