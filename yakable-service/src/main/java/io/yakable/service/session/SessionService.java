@@ -115,6 +115,13 @@ public class SessionService {
     }
 
     /**
+     * 查询 Project 最新 Session。
+     */
+    public Optional<SessionVO> queryLatestSession(String projectId) {
+        return sessionRepository.queryLatestSession(projectId).map(SessionService::toSessionVO);
+    }
+
+    /**
      * 更新 Session 活跃时间。
      */
     public void updateSession(String sessionId) {
