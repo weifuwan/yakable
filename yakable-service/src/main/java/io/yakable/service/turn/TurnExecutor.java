@@ -1,13 +1,15 @@
 package io.yakable.service.turn;
 
+import io.yakable.common.bean.vo.session.MessageVO;
+import io.yakable.common.bean.vo.session.SessionVO;
+import io.yakable.common.bean.vo.session.TurnExecutionVO;
+import io.yakable.common.bean.vo.session.TurnVO;
 import io.yakable.common.enums.session.MessageRoleEnum;
 import io.yakable.common.enums.session.TurnStatusEnum;
 import io.yakable.common.utils.DateUtils;
-import io.yakable.dao.entity.MessageEntity;
-import io.yakable.dao.entity.SessionEntity;
-import io.yakable.dao.entity.TurnEntity;
-import io.yakable.dao.repository.SessionRepository;
+import io.yakable.service.message.MessageService;
 import io.yakable.service.model.ModelClient;
+import io.yakable.service.session.SessionService;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
@@ -21,27 +23,36 @@ public final class TurnExecutor {
 
     private static final String SYSTEM_PROMPT = "You are Yakable, a concise and accurate assistant.";
 
-    private final SessionRepository repository;
+    private final SessionService sessionService;
+    private final TurnService turnService;
+    private final MessageService messageService;
     private final ModelClient modelClient;
     private final TransactionTemplate transactionTemplate;
 
-    public TurnExecutor(SessionRepository repository, ModelClient modelClient, TransactionTemplate transactionTemplate) {
-        this.repository = Objects.requireNonNull(repository, "repository");
+    public TurnExecutor(
+            SessionService sessionService,
+            TurnService turnService,
+            MessageService messageService,
+            ModelClient modelClient,
+            TransactionTemplate transactionTemplate) {
+        this.sessionService = Objects.requireNonNull(sessionService, "sessionService");
+        this.turnService = Objects.requireNonNull(turnService, "turnService");
+        this.messageService = Objects.requireNonNull(messageService, "messageService");
         this.modelClient = Objects.requireNonNull(modelClient, "modelClient");
         this.transactionTemplate = Objects.requireNonNull(transactionTemplate, "transactionTemplate");
     }
 
     public boolean execute(String turnId) {
-        TurnEntity snapshot = repository.queryTurn(turnId).orElse(null);
+        TurnExecutionVO snapshot = turnService.queryTurnExecution(turnId).orElse(null);
         if (snapshot == null) {
             return false;
         }
 
-        SessionEntity session = repository.queryById(snapshot.getSessionId())
+        SessionVO session = sessionService.querySession(snapshot.getSessionId())
                 .orElseThrow(() -> new IllegalStateException("Session does not exist: " + snapshot.getSessionId()));
 
-        TurnEntity running = repository.updatePendingTurn(
-                turnId, DateUtils.now(), session.getProvider(), session.getModel()).orElse(null);
+        TurnVO running = turnService.updatePendingTurn(
+                turnId, DateUtils.now(), session.getModel().getProvider(), session.getModel().getModel()).orElse(null);
 
         if (running == null) {
             return false;
@@ -49,8 +60,8 @@ public final class TurnExecutor {
 
         try {
             ModelClient.Reply reply = modelClient.chat(
-                    session.getProvider(),
-                    session.getModel(),
+                    session.getModel().getProvider(),
+                    session.getModel().getModel(),
                     SYSTEM_PROMPT,
                     buildContext(session.getId(), running.getId()));
             persistSuccess(session, running, reply);
@@ -62,31 +73,31 @@ public final class TurnExecutor {
     }
 
     private List<ModelClient.Message> buildContext(String sessionId, String currentTurnId) {
-        Map<String, TurnEntity> turns = repository.queryTurnList(sessionId)
+        Map<String, TurnVO> turns = turnService.queryTurnList(sessionId)
                 .stream()
-                .collect(Collectors.toMap(TurnEntity::getId, Function.identity()));
+                .collect(Collectors.toMap(TurnVO::getId, Function.identity()));
 
-        return repository.queryMessageList(sessionId)
+        return messageService.queryMessageList(sessionId)
                 .stream()
                 .filter(message -> {
                     if (currentTurnId.equals(message.getTurnId())) {
                         return true;
                     }
-                    TurnEntity turn = turns.get(message.getTurnId());
-                    return turn != null && turn.getStatus() == TurnStatusEnum.SUCCEEDED;
+                    TurnVO turn = turns.get(message.getTurnId());
+                    return turn != null && TurnStatusEnum.SUCCEEDED.name().equals(turn.getStatus());
                 })
                 .map(TurnExecutor::toModelMessage)
                 .toList();
     }
 
-    private void persistSuccess(SessionEntity session, TurnEntity running, ModelClient.Reply reply) {
+    private void persistSuccess(SessionVO session, TurnVO running, ModelClient.Reply reply) {
         LocalDateTime completedAt = DateUtils.now();
         ModelClient.Usage usage = reply.usage();
 
         transactionTemplate.executeWithoutResult(status -> {
-            int updated = repository.updateTurnSucceeded(
+            int updated = turnService.updateTurnSucceeded(
                     running.getId(),
-                    running.getSessionId(),
+                    session.getId(),
                     reply.provider(),
                     reply.model(),
                     usage == null ? null : usage.inputTokens(),
@@ -99,40 +110,26 @@ public final class TurnExecutor {
                 throw new IllegalStateException("Turn is no longer RUNNING: " + running.getId());
             }
 
-            MessageEntity message = new MessageEntity();
-            message.initCreate();
-            message.setSessionId(running.getSessionId());
-            message.setTurnId(running.getId());
-            message.setRole(MessageRoleEnum.ASSISTANT);
-            message.setContent(reply.content());
-            message.setMessageSequence(repository.queryNextMessageSequence(running.getSessionId()));
-            repository.addMessage(message);
-
-            session.initUpdate();
-            repository.update(session);
+            messageService.addMessage(session.getId(), running.getId(), MessageRoleEnum.ASSISTANT, reply.content());
+            sessionService.updateSession(session.getId());
         });
     }
 
-    private void persistFailure(SessionEntity session, TurnEntity running, RuntimeException originalFailure) {
+    private void persistFailure(SessionVO session, TurnVO running, RuntimeException originalFailure) {
         LocalDateTime failedAt = DateUtils.now();
 
         try {
             transactionTemplate.executeWithoutResult(status -> {
-                repository.updateTurnFailed(
-                        running.getId(),
-                        running.getSessionId(),
-                        failureMessage(originalFailure),
-                        failedAt);
-                session.initUpdate();
-                repository.update(session);
+                turnService.updateTurnFailed(running.getId(), session.getId(), failureMessage(originalFailure), failedAt);
+                sessionService.updateSession(session.getId());
             });
         } catch (RuntimeException persistenceFailure) {
             originalFailure.addSuppressed(persistenceFailure);
         }
     }
 
-    private static ModelClient.Message toModelMessage(MessageEntity message) {
-        ModelClient.Role role = message.getRole() == MessageRoleEnum.USER
+    private static ModelClient.Message toModelMessage(MessageVO message) {
+        ModelClient.Role role = MessageRoleEnum.USER.name().equals(message.getRole())
                 ? ModelClient.Role.USER
                 : ModelClient.Role.ASSISTANT;
         return new ModelClient.Message(role, message.getContent());
