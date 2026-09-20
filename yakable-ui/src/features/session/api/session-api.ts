@@ -149,6 +149,29 @@ function sessionPath(projectId: string, sessionId: string) {
   );
 }
 
+function parseSseEvent(block: string) {
+  let event = 'message';
+  const data: string[] = [];
+
+  for (const line of block.split('\n')) {
+    if (line.startsWith('event:')) {
+      event = line.slice(6).trim();
+    } else if (line.startsWith('data:')) {
+      data.push(line.slice(5).trimStart());
+    }
+  }
+
+  return { event, data: data.join('\n') };
+}
+
+function parseEventJson(data: string, errorMessage: string) {
+  try {
+    return JSON.parse(data) as unknown;
+  } catch (error) {
+    throw new Error(errorMessage, { cause: error });
+  }
+}
+
 export async function getSession(
   projectId: string,
   sessionId: string,
@@ -264,41 +287,78 @@ export async function getSessionMessages(
   return data;
 }
 
-export async function startSessionTurn(
+export async function streamSessionTurn(
   projectId: string,
   sessionId: string,
   content: string,
-): Promise<TurnStartResult> {
-  let response: Response;
-
-  try {
-    response = await fetch(
-      sessionPath(projectId, sessionId) + '/turns',
-      {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ content }),
-      },
-    );
-  } catch (error) {
-    throw new Error('Unable to start turn.', { cause: error });
-  }
+  handlers: {
+    onStarted: (result: TurnStartResult) => void;
+    onDelta: (content: string) => void;
+  },
+  signal?: AbortSignal,
+) {
+  const response = await fetch(sessionPath(projectId, sessionId) + '/turns/stream', {
+    method: 'POST',
+    headers: {
+      Accept: 'text/event-stream',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ content }),
+    signal,
+  });
 
   if (!response.ok) {
-    throw new Error('Unable to start turn (HTTP ' + response.status + ').');
+    throw new Error('Unable to stream turn (HTTP ' + response.status + ').');
+  }
+  if (!response.body) {
+    throw new Error('Streaming response body is unavailable.');
   }
 
-  const data = await readJson(
-    response,
-    'Session API returned invalid JSON.',
-  );
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
 
-  if (!isTurnStartResult(data)) {
-    throw new Error('Session API returned an invalid turn.');
+  while (true) {
+    const { done, value } = await reader.read();
+    buffer += decoder.decode(value, { stream: !done });
+    buffer = buffer.replace(/\r\n/g, '\n');
+
+    let boundary = buffer.indexOf('\n\n');
+    while (boundary >= 0) {
+      const block = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+      boundary = buffer.indexOf('\n\n');
+      if (!block) continue;
+
+      const event = parseSseEvent(block);
+      if (event.event === 'started') {
+        const data = parseEventJson(event.data, 'Streaming start event is invalid.');
+        if (!isTurnStartResult(data)) {
+          throw new Error('Streaming start event is invalid.');
+        }
+        handlers.onStarted(data);
+      } else if (event.event === 'delta') {
+        const data = parseEventJson(event.data, 'Streaming delta event is invalid.');
+        if (!isRecord(data) || typeof data.content !== 'string') {
+          throw new Error('Streaming delta event is invalid.');
+        }
+        handlers.onDelta(data.content);
+      } else if (event.event === 'error') {
+        const data = parseEventJson(event.data, 'Streaming error event is invalid.');
+        throw new Error(
+          isRecord(data) && typeof data.message === 'string'
+            ? data.message
+            : 'Streaming turn failed.',
+        );
+      } else if (event.event === 'complete') {
+        return;
+      }
+    }
+
+    if (done) {
+      break;
+    }
   }
 
-  return data;
+  throw new Error('Streaming connection ended before completion.');
 }

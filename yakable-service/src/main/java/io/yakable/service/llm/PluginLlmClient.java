@@ -6,6 +6,7 @@ import io.yakable.core.llm.LlmProvider;
 import io.yakable.core.llm.LlmProviderConfiguration;
 import io.yakable.core.llm.LlmRequest;
 import io.yakable.core.llm.LlmResponse;
+import io.yakable.core.llm.LlmStreamEvent;
 import jakarta.annotation.Resource;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Component;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.ServiceLoader;
+import java.util.function.Consumer;
 
 /**
  * 基于 Model Plugin 的 LLM Client 实现。
@@ -29,6 +31,12 @@ public class PluginLlmClient implements LlmClient {
     public LlmResponse chat(LlmRequest request) {
         LlmProvider provider = requireProvider(request.provider());
         return provider.chat(configuration(provider.provider()), request);
+    }
+
+    @Override
+    public void streamingChat(LlmRequest request, Consumer<LlmStreamEvent> consumer) {
+        LlmProvider provider = requireProvider(request.provider());
+        provider.streamingChat(configuration(provider.provider()), request, consumer);
     }
 
     private LlmProviderConfiguration configuration(String provider) {

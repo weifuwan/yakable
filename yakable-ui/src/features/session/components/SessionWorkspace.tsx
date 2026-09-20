@@ -6,10 +6,11 @@ import { PromptComposer } from '@/shared/ui';
 import {
   getSession,
   getSessionChanges,
-  startSessionTurn,
+  streamSessionTurn,
 } from '../api/session-api';
 import type {
   SessionChanges,
+  SessionMessage,
   SessionSnapshot,
 } from '../types';
 import { MessageItem } from './MessageItem';
@@ -65,6 +66,8 @@ export function SessionWorkspace({
   const [snapshot, setSnapshot] = useState<SessionSnapshot | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [streamingTurnId, setStreamingTurnId] = useState<string | null>(null);
+  const [streamingContent, setStreamingContent] = useState('');
 
   useEffect(() => {
     const controller = new AbortController();
@@ -93,7 +96,7 @@ export function SessionWorkspace({
   const latestSequence = snapshot?.messages.at(-1)?.sequence ?? 0;
 
   useEffect(() => {
-    if (!activeTurn) return;
+    if (!activeTurn || streamingTurnId) return;
 
     let disposed = false;
 
@@ -124,40 +127,80 @@ export function SessionWorkspace({
       disposed = true;
       window.clearInterval(timer);
     };
-  }, [activeTurn, latestSequence, projectId, sessionId]);
+  }, [activeTurn, latestSequence, projectId, sessionId, streamingTurnId]);
 
   const latestTurn = useMemo(
     () => snapshot?.turns.at(-1) ?? null,
     [snapshot],
   );
 
+  const streamingMessage: SessionMessage | null =
+    streamingTurnId && streamingContent
+      ? {
+          id: 'stream-' + streamingTurnId,
+          turnId: streamingTurnId,
+          role: 'ASSISTANT',
+          content: streamingContent,
+          sequence: Number.MAX_SAFE_INTEGER,
+          createdAt: new Date().toISOString(),
+        }
+      : null;
+
   const handleSubmit = async (content: string) => {
     setSendError(null);
+    setStreamingContent('');
+    const afterSequence = latestSequence;
 
     try {
-      const started = await startSessionTurn(
+      await streamSessionTurn(projectId, sessionId, content, {
+        onStarted: (started) => {
+          setStreamingTurnId(started.turn.id);
+          setSnapshot((current) => {
+            if (!current) return current;
+            return {
+              ...current,
+              turns: [...current.turns, started.turn],
+              messages: [...current.messages, started.userMessage],
+            };
+          });
+        },
+        onDelta: (delta) => {
+          setStreamingContent((current) => current + delta);
+        },
+      });
+
+      const changes = await getSessionChanges(
         projectId,
         sessionId,
-        content,
+        afterSequence,
       );
-
-      setSnapshot((current) => {
-        if (!current) return current;
-
-        return {
-          ...current,
-          turns: [...current.turns, started.turn],
-          messages: [...current.messages, started.userMessage],
-        };
-      });
+      setSnapshot((current) =>
+        current ? mergeChanges(current, changes) : current,
+      );
       return true;
     } catch (requestError) {
+      try {
+        const changes = await getSessionChanges(
+          projectId,
+          sessionId,
+          afterSequence,
+        );
+        setSnapshot((current) =>
+          current ? mergeChanges(current, changes) : current,
+        );
+      } catch {
+        // 保留原始流式错误。
+      }
+
       setSendError(
         requestError instanceof Error
           ? requestError.message
-          : 'Unable to start turn.',
+          : 'Unable to stream turn.',
       );
       return false;
+    } finally {
+      setStreamingTurnId(null);
+      setStreamingContent('');
     }
   };
 
@@ -178,7 +221,11 @@ export function SessionWorkspace({
             <MessageItem key={message.id} message={message} />
           ))}
 
-          {activeTurn && (
+          {streamingMessage && (
+            <MessageItem key={streamingMessage.id} message={streamingMessage} />
+          )}
+
+          {activeTurn && !streamingContent && (
             <p
               className="m-0 px-1 text-sm text-black/40"
               role="status"
