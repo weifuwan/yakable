@@ -63,7 +63,7 @@ io.yakable.common
 
 ## enums
 
-公共枚举统一放在 `enums` 下。
+公共枚举统一放在 `enums` 下。需要持久化的枚举使用 MyBatis-Plus `@EnumValue` 标记数据库数字值，业务代码直接使用枚举本身。
 
 - `ProjectStatusEnum`：Project 状态。
 - `SessionStatusEnum`：Session 状态。
