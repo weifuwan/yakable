@@ -37,7 +37,7 @@ io.yakable.common
 
 11. 公共枚举统一放在 `enums` 包；需要持久化的枚举使用 MyBatis-Plus `@EnumValue` 标记数据库数字值，业务代码直接使用枚举本身，不手动操作数据库枚举值。
 
-12. 公共异常统一放在 `exception` 包；可预期的业务错误统一使用业务异常，不使用 `IllegalArgumentException`、`IllegalStateException` 等通用异常表达业务语义。
+12. 公共异常和具体业务异常统一放在 `exception` 包；具体业务异常统一继承 `BusinessException`，业务模块禁止在 Service、Controller、Repository 等类内部定义异常类，也不使用 `IllegalArgumentException`、`IllegalStateException` 等通用异常表达业务语义。
 
 ## 代码格式
 

@@ -30,7 +30,7 @@
 
 ## 异常与防御性代码
 
-11. 业务异常统一使用 `BusinessException`，不使用 `IllegalArgumentException`、`IllegalStateException` 表达业务错误；不写没有实际意义的 `Objects.requireNonNull`，只有当前边界确实需要校验时才使用。
+11. 业务异常统一继承 `BusinessException`，具体业务异常统一放到 `yakable-common.exception`，禁止在 Service、Controller、Repository 等业务类内部定义异常类；不使用 `IllegalArgumentException`、`IllegalStateException` 表达业务错误，也不写没有实际意义的 `Objects.requireNonNull`。
 
 ## 代码格式
 

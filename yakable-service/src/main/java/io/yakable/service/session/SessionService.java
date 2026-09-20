@@ -19,7 +19,9 @@ import io.yakable.common.bean.vo.TurnVO;
 import io.yakable.common.enums.MessageRoleEnum;
 import io.yakable.common.enums.SessionStatusEnum;
 import io.yakable.common.enums.TurnStatusEnum;
-import io.yakable.common.exception.BusinessException;
+import io.yakable.common.exception.SessionBusyException;
+import io.yakable.common.exception.SessionInactiveException;
+import io.yakable.common.exception.SessionNotFoundException;
 import io.yakable.common.utils.ConverUtils;
 import io.yakable.dao.entity.MessageEntity;
 import io.yakable.dao.entity.SessionEntity;
@@ -255,21 +257,4 @@ public class SessionService {
         return Duration.between(entity.getStartedAt(), entity.getFinishedAt()).toMillis();
     }
 
-    public static class SessionNotFoundException extends BusinessException {
-        public SessionNotFoundException(String sessionId) {
-            super("Session not found: " + sessionId);
-        }
-    }
-
-    public static class SessionBusyException extends BusinessException {
-        public SessionBusyException(String sessionId) {
-            super("Session already has an active turn: " + sessionId);
-        }
-    }
-
-    public static class SessionInactiveException extends BusinessException {
-        public SessionInactiveException(String sessionId) {
-            super("Session is not active: " + sessionId);
-        }
-    }
 }
