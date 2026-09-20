@@ -38,10 +38,37 @@ Entity
 
 11. 新增持久化代码时优先保持现有结构，不新增 `QueryMapper`、`QueryRepository`、`RepositoryAdapter` 等重复角色。
 
+12. 所有数据库时间字段统一使用 `LocalDateTime`，禁止使用 `Date`、`Instant`、`Timestamp` 等其它时间类型。
+
+13. Entity 中不使用 `@TableField` 显式映射普通字段，字段统一使用 Java 驼峰命名，并依赖 MyBatis-Plus 的下划线转驼峰规则。
+
+14. 所有 Entity 统一继承 `BaseEntity`，公共字段不在每个 Entity 中重复定义。
+
+15. `BaseEntity` 统一包含以下字段：
+
+```text
+id
+createTime
+updateTime
+createBy
+updateBy
+```
+
+16. `BaseEntity` 提供 `initCreate` 和 `initUpdate` 方法：
+
+- `initCreate`：初始化 ID、创建时间、更新时间、创建人、更新人。
+- `initUpdate`：初始化更新时间和更新人。
+
+17. ID 统一通过公共 Utils 生成，使用雪花算法；禁止在业务代码中直接使用 `UUID` 或各自实现 ID 生成逻辑。
+
+18. 需要表达固定状态、类型时必须定义枚举类，不直接在业务代码中散落魔法值。
+
+19. 枚举持久化到数据库时统一保存数字值，例如 `0`、`1`、`2`，不直接保存枚举名称字符串。
+
 ## 核心原则
 
 **Entity 对应表，Mapper 对应表，Repository 对应数据访问能力。**
 
-**Lambda 能解决的，不写 XML；Lambda 开始难看了，就 Mapper + XML。**
+**公共字段放 BaseEntity，公共能力只实现一次。**
 
-**能少一层，就不要多一层。**
+**数据库值保持简单稳定，业务语义通过枚举表达。**
