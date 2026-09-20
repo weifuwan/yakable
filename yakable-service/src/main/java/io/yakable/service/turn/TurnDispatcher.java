@@ -1,38 +1,28 @@
 package io.yakable.service.turn;
 
-import java.util.Objects;
-import java.util.concurrent.Executor;
+import io.yakable.common.utils.ThreadUtils;
+import jakarta.annotation.PreDestroy;
+import jakarta.annotation.Resource;
+import org.springframework.stereotype.Component;
 
-public final class TurnDispatcher {
+import java.util.concurrent.ExecutorService;
 
-    private static final System.Logger log = System.getLogger(
-            TurnDispatcher.class.getName()
-    );
+@Component
+public class TurnDispatcher {
 
-    private final Executor executor;
-    private final TurnExecutor turnExecutor;
+    private static final System.Logger log = System.getLogger(TurnDispatcher.class.getName());
 
-    public TurnDispatcher(
-            Executor executor,
-            TurnExecutor turnExecutor
-    ) {
-        this.executor = Objects.requireNonNull(executor, "executor");
-        this.turnExecutor = Objects.requireNonNull(
-                turnExecutor,
-                "turnExecutor"
-        );
-    }
+    private final ExecutorService executor = ThreadUtils.newVirtualThreadExecutor("yakable-turn-");
+
+    @Resource
+    private TurnExecutor turnExecutor;
 
     public boolean dispatch(String turnId) {
         try {
             executor.execute(() -> executeSafely(turnId));
             return true;
         } catch (RuntimeException exception) {
-            log.log(
-                    System.Logger.Level.WARNING,
-                    "Turn dispatch rejected: " + turnId,
-                    exception
-            );
+            log.log(System.Logger.Level.WARNING, "Turn dispatch rejected: " + turnId, exception);
             return false;
         }
     }
@@ -41,11 +31,12 @@ public final class TurnDispatcher {
         try {
             turnExecutor.execute(turnId);
         } catch (RuntimeException exception) {
-            log.log(
-                    System.Logger.Level.WARNING,
-                    "Turn execution failed: " + turnId,
-                    exception
-            );
+            log.log(System.Logger.Level.WARNING, "Turn execution failed: " + turnId, exception);
         }
+    }
+
+    @PreDestroy
+    void close() {
+        executor.close();
     }
 }
