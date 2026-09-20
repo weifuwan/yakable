@@ -55,9 +55,6 @@ public class ProjectService {
      */
     public ProjectDetailVO addProject(@NotNull @Valid AddProjectDTO dto) {
         String prompt = dto.prompt();
-        String provider = dto.model().provider();
-        String model = dto.model().model();
-
         CreatedProject created = transactionTemplate.execute(status -> {
             ProjectEntity project = new ProjectEntity();
             project.initCreate();
@@ -66,7 +63,7 @@ public class ProjectService {
             projectRepository.add(project);
 
             SessionInitVO session = sessionService.addSession(
-                    new AddSessionDTO(project.getId(), project.getName(), provider, model, prompt));
+                    new AddSessionDTO(project.getId(), project.getName(), dto.model().provider(), dto.model().model(), prompt));
             return new CreatedProject(project, session);
         });
 
