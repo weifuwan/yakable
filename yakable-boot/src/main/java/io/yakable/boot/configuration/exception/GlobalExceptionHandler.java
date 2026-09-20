@@ -27,9 +27,9 @@ public class GlobalExceptionHandler {
         ErrorCode errorCode = exception.getErrorCode();
         if (errorCode == null) {
             log.log(System.Logger.Level.WARNING, "Business exception without ErrorCode", exception);
-            return ResponseEntity.badRequest().body(Result.fail(CommonErrorCode.PARAM_NOT_VALID));
+            return ResponseEntity.badRequest().body(Result.<Void>fail(CommonErrorCode.PARAM_NOT_VALID));
         }
-        return ResponseEntity.status(businessStatus(errorCode)).body(Result.fail(errorCode));
+        return ResponseEntity.status(businessStatus(errorCode)).body(Result.<Void>fail(errorCode));
     }
 
     @ExceptionHandler({
@@ -56,7 +56,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     ResponseEntity<Result<Void>> handleUnexpectedException(Exception exception) {
         log.log(System.Logger.Level.ERROR, "Unhandled controller exception", exception);
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Result.fail(CommonErrorCode.COMMON_FAIL));
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Result.<Void>fail(CommonErrorCode.COMMON_FAIL));
     }
 
     private static HttpStatus businessStatus(ErrorCode errorCode) {
