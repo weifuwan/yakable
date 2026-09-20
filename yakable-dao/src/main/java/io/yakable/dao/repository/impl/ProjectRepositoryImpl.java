@@ -1,6 +1,7 @@
 package io.yakable.dao.repository.impl;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.yakable.common.bean.PageData;
 import io.yakable.common.bean.dto.common.PageDTO;
@@ -10,8 +11,6 @@ import io.yakable.dao.repository.ProjectRepository;
 import jakarta.annotation.Resource;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Repository;
-
-import java.util.Optional;
 
 @Repository
 @DependsOn("yakableFlyway")
@@ -28,17 +27,14 @@ public class ProjectRepositoryImpl extends BaseRepositoryImpl<ProjectMapper, Pro
     @Override
     public PageData<ProjectEntity> queryProject(PageDTO dto) {
         Page<ProjectEntity> page = new Page<>(dto.getCurrent(), dto.getPageSize());
-        IPage<ProjectEntity> result = projectMapper.selectProjectPage(page);
+        IPage<ProjectEntity> result = projectMapper.selectPage(
+                page,
+                Wrappers.<ProjectEntity>lambdaQuery().orderByDesc(ProjectEntity::getUpdateTime, ProjectEntity::getId));
         return new PageData<>(
                 result.getRecords(),
                 result.getTotal(),
                 result.getPages(),
                 Math.toIntExact(result.getCurrent()),
                 Math.toIntExact(result.getSize()));
-    }
-
-    @Override
-    public Optional<ProjectEntity> queryProject(String projectId) {
-        return Optional.ofNullable(projectMapper.selectProjectDetails(projectId));
     }
 }

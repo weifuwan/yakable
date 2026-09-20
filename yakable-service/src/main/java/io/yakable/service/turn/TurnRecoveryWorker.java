@@ -1,7 +1,6 @@
 package io.yakable.service.turn;
 
 import io.yakable.common.utils.DateUtils;
-import io.yakable.dao.repository.SessionRepository;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -17,7 +16,7 @@ public final class TurnRecoveryWorker implements AutoCloseable {
     );
 
     private final ScheduledExecutorService scheduler;
-    private final SessionRepository repository;
+    private final TurnService turnService;
     private final TurnDispatcher dispatcher;
     private final Duration interval;
     private final Duration runningTimeout;
@@ -28,7 +27,7 @@ public final class TurnRecoveryWorker implements AutoCloseable {
 
     public TurnRecoveryWorker(
             ScheduledExecutorService scheduler,
-            SessionRepository repository,
+            TurnService turnService,
             TurnDispatcher dispatcher,
             Duration interval,
             Duration runningTimeout,
@@ -39,9 +38,9 @@ public final class TurnRecoveryWorker implements AutoCloseable {
                 scheduler,
                 "scheduler"
         );
-        this.repository = Objects.requireNonNull(
-                repository,
-                "repository"
+        this.turnService = Objects.requireNonNull(
+                turnService,
+                "turnService"
         );
         this.dispatcher = Objects.requireNonNull(
                 dispatcher,
@@ -74,12 +73,12 @@ public final class TurnRecoveryWorker implements AutoCloseable {
 
     public void runOnce() {
         LocalDateTime now = DateUtils.now();
-        int recovered = repository.updateStaleTurnPending(
+        int recovered = turnService.updateStaleTurnPending(
                 now.minus(runningTimeout),
                 now
         );
 
-        repository.queryPendingTurnIdList(batchSize)
+        turnService.queryPendingTurnIdList(batchSize)
                 .forEach(dispatcher::dispatch);
 
         if (recovered > 0) {
