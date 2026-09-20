@@ -15,7 +15,7 @@ export function ProjectHeader({
   onToggleExpanded,
 }: ProjectHeaderProps) {
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b border-black/[0.07] bg-white px-4">
+    <header className="flex h-14 shrink-0 items-center justify-between bg-white px-4">
       <div className="flex min-w-0 items-center gap-1.5">
         <span
           title={title}
