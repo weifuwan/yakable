@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
+import type { ProjectSummary } from '@/service/project';
 import { cx } from '@/shared/ui';
 
 import { useProjects } from '../hooks/useProjects';
-import type { ProjectSummary } from '../types';
 
 const DEFAULT_RECENT_LIMIT = 5;
 

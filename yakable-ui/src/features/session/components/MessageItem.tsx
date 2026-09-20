@@ -1,4 +1,4 @@
-import type { SessionMessage } from '../types';
+import type { SessionMessage } from '@/service/session';
 
 export function MessageItem({
   message,

@@ -10,6 +10,13 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+function apiResponse(data: unknown) {
+  return new Response(
+    JSON.stringify({ code: 0, message: 'Success', data }),
+    { status: 200, headers: { 'Content-Type': 'application/json' } },
+  );
+}
+
 function UpsertProjectButton() {
   const { upsertProject } = useProjects();
 
@@ -41,16 +48,15 @@ describe('RecentProjects', () => {
 
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
+      vi.fn().mockResolvedValue(
+        apiResponse({
           records: projects,
           total: projects.length,
           pages: 1,
           current: 1,
           pageSize: 50,
         }),
-      }),
+      ),
     );
 
     render(

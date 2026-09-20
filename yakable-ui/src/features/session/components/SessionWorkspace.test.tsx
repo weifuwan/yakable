@@ -118,11 +118,11 @@ const completedChanges = {
   latestSequence: 4,
 } as const;
 
-function jsonResponse(data: unknown) {
-  return new Response(JSON.stringify(data), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-  });
+function apiResponse(data: unknown) {
+  return new Response(
+    JSON.stringify({ code: 0, message: 'Success', data }),
+    { status: 200, headers: { 'Content-Type': 'application/json' } },
+  );
 }
 
 function streamResponse() {
@@ -154,7 +154,7 @@ afterEach(() => {
 
 describe('SessionWorkspace', () => {
   it('loads an existing session without creating messages on mount', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(completedSnapshot));
+    const fetchMock = vi.fn().mockResolvedValue(apiResponse(completedSnapshot));
     vi.stubGlobal('fetch', fetchMock);
 
     render(
@@ -179,16 +179,16 @@ describe('SessionWorkspace', () => {
     );
   });
 
-  it('streams assistant content through SSE', async () => {
+  it('streams assistant content through SessionService', async () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         if (init?.method === 'POST') {
           return streamResponse();
         }
         if (String(input).includes('/changes?')) {
-          return jsonResponse(completedChanges);
+          return apiResponse(completedChanges);
         }
-        return jsonResponse(completedSnapshot);
+        return apiResponse(completedSnapshot);
       },
     );
     vi.stubGlobal('fetch', fetchMock);

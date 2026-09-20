@@ -6,9 +6,9 @@ import {
   ModelSelector,
   type ModelSelection,
 } from '@/features/model';
+import { ProjectService } from '@/service/project';
 import { PromptComposer } from '@/shared/ui';
 
-import { createProject } from '../api/project-api';
 import { useProjects } from '../hooks/useProjects';
 
 function projectSessionPath(projectId: string, sessionId: string) {
@@ -32,15 +32,13 @@ export function CreateProjectComposer() {
     setError(null);
 
     try {
-      const project = await createProject({
+      const project = await ProjectService.addProject({
         prompt,
         model: selectedModel,
       });
 
       upsertProject(project);
-      navigate(
-        projectSessionPath(project.id, project.latestSessionId),
-      );
+      navigate(projectSessionPath(project.id, project.latestSessionId));
       return true;
     } catch (requestError) {
       setError(

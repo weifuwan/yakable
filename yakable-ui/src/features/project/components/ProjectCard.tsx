@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 
-import type { ProjectSummary } from '../types';
+import type { ProjectSummary } from '@/service/project';
 
 function projectHref(project: ProjectSummary): string {
   return (

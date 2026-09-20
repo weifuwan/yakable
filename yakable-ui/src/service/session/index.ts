@@ -1,7 +1,9 @@
-export { SessionWorkspace } from './components/SessionWorkspace';
+export { SessionService } from './SessionService';
 export type {
+  SessionChanges,
   SessionInfo,
   SessionMessage,
+  SessionMessagePage,
   SessionModel,
   SessionRole,
   SessionSnapshot,
@@ -11,4 +13,4 @@ export type {
   TurnStartResult,
   TurnStatus,
   TurnTokenUsage,
-} from '@/service/session';
+} from './types';

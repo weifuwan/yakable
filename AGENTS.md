@@ -21,6 +21,8 @@ yakable-dao/**/entity/**  -> yakable-dao/ENTITY_README.md
 yakable-dao/**/repository/**
 yakable-dao/**/mapper/**  -> yakable-dao/REPOSITORY_README.md
 db/migration/**           -> yakable-dao/FLYWAY_README.md
+yakable-ui/**             -> yakable-ui/ARCHITECTURE.md
+yakable-ui/src/service/** -> yakable-ui/SERVICE_README.md
 ```
 
 一个任务涉及多个模块时，只加载实际涉及的规范，不默认读取全部文档。

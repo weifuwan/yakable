@@ -8,4 +8,4 @@ export type {
   ProjectModel,
   ProjectStatus,
   ProjectSummary,
-} from './types';
+} from '@/service/project';

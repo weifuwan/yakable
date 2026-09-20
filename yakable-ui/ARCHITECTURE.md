@@ -17,11 +17,14 @@ src/
 │   ├── dashboard/
 │   └── project/
 ├── features/
-│   ├── conversation/
 │   ├── model/
-│   └── project/
+│   ├── project/
+│   └── session/
+├── service/
+│   ├── http/
+│   ├── project/
+│   └── session/
 ├── shared/
-│   ├── api/
 │   ├── lib/
 │   └── ui/
 └── main.tsx
@@ -34,6 +37,10 @@ app
  ↓
 pages
  ↓
+features
+ ↓
+service
+
 features
  ↓
 shared
@@ -82,7 +89,7 @@ Features own product capabilities.
 
 Add one feature at a time only after its ownership and contract are understood. The current product stage intentionally stops at conversation; Agent execution, planning, generated files, and Preview remain future work.
 
-Feature-specific types, APIs, state, hooks, and components stay with their owning feature.
+Feature owns UI state, hooks and components. Backend API contracts and endpoint calls belong to `src/service`.
 
 The Project page is conversation-first: user messages render on the right, assistant messages render on the left, and the shared PromptComposer stays fixed at the bottom. The browser never fabricates assistant replies; assistant messages appear only when the backend actually provides them.
 
@@ -92,7 +99,6 @@ The current Project backend persists through a repository port with a Boot-owned
 
 Shared contains infrastructure and UI primitives that have no product-feature owner.
 
-- `shared/api`: small reusable API-related primitives; transport is added only when repetition justifies it.
 - `shared/lib`: framework-independent or browser-generic helpers.
 - `shared/ui`: reusable Yakable product UI primitives.
 
@@ -124,22 +130,24 @@ Ownership decides where a resource lives; its file extension does not.
 
 ## API boundary
 
-Business requests belong to the owning feature.
+Backend requests use one fixed dependency direction:
 
 ```text
-page / component
-      ↓
-feature/api
-      ↓
-browser API
+page / component / hook
+        ↓
+domain Service
+        ↓
+HttpUtils
+        ↓
+Backend API
 ```
 
-- pages and presentation components do not own business requests.
-- feature API modules own endpoint paths, methods, domain request/response types, and domain mapping.
-- feature API modules may use native `fetch` directly while transport behavior remains simple.
-- `shared/api` contains only API-related primitives that already have a proven reusable boundary.
-- do not create a shared HTTP client or stream layer until repeated code creates a concrete ownership problem.
-- `shared/api` must never import feature types or contain feature-specific protocol messages.
+- all backend endpoints live under `src/service/<domain>`.
+- components, pages and hooks must not call `fetch` directly.
+- `HttpUtils` owns HTTP, `Result<T>`, network errors, JSON parsing and SSE framing.
+- domain Service owns endpoint paths, request/response contracts and SSE business events.
+- API contract types live with the owning Service, not under feature.
+- details are defined in [SERVICE_README.md](./SERVICE_README.md).
 
 ## UI boundary
 
