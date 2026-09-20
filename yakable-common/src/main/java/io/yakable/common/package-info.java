@@ -1,6 +1,6 @@
 /**
- * Shared, framework-independent value objects and utilities.
+ * Shared value objects and reusable utilities.
  *
- * <p>This module must not depend on Spring or higher-level Yakable modules.</p>
+ * <p>This module must not depend on higher-level Yakable business modules.</p>
  */
 package io.yakable.common;
