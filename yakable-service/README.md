@@ -45,3 +45,21 @@ io.yakable.common.bean
 ├── dto
 └── vo
 ```
+
+21. 纯分页参数统一使用公共 `PageDTO`，`PageDTO` 放到 `yakable-common.bean.dto`，不再为每个业务重复创建 `QueryXxxPageDTO`。
+
+22. 业务查询如果除分页参数外还有自己的筛选条件，则对应业务 DTO 继承 `PageDTO`，只补充本领域字段；不要重复声明 `current`、`pageSize`。
+
+23. 简单方法声明能一行写完就必须一行写完，禁止为了一个参数做无意义换行。例如：
+
+```java
+public Optional<ProjectDetailVO> queryProject(@NotNull @Valid QueryProjectDTO dto) {
+```
+
+24. 只有参数较多或单行明显过长时才允许换行；换行后必须保持结构紧凑、统一，禁止把右括号和左花括号单独悬空成一行，例如禁止：
+
+```java
+public Optional<ProjectDetailVO> queryProject(
+        @NotNull @Valid QueryProjectDTO dto
+) {
+```
