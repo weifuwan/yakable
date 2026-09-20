@@ -102,9 +102,12 @@ export function useComposerInput({
     }
   }, [canSubmit, normalizedValue, onSubmit, setValue]);
 
-  const handleChange = useCallback((event: ChangeEvent<HTMLTextAreaElement>) => {
-    setValue(event.target.value);
-  }, []);
+  const handleChange = useCallback(
+    (event: ChangeEvent<HTMLTextAreaElement>) => {
+      setValue(event.target.value);
+    },
+    [setValue],
+  );
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLTextAreaElement>) => {
