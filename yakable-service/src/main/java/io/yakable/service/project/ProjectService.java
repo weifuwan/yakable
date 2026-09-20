@@ -24,6 +24,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.validation.annotation.Validated;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -78,7 +80,10 @@ public class ProjectService {
      * 分页查询 Project。
      */
     public PageData<ProjectListVO> queryProject(@NotNull @Valid PageDTO dto) {
-        return projectRepository.queryProject(dto).map(this::toListVO);
+        PageData<ProjectEntity> page = projectRepository.queryProject(dto);
+        List<String> projectIds = page.records().stream().map(ProjectEntity::getId).toList();
+        Map<String, SessionVO> latestSessions = sessionService.queryLatestSessionMap(projectIds);
+        return page.map(entity -> toListVO(entity, latestSessions.get(entity.getId())));
     }
 
     /**
@@ -89,8 +94,7 @@ public class ProjectService {
                 .map(entity -> toDetailVO(entity, sessionService.queryLatestSession(entity.getId()).orElse(null)));
     }
 
-    private ProjectListVO toListVO(ProjectEntity entity) {
-        SessionVO session = sessionService.queryLatestSession(entity.getId()).orElse(null);
+    private static ProjectListVO toListVO(ProjectEntity entity, SessionVO session) {
         ProjectListVO result = ConverUtils.convert(entity, ProjectListVO.class);
         if (session != null) {
             result.setLatestSessionId(session.getId());
