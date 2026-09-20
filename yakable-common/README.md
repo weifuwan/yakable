@@ -6,6 +6,8 @@
 
 ```text
 io.yakable.common
+├── BaseResult
+├── Result
 ├── bean
 │   ├── dto
 │   │   ├── common
@@ -17,6 +19,7 @@ io.yakable.common
 ├── utils
 ├── constant
 ├── enums
+│   ├── common
 │   ├── project
 │   └── session
 └── exception
@@ -48,13 +51,15 @@ io.yakable.common
 
 13. common 统一承载 `ErrorCode` 契约、`BusinessException`、领域异常和领域错误码。每个业务领域只保留一个 `XxxException`，放在 `exception` 包并继承 `BusinessException`；对应的 `XxxErrorCode implements ErrorCode` 统一放在 `enums.<domain>`。禁止在 Service、Controller、Repository 等业务模块重复定义异常或错误码，也禁止为每个错误码单独创建异常类。
 
+14. HTTP 接口统一返回结构使用 common 提供的 `Result<T>`，基础状态字段由 `BaseResult` 承载，通用状态码使用 `enums.common.CommonErrorCode`。业务模块禁止重复定义 `Result`、`Response`、`ApiResponse` 等同类包装对象。
+
 ## 代码格式
 
-14. 只有参数较多或单行明显过长时才允许换行；换行后必须保持结构紧凑、统一。
+15. 只有参数较多或单行明显过长时才允许换行；换行后必须保持结构紧凑、统一。
 
-15. 简单方法、构造方法、record 声明、方法调用能一行写完就写一行，禁止为了一个参数做无意义换行。
+16. 简单方法、构造方法、record 声明、方法调用能一行写完就写一行，禁止为了一个参数做无意义换行。
 
-16. 禁止把右括号和左花括号单独悬空，例如禁止：
+17. 禁止把右括号和左花括号单独悬空，例如禁止：
 
 ```java
 public Optional<ProjectDetailVO> queryProject(
