@@ -14,12 +14,14 @@ export interface PromptComposerProps {
   leadingActions?: ReactNode;
   onStop?: () => void;
   onSubmit?: PromptComposerSubmitHandler;
+  onValueChange?: (value: string) => void;
   placeholder?: string;
   running?: boolean;
   stopLabel?: string;
   submitLabel?: string;
   submitTooltip?: string;
   trailingActions?: ReactNode;
+  value?: string;
 }
 
 export function PromptComposer({
@@ -29,12 +31,14 @@ export function PromptComposer({
   leadingActions,
   onStop,
   onSubmit,
+  onValueChange,
   placeholder = 'Ask Yakable to build...',
   running = false,
   stopLabel = 'Stop generating',
   submitLabel = 'Submit prompt',
   submitTooltip = 'Send prompt',
   trailingActions,
+  value: controlledValue,
 }: PromptComposerProps) {
   const {
     canSubmit,
@@ -49,6 +53,8 @@ export function PromptComposer({
   } = useComposerInput({
     disabled: disabled || running,
     onSubmit,
+    onValueChange,
+    value: controlledValue,
   });
 
   return (
