@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -12,7 +13,7 @@ import {
   type ProjectSummary,
 } from '@/service/project';
 
-const PROJECT_PAGE_SIZE = 50;
+import { PROJECT_PAGE_SIZE } from '../constants';
 
 export interface ProjectsState {
   projects: ProjectSummary[];
@@ -44,6 +45,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const loadingMoreRef = useRef(false);
 
   const upsertProject = useCallback((project: ProjectSummary) => {
     setProjects((current) => [
@@ -57,8 +59,10 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     const controller = new AbortController();
 
     void ProjectService.queryProjectPage(
-      1,
-      PROJECT_PAGE_SIZE,
+      {
+        current: 1,
+        pageSize: PROJECT_PAGE_SIZE,
+      },
       controller.signal,
     )
       .then((page) => {
@@ -93,18 +97,20 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const loadMore = useCallback(async () => {
-    if (!hasMore || isLoadingMore) return;
+    if (!hasMore || loadingMoreRef.current) return;
 
+    loadingMoreRef.current = true;
     setIsLoadingMore(true);
+    setError(null);
+
     try {
-      const page = await ProjectService.queryProjectPage(
-        currentPage + 1,
-        PROJECT_PAGE_SIZE,
-      );
+      const page = await ProjectService.queryProjectPage({
+        current: currentPage + 1,
+        pageSize: PROJECT_PAGE_SIZE,
+      });
       setProjects((current) => mergeProjects(current, page.records));
       setCurrentPage(page.current);
       setHasMore(page.current < page.pages);
-      setError(null);
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -112,9 +118,10 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
           : 'Unable to load more projects.',
       );
     } finally {
+      loadingMoreRef.current = false;
       setIsLoadingMore(false);
     }
-  }, [currentPage, hasMore, isLoadingMore]);
+  }, [currentPage, hasMore]);
 
   return (
     <ProjectsContext.Provider
