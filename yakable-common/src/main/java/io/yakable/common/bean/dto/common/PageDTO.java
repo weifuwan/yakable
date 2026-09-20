@@ -1,5 +1,6 @@
 package io.yakable.common.bean.dto.common;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.AllArgsConstructor;
@@ -16,11 +17,14 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Schema(description = "通用分页参数")
 public class PageDTO {
 
+    @Schema(description = "当前页码，从 1 开始", example = "1")
     @Min(1)
     private int current;
 
+    @Schema(description = "每页数量", example = "50")
     @Min(1)
     @Max(100)
     private int pageSize;
