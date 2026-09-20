@@ -1,12 +1,14 @@
 package io.yakable.boot.configuration.exception;
 
 import io.yakable.common.ErrorCode;
+import io.yakable.common.Result;
+import io.yakable.common.enums.common.CommonErrorCode;
 import io.yakable.common.enums.project.ProjectErrorCode;
 import io.yakable.common.enums.session.SessionErrorCode;
 import io.yakable.common.exception.BusinessException;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -19,19 +21,15 @@ import org.springframework.web.server.ResponseStatusException;
 public class GlobalExceptionHandler {
 
     private static final System.Logger log = System.getLogger(GlobalExceptionHandler.class.getName());
-    private static final int INVALID_REQUEST_CODE = 40000;
-    private static final int INTERNAL_ERROR_CODE = 50000;
-    private static final String INVALID_REQUEST_MESSAGE = "Invalid request";
-    private static final String INTERNAL_ERROR_MESSAGE = "Internal server error";
 
     @ExceptionHandler(BusinessException.class)
-    ProblemDetail handleBusinessException(BusinessException exception) {
+    ResponseEntity<Result<Void>> handleBusinessException(BusinessException exception) {
         ErrorCode errorCode = exception.getErrorCode();
         if (errorCode == null) {
             log.log(System.Logger.Level.WARNING, "Business exception without ErrorCode", exception);
-            return problem(HttpStatus.BAD_REQUEST, INVALID_REQUEST_CODE, INVALID_REQUEST_MESSAGE);
+            return ResponseEntity.badRequest().body(Result.fail(CommonErrorCode.PARAM_NOT_VALID));
         }
-        return problem(businessStatus(errorCode), errorCode.getCode(), errorCode.getMessage());
+        return ResponseEntity.status(businessStatus(errorCode)).body(Result.fail(errorCode));
     }
 
     @ExceptionHandler({
@@ -40,23 +38,25 @@ public class GlobalExceptionHandler {
             HttpMessageNotReadableException.class,
             IllegalArgumentException.class
     })
-    ProblemDetail handleInvalidRequest(Exception exception) {
+    ResponseEntity<Result<Void>> handleInvalidRequest(Exception exception) {
         log.log(System.Logger.Level.DEBUG, "Invalid request", exception);
-        return problem(HttpStatus.BAD_REQUEST, INVALID_REQUEST_CODE, INVALID_REQUEST_MESSAGE);
+        return ResponseEntity.badRequest().body(Result.fail(CommonErrorCode.PARAM_NOT_VALID));
     }
 
     @ExceptionHandler(ResponseStatusException.class)
-    ProblemDetail handleResponseStatus(ResponseStatusException exception) {
+    ResponseEntity<Result<Void>> handleResponseStatus(ResponseStatusException exception) {
         HttpStatus status = HttpStatus.resolve(exception.getStatusCode().value());
         HttpStatus resolved = status == null ? HttpStatus.BAD_REQUEST : status;
-        String message = resolved == HttpStatus.NOT_FOUND ? "Resource not found" : "Request failed";
-        return problem(resolved, resolved.value() * 100, message);
+        CommonErrorCode errorCode = resolved == HttpStatus.NOT_FOUND
+                ? CommonErrorCode.RESOURCE_NOT_EXISTS
+                : CommonErrorCode.PARAM_NOT_VALID;
+        return ResponseEntity.status(resolved).body(Result.fail(errorCode));
     }
 
     @ExceptionHandler(Exception.class)
-    ProblemDetail handleUnexpectedException(Exception exception) {
+    ResponseEntity<Result<Void>> handleUnexpectedException(Exception exception) {
         log.log(System.Logger.Level.ERROR, "Unhandled controller exception", exception);
-        return problem(HttpStatus.INTERNAL_SERVER_ERROR, INTERNAL_ERROR_CODE, INTERNAL_ERROR_MESSAGE);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Result.fail(CommonErrorCode.COMMON_FAIL));
     }
 
     private static HttpStatus businessStatus(ErrorCode errorCode) {
@@ -67,11 +67,5 @@ public class GlobalExceptionHandler {
             return HttpStatus.CONFLICT;
         }
         return HttpStatus.BAD_REQUEST;
-    }
-
-    private static ProblemDetail problem(HttpStatus status, int code, String message) {
-        ProblemDetail detail = ProblemDetail.forStatusAndDetail(status, message);
-        detail.setProperty("code", code);
-        return detail;
     }
 }
