@@ -37,7 +37,7 @@ io.yakable.common
 
 11. 公共枚举统一放在 `enums` 包；需要持久化的枚举使用 MyBatis-Plus `@EnumValue` 标记数据库数字值，业务代码直接使用枚举本身，不手动操作数据库枚举值。
 
-12. common 提供统一的 `ErrorCode` 契约和 `BusinessException` 基类；每个业务领域只保留一个领域异常类型，放在 `exception` 包并继承 `BusinessException`。具体业务错误码由所属业务模块维护 `XxxErrorCode implements ErrorCode`，禁止把业务错误码枚举集中放入 common，也禁止为每个错误码单独创建异常类。
+12. common 统一承载 `ErrorCode` 契约、`BusinessException`、领域异常和领域错误码。每个业务领域只保留一个 `XxxException`，放在 `exception` 包并继承 `BusinessException`；对应的 `XxxErrorCode implements ErrorCode` 统一放在 `enums` 包。禁止在 Service、Controller、Repository 等业务模块重复定义异常或错误码，也禁止为每个错误码单独创建异常类。
 
 ## 代码格式
 

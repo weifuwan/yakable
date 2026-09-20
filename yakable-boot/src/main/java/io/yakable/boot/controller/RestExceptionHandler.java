@@ -1,7 +1,7 @@
 package io.yakable.boot.controller;
 
 import io.yakable.common.exception.SessionException;
-import io.yakable.service.session.SessionErrorCode;
+import io.yakable.common.enums.SessionErrorCode;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;

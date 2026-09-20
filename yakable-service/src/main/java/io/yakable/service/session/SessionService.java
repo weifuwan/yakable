@@ -17,6 +17,7 @@ import io.yakable.common.bean.vo.TurnInvocationVO;
 import io.yakable.common.bean.vo.TurnStartVO;
 import io.yakable.common.bean.vo.TurnVO;
 import io.yakable.common.enums.MessageRoleEnum;
+import io.yakable.common.enums.SessionErrorCode;
 import io.yakable.common.enums.SessionStatusEnum;
 import io.yakable.common.enums.TurnStatusEnum;
 import io.yakable.common.exception.SessionException;
