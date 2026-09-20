@@ -1,8 +1,8 @@
 package io.yakable.service.project;
 
-import io.yakable.common.ConverUtils;
-import io.yakable.common.DateUtils;
-import io.yakable.common.PageData;
+import io.yakable.common.utils.ConverUtils;
+import io.yakable.common.utils.DateUtils;
+import io.yakable.common.bean.PageData;
 import io.yakable.common.bean.dto.AddProjectDTO;
 import io.yakable.common.bean.dto.PageDTO;
 import io.yakable.common.bean.dto.QueryProjectDTO;

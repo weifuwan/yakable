@@ -1,4 +1,4 @@
-package io.yakable.common;
+package io.yakable.common.bean;
 
 import java.util.List;
 
@@ -29,22 +29,8 @@ public record PageData<T>(
     /**
      * 根据总数据量和分页参数创建分页结果。
      */
-    public static <T> PageData<T> of(
-            List<T> records,
-            long total,
-            int current,
-            int pageSize
-    ) {
-        long pages = total == 0
-                ? 0
-                : (total + pageSize - 1) / pageSize;
-
-        return new PageData<>(
-                records,
-                total,
-                pages,
-                current,
-                pageSize
-        );
+    public static <T> PageData<T> of(List<T> records, long total, int current, int pageSize) {
+        long pages = total == 0 ? 0 : (total + pageSize - 1) / pageSize;
+        return new PageData<>(records, total, pages, current, pageSize);
     }
 }

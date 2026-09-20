@@ -1,4 +1,4 @@
-package io.yakable.common;
+package io.yakable.common.exception;
 
 /**
  * 统一业务异常。

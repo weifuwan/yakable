@@ -1,5 +1,6 @@
-package io.yakable.common;
+package io.yakable.common.utils;
 
+import io.yakable.common.exception.BusinessException;
 import org.springframework.beans.BeanUtils;
 
 import java.util.Collection;
@@ -42,10 +43,7 @@ public final class ConverUtils {
     /**
      * 批量转换对象集合。
      */
-    public static <T> List<T> convertList(
-            Collection<?> sources,
-            Class<T> targetClass
-    ) {
+    public static <T> List<T> convertList(Collection<?> sources, Class<T> targetClass) {
         if (targetClass == null) {
             throw new BusinessException("targetClass must not be null");
         }

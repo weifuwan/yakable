@@ -7,17 +7,28 @@
 ```text
 io.yakable.common
 ├── bean
+│   ├── PageData
 │   ├── dto
+│   │   ├── AddProjectDTO
+│   │   ├── QueryProjectDTO
+│   │   └── PageDTO
 │   └── vo
+│       ├── ProjectListVO
+│       └── ProjectDetailVO
 ├── utils
+│   ├── ConverUtils
+│   └── DateUtils
 ├── constant
 ├── enums
 └── exception
+    └── BusinessException
 ```
 
 ## bean
 
 公共数据对象统一放在 `bean` 下。
+
+- `PageData<T>`：统一分页返回结构，包含列表数据和分页信息。
 
 ### dto
 
@@ -29,10 +40,6 @@ io.yakable.common
 
 - `ProjectListVO`：Project 列表页面返回对象。
 - `ProjectDetailVO`：Project 详情页面返回对象。
-
-### 其它公共 Bean
-
-- `PageData<T>`：统一分页返回结构，包含列表数据和分页信息。
 
 ## utils
 
