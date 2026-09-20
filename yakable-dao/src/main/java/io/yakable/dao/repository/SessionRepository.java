@@ -1,6 +1,7 @@
 package io.yakable.dao.repository;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import io.yakable.common.enums.TurnStatusEnum;
 import io.yakable.dao.entity.MessageEntity;
 import io.yakable.dao.entity.SessionEntity;
 import io.yakable.dao.entity.TurnEntity;
@@ -10,7 +11,7 @@ import io.yakable.dao.mapper.TurnMapper;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Repository;
 
-import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -23,11 +24,7 @@ public class SessionRepository {
     private final TurnMapper turnMapper;
     private final MessageMapper messageMapper;
 
-    public SessionRepository(
-            SessionMapper sessionMapper,
-            TurnMapper turnMapper,
-            MessageMapper messageMapper
-    ) {
+    public SessionRepository(SessionMapper sessionMapper, TurnMapper turnMapper, MessageMapper messageMapper) {
         this.sessionMapper = Objects.requireNonNull(sessionMapper, "sessionMapper");
         this.turnMapper = Objects.requireNonNull(turnMapper, "turnMapper");
         this.messageMapper = Objects.requireNonNull(messageMapper, "messageMapper");
@@ -47,33 +44,27 @@ public class SessionRepository {
         return Optional.ofNullable(sessionMapper.selectById(sessionId));
     }
 
-    public Optional<SessionEntity> findOwnedSession(
-            String projectId,
-            String sessionId
-    ) {
-        return Optional.ofNullable(
-                sessionMapper.selectOne(
-                        Wrappers.<SessionEntity>lambdaQuery()
-                                .eq(SessionEntity::getId, sessionId)
-                                .eq(SessionEntity::getProjectId, projectId)
-                )
-        );
+    public Optional<SessionEntity> findOwnedSession(String projectId, String sessionId) {
+        return Optional.ofNullable(sessionMapper.selectOne(
+                Wrappers.<SessionEntity>lambdaQuery()
+                        .eq(SessionEntity::getId, sessionId)
+                        .eq(SessionEntity::getProjectId, projectId)));
     }
 
     public boolean lockSession(String sessionId) {
         return sessionMapper.selectOne(
                 Wrappers.<SessionEntity>lambdaQuery()
                         .eq(SessionEntity::getId, sessionId)
-                        .last("FOR UPDATE")
-        ) != null;
+                        .last("FOR UPDATE")) != null;
     }
 
     public long countActiveTurns(String sessionId) {
         return turnMapper.selectCount(
                 Wrappers.<TurnEntity>lambdaQuery()
                         .eq(TurnEntity::getSessionId, sessionId)
-                        .in(TurnEntity::getStatus, "PENDING", "RUNNING")
-        );
+                        .in(TurnEntity::getStatus,
+                                TurnStatusEnum.PENDING.getValue(),
+                                TurnStatusEnum.RUNNING.getValue()));
     }
 
     public int insertTurn(TurnEntity entity) {
@@ -90,11 +81,8 @@ public class SessionRepository {
                         .select(MessageEntity::getMessageSequence)
                         .eq(MessageEntity::getSessionId, sessionId)
                         .orderByDesc(MessageEntity::getMessageSequence)
-                        .last("LIMIT 1")
-        );
-        return latest == null || latest.getMessageSequence() == null
-                ? 1L
-                : latest.getMessageSequence() + 1L;
+                        .last("LIMIT 1"));
+        return latest == null || latest.getMessageSequence() == null ? 1L : latest.getMessageSequence() + 1L;
     }
 
     public long latestMessageSequence(String sessionId) {
@@ -109,72 +97,53 @@ public class SessionRepository {
         return turnMapper.selectList(
                 Wrappers.<TurnEntity>lambdaQuery()
                         .eq(TurnEntity::getSessionId, sessionId)
-                        .orderByAsc(TurnEntity::getCreatedAt, TurnEntity::getId)
-        );
+                        .orderByAsc(TurnEntity::getCreateTime, TurnEntity::getId));
     }
 
     public Optional<TurnEntity> findLatestTurn(String sessionId) {
-        return Optional.ofNullable(
-                turnMapper.selectOne(
-                        Wrappers.<TurnEntity>lambdaQuery()
-                                .eq(TurnEntity::getSessionId, sessionId)
-                                .orderByDesc(TurnEntity::getCreatedAt, TurnEntity::getId)
-                                .last("LIMIT 1")
-                )
-        );
+        return Optional.ofNullable(turnMapper.selectOne(
+                Wrappers.<TurnEntity>lambdaQuery()
+                        .eq(TurnEntity::getSessionId, sessionId)
+                        .orderByDesc(TurnEntity::getCreateTime, TurnEntity::getId)
+                        .last("LIMIT 1")));
     }
 
     public List<MessageEntity> findMessagesBySessionId(String sessionId) {
         return messageMapper.selectList(
                 Wrappers.<MessageEntity>lambdaQuery()
                         .eq(MessageEntity::getSessionId, sessionId)
-                        .orderByAsc(MessageEntity::getMessageSequence)
-        );
+                        .orderByAsc(MessageEntity::getMessageSequence));
     }
 
-    public List<MessageEntity> findMessagesAfter(
-            String sessionId,
-            long afterSequence
-    ) {
+    public List<MessageEntity> findMessagesAfter(String sessionId, long afterSequence) {
         return messageMapper.selectList(
                 Wrappers.<MessageEntity>lambdaQuery()
                         .eq(MessageEntity::getSessionId, sessionId)
                         .gt(MessageEntity::getMessageSequence, afterSequence)
-                        .orderByAsc(MessageEntity::getMessageSequence)
-        );
+                        .orderByAsc(MessageEntity::getMessageSequence));
     }
 
-    public List<MessageEntity> findMessagesBefore(
-            String sessionId,
-            Long beforeSequence,
-            int limit
-    ) {
+    public List<MessageEntity> findMessagesBefore(String sessionId, Long beforeSequence, int limit) {
         if (limit <= 0) {
             return List.of();
         }
 
-        var query = Wrappers.<MessageEntity>lambdaQuery()
-                .eq(MessageEntity::getSessionId, sessionId);
+        var query = Wrappers.<MessageEntity>lambdaQuery().eq(MessageEntity::getSessionId, sessionId);
         if (beforeSequence != null) {
             query.lt(MessageEntity::getMessageSequence, beforeSequence);
         }
-        query.orderByDesc(MessageEntity::getMessageSequence)
-                .last("LIMIT " + limit);
+        query.orderByDesc(MessageEntity::getMessageSequence).last("LIMIT " + limit);
         return messageMapper.selectList(query);
     }
 
     public Optional<TurnEntity> claimPendingTurn(
-            String turnId,
-            Instant claimedAt,
-            String provider,
-            String model
-    ) {
+            String turnId, LocalDateTime claimedAt, String provider, String model) {
         int updated = turnMapper.update(
                 null,
                 Wrappers.<TurnEntity>lambdaUpdate()
                         .eq(TurnEntity::getId, turnId)
-                        .eq(TurnEntity::getStatus, "PENDING")
-                        .set(TurnEntity::getStatus, "RUNNING")
+                        .eq(TurnEntity::getStatus, TurnStatusEnum.PENDING.getValue())
+                        .set(TurnEntity::getStatus, TurnStatusEnum.RUNNING.getValue())
                         .setSql("attempt_count = attempt_count + 1")
                         .set(TurnEntity::getErrorMessage, null)
                         .set(TurnEntity::getProvider, provider)
@@ -186,32 +155,21 @@ public class SessionRepository {
                         .set(TurnEntity::getFinishReason, null)
                         .set(TurnEntity::getStartedAt, claimedAt)
                         .set(TurnEntity::getFinishedAt, null)
-                        .set(TurnEntity::getUpdatedAt, claimedAt)
-        );
-        return updated == 0
-                ? Optional.empty()
-                : Optional.ofNullable(turnMapper.selectById(turnId));
+                        .set(TurnEntity::getUpdateTime, claimedAt));
+        return updated == 0 ? Optional.empty() : Optional.ofNullable(turnMapper.selectById(turnId));
     }
 
     public int completeRunningTurn(
-            String turnId,
-            String sessionId,
-            String provider,
-            String model,
-            Long inputTokens,
-            Long outputTokens,
-            Long totalTokens,
-            String providerRequestId,
-            String finishReason,
-            Instant completedAt
-    ) {
+            String turnId, String sessionId, String provider, String model,
+            Long inputTokens, Long outputTokens, Long totalTokens,
+            String providerRequestId, String finishReason, LocalDateTime completedAt) {
         return turnMapper.update(
                 null,
                 Wrappers.<TurnEntity>lambdaUpdate()
                         .eq(TurnEntity::getId, turnId)
                         .eq(TurnEntity::getSessionId, sessionId)
-                        .eq(TurnEntity::getStatus, "RUNNING")
-                        .set(TurnEntity::getStatus, "SUCCEEDED")
+                        .eq(TurnEntity::getStatus, TurnStatusEnum.RUNNING.getValue())
+                        .set(TurnEntity::getStatus, TurnStatusEnum.SUCCEEDED.getValue())
                         .set(TurnEntity::getErrorMessage, null)
                         .set(TurnEntity::getProvider, provider)
                         .set(TurnEntity::getModel, model)
@@ -221,40 +179,30 @@ public class SessionRepository {
                         .set(TurnEntity::getProviderRequestId, providerRequestId)
                         .set(TurnEntity::getFinishReason, finishReason)
                         .set(TurnEntity::getFinishedAt, completedAt)
-                        .set(TurnEntity::getUpdatedAt, completedAt)
-        );
+                        .set(TurnEntity::getUpdateTime, completedAt));
     }
 
-    public int failRunningTurn(
-            String turnId,
-            String sessionId,
-            String errorMessage,
-            Instant failedAt
-    ) {
+    public int failRunningTurn(String turnId, String sessionId, String errorMessage, LocalDateTime failedAt) {
         return turnMapper.update(
                 null,
                 Wrappers.<TurnEntity>lambdaUpdate()
                         .eq(TurnEntity::getId, turnId)
                         .eq(TurnEntity::getSessionId, sessionId)
-                        .eq(TurnEntity::getStatus, "RUNNING")
-                        .set(TurnEntity::getStatus, "FAILED")
+                        .eq(TurnEntity::getStatus, TurnStatusEnum.RUNNING.getValue())
+                        .set(TurnEntity::getStatus, TurnStatusEnum.FAILED.getValue())
                         .set(TurnEntity::getErrorMessage, errorMessage)
                         .set(TurnEntity::getFinishedAt, failedAt)
-                        .set(TurnEntity::getUpdatedAt, failedAt)
-        );
+                        .set(TurnEntity::getUpdateTime, failedAt));
     }
 
-    public int recoverStaleRunningTurns(
-            Instant staleBefore,
-            Instant recoveredAt
-    ) {
+    public int recoverStaleRunningTurns(LocalDateTime staleBefore, LocalDateTime recoveredAt) {
         return turnMapper.update(
                 null,
                 Wrappers.<TurnEntity>lambdaUpdate()
-                        .eq(TurnEntity::getStatus, "RUNNING")
+                        .eq(TurnEntity::getStatus, TurnStatusEnum.RUNNING.getValue())
                         .isNotNull(TurnEntity::getStartedAt)
                         .lt(TurnEntity::getStartedAt, staleBefore)
-                        .set(TurnEntity::getStatus, "PENDING")
+                        .set(TurnEntity::getStatus, TurnStatusEnum.PENDING.getValue())
                         .set(TurnEntity::getErrorMessage, null)
                         .set(TurnEntity::getProvider, null)
                         .set(TurnEntity::getModel, null)
@@ -265,8 +213,7 @@ public class SessionRepository {
                         .set(TurnEntity::getFinishReason, null)
                         .set(TurnEntity::getStartedAt, null)
                         .set(TurnEntity::getFinishedAt, null)
-                        .set(TurnEntity::getUpdatedAt, recoveredAt)
-        );
+                        .set(TurnEntity::getUpdateTime, recoveredAt));
     }
 
     public List<String> findPendingTurnIds(int limit) {
@@ -276,10 +223,9 @@ public class SessionRepository {
         return turnMapper.selectList(
                         Wrappers.<TurnEntity>lambdaQuery()
                                 .select(TurnEntity::getId)
-                                .eq(TurnEntity::getStatus, "PENDING")
-                                .orderByAsc(TurnEntity::getCreatedAt, TurnEntity::getId)
-                                .last("LIMIT " + limit)
-                )
+                                .eq(TurnEntity::getStatus, TurnStatusEnum.PENDING.getValue())
+                                .orderByAsc(TurnEntity::getCreateTime, TurnEntity::getId)
+                                .last("LIMIT " + limit))
                 .stream()
                 .map(TurnEntity::getId)
                 .toList();
