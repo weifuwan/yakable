@@ -2,6 +2,10 @@
 
 Yakable is a frontend-domain Harness for building and editing frontend applications with stronger engineering boundaries and less model guesswork.
 
+## Coding conventions
+
+- [JAVA_GLOBAL_CODE_README.md](./JAVA_GLOBAL_CODE_README.md)：所有 Java 代码必须遵循的通用规范。
+
 ## Repository structure
 
 ```text
