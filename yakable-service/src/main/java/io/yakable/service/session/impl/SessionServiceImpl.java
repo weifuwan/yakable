@@ -27,6 +27,7 @@ import io.yakable.common.utils.StringUtils;
 import io.yakable.common.utils.ThreadUtils;
 import io.yakable.core.llm.LlmClient;
 import io.yakable.core.llm.LlmMessage;
+import io.yakable.core.llm.LlmModelMetadata;
 import io.yakable.core.llm.LlmRequest;
 import io.yakable.core.llm.LlmResponse;
 import io.yakable.core.llm.LlmStreamEvent;
@@ -343,32 +344,76 @@ public class SessionServiceImpl implements SessionService {
     }
 
     private LlmRequest request(SessionEntity session, TurnVO running) {
-        return new LlmRequest(
-                session.getProvider(), session.getModel(), SYSTEM_PROMPT, buildContext(session.getId(), running.getId()));
+        return llmRequest(session, buildContext(session, running.getId()));
     }
 
-    private List<LlmMessage> buildContext(String sessionId, String currentTurnId) {
-        List<MessageVO> messages = messageService.queryMessageList(sessionId);
+    private List<LlmMessage> buildContext(SessionEntity session, String currentTurnId) {
+        List<MessageVO> messages = messageService.queryMessageList(session.getId());
         Map<String, List<MessageVO>> messagesByTurn = messages.stream()
                 .collect(Collectors.groupingBy(MessageVO::getTurnId));
+        List<TurnVO> turns = turnService.queryTurnList(session.getId());
 
-        List<TurnVO> turns = turnService.queryTurnList(sessionId);
+        Optional<LlmModelMetadata> metadata = llmClient.modelMetadata(session.getProvider(), session.getModel());
+        if (metadata.isEmpty()) {
+            return buildTurnWindowContext(messages, messagesByTurn, turns, currentTurnId);
+        }
+        return buildTokenBudgetContext(session, messages, messagesByTurn, turns, currentTurnId, metadata.get());
+    }
+
+    private List<LlmMessage> buildTokenBudgetContext(
+            SessionEntity session, List<MessageVO> messages, Map<String, List<MessageVO>> messagesByTurn,
+            List<TurnVO> turns, String currentTurnId, LlmModelMetadata metadata) {
+        Set<String> selectedTurnIds = new HashSet<>();
+        selectedTurnIds.add(currentTurnId);
+
+        List<LlmMessage> context = contextMessages(messages, selectedTurnIds);
+        long inputBudget = metadata.inputBudgetTokens();
+        if (llmClient.estimateTokens(llmRequest(session, context)) > inputBudget) {
+            throw new SessionException(SessionErrorCode.CONTEXT_TOO_LARGE);
+        }
+
+        for (int index = turns.size() - 1; index >= 0; index--) {
+            TurnVO turn = turns.get(index);
+            if (currentTurnId.equals(turn.getId()) || !isContextTurn(turn)
+                    || !hasCompleteExchange(messagesByTurn.getOrDefault(turn.getId(), List.of()))) {
+                continue;
+            }
+
+            selectedTurnIds.add(turn.getId());
+            List<LlmMessage> candidate = contextMessages(messages, selectedTurnIds);
+            if (llmClient.estimateTokens(llmRequest(session, candidate)) > inputBudget) {
+                selectedTurnIds.remove(turn.getId());
+                break;
+            }
+            context = candidate;
+        }
+        return context;
+    }
+
+    private List<LlmMessage> buildTurnWindowContext(
+            List<MessageVO> messages, Map<String, List<MessageVO>> messagesByTurn,
+            List<TurnVO> turns, String currentTurnId) {
         Set<String> selectedTurnIds = new HashSet<>();
         selectedTurnIds.add(currentTurnId);
 
         int remaining = Math.max(0, maxHistoryTurns);
         for (int index = turns.size() - 1; index >= 0 && remaining > 0; index--) {
             TurnVO turn = turns.get(index);
-            if (currentTurnId.equals(turn.getId()) || !isContextTurn(turn)) {
-                continue;
-            }
-            if (!hasCompleteExchange(messagesByTurn.getOrDefault(turn.getId(), List.of()))) {
+            if (currentTurnId.equals(turn.getId()) || !isContextTurn(turn)
+                    || !hasCompleteExchange(messagesByTurn.getOrDefault(turn.getId(), List.of()))) {
                 continue;
             }
             selectedTurnIds.add(turn.getId());
             remaining--;
         }
+        return contextMessages(messages, selectedTurnIds);
+    }
 
+    private LlmRequest llmRequest(SessionEntity session, List<LlmMessage> messages) {
+        return new LlmRequest(session.getProvider(), session.getModel(), SYSTEM_PROMPT, messages);
+    }
+
+    private static List<LlmMessage> contextMessages(List<MessageVO> messages, Set<String> selectedTurnIds) {
         return messages.stream()
                 .filter(message -> selectedTurnIds.contains(message.getTurnId()))
                 .map(SessionServiceImpl::toLlmMessage)

@@ -23,6 +23,7 @@ LlmResponse
 LlmMessage
 LlmUsage
 LlmProviderConfiguration
+LlmModelMetadata
 ```
 
 Plugin API 只保留插件元数据、能力描述和插件异常。
@@ -83,6 +84,8 @@ Provider Plugin 负责：
 Provider identity
 Provider defaults
 Provider capabilities
+Model context metadata
+Token estimation
 ```
 
 Protocol 模块负责：
@@ -152,3 +155,5 @@ OpenAI-compatible Provider：
 ```
 
 新增 Provider 时，不修改 SessionService 的 LLM 请求响应结构。
+
+Provider 若提供模型 Context Window，必须同时实现 Token 估算；Session 会用两者计算输入预算并自动裁剪历史 Context。模型元数据和 Token 规则属于 Provider，不写入 Session 业务代码。

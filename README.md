@@ -76,8 +76,10 @@ YAKABLE_SSE_TIMEOUT   # default: 10m
 Session context configuration:
 
 ```text
-YAKABLE_CONTEXT_MAX_HISTORY_TURNS   # default: 20
+YAKABLE_CONTEXT_MAX_HISTORY_TURNS   # default: 20, fallback when model context metadata is unavailable
 ```
+
+When the active Model Plugin exposes context metadata, Yakable uses the model context window and Provider token estimator to trim complete historical turns automatically. The current user turn is never silently truncated.
 
 ## Backend structure
 
