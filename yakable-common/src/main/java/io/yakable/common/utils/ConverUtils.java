@@ -30,13 +30,8 @@ public final class ConverUtils {
             BeanUtils.copyProperties(source, target);
             return target;
         } catch (RuntimeException exception) {
-            throw new BusinessException(
-                    "Failed to convert "
-                            + source.getClass().getName()
-                            + " to "
-                            + targetClass.getName(),
-                    exception
-            );
+            String message = "Failed to convert " + source.getClass().getName() + " to " + targetClass.getName();
+            throw new BusinessException(message, exception);
         }
     }
 
@@ -50,9 +45,6 @@ public final class ConverUtils {
         if (sources == null || sources.isEmpty()) {
             return List.of();
         }
-
-        return sources.stream()
-                .map(source -> convert(source, targetClass))
-                .toList();
+        return sources.stream().map(source -> convert(source, targetClass)).toList();
     }
 }

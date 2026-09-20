@@ -10,17 +10,10 @@ import jakarta.validation.constraints.NotNull;
  * @param prompt 用户输入内容
  * @param model 模型配置
  */
-public record AddProjectDTO(
-        @NotBlank String prompt,
-        @NotNull @Valid ModelDTO model
-) {
+public record AddProjectDTO(@NotBlank String prompt, @NotNull @Valid ModelDTO model) {
 
     /**
      * Project 创建时使用的模型配置。
      */
-    public record ModelDTO(
-            @NotBlank String provider,
-            @NotBlank String model
-    ) {
-    }
+    public record ModelDTO(@NotBlank String provider, @NotBlank String model) {}
 }
