@@ -1,6 +1,7 @@
 package io.yakable.boot.configuration.exception;
 
 import io.yakable.common.ErrorCode;
+import io.yakable.common.enums.project.ProjectErrorCode;
 import io.yakable.common.enums.session.SessionErrorCode;
 import io.yakable.common.exception.BusinessException;
 import jakarta.validation.ConstraintViolationException;
@@ -59,7 +60,7 @@ public class GlobalExceptionHandler {
     }
 
     private static HttpStatus businessStatus(ErrorCode errorCode) {
-        if (errorCode == SessionErrorCode.NOT_FOUND) {
+        if (errorCode == ProjectErrorCode.NOT_FOUND || errorCode == SessionErrorCode.NOT_FOUND) {
             return HttpStatus.NOT_FOUND;
         }
         if (errorCode == SessionErrorCode.BUSY || errorCode == SessionErrorCode.INACTIVE) {
