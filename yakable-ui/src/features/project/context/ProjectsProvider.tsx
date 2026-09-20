@@ -58,7 +58,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const controller = new AbortController();
 
-    void ProjectService.queryProjectPage(
+    void ProjectService.queryProject(
       {
         current: 1,
         pageSize: PROJECT_PAGE_SIZE,
@@ -104,7 +104,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     setError(null);
 
     try {
-      const page = await ProjectService.queryProjectPage({
+      const page = await ProjectService.queryProject({
         current: currentPage + 1,
         pageSize: PROJECT_PAGE_SIZE,
       });
