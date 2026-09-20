@@ -30,6 +30,24 @@ describe('PromptComposer', () => {
     expect((submitButton as HTMLButtonElement).disabled).toBe(false);
   });
 
+  it('supports a controlled draft value', () => {
+    const onValueChange = vi.fn();
+
+    render(
+      <PromptComposer
+        value="Edit this prompt"
+        onValueChange={onValueChange}
+        onSubmit={() => false}
+      />,
+    );
+
+    const input = screen.getByRole('textbox', { name: 'Prompt' });
+    expect((input as HTMLTextAreaElement).value).toBe('Edit this prompt');
+
+    fireEvent.change(input, { target: { value: 'Edited prompt' } });
+    expect(onValueChange).toHaveBeenCalledWith('Edited prompt');
+  });
+
   it('submits with Enter and clears an accepted prompt', async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
 
