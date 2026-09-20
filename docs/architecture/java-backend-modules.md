@@ -19,69 +19,27 @@ model plugins ───→ yakable-core
 
 ## yakable-boot
 
-负责：
-
-- Controller
-- Spring Boot 启动
-- Bean 配置
-- 运行时配置
-- 组装内置 Model Plugin
-
-Controller 只调用 Service。
+负责 Controller、Spring Boot 启动、Bean 装配和运行时配置。
 
 ## yakable-service
 
-负责业务逻辑。
-
-```text
-io.yakable.service
-├── project
-├── session
-├── message
-├── turn
-└── llm
-    └── PluginLlmClient
-```
-
-Service 只通过 `yakable-core` 的 LLM 契约调用模型，不直接依赖 Model Plugin API。
-
-详细规范见 `yakable-service/README.md`。
+负责业务逻辑，详细规范见 `yakable-service/SERVICE_README.md`。
 
 ## yakable-core
 
-负责 Yakable 自己定义的稳定运行时契约。
+负责 Yakable 自己定义的稳定运行时契约，详细规范见 `yakable-core/CORE_README.md`。
 
-当前：
+## yakable-common
 
-```text
-io.yakable.core
-└── llm
-    ├── LlmClient
-    ├── LlmProvider
-    ├── LlmRequest
-    ├── LlmResponse
-    ├── LlmMessage
-    ├── LlmUsage
-    └── LlmProviderConfiguration
-```
-
-具体 Provider 不能反向定义 Core 的输入输出结构。
-
-详细说明见 `yakable-core/README.md`。
+负责跨模块公共对象和公共能力，详细规范见 `yakable-common/COMMON_CODE.md`。
 
 ## yakable-dao
 
-负责数据库访问。
+负责数据库持久化：
 
-```text
-io.yakable.dao
-├── repository
-├── mapper
-├── entity
-└── config
-```
-
-详细规范见 `yakable-dao/README.md`。
+- `ENTITY_README.md`
+- `REPOSITORY_README.md`
+- `FLYWAY_README.md`
 
 ## 固定业务调用链
 
@@ -111,9 +69,6 @@ Provider / Protocol implementation
 
 ## 原则
 
-- 不为了分层而分层。
-- 一个领域优先一个 Service。
-- 一个领域的数据访问优先一个 Repository。
-- Core 只定义稳定契约，不承载业务编排。
-- Provider 适配外部模型，不把外部协议泄露给 Service。
+- 所有 Java 代码先遵循根目录 `JAVA_GLOBAL_CODE_README.md`。
+- 模块规范只补充模块边界，不重复维护通用规则。
 - 复杂度真实出现后再拆。

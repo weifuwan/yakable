@@ -5,6 +5,12 @@ Yakable is a frontend-domain Harness for building and editing frontend applicati
 ## Coding conventions
 
 - [JAVA_GLOBAL_CODE_README.md](./JAVA_GLOBAL_CODE_README.md)：所有 Java 代码必须遵循的通用规范。
+- [yakable-service/SERVICE_README.md](./yakable-service/SERVICE_README.md)：Service 专属规范。
+- [yakable-core/CORE_README.md](./yakable-core/CORE_README.md)：Core 专属规范。
+- [yakable-common/COMMON_CODE.md](./yakable-common/COMMON_CODE.md)：Common 专属规范。
+- [yakable-dao/ENTITY_README.md](./yakable-dao/ENTITY_README.md)：Entity 规范。
+- [yakable-dao/REPOSITORY_README.md](./yakable-dao/REPOSITORY_README.md)：Repository / Mapper 规范。
+- [yakable-dao/FLYWAY_README.md](./yakable-dao/FLYWAY_README.md)：数据库 Migration 规范。
 
 ## Repository structure
 
