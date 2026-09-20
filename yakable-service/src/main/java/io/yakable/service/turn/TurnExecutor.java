@@ -32,15 +32,15 @@ public final class TurnExecutor {
     }
 
     public boolean execute(String turnId) {
-        TurnEntity snapshot = repository.findTurnById(turnId).orElse(null);
+        TurnEntity snapshot = repository.queryTurn(turnId).orElse(null);
         if (snapshot == null) {
             return false;
         }
 
-        SessionEntity session = repository.findSessionById(snapshot.getSessionId())
+        SessionEntity session = repository.queryById(snapshot.getSessionId())
                 .orElseThrow(() -> new IllegalStateException("Session does not exist: " + snapshot.getSessionId()));
 
-        TurnEntity running = repository.claimPendingTurn(
+        TurnEntity running = repository.updatePendingTurn(
                 turnId, DateUtils.now(), session.getProvider(), session.getModel()).orElse(null);
 
         if (running == null) {
@@ -62,11 +62,11 @@ public final class TurnExecutor {
     }
 
     private List<ModelClient.Message> buildContext(String sessionId, String currentTurnId) {
-        Map<String, TurnEntity> turns = repository.findTurnsBySessionId(sessionId)
+        Map<String, TurnEntity> turns = repository.queryTurnList(sessionId)
                 .stream()
                 .collect(Collectors.toMap(TurnEntity::getId, Function.identity()));
 
-        return repository.findMessagesBySessionId(sessionId)
+        return repository.queryMessageList(sessionId)
                 .stream()
                 .filter(message -> {
                     if (currentTurnId.equals(message.getTurnId())) {
@@ -84,7 +84,7 @@ public final class TurnExecutor {
         ModelClient.Usage usage = reply.usage();
 
         transactionTemplate.executeWithoutResult(status -> {
-            int updated = repository.completeRunningTurn(
+            int updated = repository.updateTurnSucceeded(
                     running.getId(),
                     running.getSessionId(),
                     reply.provider(),
@@ -105,11 +105,11 @@ public final class TurnExecutor {
             message.setTurnId(running.getId());
             message.setRole(MessageRoleEnum.ASSISTANT);
             message.setContent(reply.content());
-            message.setMessageSequence(repository.nextMessageSequence(running.getSessionId()));
-            repository.insertMessage(message);
+            message.setMessageSequence(repository.queryNextMessageSequence(running.getSessionId()));
+            repository.addMessage(message);
 
             session.initUpdate();
-            repository.saveSession(session);
+            repository.update(session);
         });
     }
 
@@ -118,13 +118,13 @@ public final class TurnExecutor {
 
         try {
             transactionTemplate.executeWithoutResult(status -> {
-                repository.failRunningTurn(
+                repository.updateTurnFailed(
                         running.getId(),
                         running.getSessionId(),
                         failureMessage(originalFailure),
                         failedAt);
                 session.initUpdate();
-                repository.saveSession(session);
+                repository.update(session);
             });
         } catch (RuntimeException persistenceFailure) {
             originalFailure.addSuppressed(persistenceFailure);
