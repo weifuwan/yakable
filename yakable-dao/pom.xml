@@ -17,6 +17,10 @@
 
     <dependencies>
         <dependency>
+            <groupId>io.yakable</groupId>
+            <artifactId>yakable-common</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.baomidou</groupId>
             <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
         </dependency>
