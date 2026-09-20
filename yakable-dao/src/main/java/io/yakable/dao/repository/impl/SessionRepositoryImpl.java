@@ -1,6 +1,7 @@
 package io.yakable.dao.repository.impl;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.yakable.dao.entity.SessionEntity;
 import io.yakable.dao.mapper.SessionMapper;
 import io.yakable.dao.repository.SessionRepository;
@@ -28,6 +29,19 @@ public class SessionRepositoryImpl extends BaseRepositoryImpl<SessionMapper, Ses
                 Wrappers.<SessionEntity>lambdaQuery()
                         .eq(SessionEntity::getId, sessionId)
                         .eq(SessionEntity::getProjectId, projectId)));
+    }
+
+    @Override
+    public Optional<SessionEntity> queryLatestSession(String projectId) {
+        Page<SessionEntity> page = new Page<>(1, 1, false);
+        return sessionMapper.selectPage(
+                        page,
+                        Wrappers.<SessionEntity>lambdaQuery()
+                                .eq(SessionEntity::getProjectId, projectId)
+                                .orderByDesc(SessionEntity::getUpdateTime, SessionEntity::getId))
+                .getRecords()
+                .stream()
+                .findFirst();
     }
 
     @Override
