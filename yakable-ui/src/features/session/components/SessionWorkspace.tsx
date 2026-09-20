@@ -274,13 +274,16 @@ export function SessionWorkspace({
             : 'Unable to stream turn.',
         );
       } finally {
+        const stopped = controller.signal.aborted && stopRequestedRef.current;
         if (streamAbortRef.current === controller) {
           streamAbortRef.current = null;
         }
         currentTurnIdRef.current = null;
         setIsGenerating(false);
-        setStreamingTurnId(null);
-        setStreamingContent('');
+        if (!stopped) {
+          setStreamingTurnId(null);
+          setStreamingContent('');
+        }
       }
     },
     [projectId, sessionId],
@@ -313,7 +316,7 @@ export function SessionWorkspace({
     }
 
     void SessionService.cancelTurn(projectId, sessionId, turnId)
-      .then((cancelled) => {
+      .then(async (cancelled) => {
         setSnapshot((current) => {
           if (!current) return current;
           return {
@@ -324,6 +327,21 @@ export function SessionWorkspace({
           };
         });
         setSendError(null);
+
+        try {
+          const changes = await SessionService.queryChanges(
+            projectId,
+            sessionId,
+            latestSequence,
+          );
+          setSnapshot((current) =>
+            current ? mergeChanges(current, changes) : current,
+          );
+          setStreamingTurnId(null);
+          setStreamingContent('');
+        } catch {
+          // 保留当前已生成内容，刷新页面后会从后端恢复。
+        }
       })
       .catch((requestError: unknown) => {
         setSendError(
@@ -335,7 +353,7 @@ export function SessionWorkspace({
       .finally(() => {
         setIsGenerating(false);
       });
-  }, [activeTurnId, projectId, sessionId]);
+  }, [activeTurnId, latestSequence, projectId, sessionId]);
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-white">
