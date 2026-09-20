@@ -1,13 +1,13 @@
 package io.yakable.service.project;
 
-import io.yakable.common.utils.ConverUtils;
-import io.yakable.common.utils.DateUtils;
 import io.yakable.common.bean.PageData;
 import io.yakable.common.bean.dto.AddProjectDTO;
 import io.yakable.common.bean.dto.PageDTO;
 import io.yakable.common.bean.dto.QueryProjectDTO;
 import io.yakable.common.bean.vo.ProjectDetailVO;
 import io.yakable.common.bean.vo.ProjectListVO;
+import io.yakable.common.enums.ProjectStatusEnum;
+import io.yakable.common.utils.ConverUtils;
 import io.yakable.dao.entity.ProjectEntity;
 import io.yakable.dao.repository.ProjectRepository;
 import io.yakable.service.session.SessionService;
@@ -20,10 +20,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.validation.annotation.Validated;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 /**
  * Project 业务服务。
@@ -60,19 +58,14 @@ public class ProjectService {
         String model = StringUtils.strip(dto.model().model());
 
         CreatedProject created = transactionTemplate.execute(status -> {
-            LocalDateTime now = DateUtils.now();
-            String name = projectName(prompt);
-
             ProjectEntity project = new ProjectEntity();
-            project.setId(UUID.randomUUID().toString());
-            project.setName(name);
-            project.setStatus("CREATED");
-            project.setCreatedAt(DateUtils.toInstant(now));
-            project.setUpdatedAt(DateUtils.toInstant(now));
+            project.initCreate();
+            project.setName(projectName(prompt));
+            project.setStatus(ProjectStatusEnum.CREATED.getValue());
             projectRepository.save(project);
 
-            SessionService.InitialSession session =
-                    sessionService.createInitialSession(project.getId(), name, provider, model, prompt);
+            SessionService.InitialSession session = sessionService.createInitialSession(
+                    project.getId(), project.getName(), provider, model, prompt);
             return new CreatedProject(project, session);
         });
 
@@ -80,7 +73,7 @@ public class ProjectService {
 
         ProjectDetailVO detailVO = toDetailVO(created.project());
         detailVO.setLatestSessionId(created.session().sessionId());
-        detailVO.setUpdatedAt(DateUtils.toLocalDateTime(created.session().updatedAt()));
+        detailVO.setUpdatedAt(created.session().updatedAt());
         return detailVO;
     }
 
@@ -94,8 +87,7 @@ public class ProjectService {
         long total = projectRepository.countProjectsWithSession();
         long offset = (long) (dto.getCurrent() - 1) * dto.getPageSize();
 
-        List<ProjectListVO> records = projectRepository
-                .findProjectPage(offset, dto.getPageSize())
+        List<ProjectListVO> records = projectRepository.findProjectPage(offset, dto.getPageSize())
                 .stream()
                 .map(ProjectService::toListVO)
                 .toList();
@@ -116,14 +108,15 @@ public class ProjectService {
 
     private static ProjectListVO toListVO(ProjectEntity entity) {
         ProjectListVO listVO = ConverUtils.convert(entity, ProjectListVO.class);
-        listVO.setUpdatedAt(DateUtils.toLocalDateTime(entity.getUpdatedAt()));
+        listVO.setUpdatedAt(entity.getUpdateTime());
         return listVO;
     }
 
     private static ProjectDetailVO toDetailVO(ProjectEntity entity) {
         ProjectDetailVO detailVO = ConverUtils.convert(entity, ProjectDetailVO.class);
-        detailVO.setCreatedAt(DateUtils.toLocalDateTime(entity.getCreatedAt()));
-        detailVO.setUpdatedAt(DateUtils.toLocalDateTime(entity.getUpdatedAt()));
+        detailVO.setStatus(ProjectStatusEnum.fromValue(entity.getStatus()).name());
+        detailVO.setCreatedAt(entity.getCreateTime());
+        detailVO.setUpdatedAt(entity.getUpdateTime());
         return detailVO;
     }
 
