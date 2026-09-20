@@ -43,7 +43,7 @@ io.yakable.common
 
 9. ID 统一通过公共 ID 工具生成，业务代码禁止自行实现 ID 生成逻辑。
 
-10. 所有线程、线程池和调度线程池统一走公共线程工具。业务模块禁止直接使用 `new Thread`、`Executors`、`ThreadFactory`、`Thread.ofVirtual()`、`Thread.ofPlatform()` 创建线程或线程池；需要新的线程模型时先在公共线程工具中增加统一能力。
+10. 所有异步执行、线程池和定时调度统一走公共线程工具。业务模块只负责提交任务和调度参数，禁止直接持有或管理 `ExecutorService`、`ScheduledExecutorService`、`ScheduledFuture`，禁止自行创建或关闭线程池；需要新的线程模型时先在公共线程工具中增加统一能力。
 
 11. 公共常量统一放在 `constant` 包，禁止在多个模块重复定义相同常量。
 

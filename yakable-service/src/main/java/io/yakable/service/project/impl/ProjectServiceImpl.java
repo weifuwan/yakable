@@ -17,7 +17,6 @@ import io.yakable.dao.entity.ProjectEntity;
 import io.yakable.dao.repository.ProjectRepository;
 import io.yakable.service.project.ProjectService;
 import io.yakable.service.session.SessionService;
-import io.yakable.service.turn.TurnDispatcher;
 import jakarta.annotation.Resource;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
@@ -41,9 +40,6 @@ public class ProjectServiceImpl implements ProjectService {
     private SessionService sessionService;
 
     @Resource
-    private TurnDispatcher turnDispatcher;
-
-    @Resource
     private TransactionTemplate transactionTemplate;
 
     @Override
@@ -61,7 +57,7 @@ public class ProjectServiceImpl implements ProjectService {
             return new CreatedProject(project, session);
         });
 
-        turnDispatcher.dispatch(created.session().getTurnId());
+        sessionService.executeTurnAsync(created.session().getTurnId());
 
         ProjectDetailVO result = toDetailVO(created.project(), null);
         result.setLatestSessionId(created.session().getSessionId());

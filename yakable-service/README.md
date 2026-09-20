@@ -24,7 +24,7 @@
 
 10. Service 接口只声明真实存在的业务能力，不为了形式统一增加无意义的 CRUD 方法。
 
-11. `TurnDispatcher`、`TurnExecutor`、`TurnRecoveryWorker` 等内部执行组件不属于业务 Service，不要求为了统一形式额外拆分 interface 和 impl。
+11. 内部执行逻辑只有存在独立策略、独立复用价值或明确边界时才拆成单独组件。仅负责线程提交、异常包装、简单转发的 Dispatcher、Executor、Worker 不单独拆类，优先收回对应的 ServiceImpl。
 
 12. Service 层暂不提供 `BaseService`、`BaseServiceImpl`。通用数据库 CRUD 已由 Repository 层负责，Service 层只表达业务能力，禁止再封装一层通用 CRUD。
 
