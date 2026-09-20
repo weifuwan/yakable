@@ -1,6 +1,7 @@
 package io.yakable.boot.configuration;
 
 import io.yakable.boot.configuration.properties.TurnExecutionProperties;
+import io.yakable.common.utils.ThreadUtils;
 import io.yakable.dao.repository.SessionRepository;
 import io.yakable.service.turn.TurnDispatcher;
 import io.yakable.service.turn.TurnExecutor;
@@ -10,7 +11,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
 @Configuration(proxyBeanMethods = false)
@@ -19,7 +19,7 @@ public class AsyncConfiguration {
 
     @Bean(destroyMethod = "close")
     ExecutorService sessionTurnExecutor() {
-        return Executors.newVirtualThreadPerTaskExecutor();
+        return ThreadUtils.newVirtualThreadExecutor("yakable-turn-");
     }
 
     @Bean
@@ -35,7 +35,7 @@ public class AsyncConfiguration {
 
     @Bean(destroyMethod = "close")
     ScheduledExecutorService turnRecoveryScheduler() {
-        return Executors.newSingleThreadScheduledExecutor();
+        return ThreadUtils.newSingleScheduledExecutor("yakable-turn-recovery-");
     }
 
     @Bean(initMethod = "start", destroyMethod = "close")
