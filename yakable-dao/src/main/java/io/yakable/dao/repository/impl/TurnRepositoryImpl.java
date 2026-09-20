@@ -99,7 +99,7 @@ public class TurnRepositoryImpl extends BaseRepositoryImpl<TurnMapper, TurnEntit
     }
 
     @Override
-    public int updateStaleTurnPending(LocalDateTime staleBefore, LocalDateTime recoveredAt) {
+    public int updateStaleTurnPending(LocalDateTime staleBefore) {
         LambdaUpdateWrapper<TurnEntity> update = clearResult(
                 Wrappers.<TurnEntity>lambdaUpdate()
                         .eq(TurnEntity::getStatus, TurnStatusEnum.RUNNING)
