@@ -10,8 +10,6 @@ import java.time.format.DateTimeParseException;
 
 /**
  * LocalDateTime 时间处理工具。
- *
- * <p>业务代码统一使用 {@link LocalDateTime}，与旧时间类型或字符串之间的转换统一收口到本类。</p>
  */
 public final class DateUtils {
 
@@ -24,7 +22,7 @@ public final class DateUtils {
     }
 
     /**
-     * 获取当前本地时间。
+     * 获取当前时间。
      */
     public static LocalDateTime now() {
         return LocalDateTime.now();
@@ -49,27 +47,28 @@ public final class DateUtils {
         if (dateTime == null) {
             return null;
         }
-        if (StringUtils.isBlank(pattern)) {
-            throw new BusinessException("date pattern must not be blank");
-        }
-
-        try {
-            return dateTime.format(
-                    DateTimeFormatter.ofPattern(pattern)
-            );
-        } catch (IllegalArgumentException exception) {
-            throw new BusinessException(
-                    "Invalid date pattern: " + pattern,
-                    exception
-            );
-        }
+        return dateTime.format(formatter(pattern));
     }
 
     /**
      * 使用默认格式解析时间。
      */
     public static LocalDateTime parse(String value) {
-        return parse(value, DEFAULT_PATTERN);
+        if (StringUtils.isBlank(value)) {
+            return null;
+        }
+
+        try {
+            return LocalDateTime.parse(
+                    StringUtils.strip(value),
+                    DEFAULT_FORMATTER
+            );
+        } catch (DateTimeParseException exception) {
+            throw new BusinessException(
+                    "Failed to parse date: " + value,
+                    exception
+            );
+        }
     }
 
     /**
@@ -82,16 +81,13 @@ public final class DateUtils {
         if (StringUtils.isBlank(value)) {
             return null;
         }
-        if (StringUtils.isBlank(pattern)) {
-            throw new BusinessException("date pattern must not be blank");
-        }
 
         try {
             return LocalDateTime.parse(
                     StringUtils.strip(value),
-                    DateTimeFormatter.ofPattern(pattern)
+                    formatter(pattern)
             );
-        } catch (DateTimeParseException | IllegalArgumentException exception) {
+        } catch (DateTimeParseException exception) {
             throw new BusinessException(
                     "Failed to parse date: " + value,
                     exception
@@ -100,48 +96,42 @@ public final class DateUtils {
     }
 
     /**
-     * 将 Instant 转换为系统默认时区下的 LocalDateTime。
+     * 将 Instant 转换为 LocalDateTime。
      */
     public static LocalDateTime toLocalDateTime(Instant instant) {
-        return toLocalDateTime(instant, ZoneId.systemDefault());
+        return instant == null
+                ? null
+                : LocalDateTime.ofInstant(
+                        instant,
+                        ZoneId.systemDefault()
+                );
     }
 
     /**
-     * 将 Instant 转换为指定时区下的 LocalDateTime。
-     */
-    public static LocalDateTime toLocalDateTime(
-            Instant instant,
-            ZoneId zoneId
-    ) {
-        if (instant == null) {
-            return null;
-        }
-        if (zoneId == null) {
-            throw new BusinessException("zoneId must not be null");
-        }
-        return LocalDateTime.ofInstant(instant, zoneId);
-    }
-
-    /**
-     * 将 LocalDateTime 转换为系统默认时区下的 Instant。
+     * 将 LocalDateTime 转换为 Instant。
      */
     public static Instant toInstant(LocalDateTime dateTime) {
-        return toInstant(dateTime, ZoneId.systemDefault());
+        return dateTime == null
+                ? null
+                : dateTime.atZone(
+                        ZoneId.systemDefault()
+                ).toInstant();
     }
 
-    /**
-     * 将 LocalDateTime 转换为指定时区下的 Instant。
-     */
-    public static Instant toInstant(
-            LocalDateTime dateTime,
-            ZoneId zoneId
-    ) {
-        if (dateTime == null) {
-            return null;
+    private static DateTimeFormatter formatter(String pattern) {
+        if (StringUtils.isBlank(pattern)) {
+            throw new BusinessException(
+                    "date pattern must not be blank"
+            );
         }
-        if (zoneId == null) {
-            throw new BusinessException("zoneId must not be null");
+
+        try {
+            return DateTimeFormatter.ofPattern(pattern);
+        } catch (IllegalArgumentException exception) {
+            throw new BusinessException(
+                    "Invalid date pattern: " + pattern,
+                    exception
+            );
         }
-        return dateTime.atZone(zoneId).toInstant();
     }
 }
