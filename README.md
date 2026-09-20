@@ -8,6 +8,7 @@ Yakable is a frontend-domain Harness for building and editing frontend applicati
 yakable/
 ├── yakable-boot/            # Controller + Spring Boot
 ├── yakable-service/         # Project / Session business logic
+├── yakable-core/            # Stable runtime contracts such as LLM
 ├── yakable-dao/             # Repository + Mapper + Entity + Flyway
 ├── yakable-plugins/         # Model provider plugins
 ├── yakable-common/          # Shared code
@@ -70,14 +71,16 @@ Mapper
 Entity
 ```
 
-Module dependency:
+LLM 调用使用独立的稳定边界：
 
 ```text
-yakable-boot
+Service
     ↓
-yakable-service
+yakable-core / LlmClient
     ↓
-yakable-dao
+LlmProvider
+    ↓
+Model Plugin
 ```
 
 Model providers remain independent plugins discovered through AutoService / ServiceLoader.

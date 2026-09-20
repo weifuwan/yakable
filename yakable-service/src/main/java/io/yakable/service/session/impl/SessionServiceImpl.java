@@ -23,10 +23,14 @@ import io.yakable.common.exception.SessionException;
 import io.yakable.common.utils.ConverUtils;
 import io.yakable.common.utils.DateUtils;
 import io.yakable.common.utils.ThreadUtils;
+import io.yakable.core.llm.LlmClient;
+import io.yakable.core.llm.LlmMessage;
+import io.yakable.core.llm.LlmRequest;
+import io.yakable.core.llm.LlmResponse;
+import io.yakable.core.llm.LlmUsage;
 import io.yakable.dao.entity.SessionEntity;
 import io.yakable.dao.repository.SessionRepository;
 import io.yakable.service.message.MessageService;
-import io.yakable.service.model.ModelClient;
 import io.yakable.service.session.SessionService;
 import io.yakable.service.turn.TurnService;
 import jakarta.annotation.PostConstruct;
@@ -65,7 +69,7 @@ public class SessionServiceImpl implements SessionService {
     private MessageService messageService;
 
     @Resource
-    private ModelClient modelClient;
+    private LlmClient llmClient;
 
     @Resource
     private TransactionTemplate transactionTemplate;
@@ -213,19 +217,19 @@ public class SessionServiceImpl implements SessionService {
         }
 
         try {
-            ModelClient.Reply reply = modelClient.chat(
+            LlmResponse response = llmClient.chat(new LlmRequest(
                     session.getProvider(),
                     session.getModel(),
                     SYSTEM_PROMPT,
-                    buildContext(session.getId(), running.getId()));
-            persistSuccess(session.getId(), running, reply);
+                    buildContext(session.getId(), running.getId())));
+            persistSuccess(session.getId(), running, response);
         } catch (RuntimeException exception) {
             persistFailure(session.getId(), running, exception);
             throw exception;
         }
     }
 
-    private List<ModelClient.Message> buildContext(String sessionId, String currentTurnId) {
+    private List<LlmMessage> buildContext(String sessionId, String currentTurnId) {
         Map<String, TurnVO> turns = turnService.queryTurnList(sessionId)
                 .stream()
                 .collect(Collectors.toMap(TurnVO::getId, Function.identity()));
@@ -239,31 +243,31 @@ public class SessionServiceImpl implements SessionService {
                     TurnVO turn = turns.get(message.getTurnId());
                     return turn != null && TurnStatusEnum.SUCCEEDED.name().equals(turn.getStatus());
                 })
-                .map(SessionServiceImpl::toModelMessage)
+                .map(SessionServiceImpl::toLlmMessage)
                 .toList();
     }
 
-    private void persistSuccess(String sessionId, TurnVO running, ModelClient.Reply reply) {
+    private void persistSuccess(String sessionId, TurnVO running, LlmResponse response) {
         LocalDateTime completedAt = DateUtils.now();
-        ModelClient.Usage usage = reply.usage();
+        LlmUsage usage = response.usage();
 
         transactionTemplate.executeWithoutResult(status -> {
             int updated = turnService.updateTurnSucceeded(
                     running.getId(),
                     sessionId,
-                    reply.provider(),
-                    reply.model(),
-                    usage == null ? null : usage.inputTokens(),
-                    usage == null ? null : usage.outputTokens(),
-                    usage == null ? null : usage.totalTokens(),
-                    reply.providerRequestId(),
-                    reply.finishReason(),
+                    response.provider(),
+                    response.model(),
+                    usage.inputTokens(),
+                    usage.outputTokens(),
+                    usage.totalTokens(),
+                    response.providerRequestId(),
+                    response.finishReason(),
                     completedAt);
             if (updated != 1) {
                 throw new IllegalStateException("Turn is no longer RUNNING: " + running.getId());
             }
 
-            messageService.addMessage(sessionId, running.getId(), MessageRoleEnum.ASSISTANT, reply.content());
+            messageService.addMessage(sessionId, running.getId(), MessageRoleEnum.ASSISTANT, response.content());
             updateSession(sessionId);
         });
     }
@@ -307,11 +311,11 @@ public class SessionServiceImpl implements SessionService {
         return result;
     }
 
-    private static ModelClient.Message toModelMessage(MessageVO message) {
-        ModelClient.Role role = MessageRoleEnum.USER.name().equals(message.getRole())
-                ? ModelClient.Role.USER
-                : ModelClient.Role.ASSISTANT;
-        return new ModelClient.Message(role, message.getContent());
+    private static LlmMessage toLlmMessage(MessageVO message) {
+        LlmMessage.Role role = MessageRoleEnum.USER.name().equals(message.getRole())
+                ? LlmMessage.Role.USER
+                : LlmMessage.Role.ASSISTANT;
+        return new LlmMessage(role, message.getContent());
     }
 
     private static String failureMessage(RuntimeException exception) {

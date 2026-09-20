@@ -1,21 +1,18 @@
 package io.yakable.plugin.model.api;
 
+import io.yakable.core.llm.LlmProvider;
+
 /**
- * Stable model plugin contract.
+ * Model Plugin 扩展契约。
  *
- * <p>Implementations are discovered through Java ServiceLoader. Built-in plugins
- * use AutoService to generate the service registration at compile time.
+ * <p>LLM 请求和响应契约统一由 yakable-core 定义；ModelPlugin 只补充插件元数据。</p>
  */
-public interface ModelPlugin {
+public interface ModelPlugin extends LlmProvider {
 
     ModelPluginDescriptor descriptor();
 
+    @Override
     default String provider() {
         return descriptor().provider();
     }
-
-    LlmResponse chat(
-            ModelPluginConfiguration configuration,
-            LlmRequest request
-    );
 }
