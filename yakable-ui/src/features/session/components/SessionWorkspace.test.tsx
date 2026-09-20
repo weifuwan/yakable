@@ -219,21 +219,13 @@ describe('SessionWorkspace', () => {
       clientHeight: 400,
       scrollTop: 100,
     });
-    const scrollTo = vi.fn();
-    Object.defineProperty(scroller, 'scrollTo', {
-      configurable: true,
-      value: scrollTo,
-    });
-
     fireEvent.scroll(scroller);
 
     const button = screen.getByRole('button', { name: 'Scroll to bottom' });
     fireEvent.click(button);
 
-    expect(scrollTo).toHaveBeenCalledWith({
-      top: 1000,
-      behavior: 'smooth',
-    });
+    expect(scroller.scrollTop).toBe(1000);
+    expect(button.style.borderRadius).toBe('50%');
     expect(
       screen.queryByRole('button', { name: 'Scroll to bottom' }),
     ).toBeNull();

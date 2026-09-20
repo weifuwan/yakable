@@ -88,18 +88,12 @@ export function SessionWorkspace({
   const loadedSessionId = snapshot?.session.id ?? null;
   const messageCount = snapshot?.messages.length ?? 0;
 
-  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
+  const scrollToBottom = useCallback(() => {
     const element = scrollRef.current;
     if (!element) return;
 
     followOutputRef.current = true;
     setShowScrollBottom(false);
-
-    if (behavior === 'smooth') {
-      element.scrollTo({ top: element.scrollHeight, behavior });
-      return;
-    }
-
     element.scrollTop = element.scrollHeight;
   }, []);
 
@@ -312,8 +306,9 @@ export function SessionWorkspace({
             aria-label="Scroll to bottom"
             variant="secondary"
             size="md"
-            className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full"
-            onClick={() => scrollToBottom('smooth')}
+            className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 hover:cursor-pointer"
+            style={{ borderRadius: '50%' }}
+            onClick={scrollToBottom}
           >
             <Icon size={18}>
               <path d="M12 5v14" />
