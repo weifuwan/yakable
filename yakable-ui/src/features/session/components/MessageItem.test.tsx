@@ -21,6 +21,9 @@ describe('MessageItem', () => {
     const actions = screen.getByTestId('user-message-actions');
 
     expect(actions.className).toContain('absolute');
+    expect(actions.className).toContain('top-full');
+    expect(actions.className).toContain('pt-1');
+    expect(actions.className).not.toContain('mt-1');
     expect(actions.className).toContain('opacity-0');
     expect(actions.className).toContain('group-hover:opacity-100');
     expect(screen.getByRole('button', { name: 'Copy message' })).toBeTruthy();
