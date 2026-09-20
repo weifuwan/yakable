@@ -6,39 +6,38 @@ import io.yakable.common.bean.PageData;
 import io.yakable.common.bean.dto.PageDTO;
 import io.yakable.dao.entity.ProjectEntity;
 import io.yakable.dao.mapper.ProjectMapper;
+import jakarta.annotation.Resource;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Repository;
 
-import java.util.Objects;
 import java.util.Optional;
 
+/**
+ * Project 数据访问入口。
+ *
+ * <p>负责 Project 的新增和查询，屏蔽 Mapper 与 MyBatis-Plus 持久化细节。</p>
+ */
 @Repository
 @DependsOn("yakableFlyway")
 public class ProjectRepository {
 
-    private final ProjectMapper mapper;
+    @Resource
+    private ProjectMapper projectMapper;
 
-    public ProjectRepository(ProjectMapper mapper) {
-        this.mapper = Objects.requireNonNull(mapper, "mapper");
-    }
-
-    public ProjectEntity save(ProjectEntity entity) {
-        Objects.requireNonNull(entity, "entity");
-        if (mapper.selectById(entity.getId()) == null) {
-            mapper.insert(entity);
-        } else {
-            mapper.updateById(entity);
-        }
+    /**
+     * 新增 Project。
+     */
+    public ProjectEntity addProject(ProjectEntity entity) {
+        projectMapper.insert(entity);
         return entity;
     }
 
-    public Optional<ProjectEntity> findById(String projectId) {
-        return Optional.ofNullable(mapper.selectById(projectId));
-    }
-
+    /**
+     * 分页查询 Project。
+     */
     public PageData<ProjectEntity> queryProject(PageDTO dto) {
         Page<ProjectEntity> page = new Page<>(dto.getCurrent(), dto.getPageSize());
-        IPage<ProjectEntity> result = mapper.selectProjectPage(page);
+        IPage<ProjectEntity> result = projectMapper.selectProjectPage(page);
         return new PageData<>(
                 result.getRecords(),
                 result.getTotal(),
@@ -47,7 +46,10 @@ public class ProjectRepository {
                 Math.toIntExact(result.getSize()));
     }
 
-    public Optional<ProjectEntity> findProjectDetails(String projectId) {
-        return Optional.ofNullable(mapper.selectProjectDetails(projectId));
+    /**
+     * 查询 Project 详情。
+     */
+    public Optional<ProjectEntity> queryProject(String projectId) {
+        return Optional.ofNullable(projectMapper.selectProjectDetails(projectId));
     }
 }
