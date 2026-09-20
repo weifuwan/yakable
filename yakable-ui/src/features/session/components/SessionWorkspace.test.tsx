@@ -83,6 +83,18 @@ const streamedTurn = {
   },
 } as const;
 
+const runningSnapshot = {
+  ...completedSnapshot,
+  turns: [
+    {
+      ...streamedTurn.turn,
+      status: 'RUNNING',
+      attemptCount: 1,
+      startedAt: '2026-09-19T00:00:02Z',
+    },
+  ],
+} as const;
+
 const cancelledTurn = {
   ...streamedTurn.turn,
   status: 'CANCELLED',
@@ -243,6 +255,31 @@ describe('SessionWorkspace', () => {
     expect(
       screen.queryByRole('button', { name: 'Scroll to bottom' }),
     ).toBeNull();
+  });
+
+  it('shows an ellipsis scroll button while a turn is running', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(apiResponse(runningSnapshot)));
+
+    render(
+      <SessionWorkspace
+        projectId="project-1"
+        sessionId="session-1"
+      />,
+    );
+
+    await screen.findByText('Who are you?');
+
+    const scroller = screen.getByTestId('session-message-scroll');
+    setScrollMetrics(scroller, {
+      scrollHeight: 1000,
+      clientHeight: 400,
+      scrollTop: 100,
+    });
+    fireEvent.scroll(scroller);
+
+    const button = screen.getByRole('button', { name: 'Scroll to bottom' });
+    expect(button.querySelector('svg')).toBeNull();
+    expect(button.querySelectorAll('.size-1')).toHaveLength(3);
   });
 
   it('stops an active streaming turn', async () => {
