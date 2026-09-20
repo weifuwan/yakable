@@ -61,7 +61,7 @@ public class ProjectService {
             project.initCreate();
             project.setName(projectName(prompt));
             project.setStatus(ProjectStatusEnum.CREATED);
-            projectRepository.addProject(project);
+            projectRepository.add(project);
 
             SessionService.InitialSession session = sessionService.createInitialSession(
                     project.getId(), project.getName(), provider, model, prompt);
