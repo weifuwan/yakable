@@ -53,10 +53,12 @@ projectRepository.add(entity);
 
 15. Repository 中的专属 update 方法只保留真正具有业务语义、条件更新或原子更新要求的场景。能通过 `BaseRepository.update` 或 MyBatis-Plus 原生能力直接完成的，不重复造轮子。
 
+16. Update 只修改当前状态流转真正发生变化的字段。禁止为了防御性编程重复把本应已经满足状态约束的字段 `set null`；只有重置、回滚、恢复等确实需要清除数据库旧值的场景，才显式将字段更新为 `null`。这类清空逻辑必须和具体状态语义绑定，例如恢复到 PENDING 时统一清理上一次执行结果，禁止抽成语义模糊、到处复用的 `clearResult`。
+
 ## 分页
 
-16. 分页统一使用 MyBatis-Plus `Page / IPage`。RepositoryImpl 负责创建分页对象并调用本表 Mapper，Service 只接收统一的 `PageData`，禁止手动计算 `total`、`offset`、`pages`。复杂分页可以使用本表 `Mapper + XML`，但不得借此访问其他表；跨表数据由上层 Service 调用对应 Service 后组装。XML 不手写 `LIMIT / OFFSET`，总数统计交给分页插件。
+17. 分页统一使用 MyBatis-Plus `Page / IPage`。RepositoryImpl 负责创建分页对象并调用本表 Mapper，Service 只接收统一的 `PageData`，禁止手动计算 `total`、`offset`、`pages`。复杂分页可以使用本表 `Mapper + XML`，但不得借此访问其他表；跨表数据由上层 Service 调用对应 Service 后组装。XML 不手写 `LIMIT / OFFSET`，总数统计交给分页插件。
 
 ## 代码格式
 
-17. 简单方法声明和方法调用能一行写完就一行写完；只有参数较多或单行明显过长时才允许换行，换行后保持结构紧凑、统一。
+18. 简单方法声明和方法调用能一行写完就一行写完；只有参数较多或单行明显过长时才允许换行，换行后保持结构紧凑、统一。
