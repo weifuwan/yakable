@@ -18,6 +18,10 @@
     <dependencies>
         <dependency>
             <groupId>io.yakable</groupId>
+            <artifactId>yakable-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.yakable</groupId>
             <artifactId>yakable-service</artifactId>
         </dependency>
         <dependency>
