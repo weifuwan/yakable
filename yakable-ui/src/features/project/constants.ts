@@ -1,0 +1,2 @@
+export const PROJECT_PAGE_SIZE = 20;
+export const PROJECT_LOAD_MORE_SKELETON_ROWS = 3;
