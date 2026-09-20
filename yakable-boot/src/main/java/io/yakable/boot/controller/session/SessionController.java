@@ -1,6 +1,7 @@
 package io.yakable.boot.controller.session;
 
 import io.yakable.common.bean.dto.session.AddTurnDTO;
+import io.yakable.common.bean.dto.session.AddTurnRequestDTO;
 import io.yakable.common.bean.dto.session.QuerySessionChangesDTO;
 import io.yakable.common.bean.dto.session.QuerySessionDTO;
 import io.yakable.common.bean.dto.session.QuerySessionMessagesDTO;
@@ -9,28 +10,25 @@ import io.yakable.common.bean.vo.session.SessionDetailVO;
 import io.yakable.common.bean.vo.session.SessionMessagePageVO;
 import io.yakable.common.bean.vo.session.TurnStartVO;
 import io.yakable.service.session.SessionService;
+import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/projects/{projectId}/sessions")
 public class SessionController {
 
-    private final SessionService sessionService;
-
-    public SessionController(SessionService sessionService) {
-        this.sessionService = sessionService;
-    }
+    @Resource
+    private SessionService sessionService;
 
     @GetMapping("/{sessionId}")
-    public SessionDetailVO getSession(@PathVariable String projectId, @PathVariable String sessionId) {
+    public SessionDetailVO querySession(@PathVariable String projectId, @PathVariable String sessionId) {
         return sessionService.querySession(new QuerySessionDTO(projectId, sessionId));
     }
 
     @GetMapping("/{sessionId}/changes")
-    public SessionChangesVO getChanges(
+    public SessionChangesVO querySessionChanges(
             @PathVariable String projectId,
             @PathVariable String sessionId,
             @RequestParam(defaultValue = "0") long afterSequence) {
@@ -38,7 +36,7 @@ public class SessionController {
     }
 
     @GetMapping("/{sessionId}/messages")
-    public SessionMessagePageVO getMessages(
+    public SessionMessagePageVO querySessionMessages(
             @PathVariable String projectId,
             @PathVariable String sessionId,
             @RequestParam(required = false) Long beforeSequence,
@@ -48,14 +46,11 @@ public class SessionController {
     }
 
     @PostMapping("/{sessionId}/turns")
-    public ResponseEntity<TurnStartVO> startTurn(
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public TurnStartVO addTurn(
             @PathVariable String projectId,
             @PathVariable String sessionId,
-            @Valid @RequestBody StartTurnRequest request) {
-        TurnStartVO result = sessionService.addTurn(new AddTurnDTO(projectId, sessionId, request.content()));
-        return ResponseEntity.accepted().body(result);
-    }
-
-    public record StartTurnRequest(@NotBlank String content) {
+            @Valid @RequestBody AddTurnRequestDTO dto) {
+        return sessionService.addTurn(new AddTurnDTO(projectId, sessionId, dto.content()));
     }
 }
