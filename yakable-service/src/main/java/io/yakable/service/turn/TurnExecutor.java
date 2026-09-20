@@ -10,37 +10,35 @@ import io.yakable.common.utils.DateUtils;
 import io.yakable.service.message.MessageService;
 import io.yakable.service.model.ModelClient;
 import io.yakable.service.session.SessionService;
+import jakarta.annotation.Resource;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public final class TurnExecutor {
+@Component
+public class TurnExecutor {
 
     private static final String SYSTEM_PROMPT = "You are Yakable, a concise and accurate assistant.";
 
-    private final SessionService sessionService;
-    private final TurnService turnService;
-    private final MessageService messageService;
-    private final ModelClient modelClient;
-    private final TransactionTemplate transactionTemplate;
+    @Resource
+    private SessionService sessionService;
 
-    public TurnExecutor(
-            SessionService sessionService,
-            TurnService turnService,
-            MessageService messageService,
-            ModelClient modelClient,
-            TransactionTemplate transactionTemplate) {
-        this.sessionService = Objects.requireNonNull(sessionService, "sessionService");
-        this.turnService = Objects.requireNonNull(turnService, "turnService");
-        this.messageService = Objects.requireNonNull(messageService, "messageService");
-        this.modelClient = Objects.requireNonNull(modelClient, "modelClient");
-        this.transactionTemplate = Objects.requireNonNull(transactionTemplate, "transactionTemplate");
-    }
+    @Resource
+    private TurnService turnService;
+
+    @Resource
+    private MessageService messageService;
+
+    @Resource
+    private ModelClient modelClient;
+
+    @Resource
+    private TransactionTemplate transactionTemplate;
 
     public boolean execute(String turnId) {
         TurnExecutionVO snapshot = turnService.queryTurnExecution(turnId).orElse(null);
