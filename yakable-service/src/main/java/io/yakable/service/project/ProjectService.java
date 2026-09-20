@@ -1,17 +1,26 @@
 package io.yakable.service.project;
 
+import io.yakable.common.BusinessException;
+import io.yakable.common.PageData;
 import io.yakable.dao.entity.ProjectEntity;
 import io.yakable.dao.repository.ProjectRepository;
 import io.yakable.service.session.SessionService;
 import io.yakable.service.turn.TurnDispatcher;
+import lombok.Getter;
+import lombok.Setter;
+import org.springframework.beans.BeanUtils;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
+/**
+ * Project 业务服务。
+ *
+ * <p>负责 Project 的创建、查询和分页列表，并协调初始 Session 与 Turn 的创建。</p>
+ */
 public final class ProjectService {
 
     private static final int MAX_PROJECT_NAME_LENGTH = 48;
@@ -28,24 +37,15 @@ public final class ProjectService {
             TurnDispatcher turnDispatcher,
             TransactionTemplate transactionTemplate
     ) {
-        this.repository = Objects.requireNonNull(
-                repository,
-                "repository"
-        );
-        this.sessionService = Objects.requireNonNull(
-                sessionService,
-                "sessionService"
-        );
-        this.turnDispatcher = Objects.requireNonNull(
-                turnDispatcher,
-                "turnDispatcher"
-        );
-        this.transactionTemplate = Objects.requireNonNull(
-                transactionTemplate,
-                "transactionTemplate"
-        );
+        this.repository = repository;
+        this.sessionService = sessionService;
+        this.turnDispatcher = turnDispatcher;
+        this.transactionTemplate = transactionTemplate;
     }
 
+    /**
+     * 创建 Project，并同步创建首个 Session 和首轮 Turn。
+     */
     public ProjectDetails createProject(
             String prompt,
             String provider,
@@ -79,39 +79,22 @@ public final class ProjectService {
             return new CreatedProject(project, session);
         });
 
-        if (created == null) {
-            throw new IllegalStateException(
-                    "Project transaction returned no result"
-            );
-        }
-
         turnDispatcher.dispatch(created.session().turnId());
 
-        return new ProjectDetails(
-                created.project().getId(),
-                created.project().getName(),
-                created.session().sessionId(),
-                created.project().getStatus(),
-                created.project().getCreatedAt(),
-                created.session().updatedAt()
-        );
+        ProjectDetails details = toDetails(created.project());
+        details.setLatestSessionId(created.session().sessionId());
+        details.setUpdatedAt(created.session().updatedAt());
+        return details;
     }
 
-    public ProjectPage listProjects(
+    /**
+     * 分页查询 Project。
+     */
+    public PageData<ProjectSummary> listProjects(
             int current,
             int pageSize
     ) {
-        if (current <= 0) {
-            throw new IllegalArgumentException(
-                    "current must be greater than zero"
-            );
-        }
-        if (pageSize <= 0 || pageSize > MAX_PAGE_SIZE) {
-            throw new IllegalArgumentException(
-                    "pageSize must be between 1 and "
-                            + MAX_PAGE_SIZE
-            );
-        }
+        validatePage(current, pageSize);
 
         long total = repository.countProjectsWithSession();
         long offset = (long) (current - 1) * pageSize;
@@ -122,19 +105,12 @@ public final class ProjectService {
                 .map(ProjectService::toSummary)
                 .toList();
 
-        long pages = total == 0
-                ? 0
-                : (total + pageSize - 1) / pageSize;
-
-        return new ProjectPage(
-                records,
-                total,
-                pages,
-                current,
-                pageSize
-        );
+        return PageData.of(records, total, current, pageSize);
     }
 
+    /**
+     * 根据 Project ID 查询详情。
+     */
     public Optional<ProjectDetails> getProject(String projectId) {
         return repository.findProjectDetails(
                         requireText(projectId, "projectId")
@@ -142,24 +118,31 @@ public final class ProjectService {
                 .map(ProjectService::toDetails);
     }
 
+    private static void validatePage(int current, int pageSize) {
+        if (current <= 0) {
+            throw new BusinessException(
+                    "current must be greater than zero"
+            );
+        }
+
+        if (pageSize <= 0 || pageSize > MAX_PAGE_SIZE) {
+            throw new BusinessException(
+                    "pageSize must be between 1 and "
+                            + MAX_PAGE_SIZE
+            );
+        }
+    }
+
     private static ProjectSummary toSummary(ProjectEntity entity) {
-        return new ProjectSummary(
-                entity.getId(),
-                entity.getName(),
-                entity.getLatestSessionId(),
-                entity.getUpdatedAt()
-        );
+        ProjectSummary summary = new ProjectSummary();
+        BeanUtils.copyProperties(entity, summary);
+        return summary;
     }
 
     private static ProjectDetails toDetails(ProjectEntity entity) {
-        return new ProjectDetails(
-                entity.getId(),
-                entity.getName(),
-                entity.getLatestSessionId(),
-                entity.getStatus(),
-                entity.getCreatedAt(),
-                entity.getUpdatedAt()
-        );
+        ProjectDetails details = new ProjectDetails();
+        BeanUtils.copyProperties(entity, details);
+        return details;
     }
 
     private static String projectName(String prompt) {
@@ -177,14 +160,12 @@ public final class ProjectService {
     }
 
     private static String requireText(String value, String field) {
-        Objects.requireNonNull(value, field);
-        String normalized = value.strip();
-        if (normalized.isEmpty()) {
-            throw new IllegalArgumentException(
+        if (value == null || value.isBlank()) {
+            throw new BusinessException(
                     field + " must not be blank"
             );
         }
-        return normalized;
+        return value.strip();
     }
 
     private record CreatedProject(
@@ -193,30 +174,31 @@ public final class ProjectService {
     ) {
     }
 
-    public record ProjectPage(
-            List<ProjectSummary> records,
-            long total,
-            long pages,
-            int current,
-            int pageSize
-    ) {
+    /**
+     * Project 列表项。
+     */
+    @Getter
+    @Setter
+    public static class ProjectSummary {
+
+        private String id;
+        private String name;
+        private String latestSessionId;
+        private Instant updatedAt;
     }
 
-    public record ProjectSummary(
-            String id,
-            String name,
-            String latestSessionId,
-            Instant updatedAt
-    ) {
-    }
+    /**
+     * Project 详情。
+     */
+    @Getter
+    @Setter
+    public static class ProjectDetails {
 
-    public record ProjectDetails(
-            String id,
-            String name,
-            String latestSessionId,
-            String status,
-            Instant createdAt,
-            Instant updatedAt
-    ) {
+        private String id;
+        private String name;
+        private String latestSessionId;
+        private String status;
+        private Instant createdAt;
+        private Instant updatedAt;
     }
 }
