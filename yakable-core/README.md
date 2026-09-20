@@ -4,6 +4,10 @@
 
 它不负责 Controller、业务编排、数据库访问，也不放具体 Provider 实现。
 
+## 规范文档
+
+- [CODE_README.md](./CODE_README.md)：yakable-core 通用 Java 编码规范。
+
 ## LLM
 
 核心问题：
