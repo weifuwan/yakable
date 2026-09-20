@@ -14,13 +14,7 @@ import java.util.List;
  * @param pageSize 每页数量
  * @param <T> 数据类型
  */
-public record PageData<T>(
-        List<T> records,
-        long total,
-        long pages,
-        int current,
-        int pageSize
-) {
+public record PageData<T>(List<T> records, long total, long pages, int current, int pageSize) {
 
     public PageData {
         records = records == null ? List.of() : List.copyOf(records);
