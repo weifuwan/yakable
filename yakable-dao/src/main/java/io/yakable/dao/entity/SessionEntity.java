@@ -1,6 +1,7 @@
 package io.yakable.dao.entity;
 
 import com.baomidou.mybatisplus.annotation.TableName;
+import io.yakable.common.enums.SessionStatusEnum;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -13,5 +14,5 @@ public class SessionEntity extends BaseEntity {
     private String title;
     private String provider;
     private String model;
-    private Integer status;
+    private SessionStatusEnum status;
 }
