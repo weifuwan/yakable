@@ -47,7 +47,7 @@ public interface TurnRepository extends BaseRepository<TurnEntity> {
     /**
      * 将超时运行中的 Turn 恢复为待执行状态。
      */
-    int updateStaleTurnPending(LocalDateTime staleBefore, LocalDateTime recoveredAt);
+    int updateStaleTurnPending(LocalDateTime staleBefore);
 
     /**
      * 查询待执行 Turn ID 列表。
