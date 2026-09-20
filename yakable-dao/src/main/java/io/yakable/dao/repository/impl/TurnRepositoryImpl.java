@@ -58,16 +58,15 @@ public class TurnRepositoryImpl extends BaseRepositoryImpl<TurnMapper, TurnEntit
 
     @Override
     public Optional<TurnEntity> updatePendingTurn(String turnId, LocalDateTime claimedAt, String provider, String model) {
-        LambdaUpdateWrapper<TurnEntity> update = clearResult(
-                Wrappers.<TurnEntity>lambdaUpdate()
-                        .eq(TurnEntity::getId, turnId)
-                        .eq(TurnEntity::getStatus, TurnStatusEnum.PENDING)
-                        .set(TurnEntity::getStatus, TurnStatusEnum.RUNNING)
-                        .setIncrBy(TurnEntity::getAttemptCount, 1)
-                        .set(TurnEntity::getProvider, provider)
-                        .set(TurnEntity::getModel, model)
-                        .set(TurnEntity::getStartedAt, claimedAt));
-        return executeUpdate(update) == 0 ? Optional.empty() : Optional.ofNullable(turnMapper.selectById(turnId));
+        LambdaUpdateWrapper<TurnEntity> update = Wrappers.<TurnEntity>lambdaUpdate()
+                .eq(TurnEntity::getId, turnId)
+                .eq(TurnEntity::getStatus, TurnStatusEnum.PENDING)
+                .set(TurnEntity::getStatus, TurnStatusEnum.RUNNING)
+                .setIncrBy(TurnEntity::getAttemptCount, 1)
+                .set(TurnEntity::getProvider, provider)
+                .set(TurnEntity::getModel, model)
+                .set(TurnEntity::getStartedAt, claimedAt);
+        return executeUpdate(update) == 0 ? Optional.empty() : queryById(turnId);
     }
 
     @Override
@@ -78,7 +77,6 @@ public class TurnRepositoryImpl extends BaseRepositoryImpl<TurnMapper, TurnEntit
         return executeUpdate(
                 runningTurn(turnId, sessionId)
                         .set(TurnEntity::getStatus, TurnStatusEnum.SUCCEEDED)
-                        .set(TurnEntity::getErrorMessage, null)
                         .set(TurnEntity::getProvider, provider)
                         .set(TurnEntity::getModel, model)
                         .set(TurnEntity::getInputTokens, inputTokens)
@@ -100,16 +98,12 @@ public class TurnRepositoryImpl extends BaseRepositoryImpl<TurnMapper, TurnEntit
 
     @Override
     public int updateStaleTurnPending(LocalDateTime staleBefore) {
-        LambdaUpdateWrapper<TurnEntity> update = clearResult(
-                Wrappers.<TurnEntity>lambdaUpdate()
-                        .eq(TurnEntity::getStatus, TurnStatusEnum.RUNNING)
-                        .isNotNull(TurnEntity::getStartedAt)
-                        .lt(TurnEntity::getStartedAt, staleBefore)
-                        .set(TurnEntity::getStatus, TurnStatusEnum.PENDING)
-                        .set(TurnEntity::getProvider, null)
-                        .set(TurnEntity::getModel, null)
-                        .set(TurnEntity::getStartedAt, null));
-        return executeUpdate(update);
+        return executeUpdate(
+                resetToPending(
+                        Wrappers.<TurnEntity>lambdaUpdate()
+                                .eq(TurnEntity::getStatus, TurnStatusEnum.RUNNING)
+                                .isNotNull(TurnEntity::getStartedAt)
+                                .lt(TurnEntity::getStartedAt, staleBefore)));
     }
 
     @Override
@@ -134,14 +128,18 @@ public class TurnRepositoryImpl extends BaseRepositoryImpl<TurnMapper, TurnEntit
                 .eq(TurnEntity::getStatus, TurnStatusEnum.RUNNING);
     }
 
-    private LambdaUpdateWrapper<TurnEntity> clearResult(LambdaUpdateWrapper<TurnEntity> update) {
+    private LambdaUpdateWrapper<TurnEntity> resetToPending(LambdaUpdateWrapper<TurnEntity> update) {
         return update
+                .set(TurnEntity::getStatus, TurnStatusEnum.PENDING)
                 .set(TurnEntity::getErrorMessage, null)
+                .set(TurnEntity::getProvider, null)
+                .set(TurnEntity::getModel, null)
                 .set(TurnEntity::getInputTokens, null)
                 .set(TurnEntity::getOutputTokens, null)
                 .set(TurnEntity::getTotalTokens, null)
                 .set(TurnEntity::getProviderRequestId, null)
                 .set(TurnEntity::getFinishReason, null)
+                .set(TurnEntity::getStartedAt, null)
                 .set(TurnEntity::getFinishedAt, null);
     }
 
