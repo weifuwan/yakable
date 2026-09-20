@@ -1,5 +1,6 @@
 package io.yakable.common.enums;
 
+import com.baomidou.mybatisplus.annotation.EnumValue;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -15,14 +16,6 @@ public enum TurnStatusEnum {
     SUCCEEDED(2),
     FAILED(3);
 
+    @EnumValue
     private final Integer value;
-
-    public static TurnStatusEnum fromValue(Integer value) {
-        for (TurnStatusEnum item : values()) {
-            if (item.value.equals(value)) {
-                return item;
-            }
-        }
-        throw new IllegalArgumentException("Unknown turn status: " + value);
-    }
 }

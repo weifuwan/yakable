@@ -64,8 +64,8 @@ public class SessionRepository {
                 Wrappers.<TurnEntity>lambdaQuery()
                         .eq(TurnEntity::getSessionId, sessionId)
                         .in(TurnEntity::getStatus,
-                                TurnStatusEnum.PENDING.getValue(),
-                                TurnStatusEnum.RUNNING.getValue()));
+                                TurnStatusEnum.PENDING,
+                                TurnStatusEnum.RUNNING));
     }
 
     public int insertTurn(TurnEntity entity) {
@@ -143,8 +143,8 @@ public class SessionRepository {
                 null,
                 Wrappers.<TurnEntity>lambdaUpdate()
                         .eq(TurnEntity::getId, turnId)
-                        .eq(TurnEntity::getStatus, TurnStatusEnum.PENDING.getValue())
-                        .set(TurnEntity::getStatus, TurnStatusEnum.RUNNING.getValue())
+                        .eq(TurnEntity::getStatus, TurnStatusEnum.PENDING)
+                        .set(TurnEntity::getStatus, TurnStatusEnum.RUNNING)
                         .setSql("attempt_count = attempt_count + 1")
                         .set(TurnEntity::getErrorMessage, null)
                         .set(TurnEntity::getProvider, provider)
@@ -170,8 +170,8 @@ public class SessionRepository {
                 Wrappers.<TurnEntity>lambdaUpdate()
                         .eq(TurnEntity::getId, turnId)
                         .eq(TurnEntity::getSessionId, sessionId)
-                        .eq(TurnEntity::getStatus, TurnStatusEnum.RUNNING.getValue())
-                        .set(TurnEntity::getStatus, TurnStatusEnum.SUCCEEDED.getValue())
+                        .eq(TurnEntity::getStatus, TurnStatusEnum.RUNNING)
+                        .set(TurnEntity::getStatus, TurnStatusEnum.SUCCEEDED)
                         .set(TurnEntity::getErrorMessage, null)
                         .set(TurnEntity::getProvider, provider)
                         .set(TurnEntity::getModel, model)
@@ -191,8 +191,8 @@ public class SessionRepository {
                 Wrappers.<TurnEntity>lambdaUpdate()
                         .eq(TurnEntity::getId, turnId)
                         .eq(TurnEntity::getSessionId, sessionId)
-                        .eq(TurnEntity::getStatus, TurnStatusEnum.RUNNING.getValue())
-                        .set(TurnEntity::getStatus, TurnStatusEnum.FAILED.getValue())
+                        .eq(TurnEntity::getStatus, TurnStatusEnum.RUNNING)
+                        .set(TurnEntity::getStatus, TurnStatusEnum.FAILED)
                         .set(TurnEntity::getErrorMessage, errorMessage)
                         .set(TurnEntity::getFinishedAt, failedAt)
                         .set(TurnEntity::getUpdateTime, failedAt)
@@ -203,10 +203,10 @@ public class SessionRepository {
         return turnMapper.update(
                 null,
                 Wrappers.<TurnEntity>lambdaUpdate()
-                        .eq(TurnEntity::getStatus, TurnStatusEnum.RUNNING.getValue())
+                        .eq(TurnEntity::getStatus, TurnStatusEnum.RUNNING)
                         .isNotNull(TurnEntity::getStartedAt)
                         .lt(TurnEntity::getStartedAt, staleBefore)
-                        .set(TurnEntity::getStatus, TurnStatusEnum.PENDING.getValue())
+                        .set(TurnEntity::getStatus, TurnStatusEnum.PENDING)
                         .set(TurnEntity::getErrorMessage, null)
                         .set(TurnEntity::getProvider, null)
                         .set(TurnEntity::getModel, null)
@@ -228,7 +228,7 @@ public class SessionRepository {
         return turnMapper.selectList(
                         Wrappers.<TurnEntity>lambdaQuery()
                                 .select(TurnEntity::getId)
-                                .eq(TurnEntity::getStatus, TurnStatusEnum.PENDING.getValue())
+                                .eq(TurnEntity::getStatus, TurnStatusEnum.PENDING)
                                 .orderByAsc(TurnEntity::getCreateTime, TurnEntity::getId)
                                 .last("LIMIT " + limit))
                 .stream()

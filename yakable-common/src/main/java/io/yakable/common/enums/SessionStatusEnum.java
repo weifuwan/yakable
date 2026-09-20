@@ -1,5 +1,6 @@
 package io.yakable.common.enums;
 
+import com.baomidou.mybatisplus.annotation.EnumValue;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -13,14 +14,6 @@ public enum SessionStatusEnum {
     ACTIVE(0),
     CLOSED(1);
 
+    @EnumValue
     private final Integer value;
-
-    public static SessionStatusEnum fromValue(Integer value) {
-        for (SessionStatusEnum item : values()) {
-            if (item.value.equals(value)) {
-                return item;
-            }
-        }
-        throw new IllegalArgumentException("Unknown session status: " + value);
-    }
 }

@@ -40,7 +40,7 @@ public final class SessionService {
         session.setTitle(requireText(title, "title"));
         session.setProvider(requireText(provider, "provider"));
         session.setModel(requireText(model, "model"));
-        session.setStatus(SessionStatusEnum.ACTIVE.getValue());
+        session.setStatus(SessionStatusEnum.ACTIVE);
         repository.saveSession(session);
 
         TurnStart turn = createPendingTurn(session, requireText(content, "content"));
@@ -50,7 +50,7 @@ public final class SessionService {
     public TurnStart startTurn(String projectId, String sessionId, String content) {
         TurnStart result = transactionTemplate.execute(status -> {
             SessionEntity session = requireOwnedSession(projectId, sessionId);
-            if (!SessionStatusEnum.ACTIVE.getValue().equals(session.getStatus())) {
+            if (session.getStatus() != SessionStatusEnum.ACTIVE) {
                 throw new SessionInactiveException(sessionId);
             }
             return createPendingTurn(session, requireText(content, "content"));
@@ -118,7 +118,7 @@ public final class SessionService {
         TurnEntity turn = new TurnEntity();
         turn.initCreate();
         turn.setSessionId(session.getId());
-        turn.setStatus(TurnStatusEnum.PENDING.getValue());
+        turn.setStatus(TurnStatusEnum.PENDING);
         turn.setAttemptCount(0);
         repository.insertTurn(turn);
 
@@ -126,7 +126,7 @@ public final class SessionService {
         message.initCreate();
         message.setSessionId(session.getId());
         message.setTurnId(turn.getId());
-        message.setRole(MessageRoleEnum.USER.getValue());
+        message.setRole(MessageRoleEnum.USER);
         message.setContent(content);
         message.setMessageSequence(repository.nextMessageSequence(session.getId()));
         repository.insertMessage(message);
@@ -149,7 +149,7 @@ public final class SessionService {
                 entity.getProjectId(),
                 entity.getTitle(),
                 new ModelView(entity.getProvider(), entity.getModel()),
-                SessionStatusEnum.fromValue(entity.getStatus()).name(),
+                entity.getStatus().name(),
                 entity.getCreateTime(),
                 entity.getUpdateTime());
     }
@@ -157,7 +157,7 @@ public final class SessionService {
     private static TurnView toTurnView(TurnEntity entity) {
         return new TurnView(
                 entity.getId(),
-                TurnStatusEnum.fromValue(entity.getStatus()).name(),
+                entity.getStatus().name(),
                 entity.getAttemptCount() == null ? 0 : entity.getAttemptCount(),
                 entity.getErrorMessage(),
                 toInvocationView(entity),
@@ -191,7 +191,7 @@ public final class SessionService {
         return new MessageView(
                 entity.getId(),
                 entity.getTurnId(),
-                MessageRoleEnum.fromValue(entity.getRole()).name(),
+                entity.getRole().name(),
                 entity.getContent(),
                 entity.getMessageSequence(),
                 entity.getCreateTime());

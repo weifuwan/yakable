@@ -1,6 +1,7 @@
 package io.yakable.dao.entity;
 
 import com.baomidou.mybatisplus.annotation.TableName;
+import io.yakable.common.enums.MessageRoleEnum;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -11,7 +12,7 @@ public class MessageEntity extends BaseEntity {
 
     private String sessionId;
     private String turnId;
-    private Integer role;
+    private MessageRoleEnum role;
     private String content;
     private Long messageSequence;
 }

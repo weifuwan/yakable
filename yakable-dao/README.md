@@ -71,6 +71,10 @@ updateBy
 
 22. 复杂分页查询可以继续使用 `Mapper + XML`，但 XML 中不手写 `LIMIT / OFFSET`，由 MyBatis-Plus 分页插件统一处理；总数统计也交给分页插件。
 
+23. Entity 中的状态、类型字段直接使用枚举类型，不再定义为 `Integer` 后由业务代码手动调用 `getValue()`。
+
+24. 枚举使用 MyBatis-Plus `@EnumValue` 标记数据库值，写入和查询时由 `MybatisEnumTypeHandler` 自动完成“枚举 ↔ 数字”转换；Service、Repository 统一直接使用枚举。
+
 ## 核心原则
 
 **Entity 对应表，Mapper 对应表，Repository 对应数据访问能力。**

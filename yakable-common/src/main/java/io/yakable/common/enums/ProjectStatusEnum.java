@@ -1,5 +1,6 @@
 package io.yakable.common.enums;
 
+import com.baomidou.mybatisplus.annotation.EnumValue;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -12,14 +13,6 @@ public enum ProjectStatusEnum {
 
     CREATED(0);
 
+    @EnumValue
     private final Integer value;
-
-    public static ProjectStatusEnum fromValue(Integer value) {
-        for (ProjectStatusEnum item : values()) {
-            if (item.value.equals(value)) {
-                return item;
-            }
-        }
-        throw new IllegalArgumentException("Unknown project status: " + value);
-    }
 }
