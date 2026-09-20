@@ -1,5 +1,6 @@
 package io.yakable.boot.controller.project;
 
+import io.yakable.common.PageData;
 import io.yakable.service.project.ProjectService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -22,7 +23,7 @@ public class ProjectController {
     }
 
     @GetMapping
-    public ProjectService.ProjectPage listProjects(
+    public PageData<ProjectService.ProjectSummary> listProjects(
             @RequestParam(defaultValue = "1") int current,
             @RequestParam(defaultValue = "50") int pageSize
     ) {
@@ -53,7 +54,7 @@ public class ProjectController {
 
         return ResponseEntity
                 .created(URI.create(
-                        "/api/projects/" + project.id()
+                        "/api/projects/" + project.getId()
                 ))
                 .body(project);
     }

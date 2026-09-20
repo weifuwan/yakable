@@ -18,6 +18,10 @@
     <dependencies>
         <dependency>
             <groupId>io.yakable</groupId>
+            <artifactId>yakable-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.yakable</groupId>
             <artifactId>yakable-dao</artifactId>
         </dependency>
         <dependency>
@@ -27,6 +31,11 @@
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-tx</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
         </dependency>
     </dependencies>
 </project>
