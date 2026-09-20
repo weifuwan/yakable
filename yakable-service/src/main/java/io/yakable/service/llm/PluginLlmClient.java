@@ -2,6 +2,7 @@ package io.yakable.service.llm;
 
 import io.yakable.common.utils.StringUtils;
 import io.yakable.core.llm.LlmClient;
+import io.yakable.core.llm.LlmModelMetadata;
 import io.yakable.core.llm.LlmProvider;
 import io.yakable.core.llm.LlmProviderConfiguration;
 import io.yakable.core.llm.LlmRequest;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.function.Consumer;
 
@@ -26,6 +28,16 @@ public class PluginLlmClient implements LlmClient {
 
     @Resource
     private Environment environment;
+
+    @Override
+    public Optional<LlmModelMetadata> modelMetadata(String provider, String model) {
+        return requireProvider(provider).modelMetadata(model);
+    }
+
+    @Override
+    public long estimateTokens(LlmRequest request) {
+        return requireProvider(request.provider()).estimateTokens(request);
+    }
 
     @Override
     public LlmResponse chat(LlmRequest request) {
