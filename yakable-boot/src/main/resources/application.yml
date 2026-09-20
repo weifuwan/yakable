@@ -7,12 +7,6 @@ spring:
     password: ${YAKABLE_DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
-mybatis-plus:
-  configuration:
-    map-underscore-to-camel-case: true
-  global-config:
-    banner: false
-
 yakable:
   turn-execution:
     recovery-enabled: true
