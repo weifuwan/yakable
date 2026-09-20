@@ -39,15 +39,30 @@ function resizeTextarea(element: HTMLTextAreaElement | null) {
 export function useComposerInput({
   disabled = false,
   onSubmit,
+  onValueChange,
+  value: controlledValue,
 }: {
   disabled?: boolean;
   onSubmit?: PromptComposerSubmitHandler;
+  onValueChange?: (value: string) => void;
+  value?: string;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const compositionEndTimerRef = useRef<number | null>(null);
   const isComposingRef = useRef(false);
-  const [value, setValue] = useState('');
+  const [internalValue, setInternalValue] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const value = controlledValue ?? internalValue;
+
+  const setValue = useCallback(
+    (nextValue: string) => {
+      if (controlledValue === undefined) {
+        setInternalValue(nextValue);
+      }
+      onValueChange?.(nextValue);
+    },
+    [controlledValue, onValueChange],
+  );
 
   const normalizedValue = value.trim();
   const canSubmit =
@@ -85,7 +100,7 @@ export function useComposerInput({
     } finally {
       setIsSubmitting(false);
     }
-  }, [canSubmit, normalizedValue, onSubmit]);
+  }, [canSubmit, normalizedValue, onSubmit, setValue]);
 
   const handleChange = useCallback((event: ChangeEvent<HTMLTextAreaElement>) => {
     setValue(event.target.value);
