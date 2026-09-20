@@ -27,3 +27,21 @@
 13. DTO 参数校验统一使用 Jakarta Validation 注解，例如字符串必填使用 `@NotBlank`、对象必填使用 `@NotNull`、长度限制使用 `@Size`；Controller 入参使用 `@Valid` 触发校验，不在业务代码中重复写 `if (StringUtils.isBlank(...))` 后手动抛异常。
 
 14. 如果需要在 Service 方法参数层执行 Jakarta Validation，Service 使用 `@Validated` 开启方法级校验。
+
+15. DTO 统一放到 `yakable-common` 模块，不在 Service、Controller 等业务模块中重复定义 DTO。
+
+16. 对外返回对象统一使用 VO，不直接返回 Entity、DTO 或 Service 内部对象。
+
+17. VO 按实际页面或展示领域命名，不按数据库表或接口动作机械命名，例如项目列表页面使用 `ProjectListVO`，项目详情页面使用 `ProjectDetailVO`。
+
+18. VO 统一放到 `yakable-common` 模块，作为跨模块共享的返回数据结构。
+
+19. `yakable-common` 下统一建立 `bean` 包，DTO 和 VO 分别放到 `bean.dto`、`bean.vo` 中。
+
+20. 公共 Bean 目录统一保持如下结构：
+
+```text
+io.yakable.common.bean
+├── dto
+└── vo
+```
