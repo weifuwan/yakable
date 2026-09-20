@@ -1,8 +1,8 @@
 package io.yakable.plugin.model.openai;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import io.yakable.common.utils.JsonUtils;
+import io.yakable.common.utils.StringUtils;
 import io.yakable.core.llm.LlmMessage;
 import io.yakable.core.llm.LlmProviderConfiguration;
 import io.yakable.core.llm.LlmRequest;
@@ -22,39 +22,35 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * OpenAI-compatible Chat Completions 协议客户端。
+ */
 public final class OpenAiCompatibleClient {
 
-    private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
 
     public OpenAiCompatibleClient() {
-        this(
-                new ObjectMapper(),
-                HttpClient.newBuilder()
-                        .connectTimeout(Duration.ofSeconds(20))
-                        .build()
-        );
+        this(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).build());
     }
 
-    OpenAiCompatibleClient(ObjectMapper objectMapper, HttpClient httpClient) {
-        this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
+    OpenAiCompatibleClient(HttpClient httpClient) {
         this.httpClient = Objects.requireNonNull(httpClient, "httpClient");
     }
 
+    /**
+     * 调用 OpenAI-compatible Chat Completions 接口，并转换为统一 LLM 响应。
+     */
     public LlmResponse chat(
-            String provider,
-            String providerName,
-            LlmProviderConfiguration configuration,
-            LlmRequest request) {
-        String normalizedProvider = requireText(provider, "provider");
-        String normalizedProviderName = requireText(providerName, "providerName");
+            String provider, String providerName, LlmProviderConfiguration configuration, LlmRequest request) {
+        String normalizedProvider = StringUtils.requireText(provider, "provider");
+        String normalizedProviderName = StringUtils.requireText(providerName, "providerName");
         Objects.requireNonNull(configuration, "configuration");
         Objects.requireNonNull(request, "request");
 
-        if (configuration.apiKey().isBlank()) {
+        if (StringUtils.isBlank(configuration.apiKey())) {
             throw new ModelPluginException(normalizedProviderName + " API key is not configured.");
         }
-        if (configuration.baseUrl().isBlank()) {
+        if (StringUtils.isBlank(configuration.baseUrl())) {
             throw new ModelPluginException(normalizedProviderName + " base URL is not configured.");
         }
 
@@ -78,8 +74,7 @@ public final class OpenAiCompatibleClient {
         }
 
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw new ModelPluginException(
-                    normalizedProviderName + " returned HTTP " + response.statusCode() + ".");
+            throw new ModelPluginException(normalizedProviderName + " returned HTTP " + response.statusCode() + ".");
         }
 
         return readResponse(normalizedProvider, normalizedProviderName, request, response.body());
@@ -87,11 +82,9 @@ public final class OpenAiCompatibleClient {
 
     private String writeRequestBody(LlmRequest request) {
         List<Map<String, String>> messages = new ArrayList<>();
-
         if (request.system() != null) {
             messages.add(Map.of("role", "system", "content", request.system()));
         }
-
         for (LlmMessage message : request.messages()) {
             messages.add(Map.of("role", roleName(message.role()), "content", message.content()));
         }
@@ -102,42 +95,35 @@ public final class OpenAiCompatibleClient {
         body.put("stream", false);
 
         try {
-            return objectMapper.writeValueAsString(body);
-        } catch (JsonProcessingException exception) {
+            return JsonUtils.toJson(body);
+        } catch (RuntimeException exception) {
             throw new ModelPluginException("Unable to serialize OpenAI-compatible request.", exception);
         }
     }
 
-    private LlmResponse readResponse(
-            String provider,
-            String providerName,
-            LlmRequest request,
-            String body) {
+    private LlmResponse readResponse(String provider, String providerName, LlmRequest request, String body) {
         JsonNode payload;
         try {
-            payload = objectMapper.readTree(body);
-        } catch (JsonProcessingException exception) {
+            payload = JsonUtils.parseTree(body);
+        } catch (RuntimeException exception) {
             throw new ModelPluginException(providerName + " returned invalid JSON.", exception);
         }
 
         JsonNode choice = payload.path("choices").path(0);
         JsonNode contentNode = choice.path("message").path("content");
-        if (!contentNode.isTextual() || contentNode.asText().isBlank()) {
+        if (!contentNode.isTextual() || StringUtils.isBlank(contentNode.asText())) {
             throw new ModelPluginException(providerName + " returned no assistant text.");
         }
 
         JsonNode usage = payload.path("usage");
-        String model = textValue(payload.get("model"));
+        String model = JsonUtils.textValue(payload.get("model"));
         return new LlmResponse(
-                provider,
-                model == null ? request.model() : model,
-                contentNode.asText(),
+                provider, model == null ? request.model() : model, contentNode.asText(),
                 new LlmUsage(
-                        longValue(usage.get("prompt_tokens")),
-                        longValue(usage.get("completion_tokens")),
-                        longValue(usage.get("total_tokens"))),
-                textValue(payload.get("id")),
-                textValue(choice.get("finish_reason")));
+                        JsonUtils.longValue(usage.get("prompt_tokens")),
+                        JsonUtils.longValue(usage.get("completion_tokens")),
+                        JsonUtils.longValue(usage.get("total_tokens"))),
+                JsonUtils.textValue(payload.get("id")), JsonUtils.textValue(choice.get("finish_reason")));
     }
 
     private static String roleName(LlmMessage.Role role) {
@@ -145,25 +131,5 @@ public final class OpenAiCompatibleClient {
             case USER -> "user";
             case ASSISTANT -> "assistant";
         };
-    }
-
-    private static Long longValue(JsonNode node) {
-        return node != null && node.isNumber() ? node.longValue() : null;
-    }
-
-    private static String textValue(JsonNode node) {
-        if (node == null || !node.isTextual()) {
-            return null;
-        }
-        String value = node.asText();
-        return value.isBlank() ? null : value;
-    }
-
-    private static String requireText(String value, String field) {
-        Objects.requireNonNull(value, field);
-        if (value.isBlank()) {
-            throw new IllegalArgumentException(field + " must not be blank");
-        }
-        return value;
     }
 }

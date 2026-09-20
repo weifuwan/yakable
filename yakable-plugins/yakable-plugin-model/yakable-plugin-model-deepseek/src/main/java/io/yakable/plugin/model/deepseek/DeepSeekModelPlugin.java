@@ -1,6 +1,7 @@
 package io.yakable.plugin.model.deepseek;
 
 import com.google.auto.service.AutoService;
+import io.yakable.common.utils.StringUtils;
 import io.yakable.core.llm.LlmProvider;
 import io.yakable.core.llm.LlmProviderConfiguration;
 import io.yakable.core.llm.LlmRequest;
@@ -18,13 +19,8 @@ public final class DeepSeekModelPlugin implements ModelPlugin {
     public static final String PROVIDER = "deepseek";
     public static final String DEFAULT_BASE_URL = "https://api.deepseek.com";
 
-    private static final ModelPluginDescriptor DESCRIPTOR =
-            new ModelPluginDescriptor(
-                    PROVIDER,
-                    "DeepSeek",
-                    ModelPluginDescriptor.CURRENT_API_VERSION,
-                    Set.of(ModelCapability.CHAT)
-            );
+    private static final ModelPluginDescriptor DESCRIPTOR = new ModelPluginDescriptor(
+            PROVIDER, "DeepSeek", ModelPluginDescriptor.CURRENT_API_VERSION, Set.of(ModelCapability.CHAT));
 
     private final OpenAiCompatibleClient client = new OpenAiCompatibleClient();
 
@@ -35,11 +31,9 @@ public final class DeepSeekModelPlugin implements ModelPlugin {
 
     @Override
     public LlmResponse chat(LlmProviderConfiguration configuration, LlmRequest request) {
-        String baseUrl = configuration.baseUrl().isBlank() ? DEFAULT_BASE_URL : configuration.baseUrl();
+        String baseUrl = StringUtils.isBlank(configuration.baseUrl()) ? DEFAULT_BASE_URL : configuration.baseUrl();
         return client.chat(
-                DESCRIPTOR.provider(),
-                DESCRIPTOR.displayName(),
-                new LlmProviderConfiguration(configuration.apiKey(), baseUrl),
-                request);
+                DESCRIPTOR.provider(), DESCRIPTOR.displayName(),
+                new LlmProviderConfiguration(configuration.apiKey(), baseUrl), request);
     }
 }
