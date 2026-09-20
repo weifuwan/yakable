@@ -8,13 +8,17 @@
 io.yakable.common
 ├── bean
 │   ├── dto
-│   │   └── <domain>
+│   │   ├── common
+│   │   ├── project
+│   │   └── session
 │   └── vo
-│       └── <domain>
+│       ├── project
+│       └── session
 ├── utils
 ├── constant
 ├── enums
-│   └── <domain>
+│   ├── project
+│   └── session
 └── exception
 ```
 
