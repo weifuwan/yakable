@@ -1,7 +1,7 @@
 package io.yakable.dao.entity;
 
 import com.baomidou.mybatisplus.annotation.TableName;
-import io.yakable.common.enums.SessionStatusEnum;
+import io.yakable.common.enums.session.SessionStatusEnum;
 import lombok.Getter;
 import lombok.Setter;
 
