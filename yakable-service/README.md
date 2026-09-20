@@ -10,15 +10,15 @@
 
 ## DTO 与参数校验
 
-4. add / delete / update / query 的输入参数统一封装为 DTO，不直接堆多个基础参数；DTO 按操作和领域命名，并统一放到 `yakable-common.bean.dto`。
+4. add / delete / update / query 的输入参数统一封装为 DTO，不直接堆多个基础参数；DTO 按操作和领域命名，并统一放到 `yakable-common.bean.dto.<domain>`。
 
 5. DTO 参数校验统一使用 Jakarta Validation；Controller 使用 `@Valid` 触发校验，需要 Service 方法级校验时使用 `@Validated`。业务代码不重复手写字符串判空后再抛异常。
 
 ## VO 与分页
 
-6. 对外返回对象统一使用 VO，不直接返回 Entity、DTO 或 Service 内部对象；VO 按实际页面或展示领域命名，并统一放到 `yakable-common.bean.vo`。
+6. 对外返回对象统一使用 VO，不直接返回 Entity、DTO 或 Service 内部对象；VO 按实际页面或展示领域命名，并统一放到 `yakable-common.bean.vo.<domain>`。
 
-7. 分页属于公共能力。纯分页参数统一使用公共 `PageDTO`；业务查询存在额外筛选条件时，对应 DTO 继承 `PageDTO` 并只补充领域字段；Service 中不再定义 `XxxPage` 或重复声明 `current`、`pageSize`。
+7. 分页属于公共能力。纯分页参数统一使用 `yakable-common.bean.dto.common` 下的公共 `PageDTO`；业务查询存在额外筛选条件时，对应 DTO 继承 `PageDTO` 并只补充领域字段；Service 中不再定义 `XxxPage` 或重复声明 `current`、`pageSize`。
 
 ## 公共能力
 
