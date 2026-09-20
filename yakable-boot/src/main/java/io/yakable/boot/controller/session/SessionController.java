@@ -102,10 +102,7 @@ public class SessionController {
         response.setHeader(HttpHeaders.CACHE_CONTROL, "no-cache");
         response.setHeader("X-Accel-Buffering", "no");
         CancelTurnDTO cancel = new CancelTurnDTO(projectId, sessionId, started.getTurn().getId());
-        emitter.onCompletion(() -> {
-            closed.set(true);
-            sessionService.cancelTurn(cancel);
-        });
+        emitter.onCompletion(() -> closed.set(true));
         emitter.onTimeout(() -> {
             sessionService.cancelTurn(cancel);
             complete(emitter, closed);
