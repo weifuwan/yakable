@@ -40,7 +40,7 @@ public class GlobalExceptionHandler {
     })
     ResponseEntity<Result<Void>> handleInvalidRequest(Exception exception) {
         log.log(System.Logger.Level.DEBUG, "Invalid request", exception);
-        return ResponseEntity.badRequest().body(Result.fail(CommonErrorCode.PARAM_NOT_VALID));
+        return ResponseEntity.badRequest().body(Result.<Void>fail(CommonErrorCode.PARAM_NOT_VALID));
     }
 
     @ExceptionHandler(ResponseStatusException.class)
@@ -50,7 +50,7 @@ public class GlobalExceptionHandler {
         CommonErrorCode errorCode = resolved == HttpStatus.NOT_FOUND
                 ? CommonErrorCode.RESOURCE_NOT_EXISTS
                 : CommonErrorCode.PARAM_NOT_VALID;
-        return ResponseEntity.status(resolved).body(Result.fail(errorCode));
+        return ResponseEntity.status(resolved).body(Result.<Void>fail(errorCode));
     }
 
     @ExceptionHandler(Exception.class)
