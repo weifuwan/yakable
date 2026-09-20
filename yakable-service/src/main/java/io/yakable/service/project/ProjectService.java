@@ -9,7 +9,9 @@ import io.yakable.common.bean.vo.project.ProjectDetailVO;
 import io.yakable.common.bean.vo.project.ProjectListVO;
 import io.yakable.common.bean.vo.session.SessionInitVO;
 import io.yakable.common.bean.vo.session.SessionVO;
+import io.yakable.common.enums.project.ProjectErrorCode;
 import io.yakable.common.enums.project.ProjectStatusEnum;
+import io.yakable.common.exception.ProjectException;
 import io.yakable.common.utils.ConverUtils;
 import io.yakable.dao.entity.ProjectEntity;
 import io.yakable.dao.repository.ProjectRepository;
@@ -26,7 +28,6 @@ import org.springframework.validation.annotation.Validated;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * Project 业务服务。
@@ -89,9 +90,10 @@ public class ProjectService {
     /**
      * 根据 Project ID 查询详情。
      */
-    public Optional<ProjectDetailVO> queryProject(@NotNull @Valid QueryProjectDTO dto) {
-        return projectRepository.queryById(dto.projectId())
-                .map(entity -> toDetailVO(entity, sessionService.queryLatestSession(entity.getId()).orElse(null)));
+    public ProjectDetailVO queryProject(@NotNull @Valid QueryProjectDTO dto) {
+        ProjectEntity entity = projectRepository.queryById(dto.projectId())
+                .orElseThrow(() -> new ProjectException(ProjectErrorCode.NOT_FOUND));
+        return toDetailVO(entity, sessionService.queryLatestSession(entity.getId()).orElse(null));
     }
 
     private static ProjectListVO toListVO(ProjectEntity entity, SessionVO session) {
