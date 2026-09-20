@@ -1,10 +1,12 @@
 package io.yakable.boot.controller.project;
 
 import io.yakable.common.PageData;
+import io.yakable.common.bean.dto.AddProjectDTO;
+import io.yakable.common.bean.dto.QueryProjectDTO;
+import io.yakable.common.bean.dto.QueryProjectPageDTO;
+import io.yakable.common.bean.vo.ProjectDetailVO;
+import io.yakable.common.bean.vo.ProjectListVO;
 import io.yakable.service.project.ProjectService;
-import io.yakable.service.project.dto.AddProjectDTO;
-import io.yakable.service.project.dto.QueryProjectDTO;
-import io.yakable.service.project.dto.QueryProjectPageDTO;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -24,7 +26,7 @@ public class ProjectController {
     }
 
     @GetMapping
-    public PageData<ProjectService.ProjectSummary> queryProject(
+    public PageData<ProjectListVO> queryProject(
             @RequestParam(defaultValue = "1") int current,
             @RequestParam(defaultValue = "50") int pageSize
     ) {
@@ -34,7 +36,7 @@ public class ProjectController {
     }
 
     @GetMapping("/{projectId}")
-    public ProjectService.ProjectDetails queryProject(
+    public ProjectDetailVO queryProject(
             @PathVariable String projectId
     ) {
         return projectService.queryProject(
@@ -47,11 +49,10 @@ public class ProjectController {
     }
 
     @PostMapping
-    public ResponseEntity<ProjectService.ProjectDetails> addProject(
+    public ResponseEntity<ProjectDetailVO> addProject(
             @Valid @RequestBody AddProjectDTO dto
     ) {
-        ProjectService.ProjectDetails project =
-                projectService.addProject(dto);
+        ProjectDetailVO project = projectService.addProject(dto);
 
         return ResponseEntity
                 .created(URI.create(

@@ -1,4 +1,4 @@
-package io.yakable.service.project.dto;
+package io.yakable.common.bean.dto;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
