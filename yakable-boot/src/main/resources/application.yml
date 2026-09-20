@@ -9,10 +9,8 @@ spring:
 
 yakable:
   turn-execution:
-    recovery-enabled: true
     recovery-interval: 5s
     running-timeout: 10m
-    recovery-batch-size: 100
   model:
     providers:
       deepseek:

@@ -41,24 +41,31 @@ SessionService
   -> insert PENDING Turn
   -> insert USER Message
   -> commit
-  -> TurnDispatcher
+  -> executeTurnAsync
 ```
+
+Project 创建首个 Session 时，由 ProjectService 在事务提交后调用 `SessionService.executeTurnAsync`。
 
 ## 执行 Turn
 
 ```text
-TurnExecutor
+SessionService
+  -> ThreadUtils
   -> claim PENDING
   -> build context
   -> ModelClient
   -> persist SUCCEEDED / FAILED
 ```
 
+线程提交、异常兜底和调度线程池统一由 `ThreadUtils` 管理，业务 Service 不持有线程池。
+
 模型调用不放在数据库事务中。
 
 ## 恢复
 
-`TurnRecoveryWorker` 定期把超时的 RUNNING Turn 恢复为 PENDING，并重新调度。
+SessionService 定期通过 TurnService 把超时的 RUNNING Turn 恢复为 PENDING，并重新提交执行。
+
+恢复间隔和运行超时可配置，单次恢复数量暂固定为 100，不提前增加额外配置项。
 
 ## Context
 
@@ -76,4 +83,4 @@ FAILED Turn 保留在数据库中，但默认不进入后续模型上下文。
 
 这套结构先保持简单。
 
-以后只有出现真实需求时，再增加分布式 lease、MQ、重试策略、SSE、Tool Call 等能力。
+只有真正出现独立调度策略、队列、限流、分布式 lease 或 MQ 需求时，再拆出独立执行组件。

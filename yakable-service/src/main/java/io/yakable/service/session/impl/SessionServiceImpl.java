@@ -12,24 +12,33 @@ import io.yakable.common.bean.vo.session.SessionInitVO;
 import io.yakable.common.bean.vo.session.SessionMessagePageVO;
 import io.yakable.common.bean.vo.session.SessionModelVO;
 import io.yakable.common.bean.vo.session.SessionVO;
+import io.yakable.common.bean.vo.session.TurnExecutionVO;
 import io.yakable.common.bean.vo.session.TurnStartVO;
 import io.yakable.common.bean.vo.session.TurnVO;
 import io.yakable.common.enums.session.MessageRoleEnum;
 import io.yakable.common.enums.session.SessionErrorCode;
 import io.yakable.common.enums.session.SessionStatusEnum;
+import io.yakable.common.enums.session.TurnStatusEnum;
 import io.yakable.common.exception.SessionException;
 import io.yakable.common.utils.ConverUtils;
+import io.yakable.common.utils.DateUtils;
+import io.yakable.common.utils.ThreadUtils;
 import io.yakable.dao.entity.SessionEntity;
 import io.yakable.dao.repository.SessionRepository;
 import io.yakable.service.message.MessageService;
+import io.yakable.service.model.ModelClient;
 import io.yakable.service.session.SessionService;
-import io.yakable.service.turn.TurnDispatcher;
 import io.yakable.service.turn.TurnService;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import jakarta.annotation.Resource;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.validation.annotation.Validated;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -42,6 +51,10 @@ import java.util.stream.Collectors;
 @Validated
 public class SessionServiceImpl implements SessionService {
 
+    private static final String SYSTEM_PROMPT = "You are Yakable, a concise and accurate assistant.";
+    private static final String TURN_RECOVERY_TASK = "turn-recovery";
+    private static final int RECOVERY_BATCH_SIZE = 100;
+
     @Resource
     private SessionRepository sessionRepository;
 
@@ -52,10 +65,26 @@ public class SessionServiceImpl implements SessionService {
     private MessageService messageService;
 
     @Resource
-    private TurnDispatcher turnDispatcher;
+    private ModelClient modelClient;
 
     @Resource
     private TransactionTemplate transactionTemplate;
+
+    @Value("${yakable.turn-execution.recovery-interval:5s}")
+    private Duration recoveryInterval;
+
+    @Value("${yakable.turn-execution.running-timeout:10m}")
+    private Duration runningTimeout;
+
+    @PostConstruct
+    void startTurnRecovery() {
+        ThreadUtils.scheduleWithFixedDelay(TURN_RECOVERY_TASK, this::recoverTurns, recoveryInterval);
+    }
+
+    @PreDestroy
+    void stopTurnRecovery() {
+        ThreadUtils.cancelScheduled(TURN_RECOVERY_TASK);
+    }
 
     @Override
     public SessionInitVO addSession(AddSessionDTO dto) {
@@ -83,8 +112,13 @@ public class SessionServiceImpl implements SessionService {
             return addPendingTurn(session, dto.content());
         });
 
-        turnDispatcher.dispatch(result.getTurn().getId());
+        executeTurnAsync(result.getTurn().getId());
         return result;
+    }
+
+    @Override
+    public void executeTurnAsync(String turnId) {
+        ThreadUtils.execute("turn-" + turnId, () -> executeTurn(turnId));
     }
 
     @Override
@@ -99,11 +133,6 @@ public class SessionServiceImpl implements SessionService {
     }
 
     @Override
-    public Optional<SessionVO> querySession(String sessionId) {
-        return sessionRepository.queryById(sessionId).map(SessionServiceImpl::toSessionVO);
-    }
-
-    @Override
     public Optional<SessionVO> queryLatestSession(String projectId) {
         return sessionRepository.queryLatestSession(projectId).map(SessionServiceImpl::toSessionVO);
     }
@@ -114,14 +143,6 @@ public class SessionServiceImpl implements SessionService {
                 .stream()
                 .map(SessionServiceImpl::toSessionVO)
                 .collect(Collectors.toMap(SessionVO::getProjectId, Function.identity()));
-    }
-
-    @Override
-    public void updateSession(String sessionId) {
-        SessionEntity session = sessionRepository.queryById(sessionId)
-                .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
-        session.initUpdate();
-        sessionRepository.update(session);
     }
 
     @Override
@@ -176,6 +197,102 @@ public class SessionServiceImpl implements SessionService {
         return result;
     }
 
+    private void executeTurn(String turnId) {
+        TurnExecutionVO snapshot = turnService.queryTurnExecution(turnId).orElse(null);
+        if (snapshot == null) {
+            return;
+        }
+
+        SessionEntity session = sessionRepository.queryById(snapshot.getSessionId())
+                .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
+
+        TurnVO running = turnService.updatePendingTurn(
+                turnId, DateUtils.now(), session.getProvider(), session.getModel()).orElse(null);
+        if (running == null) {
+            return;
+        }
+
+        try {
+            ModelClient.Reply reply = modelClient.chat(
+                    session.getProvider(),
+                    session.getModel(),
+                    SYSTEM_PROMPT,
+                    buildContext(session.getId(), running.getId()));
+            persistSuccess(session.getId(), running, reply);
+        } catch (RuntimeException exception) {
+            persistFailure(session.getId(), running, exception);
+            throw exception;
+        }
+    }
+
+    private List<ModelClient.Message> buildContext(String sessionId, String currentTurnId) {
+        Map<String, TurnVO> turns = turnService.queryTurnList(sessionId)
+                .stream()
+                .collect(Collectors.toMap(TurnVO::getId, Function.identity()));
+
+        return messageService.queryMessageList(sessionId)
+                .stream()
+                .filter(message -> {
+                    if (currentTurnId.equals(message.getTurnId())) {
+                        return true;
+                    }
+                    TurnVO turn = turns.get(message.getTurnId());
+                    return turn != null && TurnStatusEnum.SUCCEEDED.name().equals(turn.getStatus());
+                })
+                .map(SessionServiceImpl::toModelMessage)
+                .toList();
+    }
+
+    private void persistSuccess(String sessionId, TurnVO running, ModelClient.Reply reply) {
+        LocalDateTime completedAt = DateUtils.now();
+        ModelClient.Usage usage = reply.usage();
+
+        transactionTemplate.executeWithoutResult(status -> {
+            int updated = turnService.updateTurnSucceeded(
+                    running.getId(),
+                    sessionId,
+                    reply.provider(),
+                    reply.model(),
+                    usage == null ? null : usage.inputTokens(),
+                    usage == null ? null : usage.outputTokens(),
+                    usage == null ? null : usage.totalTokens(),
+                    reply.providerRequestId(),
+                    reply.finishReason(),
+                    completedAt);
+            if (updated != 1) {
+                throw new IllegalStateException("Turn is no longer RUNNING: " + running.getId());
+            }
+
+            messageService.addMessage(sessionId, running.getId(), MessageRoleEnum.ASSISTANT, reply.content());
+            updateSession(sessionId);
+        });
+    }
+
+    private void persistFailure(String sessionId, TurnVO running, RuntimeException originalFailure) {
+        LocalDateTime failedAt = DateUtils.now();
+
+        try {
+            transactionTemplate.executeWithoutResult(status -> {
+                turnService.updateTurnFailed(running.getId(), sessionId, failureMessage(originalFailure), failedAt);
+                updateSession(sessionId);
+            });
+        } catch (RuntimeException persistenceFailure) {
+            originalFailure.addSuppressed(persistenceFailure);
+        }
+    }
+
+    private void recoverTurns() {
+        turnService.updateStaleTurnPending(DateUtils.now().minus(runningTimeout));
+        turnService.queryPendingTurnIdList(RECOVERY_BATCH_SIZE).forEach(this::executeTurnAsync);
+    }
+
+    private void updateSession(String sessionId) {
+        SessionEntity session = sessionRepository.queryById(sessionId)
+                .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
+        session.initUpdate();
+        sessionRepository.update(session);
+    }
+
     private SessionEntity queryOwnedSession(String projectId, String sessionId) {
         return sessionRepository.querySession(projectId, sessionId)
                 .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
@@ -188,5 +305,17 @@ public class SessionServiceImpl implements SessionService {
         result.setCreatedAt(entity.getCreateTime());
         result.setUpdatedAt(entity.getUpdateTime());
         return result;
+    }
+
+    private static ModelClient.Message toModelMessage(MessageVO message) {
+        ModelClient.Role role = MessageRoleEnum.USER.name().equals(message.getRole())
+                ? ModelClient.Role.USER
+                : ModelClient.Role.ASSISTANT;
+        return new ModelClient.Message(role, message.getContent());
+    }
+
+    private static String failureMessage(RuntimeException exception) {
+        String message = exception.getMessage();
+        return message == null || message.isBlank() ? exception.getClass().getSimpleName() : message.strip();
     }
 }

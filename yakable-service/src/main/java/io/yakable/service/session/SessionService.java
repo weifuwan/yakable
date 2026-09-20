@@ -34,14 +34,14 @@ public interface SessionService {
     TurnStartVO addTurn(@NotNull @Valid AddTurnDTO dto);
 
     /**
+     * 异步执行 Turn。
+     */
+    void executeTurnAsync(String turnId);
+
+    /**
      * 查询 Session 详情。
      */
     SessionDetailVO querySession(@NotNull @Valid QuerySessionDTO dto);
-
-    /**
-     * 根据 ID 查询 Session。
-     */
-    Optional<SessionVO> querySession(String sessionId);
 
     /**
      * 查询 Project 最新 Session。
@@ -52,11 +52,6 @@ public interface SessionService {
      * 批量查询 Project 最新 Session。
      */
     Map<String, SessionVO> queryLatestSessionMap(List<String> projectIds);
-
-    /**
-     * 更新 Session 活跃时间。
-     */
-    void updateSession(String sessionId);
 
     /**
      * 查询 Session 增量变化。
