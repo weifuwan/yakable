@@ -4,8 +4,8 @@ import io.yakable.common.ConverUtils;
 import io.yakable.common.DateUtils;
 import io.yakable.common.PageData;
 import io.yakable.common.bean.dto.AddProjectDTO;
+import io.yakable.common.bean.dto.PageDTO;
 import io.yakable.common.bean.dto.QueryProjectDTO;
-import io.yakable.common.bean.dto.QueryProjectPageDTO;
 import io.yakable.common.bean.vo.ProjectDetailVO;
 import io.yakable.common.bean.vo.ProjectListVO;
 import io.yakable.dao.entity.ProjectEntity;
@@ -54,9 +54,7 @@ public class ProjectService {
      * @param dto 新增 Project 入参
      * @return Project 详情
      */
-    public ProjectDetailVO addProject(
-            @NotNull @Valid AddProjectDTO dto
-    ) {
+    public ProjectDetailVO addProject(@NotNull @Valid AddProjectDTO dto) {
         String prompt = StringUtils.strip(dto.prompt());
         String provider = StringUtils.strip(dto.model().provider());
         String model = StringUtils.strip(dto.model().model());
@@ -74,14 +72,7 @@ public class ProjectService {
             projectRepository.save(project);
 
             SessionService.InitialSession session =
-                    sessionService.createInitialSession(
-                            project.getId(),
-                            name,
-                            provider,
-                            model,
-                            prompt
-                    );
-
+                    sessionService.createInitialSession(project.getId(), name, provider, model, prompt);
             return new CreatedProject(project, session);
         });
 
@@ -89,11 +80,7 @@ public class ProjectService {
 
         ProjectDetailVO detailVO = toDetailVO(created.project());
         detailVO.setLatestSessionId(created.session().sessionId());
-        detailVO.setUpdatedAt(
-                DateUtils.toLocalDateTime(
-                        created.session().updatedAt()
-                )
-        );
+        detailVO.setUpdatedAt(DateUtils.toLocalDateTime(created.session().updatedAt()));
         return detailVO;
     }
 
@@ -103,24 +90,17 @@ public class ProjectService {
      * @param dto 分页查询入参
      * @return Project 列表分页数据
      */
-    public PageData<ProjectListVO> queryProject(
-            @NotNull @Valid QueryProjectPageDTO dto
-    ) {
+    public PageData<ProjectListVO> queryProject(@NotNull @Valid PageDTO dto) {
         long total = projectRepository.countProjectsWithSession();
-        long offset = (long) (dto.current() - 1) * dto.pageSize();
+        long offset = (long) (dto.getCurrent() - 1) * dto.getPageSize();
 
         List<ProjectListVO> records = projectRepository
-                .findProjectPage(offset, dto.pageSize())
+                .findProjectPage(offset, dto.getPageSize())
                 .stream()
                 .map(ProjectService::toListVO)
                 .toList();
 
-        return PageData.of(
-                records,
-                total,
-                dto.current(),
-                dto.pageSize()
-        );
+        return PageData.of(records, total, dto.getCurrent(), dto.getPageSize());
     }
 
     /**
@@ -129,54 +109,29 @@ public class ProjectService {
      * @param dto Project 查询入参
      * @return Project 详情
      */
-    public Optional<ProjectDetailVO> queryProject(
-            @NotNull @Valid QueryProjectDTO dto
-    ) {
-        return projectRepository.findProjectDetails(
-                        StringUtils.strip(dto.projectId())
-                )
+    public Optional<ProjectDetailVO> queryProject(@NotNull @Valid QueryProjectDTO dto) {
+        return projectRepository.findProjectDetails(StringUtils.strip(dto.projectId()))
                 .map(ProjectService::toDetailVO);
     }
 
     private static ProjectListVO toListVO(ProjectEntity entity) {
-        ProjectListVO listVO = ConverUtils.convert(
-                entity,
-                ProjectListVO.class
-        );
-        listVO.setUpdatedAt(
-                DateUtils.toLocalDateTime(entity.getUpdatedAt())
-        );
+        ProjectListVO listVO = ConverUtils.convert(entity, ProjectListVO.class);
+        listVO.setUpdatedAt(DateUtils.toLocalDateTime(entity.getUpdatedAt()));
         return listVO;
     }
 
     private static ProjectDetailVO toDetailVO(ProjectEntity entity) {
-        ProjectDetailVO detailVO = ConverUtils.convert(
-                entity,
-                ProjectDetailVO.class
-        );
-        detailVO.setCreatedAt(
-                DateUtils.toLocalDateTime(entity.getCreatedAt())
-        );
-        detailVO.setUpdatedAt(
-                DateUtils.toLocalDateTime(entity.getUpdatedAt())
-        );
+        ProjectDetailVO detailVO = ConverUtils.convert(entity, ProjectDetailVO.class);
+        detailVO.setCreatedAt(DateUtils.toLocalDateTime(entity.getCreatedAt()));
+        detailVO.setUpdatedAt(DateUtils.toLocalDateTime(entity.getUpdatedAt()));
         return detailVO;
     }
 
     private static String projectName(String prompt) {
-        String firstLine = prompt.lines()
-                .findFirst()
-                .orElse(prompt);
-
-        return StringUtils.abbreviate(
-                StringUtils.strip(firstLine),
-                MAX_PROJECT_NAME_LENGTH
-        );
+        String firstLine = prompt.lines().findFirst().orElse(prompt);
+        return StringUtils.abbreviate(StringUtils.strip(firstLine), MAX_PROJECT_NAME_LENGTH);
     }
 
-    private record CreatedProject(
-            ProjectEntity project,
-            SessionService.InitialSession session
-    ) {
+    private record CreatedProject(ProjectEntity project, SessionService.InitialSession session) {
     }
 }

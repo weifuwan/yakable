@@ -2,8 +2,8 @@ package io.yakable.boot.controller.project;
 
 import io.yakable.common.PageData;
 import io.yakable.common.bean.dto.AddProjectDTO;
+import io.yakable.common.bean.dto.PageDTO;
 import io.yakable.common.bean.dto.QueryProjectDTO;
-import io.yakable.common.bean.dto.QueryProjectPageDTO;
 import io.yakable.common.bean.vo.ProjectDetailVO;
 import io.yakable.common.bean.vo.ProjectListVO;
 import io.yakable.service.project.ProjectService;
@@ -28,36 +28,19 @@ public class ProjectController {
     @GetMapping
     public PageData<ProjectListVO> queryProject(
             @RequestParam(defaultValue = "1") int current,
-            @RequestParam(defaultValue = "50") int pageSize
-    ) {
-        return projectService.queryProject(
-                new QueryProjectPageDTO(current, pageSize)
-        );
+            @RequestParam(defaultValue = "50") int pageSize) {
+        return projectService.queryProject(new PageDTO(current, pageSize));
     }
 
     @GetMapping("/{projectId}")
-    public ProjectDetailVO queryProject(
-            @PathVariable String projectId
-    ) {
-        return projectService.queryProject(
-                        new QueryProjectDTO(projectId)
-                )
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Project not found"
-                ));
+    public ProjectDetailVO queryProject(@PathVariable String projectId) {
+        return projectService.queryProject(new QueryProjectDTO(projectId))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
     }
 
     @PostMapping
-    public ResponseEntity<ProjectDetailVO> addProject(
-            @Valid @RequestBody AddProjectDTO dto
-    ) {
+    public ResponseEntity<ProjectDetailVO> addProject(@Valid @RequestBody AddProjectDTO dto) {
         ProjectDetailVO project = projectService.addProject(dto);
-
-        return ResponseEntity
-                .created(URI.create(
-                        "/api/projects/" + project.getId()
-                ))
-                .body(project);
+        return ResponseEntity.created(URI.create("/api/projects/" + project.getId())).body(project);
     }
 }
