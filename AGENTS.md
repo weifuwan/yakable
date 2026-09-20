@@ -15,6 +15,7 @@ JAVA_GLOBAL_CODE_README.md
 ```text
 yakable-service/**        -> yakable-service/SERVICE_README.md
 yakable-core/**           -> yakable-core/CORE_README.md
+yakable-core/**/llm/**    -> yakable-core/src/main/java/io/yakable/core/llm/LLM_DESIGN.md
 yakable-common/**         -> yakable-common/COMMON_CODE.md
 yakable-dao/**/entity/**  -> yakable-dao/ENTITY_README.md
 yakable-dao/**/repository/**

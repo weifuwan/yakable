@@ -10,12 +10,10 @@
 
 3. Core Contract 是内部稳定边界。上层只依赖 Core，Provider / Plugin 负责适配 Core，禁止让外部协议反向定义 Core。
 
-## LLM
+## 设计文档
 
-4. LLM 统一入口为 `LlmClient.chat(LlmRequest)`，统一返回 `LlmResponse`。
+LLM 设计见：
 
-5. `LlmRequest` 只描述 provider、model、system、messages；API Key、Base URL、HTTP Endpoint 等 Provider 配置不进入业务请求。
-
-6. `LlmResponse` 统一承载 provider、model、content、usage、providerRequestId、finishReason；外部响应字段必须在 Provider / Protocol 层转换。
-
-7. 当前只固定非流式 Chat Contract。Streaming、Tool Call、Fallback、Retry、自动路由等能力没有真实需求前不加入。
+```text
+yakable-core/src/main/java/io/yakable/core/llm/LLM_DESIGN.md
+```
