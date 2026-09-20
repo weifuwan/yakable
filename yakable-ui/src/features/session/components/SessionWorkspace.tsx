@@ -306,8 +306,9 @@ export function SessionWorkspace({
             aria-label="Scroll to bottom"
             variant="secondary"
             size="md"
-            className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 hover:cursor-pointer"
-            style={{ borderRadius: '50%' }}
+            data-allow-shadow="true"
+            className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 cursor-pointer hover:shadow-md"
+            style={{ borderRadius: '50%', backgroundColor: '#fff' }}
             onClick={scrollToBottom}
           >
             <Icon size={18}>

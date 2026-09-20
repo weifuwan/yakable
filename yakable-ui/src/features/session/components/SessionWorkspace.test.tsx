@@ -226,6 +226,10 @@ describe('SessionWorkspace', () => {
 
     expect(scroller.scrollTop).toBe(1000);
     expect(button.style.borderRadius).toBe('50%');
+    expect(button.style.backgroundColor).toBeTruthy();
+    expect(button.className).toContain('cursor-pointer');
+    expect(button.className).toContain('hover:shadow-md');
+    expect(button.getAttribute('data-allow-shadow')).toBe('true');
     expect(
       screen.queryByRole('button', { name: 'Scroll to bottom' }),
     ).toBeNull();
