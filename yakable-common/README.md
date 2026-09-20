@@ -17,9 +17,15 @@ io.yakable.common
 │       └── ProjectDetailVO
 ├── utils
 │   ├── ConverUtils
-│   └── DateUtils
+│   ├── DateUtils
+│   └── IdUtils
 ├── constant
+│   └── SystemConstant
 ├── enums
+│   ├── ProjectStatusEnum
+│   ├── SessionStatusEnum
+│   ├── TurnStatusEnum
+│   └── MessageRoleEnum
 └── exception
     └── BusinessException
 ```
@@ -47,18 +53,22 @@ io.yakable.common
 
 - `ConverUtils`：对象类型转换，统一处理 `source -> Target.class`。
 - `DateUtils`：时间处理，统一处理 `LocalDateTime` 的获取、格式化、解析和转换。
+- `IdUtils`：统一生成雪花 ID。
 
 ## constant
 
 公共常量统一放在 `constant` 下。
 
-当前暂无公共常量类。
+- `SystemConstant`：系统级公共常量。
 
 ## enums
 
 公共枚举统一放在 `enums` 下。
 
-当前暂无公共枚举类。
+- `ProjectStatusEnum`：Project 状态。
+- `SessionStatusEnum`：Session 状态。
+- `TurnStatusEnum`：Turn 状态。
+- `MessageRoleEnum`：Message 角色。
 
 ## exception
 
