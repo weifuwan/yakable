@@ -53,13 +53,27 @@ io.yakable.common
 
 14. HTTP 接口统一返回结构使用 common 提供的 `Result<T>`，基础状态字段由 `BaseResult` 承载，通用状态码使用 `enums.common.CommonErrorCode`。业务模块禁止重复定义 `Result`、`Response`、`ApiResponse` 等同类包装对象。
 
+## Swagger / OpenAPI
+
+15. DTO、VO 统一使用 Swagger 3 / OpenAPI 3 的 `@Schema` 描述接口模型，只允许使用 `io.swagger.v3.oas.annotations.media.Schema`，禁止引入 Swagger 2 / Springfox 注解。
+
+16. 每个 DTO、VO 类型必须添加类级 `@Schema(description = "...")`，description 使用调用方能理解的业务语义，例如“新增 Project 参数”“Session 详情”，禁止描述数据库表、Entity、Mapper 等内部实现。
+
+17. DTO 的每个对外字段或 record component 必须添加 `@Schema(description = "...")`；VO 的每个对外字段必须添加 `@Schema(description = "...")`。字段说明保持简短，描述字段业务含义，不重复 Java 字段名。
+
+18. `example` 只用于模型提供商、模型名称、分页值等稳定且能帮助理解的示例。ID、时间、动态状态等字段没有必要时不强行填写 example，禁止为了注释完整度制造虚假示例。
+
+19. 参数必填、长度、范围等校验继续由 Jakarta Validation 注解表达，Swagger 不重复维护一套校验规则；`@Schema` 负责文档说明，`@NotBlank`、`@Min`、`@Max` 等负责运行时校验。
+
+20. DTO、VO 的 Swagger 注释统一维护在 common 对象本身，Controller 不重复描述对象字段；对象结构变化时同步更新 `@Schema`。
+
 ## 代码格式
 
-15. 只有参数较多或单行明显过长时才允许换行；换行后必须保持结构紧凑、统一。
+21. 只有参数较多或单行明显过长时才允许换行；换行后必须保持结构紧凑、统一。
 
-16. 简单方法、构造方法、record 声明、方法调用能一行写完就写一行，禁止为了一个参数做无意义换行。
+22. 简单方法、构造方法、record 声明、方法调用能一行写完就写一行，禁止为了一个参数做无意义换行。
 
-17. 禁止把右括号和左花括号单独悬空，例如禁止：
+23. 禁止把右括号和左花括号单独悬空，例如禁止：
 
 ```java
 public Optional<ProjectDetailVO> queryProject(
