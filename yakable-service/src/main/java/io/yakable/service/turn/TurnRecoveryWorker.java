@@ -1,88 +1,62 @@
 package io.yakable.service.turn;
 
 import io.yakable.common.utils.DateUtils;
+import io.yakable.common.utils.ThreadUtils;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
+import jakarta.annotation.Resource;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Objects;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-public final class TurnRecoveryWorker implements AutoCloseable {
+@Component
+public class TurnRecoveryWorker {
 
-    private static final System.Logger log = System.getLogger(
-            TurnRecoveryWorker.class.getName()
-    );
+    private static final System.Logger log = System.getLogger(TurnRecoveryWorker.class.getName());
 
-    private final ScheduledExecutorService scheduler;
-    private final TurnService turnService;
-    private final TurnDispatcher dispatcher;
-    private final Duration interval;
-    private final Duration runningTimeout;
-    private final int batchSize;
-    private final boolean enabled;
+    private final ScheduledExecutorService scheduler = ThreadUtils.newSingleScheduledExecutor("yakable-turn-recovery-");
+
+    @Resource
+    private TurnService turnService;
+
+    @Resource
+    private TurnDispatcher dispatcher;
+
+    @Value("${yakable.turn-execution.recovery-enabled:true}")
+    private boolean enabled;
+
+    @Value("${yakable.turn-execution.recovery-interval:5s}")
+    private Duration interval;
+
+    @Value("${yakable.turn-execution.running-timeout:10m}")
+    private Duration runningTimeout;
+
+    @Value("${yakable.turn-execution.recovery-batch-size:100}")
+    private int batchSize;
 
     private ScheduledFuture<?> task;
 
-    public TurnRecoveryWorker(
-            ScheduledExecutorService scheduler,
-            TurnService turnService,
-            TurnDispatcher dispatcher,
-            Duration interval,
-            Duration runningTimeout,
-            int batchSize,
-            boolean enabled
-    ) {
-        this.scheduler = Objects.requireNonNull(
-                scheduler,
-                "scheduler"
-        );
-        this.turnService = Objects.requireNonNull(
-                turnService,
-                "turnService"
-        );
-        this.dispatcher = Objects.requireNonNull(
-                dispatcher,
-                "dispatcher"
-        );
-        this.interval = Objects.requireNonNull(
-                interval,
-                "interval"
-        );
-        this.runningTimeout = Objects.requireNonNull(
-                runningTimeout,
-                "runningTimeout"
-        );
-        this.batchSize = batchSize;
-        this.enabled = enabled;
-    }
-
-    public synchronized void start() {
-        if (!enabled || task != null) {
+    @PostConstruct
+    void start() {
+        if (!enabled) {
             return;
         }
-
         task = scheduler.scheduleWithFixedDelay(
-                this::runSafely,
-                0L,
-                Math.max(1L, interval.toMillis()),
-                TimeUnit.MILLISECONDS
-        );
+                this::runSafely, 0L, Math.max(1L, interval.toMillis()), TimeUnit.MILLISECONDS);
     }
 
     public void runOnce() {
         LocalDateTime now = DateUtils.now();
         int recovered = turnService.updateStaleTurnPending(now.minus(runningTimeout));
-
-        turnService.queryPendingTurnIdList(batchSize)
-                .forEach(dispatcher::dispatch);
+        turnService.queryPendingTurnIdList(batchSize).forEach(dispatcher::dispatch);
 
         if (recovered > 0) {
-            log.log(
-                    System.Logger.Level.WARNING,
-                    "Recovered stale RUNNING turns: " + recovered
-            );
+            log.log(System.Logger.Level.WARNING, "Recovered stale RUNNING turns: " + recovered);
         }
     }
 
@@ -90,19 +64,15 @@ public final class TurnRecoveryWorker implements AutoCloseable {
         try {
             runOnce();
         } catch (RuntimeException exception) {
-            log.log(
-                    System.Logger.Level.WARNING,
-                    "Turn recovery cycle failed",
-                    exception
-            );
+            log.log(System.Logger.Level.WARNING, "Turn recovery cycle failed", exception);
         }
     }
 
-    @Override
-    public synchronized void close() {
+    @PreDestroy
+    void close() {
         if (task != null) {
             task.cancel(false);
-            task = null;
         }
+        scheduler.close();
     }
 }
