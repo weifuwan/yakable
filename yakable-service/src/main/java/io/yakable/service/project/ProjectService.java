@@ -61,7 +61,7 @@ public class ProjectService {
             project.initCreate();
             project.setName(projectName(prompt));
             project.setStatus(ProjectStatusEnum.CREATED);
-            projectRepository.save(project);
+            projectRepository.addProject(project);
 
             SessionService.InitialSession session = sessionService.createInitialSession(
                     project.getId(), project.getName(), provider, model, prompt);
@@ -93,7 +93,7 @@ public class ProjectService {
      * @return Project 详情
      */
     public Optional<ProjectDetailVO> queryProject(@NotNull @Valid QueryProjectDTO dto) {
-        return projectRepository.findProjectDetails(StringUtils.strip(dto.projectId()))
+        return projectRepository.queryProject(StringUtils.strip(dto.projectId()))
                 .map(ProjectService::toDetailVO);
     }
 
