@@ -1,5 +1,13 @@
 package io.yakable.boot.controller.session;
 
+import io.yakable.common.bean.dto.AddTurnDTO;
+import io.yakable.common.bean.dto.QuerySessionChangesDTO;
+import io.yakable.common.bean.dto.QuerySessionDTO;
+import io.yakable.common.bean.dto.QuerySessionMessagesDTO;
+import io.yakable.common.bean.vo.SessionChangesVO;
+import io.yakable.common.bean.vo.SessionDetailVO;
+import io.yakable.common.bean.vo.SessionMessagePageVO;
+import io.yakable.common.bean.vo.TurnStartVO;
 import io.yakable.service.session.SessionService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -17,58 +25,37 @@ public class SessionController {
     }
 
     @GetMapping("/{sessionId}")
-    public SessionService.SessionSnapshot getSession(
-            @PathVariable String projectId,
-            @PathVariable String sessionId
-    ) {
-        return sessionService.getSnapshot(projectId, sessionId);
+    public SessionDetailVO getSession(@PathVariable String projectId, @PathVariable String sessionId) {
+        return sessionService.querySession(new QuerySessionDTO(projectId, sessionId));
     }
 
     @GetMapping("/{sessionId}/changes")
-    public SessionService.SessionChanges getChanges(
+    public SessionChangesVO getChanges(
             @PathVariable String projectId,
             @PathVariable String sessionId,
-            @RequestParam(defaultValue = "0") long afterSequence
-    ) {
-        return sessionService.getChanges(
-                projectId,
-                sessionId,
-                afterSequence
-        );
+            @RequestParam(defaultValue = "0") long afterSequence) {
+        return sessionService.querySessionChanges(new QuerySessionChangesDTO(projectId, sessionId, afterSequence));
     }
 
     @GetMapping("/{sessionId}/messages")
-    public SessionService.MessagePage getMessages(
+    public SessionMessagePageVO getMessages(
             @PathVariable String projectId,
             @PathVariable String sessionId,
             @RequestParam(required = false) Long beforeSequence,
-            @RequestParam(defaultValue = "50") int limit
-    ) {
-        return sessionService.getMessagePage(
-                projectId,
-                sessionId,
-                beforeSequence,
-                limit
-        );
+            @RequestParam(defaultValue = "50") int limit) {
+        return sessionService.querySessionMessage(
+                new QuerySessionMessagesDTO(projectId, sessionId, beforeSequence, limit));
     }
 
     @PostMapping("/{sessionId}/turns")
-    public ResponseEntity<SessionService.TurnStart> startTurn(
+    public ResponseEntity<TurnStartVO> startTurn(
             @PathVariable String projectId,
             @PathVariable String sessionId,
-            @Valid @RequestBody StartTurnRequest request
-    ) {
-        return ResponseEntity.accepted().body(
-                sessionService.startTurn(
-                        projectId,
-                        sessionId,
-                        request.content()
-                )
-        );
+            @Valid @RequestBody StartTurnRequest request) {
+        TurnStartVO result = sessionService.addTurn(new AddTurnDTO(projectId, sessionId, request.content()));
+        return ResponseEntity.accepted().body(result);
     }
 
-    public record StartTurnRequest(
-            @NotBlank String content
-    ) {
+    public record StartTurnRequest(@NotBlank String content) {
     }
 }

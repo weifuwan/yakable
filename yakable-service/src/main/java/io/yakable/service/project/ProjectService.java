@@ -2,10 +2,12 @@ package io.yakable.service.project;
 
 import io.yakable.common.bean.PageData;
 import io.yakable.common.bean.dto.AddProjectDTO;
+import io.yakable.common.bean.dto.AddSessionDTO;
 import io.yakable.common.bean.dto.PageDTO;
 import io.yakable.common.bean.dto.QueryProjectDTO;
 import io.yakable.common.bean.vo.ProjectDetailVO;
 import io.yakable.common.bean.vo.ProjectListVO;
+import io.yakable.common.bean.vo.SessionInitVO;
 import io.yakable.common.enums.ProjectStatusEnum;
 import io.yakable.common.utils.ConverUtils;
 import io.yakable.dao.entity.ProjectEntity;
@@ -63,16 +65,16 @@ public class ProjectService {
             project.setStatus(ProjectStatusEnum.CREATED);
             projectRepository.add(project);
 
-            SessionService.InitialSession session = sessionService.createInitialSession(
-                    project.getId(), project.getName(), provider, model, prompt);
+            SessionInitVO session = sessionService.addSession(
+                    new AddSessionDTO(project.getId(), project.getName(), provider, model, prompt));
             return new CreatedProject(project, session);
         });
 
-        turnDispatcher.dispatch(created.session().turnId());
+        turnDispatcher.dispatch(created.session().getTurnId());
 
         ProjectDetailVO detailVO = toDetailVO(created.project());
-        detailVO.setLatestSessionId(created.session().sessionId());
-        detailVO.setUpdatedAt(created.session().updatedAt());
+        detailVO.setLatestSessionId(created.session().getSessionId());
+        detailVO.setUpdatedAt(created.session().getUpdatedAt());
         return detailVO;
     }
 
@@ -116,6 +118,6 @@ public class ProjectService {
         return StringUtils.abbreviate(StringUtils.strip(firstLine), MAX_PROJECT_NAME_LENGTH);
     }
 
-    private record CreatedProject(ProjectEntity project, SessionService.InitialSession session) {
+    private record CreatedProject(ProjectEntity project, SessionInitVO session) {
     }
 }
