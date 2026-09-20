@@ -103,8 +103,8 @@ public class TurnService {
     /**
      * 将超时运行中的 Turn 恢复为待执行状态。
      */
-    public int updateStaleTurnPending(LocalDateTime staleBefore, LocalDateTime recoveredAt) {
-        return turnRepository.updateStaleTurnPending(staleBefore, recoveredAt);
+    public int updateStaleTurnPending(LocalDateTime staleBefore) {
+        return turnRepository.updateStaleTurnPending(staleBefore);
     }
 
     /**
