@@ -1,65 +1,51 @@
 # yakable-service 开发规范
 
-1. Service 类和核心业务方法必须有必要注释，不能出现无注释的核心业务类。
+## Service 职责
 
-2. 对象类型转换统一使用 `ConverUtils`，业务代码不手写重复的 `toXxx` 字段转换，也不直接散落调用 `BeanUtils.copyProperties`。
+1. Service 类和核心业务方法必须有必要注释，明确业务职责和关键流程。
 
-3. `ConverUtils` 放到 `yakable-common`，提供泛型对象转换能力，例如传入源对象和目标 `Class<T>`，统一返回目标类型对象。
+2. 依赖注入统一使用 `@Resource`，不手写仅用于依赖注入的构造方法。
 
-4. 时间类型统一使用 `LocalDateTime`，不混用 `Date`、`Instant`、`Timestamp` 等时间类型。
+3. 增删改查方法统一使用 `add + 领域名`、`delete + 领域名`、`update + 领域名`、`query + 领域名` 命名。
 
-5. 时间格式化、解析、转换等公共处理统一放到 `DateUtils`，`DateUtils` 放到 `yakable-common`。
+## DTO 与参数校验
 
-6. 分页对象属于公共能力，统一放到 `yakable-common`，业务 Service 中不再定义 `XxxPage`。
+4. add / delete / update / query 的输入参数统一封装为 DTO，不直接堆多个基础参数；DTO 按操作和领域命名，并统一放到 `yakable-common.bean.dto`。
 
-7. 不写没有实际意义的 `Objects.requireNonNull`，只有确实需要在当前边界校验空值时才使用。
+5. DTO 参数校验统一使用 Jakarta Validation；Controller 使用 `@Valid` 触发校验，需要 Service 方法级校验时使用 `@Validated`。业务代码不重复手写字符串判空后再抛异常。
 
-8. 字符串判空、判空白等通用处理统一使用 Apache Commons Lang 的 `StringUtils`，不重复封装 `requireText`、`isBlank` 等字符串工具方法。
+## VO 与分页
 
-9. 业务异常统一使用 `BusinessException`，不直接使用 `IllegalArgumentException`、`IllegalStateException` 等异常表达业务错误。
+6. 对外返回对象统一使用 VO，不直接返回 Entity、DTO 或 Service 内部对象；VO 按实际页面或展示领域命名，并统一放到 `yakable-common.bean.vo`。
 
-10. 依赖注入统一使用 `@Resource`，不手写仅用于依赖注入的构造方法。
+7. 分页属于公共能力。纯分页参数统一使用公共 `PageDTO`；业务查询存在额外筛选条件时，对应 DTO 继承 `PageDTO` 并只补充领域字段；Service 中不再定义 `XxxPage` 或重复声明 `current`、`pageSize`。
 
-11. 增删改查方法统一使用 `add + 领域名`、`delete + 领域名`、`update + 领域名`、`query + 领域名` 命名，例如 `addProject`、`deleteProject`、`updateProject`、`queryProject`。
+## 公共能力
 
-12. add / delete / update / query 的输入参数统一封装为 DTO，不直接堆多个基础参数；DTO 按操作和领域命名，例如 `AddProjectDTO`、`DeleteProjectDTO`、`UpdateProjectDTO`、`QueryProjectDTO`。
+8. 对象转换统一使用 `ConverUtils`，不手写重复的 `toXxx` 字段转换，也不在业务代码中直接散落调用 `BeanUtils.copyProperties`。
 
-13. DTO 参数校验统一使用 Jakarta Validation 注解，例如字符串必填使用 `@NotBlank`、对象必填使用 `@NotNull`、长度限制使用 `@Size`；Controller 入参使用 `@Valid` 触发校验，不在业务代码中重复写 `if (StringUtils.isBlank(...))` 后手动抛异常。
+9. 时间类型统一使用 `LocalDateTime`；时间格式化、解析、转换等公共处理统一使用 `DateUtils`，不混用 `Date`、`Instant`、`Timestamp`。
 
-14. 如果需要在 Service 方法参数层执行 Jakarta Validation，Service 使用 `@Validated` 开启方法级校验。
+10. 字符串判空、判空白等通用处理统一使用 Apache Commons Lang `StringUtils`，不重复封装 `requireText`、`isBlank` 等通用字符串方法。
 
-15. DTO 统一放到 `yakable-common` 模块，不在 Service、Controller 等业务模块中重复定义 DTO。
+## 异常与防御性代码
 
-16. 对外返回对象统一使用 VO，不直接返回 Entity、DTO 或 Service 内部对象。
+11. 业务异常统一使用 `BusinessException`，不使用 `IllegalArgumentException`、`IllegalStateException` 表达业务错误；不写没有实际意义的 `Objects.requireNonNull`，只有当前边界确实需要校验时才使用。
 
-17. VO 按实际页面或展示领域命名，不按数据库表或接口动作机械命名，例如项目列表页面使用 `ProjectListVO`，项目详情页面使用 `ProjectDetailVO`。
+## 代码格式
 
-18. VO 统一放到 `yakable-common` 模块，作为跨模块共享的返回数据结构。
+12. 简单方法声明、构造方法和方法调用能一行写完就一行写完；只有参数较多或单行明显过长时才允许换行，换行后必须保持结构紧凑、统一。
 
-19. `yakable-common` 下统一建立 `bean` 包，DTO 和 VO 分别放到 `bean.dto`、`bean.vo` 中。
-
-20. 公共 Bean 目录统一保持如下结构：
-
-```text
-io.yakable.common.bean
-├── dto
-└── vo
-```
-
-21. 纯分页参数统一使用公共 `PageDTO`，`PageDTO` 放到 `yakable-common.bean.dto`，不再为每个业务重复创建 `QueryXxxPageDTO`。
-
-22. 业务查询如果除分页参数外还有自己的筛选条件，则对应业务 DTO 继承 `PageDTO`，只补充本领域字段；不要重复声明 `current`、`pageSize`。
-
-23. 简单方法声明能一行写完就必须一行写完，禁止为了一个参数做无意义换行。例如：
-
-```java
-public Optional<ProjectDetailVO> queryProject(@NotNull @Valid QueryProjectDTO dto) {
-```
-
-24. 只有参数较多或单行明显过长时才允许换行；换行后必须保持结构紧凑、统一，禁止把右括号和左花括号单独悬空成一行，例如禁止：
+禁止：
 
 ```java
 public Optional<ProjectDetailVO> queryProject(
         @NotNull @Valid QueryProjectDTO dto
 ) {
+```
+
+应写成：
+
+```java
+public Optional<ProjectDetailVO> queryProject(@NotNull @Valid QueryProjectDTO dto) {
 ```
