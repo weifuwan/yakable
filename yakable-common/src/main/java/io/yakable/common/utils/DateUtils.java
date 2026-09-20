@@ -16,8 +16,7 @@ public final class DateUtils {
 
     public static final String DEFAULT_PATTERN = "yyyy-MM-dd HH:mm:ss";
 
-    private static final DateTimeFormatter DEFAULT_FORMATTER =
-            DateTimeFormatter.ofPattern(DEFAULT_PATTERN);
+    private static final DateTimeFormatter DEFAULT_FORMATTER = DateTimeFormatter.ofPattern(DEFAULT_PATTERN);
 
     private DateUtils() {
     }
