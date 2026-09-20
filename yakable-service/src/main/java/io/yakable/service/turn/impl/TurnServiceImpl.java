@@ -81,6 +81,11 @@ public class TurnServiceImpl implements TurnService {
     }
 
     @Override
+    public int updateTurnCancelled(String turnId, String sessionId, LocalDateTime cancelledAt) {
+        return turnRepository.updateTurnCancelled(turnId, sessionId, cancelledAt);
+    }
+
+    @Override
     public int updateStaleTurnPending(LocalDateTime staleBefore) {
         return turnRepository.updateStaleTurnPending(staleBefore);
     }

@@ -61,6 +61,11 @@ public interface TurnService {
     int updateTurnFailed(String turnId, String sessionId, String errorMessage, LocalDateTime failedAt);
 
     /**
+     * 将待执行或运行中的 Turn 更新为取消状态。
+     */
+    int updateTurnCancelled(String turnId, String sessionId, LocalDateTime cancelledAt);
+
+    /**
      * 将超时运行中的 Turn 恢复为待执行状态。
      */
     int updateStaleTurnPending(LocalDateTime staleBefore);

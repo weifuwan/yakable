@@ -2,6 +2,7 @@ package io.yakable.service.session;
 
 import io.yakable.common.bean.dto.session.AddSessionDTO;
 import io.yakable.common.bean.dto.session.AddTurnDTO;
+import io.yakable.common.bean.dto.session.CancelTurnDTO;
 import io.yakable.common.bean.dto.session.QuerySessionChangesDTO;
 import io.yakable.common.bean.dto.session.QuerySessionDTO;
 import io.yakable.common.bean.dto.session.QuerySessionMessagesDTO;
@@ -11,6 +12,7 @@ import io.yakable.common.bean.vo.session.SessionInitVO;
 import io.yakable.common.bean.vo.session.SessionMessagePageVO;
 import io.yakable.common.bean.vo.session.SessionVO;
 import io.yakable.common.bean.vo.session.TurnStartVO;
+import io.yakable.common.bean.vo.session.TurnVO;
 import io.yakable.core.llm.LlmStreamEvent;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
@@ -39,6 +41,11 @@ public interface SessionService {
      * 新增流式 Turn。
      */
     TurnStartVO addStreamingTurn(@NotNull @Valid AddTurnDTO dto);
+
+    /**
+     * 取消 Turn。
+     */
+    TurnVO cancelTurn(@NotNull @Valid CancelTurnDTO dto);
 
     /**
      * 异步执行 Turn。

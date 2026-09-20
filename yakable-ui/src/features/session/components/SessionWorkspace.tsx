@@ -31,6 +31,14 @@ function hasActiveTurn(snapshot: SessionSnapshot | null) {
   );
 }
 
+function latestActiveTurnId(snapshot: SessionSnapshot | null) {
+  return (
+    snapshot?.turns
+      .filter((turn) => turn.status === 'PENDING' || turn.status === 'RUNNING')
+      .at(-1)?.id ?? null
+  );
+}
+
 function isNearBottom(element: HTMLElement) {
   return (
     element.scrollHeight - element.scrollTop - element.clientHeight <=
@@ -81,8 +89,12 @@ export function SessionWorkspace({
   const [sendError, setSendError] = useState<string | null>(null);
   const [streamingTurnId, setStreamingTurnId] = useState<string | null>(null);
   const [streamingContent, setStreamingContent] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const streamAbortRef = useRef<AbortController | null>(null);
+  const currentTurnIdRef = useRef<string | null>(null);
+  const stopRequestedRef = useRef(false);
   const followOutputRef = useRef(true);
   const initialScrollDoneRef = useRef(false);
   const loadedSessionId = snapshot?.session.id ?? null;
@@ -146,6 +158,8 @@ export function SessionWorkspace({
   }, [loadedSessionId, messageCount, scrollToBottom, streamingContent]);
 
   const activeTurn = hasActiveTurn(snapshot);
+  const activeTurnId = latestActiveTurnId(snapshot);
+  const generating = isGenerating || activeTurn;
   const latestSequence = snapshot?.messages.at(-1)?.sequence ?? 0;
 
   useEffect(() => {
@@ -200,27 +214,39 @@ export function SessionWorkspace({
       : null;
 
   const handleSubmit = async (content: string) => {
+    const controller = new AbortController();
+    streamAbortRef.current = controller;
+    currentTurnIdRef.current = null;
+    stopRequestedRef.current = false;
+    setIsGenerating(true);
     setSendError(null);
     setStreamingContent('');
     const afterSequence = latestSequence;
 
     try {
-      await SessionService.streamingTurn(projectId, sessionId, content, {
-        onStarted: (started) => {
-          setStreamingTurnId(started.turn.id);
-          setSnapshot((current) => {
-            if (!current) return current;
-            return {
-              ...current,
-              turns: [...current.turns, started.turn],
-              messages: [...current.messages, started.userMessage],
-            };
-          });
+      await SessionService.streamingTurn(
+        projectId,
+        sessionId,
+        content,
+        {
+          onStarted: (started) => {
+            currentTurnIdRef.current = started.turn.id;
+            setStreamingTurnId(started.turn.id);
+            setSnapshot((current) => {
+              if (!current) return current;
+              return {
+                ...current,
+                turns: [...current.turns, started.turn],
+                messages: [...current.messages, started.userMessage],
+              };
+            });
+          },
+          onDelta: (delta) => {
+            setStreamingContent((current) => current + delta);
+          },
         },
-        onDelta: (delta) => {
-          setStreamingContent((current) => current + delta);
-        },
-      });
+        controller.signal,
+      );
 
       const changes = await SessionService.queryChanges(
         projectId,
@@ -232,6 +258,10 @@ export function SessionWorkspace({
       );
       return true;
     } catch (requestError) {
+      if (controller.signal.aborted && stopRequestedRef.current) {
+        return true;
+      }
+
       try {
         const changes = await SessionService.queryChanges(
           projectId,
@@ -252,10 +282,50 @@ export function SessionWorkspace({
       );
       return false;
     } finally {
+      if (streamAbortRef.current === controller) {
+        streamAbortRef.current = null;
+      }
+      currentTurnIdRef.current = null;
+      setIsGenerating(false);
       setStreamingTurnId(null);
       setStreamingContent('');
     }
   };
+
+  const handleStop = useCallback(() => {
+    const turnId = currentTurnIdRef.current ?? activeTurnId;
+    stopRequestedRef.current = true;
+    streamAbortRef.current?.abort();
+
+    if (!turnId) {
+      setIsGenerating(false);
+      return;
+    }
+
+    void SessionService.cancelTurn(projectId, sessionId, turnId)
+      .then((cancelled) => {
+        setSnapshot((current) => {
+          if (!current) return current;
+          return {
+            ...current,
+            turns: current.turns.map((turn) =>
+              turn.id === cancelled.id ? cancelled : turn,
+            ),
+          };
+        });
+        setSendError(null);
+      })
+      .catch((requestError: unknown) => {
+        setSendError(
+          requestError instanceof Error
+            ? requestError.message
+            : 'Unable to stop generation.',
+        );
+      })
+      .finally(() => {
+        setIsGenerating(false);
+      });
+  }, [activeTurnId, projectId, sessionId]);
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-white">
@@ -311,10 +381,18 @@ export function SessionWorkspace({
             style={{ borderRadius: '50%', backgroundColor: '#fff' }}
             onClick={scrollToBottom}
           >
-            <Icon size={18}>
-              <path d="M12 5v14" />
-              <path d="m6 13 6 6 6-6" />
-            </Icon>
+            {generating ? (
+              <span aria-hidden="true" className="flex items-center gap-1">
+                <span className="size-1 rounded-full bg-current" />
+                <span className="size-1 rounded-full bg-current" />
+                <span className="size-1 rounded-full bg-current" />
+              </span>
+            ) : (
+              <Icon size={18}>
+                <path d="M12 5v14" />
+                <path d="m6 13 6 6 6-6" />
+              </Icon>
+            )}
           </IconButton>
         )}
       </div>
@@ -326,7 +404,9 @@ export function SessionWorkspace({
             placeholder="Ask Yakable..."
             submitLabel="Send message"
             submitTooltip="Send prompt"
-            disabled={!snapshot || snapshot.session.status !== 'ACTIVE' || activeTurn}
+            disabled={!snapshot || snapshot.session.status !== 'ACTIVE'}
+            running={generating}
+            onStop={handleStop}
             onSubmit={handleSubmit}
           />
 

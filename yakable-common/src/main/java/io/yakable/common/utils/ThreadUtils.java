@@ -22,6 +22,7 @@ public final class ThreadUtils {
     private static final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(
             Thread.ofPlatform().daemon(true).name("yakable-scheduler-", 0).factory());
 
+    private static final Map<String, Thread> runningTasks = new ConcurrentHashMap<>();
     private static final Map<String, ScheduledFuture<?>> scheduledTasks = new ConcurrentHashMap<>();
 
     private ThreadUtils() {
@@ -32,9 +33,29 @@ public final class ThreadUtils {
      */
     public static void execute(String taskName, Runnable task) {
         try {
-            executor.execute(safeTask(taskName, task));
+            executor.execute(() -> {
+                Thread current = Thread.currentThread();
+                runningTasks.put(taskName, current);
+                try {
+                    task.run();
+                } catch (RuntimeException exception) {
+                    log.log(System.Logger.Level.WARNING, "Task execution failed: " + taskName, exception);
+                } finally {
+                    runningTasks.remove(taskName, current);
+                }
+            });
         } catch (RuntimeException exception) {
             log.log(System.Logger.Level.WARNING, "Failed to submit task: " + taskName, exception);
+        }
+    }
+
+    /**
+     * 中断指定异步任务。
+     */
+    public static void cancel(String taskName) {
+        Thread task = runningTasks.get(taskName);
+        if (task != null) {
+            task.interrupt();
         }
     }
 

@@ -97,6 +97,17 @@ public class TurnRepositoryImpl extends BaseRepositoryImpl<TurnMapper, TurnEntit
     }
 
     @Override
+    public int updateTurnCancelled(String turnId, String sessionId, LocalDateTime cancelledAt) {
+        return executeUpdate(
+                Wrappers.<TurnEntity>lambdaUpdate()
+                        .eq(TurnEntity::getId, turnId)
+                        .eq(TurnEntity::getSessionId, sessionId)
+                        .in(TurnEntity::getStatus, TurnStatusEnum.PENDING, TurnStatusEnum.RUNNING)
+                        .set(TurnEntity::getStatus, TurnStatusEnum.CANCELLED)
+                        .set(TurnEntity::getFinishedAt, cancelledAt));
+    }
+
+    @Override
     public int updateStaleTurnPending(LocalDateTime staleBefore) {
         return executeUpdate(
                 resetToPending(

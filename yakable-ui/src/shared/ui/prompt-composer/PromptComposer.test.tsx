@@ -47,6 +47,27 @@ describe('PromptComposer', () => {
     });
   });
 
+  it('shows a stop button while running', () => {
+    const onStop = vi.fn();
+
+    render(
+      <PromptComposer
+        running
+        onStop={onStop}
+        onSubmit={() => false}
+      />,
+    );
+
+    const stopButton = screen.getByRole('button', { name: 'Stop generating' });
+    fireEvent.click(stopButton);
+
+    expect(onStop).toHaveBeenCalledOnce();
+    expect(stopButton.querySelector('span')?.className).toContain('bg-white');
+    expect(
+      screen.queryByRole('button', { name: 'Submit prompt' }),
+    ).toBeNull();
+  });
+
   it('keeps Shift+Enter for multiline input', () => {
     const onSubmit = vi.fn();
 
