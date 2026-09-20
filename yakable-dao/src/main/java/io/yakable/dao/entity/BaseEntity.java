@@ -1,6 +1,8 @@
 package io.yakable.dao.entity;
 
+import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import io.yakable.common.constant.SystemConstant;
 import io.yakable.common.utils.DateUtils;
@@ -20,9 +22,16 @@ public abstract class BaseEntity {
     @TableId(type = IdType.INPUT)
     private String id;
 
+    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
+
+    @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
+
+    @TableField(fill = FieldFill.INSERT)
     private String createBy;
+
+    @TableField(fill = FieldFill.INSERT_UPDATE)
     private String updateBy;
 
     public void initCreate() {
