@@ -13,5 +13,16 @@
     <artifactId>yakable-common</artifactId>
 
     <name>Yakable Common</name>
-    <description>Shared value objects and framework-independent utilities</description>
+    <description>Shared value objects and reusable utilities</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-beans</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+        </dependency>
+    </dependencies>
 </project>
