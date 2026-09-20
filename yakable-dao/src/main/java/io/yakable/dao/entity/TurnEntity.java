@@ -1,6 +1,7 @@
 package io.yakable.dao.entity;
 
 import com.baomidou.mybatisplus.annotation.TableName;
+import io.yakable.common.enums.TurnStatusEnum;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -12,7 +13,7 @@ import java.time.LocalDateTime;
 public class TurnEntity extends BaseEntity {
 
     private String sessionId;
-    private Integer status;
+    private TurnStatusEnum status;
     private Integer attemptCount;
     private String errorMessage;
     private String provider;
