@@ -338,6 +338,9 @@ describe('SessionWorkspace', () => {
     fireEvent.keyDown(input, { key: 'Enter' });
 
     expect(await screen.findByText('Tell me more')).toBeTruthy();
+    await waitFor(() => {
+      expect((input as HTMLTextAreaElement).value).toBe('');
+    });
 
     const stopButton = screen.getByRole('button', {
       name: 'Stop generating',

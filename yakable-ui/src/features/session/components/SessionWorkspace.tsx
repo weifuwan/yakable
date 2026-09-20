@@ -213,56 +213,37 @@ export function SessionWorkspace({
         }
       : null;
 
-  const handleSubmit = async (content: string) => {
-    const controller = new AbortController();
-    streamAbortRef.current = controller;
-    currentTurnIdRef.current = null;
-    stopRequestedRef.current = false;
-    setIsGenerating(true);
-    setSendError(null);
-    setStreamingContent('');
-    const afterSequence = latestSequence;
-
-    try {
-      await SessionService.streamingTurn(
-        projectId,
-        sessionId,
-        content,
-        {
-          onStarted: (started) => {
-            currentTurnIdRef.current = started.turn.id;
-            setStreamingTurnId(started.turn.id);
-            setSnapshot((current) => {
-              if (!current) return current;
-              return {
-                ...current,
-                turns: [...current.turns, started.turn],
-                messages: [...current.messages, started.userMessage],
-              };
-            });
-          },
-          onDelta: (delta) => {
-            setStreamingContent((current) => current + delta);
-          },
-        },
-        controller.signal,
-      );
-
-      const changes = await SessionService.queryChanges(
-        projectId,
-        sessionId,
-        afterSequence,
-      );
-      setSnapshot((current) =>
-        current ? mergeChanges(current, changes) : current,
-      );
-      return true;
-    } catch (requestError) {
-      if (controller.signal.aborted && stopRequestedRef.current) {
-        return true;
-      }
-
+  const runStreamingTurn = useCallback(
+    async (
+      content: string,
+      controller: AbortController,
+      afterSequence: number,
+    ) => {
       try {
+        await SessionService.streamingTurn(
+          projectId,
+          sessionId,
+          content,
+          {
+            onStarted: (started) => {
+              currentTurnIdRef.current = started.turn.id;
+              setStreamingTurnId(started.turn.id);
+              setSnapshot((current) => {
+                if (!current) return current;
+                return {
+                  ...current,
+                  turns: [...current.turns, started.turn],
+                  messages: [...current.messages, started.userMessage],
+                };
+              });
+            },
+            onDelta: (delta) => {
+              setStreamingContent((current) => current + delta);
+            },
+          },
+          controller.signal,
+        );
+
         const changes = await SessionService.queryChanges(
           projectId,
           sessionId,
@@ -271,26 +252,55 @@ export function SessionWorkspace({
         setSnapshot((current) =>
           current ? mergeChanges(current, changes) : current,
         );
-      } catch {
-        // 保留原始流式错误。
-      }
+      } catch (requestError) {
+        if (controller.signal.aborted && stopRequestedRef.current) return;
 
-      setSendError(
-        requestError instanceof Error
-          ? requestError.message
-          : 'Unable to stream turn.',
-      );
-      return false;
-    } finally {
-      if (streamAbortRef.current === controller) {
-        streamAbortRef.current = null;
+        try {
+          const changes = await SessionService.queryChanges(
+            projectId,
+            sessionId,
+            afterSequence,
+          );
+          setSnapshot((current) =>
+            current ? mergeChanges(current, changes) : current,
+          );
+        } catch {
+          // 保留原始流式错误。
+        }
+
+        setSendError(
+          requestError instanceof Error
+            ? requestError.message
+            : 'Unable to stream turn.',
+        );
+      } finally {
+        if (streamAbortRef.current === controller) {
+          streamAbortRef.current = null;
+        }
+        currentTurnIdRef.current = null;
+        setIsGenerating(false);
+        setStreamingTurnId(null);
+        setStreamingContent('');
       }
+    },
+    [projectId, sessionId],
+  );
+
+  const handleSubmit = useCallback(
+    (content: string) => {
+      const controller = new AbortController();
+      streamAbortRef.current = controller;
       currentTurnIdRef.current = null;
-      setIsGenerating(false);
-      setStreamingTurnId(null);
+      stopRequestedRef.current = false;
+      setIsGenerating(true);
+      setSendError(null);
       setStreamingContent('');
-    }
-  };
+
+      void runStreamingTurn(content, controller, latestSequence);
+      return true;
+    },
+    [latestSequence, runStreamingTurn],
+  );
 
   const handleStop = useCallback(() => {
     const turnId = currentTurnIdRef.current ?? activeTurnId;
