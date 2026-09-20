@@ -1,10 +1,8 @@
 package io.yakable.boot.configuration.mybatisplus;
 
 import com.baomidou.mybatisplus.annotation.DbType;
+import com.baomidou.mybatisplus.autoconfigure.MybatisPlusProperties;
 import com.baomidou.mybatisplus.autoconfigure.MybatisPlusPropertiesCustomizer;
-import com.baomidou.mybatisplus.core.MybatisConfiguration;
-import com.baomidou.mybatisplus.core.config.GlobalConfig;
-import com.baomidou.mybatisplus.core.toolkit.GlobalConfigUtils;
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
 import org.apache.ibatis.type.JdbcType;
@@ -31,15 +29,11 @@ public class MybatisPlusConfiguration {
     @Bean
     MybatisPlusPropertiesCustomizer mybatisPlusPropertiesCustomizer() {
         return properties -> {
-            MybatisConfiguration configuration = new MybatisConfiguration();
+            MybatisPlusProperties.CoreConfiguration configuration = new MybatisPlusProperties.CoreConfiguration();
             configuration.setJdbcTypeForNull(JdbcType.NULL);
             configuration.setMapUnderscoreToCamelCase(true);
             properties.setConfiguration(configuration);
-            properties.setMapperLocations(new String[]{"classpath*:/mapper/**/*.xml"});
-
-            GlobalConfig globalConfig = GlobalConfigUtils.getGlobalConfig(configuration);
-            globalConfig.setBanner(false);
-            properties.setGlobalConfig(globalConfig);
+            properties.getGlobalConfig().setBanner(false);
         };
     }
 
