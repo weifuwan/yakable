@@ -17,3 +17,13 @@
 8. 字符串判空、判空白等通用处理统一使用 Apache Commons Lang 的 `StringUtils`，不重复封装 `requireText`、`isBlank` 等字符串工具方法。
 
 9. 业务异常统一使用 `BusinessException`，不直接使用 `IllegalArgumentException`、`IllegalStateException` 等异常表达业务错误。
+
+10. 依赖注入统一使用 `@Resource`，不手写仅用于依赖注入的构造方法。
+
+11. 增删改查方法统一使用 `add + 领域名`、`delete + 领域名`、`update + 领域名`、`query + 领域名` 命名，例如 `addProject`、`deleteProject`、`updateProject`、`queryProject`。
+
+12. add / delete / update / query 的输入参数统一封装为 DTO，不直接堆多个基础参数；DTO 按操作和领域命名，例如 `AddProjectDTO`、`DeleteProjectDTO`、`UpdateProjectDTO`、`QueryProjectDTO`。
+
+13. DTO 参数校验统一使用 Jakarta Validation 注解，例如字符串必填使用 `@NotBlank`、对象必填使用 `@NotNull`、长度限制使用 `@Size`；Controller 入参使用 `@Valid` 触发校验，不在业务代码中重复写 `if (StringUtils.isBlank(...))` 后手动抛异常。
+
+14. 如果需要在 Service 方法参数层执行 Jakarta Validation，Service 使用 `@Validated` 开启方法级校验。
