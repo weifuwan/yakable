@@ -22,7 +22,7 @@
 
 ## 公共能力
 
-8. 对象转换统一使用 `ConverUtils`，不手写重复的 `toXxx` 字段转换，也不在业务代码中直接散落调用 `BeanUtils.copyProperties`。
+8. DTO 转 Entity、Entity 转 VO 时优先使用 `ConverUtils` 完成同名字段转换；只有字段名不一致、嵌套对象、枚举展示、默认值、状态初始化、时间字段等特殊场景再单独补充处理。禁止在大部分字段都能直接转换时仍手写整段字段复制，也不在业务代码中直接散落调用 `BeanUtils.copyProperties`。
 
 9. 时间类型统一使用 `LocalDateTime`；时间格式化、解析、转换等公共处理统一使用 `DateUtils`，不混用 `Date`、`Instant`、`Timestamp`。
 
