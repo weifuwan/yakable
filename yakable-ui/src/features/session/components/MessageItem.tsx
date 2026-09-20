@@ -1,4 +1,5 @@
 import type { SessionMessage } from '@/service/session';
+import { Markdown } from '@/shared/ui';
 
 export function MessageItem({
   message,
@@ -19,9 +20,7 @@ export function MessageItem({
             : 'max-w-[78%] px-1 py-2'
         }
       >
-        <p className="m-0 whitespace-pre-wrap text-[15px] leading-7 text-[#20201e]">
-          {message.content}
-        </p>
+        <Markdown content={message.content} />
       </div>
     </div>
   );
