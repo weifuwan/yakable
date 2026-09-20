@@ -105,6 +105,22 @@ const cancelledTurn = {
   updatedAt: '2026-09-19T00:00:03Z',
 } as const;
 
+const cancelledChanges = {
+  latestTurn: cancelledTurn,
+  messages: [
+    streamedTurn.userMessage,
+    {
+      id: 'message-4',
+      turnId: 'turn-2',
+      role: 'ASSISTANT',
+      content: 'Partial answer',
+      sequence: 4,
+      createdAt: '2026-09-19T00:00:03Z',
+    },
+  ],
+  latestSequence: 4,
+} as const;
+
 const completedChanges = {
   latestTurn: {
     ...streamedTurn.turn,
@@ -297,7 +313,8 @@ describe('SessionWorkspace', () => {
                   encoder.encode(
                     'event: started\ndata: ' +
                       JSON.stringify(streamedTurn) +
-                      '\n\n',
+                      '\n\n' +
+                      'event: delta\ndata: {"content":"Partial answer"}\n\n',
                   ),
                 );
                 init.signal?.addEventListener('abort', () => {
@@ -319,6 +336,10 @@ describe('SessionWorkspace', () => {
           return apiResponse(cancelledTurn);
         }
 
+        if (String(input).includes('/changes?')) {
+          return apiResponse(cancelledChanges);
+        }
+
         return apiResponse(completedSnapshot);
       },
     );
@@ -338,6 +359,7 @@ describe('SessionWorkspace', () => {
     fireEvent.keyDown(input, { key: 'Enter' });
 
     expect(await screen.findByText('Tell me more')).toBeTruthy();
+    expect(await screen.findByText('Partial answer')).toBeTruthy();
     await waitFor(() => {
       expect((input as HTMLTextAreaElement).value).toBe('');
     });
@@ -362,6 +384,12 @@ describe('SessionWorkspace', () => {
         screen.queryByRole('button', { name: 'Stop generating' }),
       ).toBeNull();
     });
+    await waitFor(() => {
+      expect(screen.getAllByText('Partial answer')).toHaveLength(1);
+    });
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).includes('/changes?')),
+    ).toBe(true);
   });
 
   it('streams assistant content through SessionService', async () => {

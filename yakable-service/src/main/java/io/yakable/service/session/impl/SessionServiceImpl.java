@@ -23,6 +23,7 @@ import io.yakable.common.enums.session.TurnStatusEnum;
 import io.yakable.common.exception.SessionException;
 import io.yakable.common.utils.ConverUtils;
 import io.yakable.common.utils.DateUtils;
+import io.yakable.common.utils.StringUtils;
 import io.yakable.common.utils.ThreadUtils;
 import io.yakable.core.llm.LlmClient;
 import io.yakable.core.llm.LlmMessage;
@@ -50,6 +51,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -63,6 +66,9 @@ public class SessionServiceImpl implements SessionService {
     private static final String TURN_TASK_PREFIX = "turn-";
     private static final String TURN_STREAM_TASK_PREFIX = "turn-stream-";
     private static final int RECOVERY_BATCH_SIZE = 100;
+
+    private final Map<String, StringBuffer> streamingContents = new ConcurrentHashMap<>();
+    private final Set<String> cancellingTurns = ConcurrentHashMap.newKeySet();
 
     @Resource
     private SessionRepository sessionRepository;
@@ -130,11 +136,35 @@ public class SessionServiceImpl implements SessionService {
                 .filter(turn -> dto.sessionId().equals(turn.getSessionId()))
                 .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
 
-        int updated = turnService.updateTurnCancelled(execution.getId(), dto.sessionId(), DateUtils.now());
+        StringBuffer streamingContent = streamingContents.get(dto.turnId());
+        if (streamingContent != null) {
+            cancellingTurns.add(dto.turnId());
+        }
+
+        int updated;
+        try {
+            String partialContent = snapshotStreamingContent(streamingContent);
+            updated = transactionTemplate.execute(status -> {
+                int cancelled = turnService.updateTurnCancelled(execution.getId(), dto.sessionId(), DateUtils.now());
+                if (cancelled == 1) {
+                    if (!StringUtils.isBlank(partialContent)) {
+                        messageService.addMessage(
+                                dto.sessionId(), dto.turnId(), MessageRoleEnum.ASSISTANT, partialContent);
+                    }
+                    updateSession(dto.sessionId());
+                }
+                return cancelled;
+            });
+        } catch (RuntimeException exception) {
+            cancellingTurns.remove(dto.turnId());
+            throw exception;
+        }
+
         if (updated == 1) {
             ThreadUtils.cancel(TURN_TASK_PREFIX + dto.turnId());
             ThreadUtils.cancel(TURN_STREAM_TASK_PREFIX + dto.turnId());
-            updateSession(dto.sessionId());
+        } else {
+            cancellingTurns.remove(dto.turnId());
         }
         return turnService.queryTurn(dto.turnId())
                 .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
@@ -275,17 +305,36 @@ public class SessionServiceImpl implements SessionService {
         TurnVO running = turnService.updatePendingTurn(
                 turnId, DateUtils.now(), session.getProvider(), session.getModel())
                 .orElseThrow(() -> new SessionException(SessionErrorCode.BUSY));
+        StringBuffer streamingContent = new StringBuffer();
+        streamingContents.put(turnId, streamingContent);
 
         try {
             llmClient.streamingChat(request(session, running), event -> {
+                if (event.type() == LlmStreamEvent.Type.DELTA) {
+                    synchronized (streamingContent) {
+                        if (cancellingTurns.contains(turnId)) {
+                            return;
+                        }
+                        streamingContent.append(event.delta());
+                    }
+                }
+                if (cancellingTurns.contains(turnId)) {
+                    return;
+                }
                 if (event.type() == LlmStreamEvent.Type.COMPLETE) {
                     persistSuccess(session.getId(), running, event.response());
                 }
                 consumer.accept(event);
             });
         } catch (RuntimeException exception) {
+            if (isCancelled(turnId)) {
+                return;
+            }
             persistFailure(session.getId(), running, exception);
             throw exception;
+        } finally {
+            streamingContents.remove(turnId, streamingContent);
+            cancellingTurns.remove(turnId);
         }
     }
 
@@ -306,7 +355,9 @@ public class SessionServiceImpl implements SessionService {
                         return true;
                     }
                     TurnVO turn = turns.get(message.getTurnId());
-                    return turn != null && TurnStatusEnum.SUCCEEDED.name().equals(turn.getStatus());
+                    return turn != null
+                            && (TurnStatusEnum.SUCCEEDED.name().equals(turn.getStatus())
+                            || TurnStatusEnum.CANCELLED.name().equals(turn.getStatus()));
                 })
                 .map(SessionServiceImpl::toLlmMessage)
                 .toList();
@@ -340,6 +391,21 @@ public class SessionServiceImpl implements SessionService {
             });
         } catch (RuntimeException persistenceFailure) {
             originalFailure.addSuppressed(persistenceFailure);
+        }
+    }
+
+    private boolean isCancelled(String turnId) {
+        return turnService.queryTurn(turnId)
+                .map(turn -> TurnStatusEnum.CANCELLED.name().equals(turn.getStatus()))
+                .orElse(false);
+    }
+
+    private static String snapshotStreamingContent(StringBuffer content) {
+        if (content == null) {
+            return "";
+        }
+        synchronized (content) {
+            return content.toString();
         }
     }
 
