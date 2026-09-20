@@ -384,7 +384,7 @@ export function SessionWorkspace({
 
             {activeTurn && !streamingContent && (
               <p className="m-0 px-1 text-sm text-black/40" role="status">
-                Yakable is working...
+                Thinking...
               </p>
             )}
 
