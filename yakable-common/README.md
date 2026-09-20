@@ -26,7 +26,7 @@ io.yakable.common
 
 4. DTO 按操作和领域命名；纯分页参数使用公共分页 DTO，有额外筛选条件时由业务 DTO 继承公共分页 DTO。
 
-6. VO 按实际页面或展示领域命名，不按数据库表或接口动作机械命名。
+5. VO 按实际页面或展示领域命名，不按数据库表或接口动作机械命名。
 
 6. 跨模块复用的工具能力统一放在 `utils`，业务模块禁止重复实现已有公共能力。
 
@@ -40,9 +40,9 @@ io.yakable.common
 
 11. 公共常量统一放在 `constant` 包，禁止在多个模块重复定义相同常量。
 
-12. 公共枚举统一放在 `enums` 包；需要持久化的枚举使用 MyBatis-Plus `@EnumValue` 标记数据库数字值，业务代码直接使用枚举本身，不手动操作数据库枚举值。
+12. 领域枚举统一放在 `enums.<domain>`；需要持久化的枚举使用 MyBatis-Plus `@EnumValue` 标记数据库数字值，业务代码直接使用枚举本身，不手动操作数据库枚举值。
 
-13. common 统一承载 `ErrorCode` 契约、`BusinessException`、领域异常和领域错误码。每个业务领域只保留一个 `XxxException`，放在 `exception` 包并继承 `BusinessException`；对应的 `XxxErrorCode implements ErrorCode` 统一放在 `enums` 包。禁止在 Service、Controller、Repository 等业务模块重复定义异常或错误码，也禁止为每个错误码单独创建异常类。
+13. common 统一承载 `ErrorCode` 契约、`BusinessException`、领域异常和领域错误码。每个业务领域只保留一个 `XxxException`，放在 `exception` 包并继承 `BusinessException`；对应的 `XxxErrorCode implements ErrorCode` 统一放在 `enums.<domain>`。禁止在 Service、Controller、Repository 等业务模块重复定义异常或错误码，也禁止为每个错误码单独创建异常类。
 
 ## 代码格式
 
