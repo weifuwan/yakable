@@ -73,7 +73,7 @@ public final class TurnExecutor {
                         return true;
                     }
                     TurnEntity turn = turns.get(message.getTurnId());
-                    return turn != null && TurnStatusEnum.SUCCEEDED.getValue().equals(turn.getStatus());
+                    return turn != null && turn.getStatus() == TurnStatusEnum.SUCCEEDED;
                 })
                 .map(TurnExecutor::toModelMessage)
                 .toList();
@@ -103,7 +103,7 @@ public final class TurnExecutor {
             message.initCreate();
             message.setSessionId(running.getSessionId());
             message.setTurnId(running.getId());
-            message.setRole(MessageRoleEnum.ASSISTANT.getValue());
+            message.setRole(MessageRoleEnum.ASSISTANT);
             message.setContent(reply.content());
             message.setMessageSequence(repository.nextMessageSequence(running.getSessionId()));
             repository.insertMessage(message);
@@ -132,7 +132,7 @@ public final class TurnExecutor {
     }
 
     private static ModelClient.Message toModelMessage(MessageEntity message) {
-        ModelClient.Role role = MessageRoleEnum.USER.getValue().equals(message.getRole())
+        ModelClient.Role role = message.getRole() == MessageRoleEnum.USER
                 ? ModelClient.Role.USER
                 : ModelClient.Role.ASSISTANT;
         return new ModelClient.Message(role, message.getContent());
