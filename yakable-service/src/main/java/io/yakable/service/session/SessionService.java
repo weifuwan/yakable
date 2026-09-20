@@ -1,117 +1,180 @@
 package io.yakable.service.session;
 
+import io.yakable.common.bean.dto.AddSessionDTO;
+import io.yakable.common.bean.dto.AddTurnDTO;
+import io.yakable.common.bean.dto.QuerySessionChangesDTO;
+import io.yakable.common.bean.dto.QuerySessionDTO;
+import io.yakable.common.bean.dto.QuerySessionMessagesDTO;
+import io.yakable.common.bean.vo.MessageVO;
+import io.yakable.common.bean.vo.SessionChangesVO;
+import io.yakable.common.bean.vo.SessionDetailVO;
+import io.yakable.common.bean.vo.SessionInitVO;
+import io.yakable.common.bean.vo.SessionMessagePageVO;
+import io.yakable.common.bean.vo.SessionModelVO;
+import io.yakable.common.bean.vo.SessionVO;
+import io.yakable.common.bean.vo.TokenUsageVO;
+import io.yakable.common.bean.vo.TurnInvocationVO;
+import io.yakable.common.bean.vo.TurnStartVO;
+import io.yakable.common.bean.vo.TurnVO;
 import io.yakable.common.enums.MessageRoleEnum;
 import io.yakable.common.enums.SessionStatusEnum;
 import io.yakable.common.enums.TurnStatusEnum;
-import io.yakable.common.utils.DateUtils;
+import io.yakable.common.exception.BusinessException;
+import io.yakable.common.utils.ConverUtils;
 import io.yakable.dao.entity.MessageEntity;
 import io.yakable.dao.entity.SessionEntity;
 import io.yakable.dao.entity.TurnEntity;
 import io.yakable.dao.repository.SessionRepository;
 import io.yakable.service.turn.TurnDispatcher;
+import jakarta.annotation.Resource;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.validation.annotation.Validated;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 
-public final class SessionService {
+/**
+ * Session 业务服务。
+ *
+ * <p>负责 Session、Turn 和 Message 的业务编排与查询。</p>
+ */
+@Service
+@Validated
+public class SessionService {
 
-    private static final int MAX_MESSAGE_PAGE_SIZE = 100;
+    @Resource
+    private SessionRepository sessionRepository;
 
-    private final SessionRepository repository;
-    private final TurnDispatcher turnDispatcher;
-    private final TransactionTemplate transactionTemplate;
+    @Resource
+    private TurnDispatcher turnDispatcher;
 
-    public SessionService(SessionRepository repository, TurnDispatcher turnDispatcher, TransactionTemplate transactionTemplate) {
-        this.repository = Objects.requireNonNull(repository, "repository");
-        this.turnDispatcher = Objects.requireNonNull(turnDispatcher, "turnDispatcher");
-        this.transactionTemplate = Objects.requireNonNull(transactionTemplate, "transactionTemplate");
-    }
+    @Resource
+    private TransactionTemplate transactionTemplate;
 
-    public InitialSession createInitialSession(
-            String projectId, String title, String provider, String model, String content) {
+    /**
+     * 新增 Session，并创建首个 Turn 和用户 Message。
+     *
+     * @param dto 新增 Session 入参
+     * @return Session 初始化结果
+     */
+    public SessionInitVO addSession(@NotNull @Valid AddSessionDTO dto) {
         SessionEntity session = new SessionEntity();
         session.initCreate();
-        session.setProjectId(requireText(projectId, "projectId"));
-        session.setTitle(requireText(title, "title"));
-        session.setProvider(requireText(provider, "provider"));
-        session.setModel(requireText(model, "model"));
+        session.setProjectId(StringUtils.strip(dto.projectId()));
+        session.setTitle(StringUtils.strip(dto.title()));
+        session.setProvider(StringUtils.strip(dto.provider()));
+        session.setModel(StringUtils.strip(dto.model()));
         session.setStatus(SessionStatusEnum.ACTIVE);
-        repository.saveSession(session);
+        sessionRepository.saveSession(session);
 
-        TurnStart turn = createPendingTurn(session, requireText(content, "content"));
-        return new InitialSession(session.getId(), session.getUpdateTime(), turn.turn().id());
-    }
+        TurnStartVO turn = addPendingTurn(session, StringUtils.strip(dto.content()));
 
-    public TurnStart startTurn(String projectId, String sessionId, String content) {
-        TurnStart result = transactionTemplate.execute(status -> {
-            SessionEntity session = requireOwnedSession(projectId, sessionId);
-            if (session.getStatus() != SessionStatusEnum.ACTIVE) {
-                throw new SessionInactiveException(sessionId);
-            }
-            return createPendingTurn(session, requireText(content, "content"));
-        });
-
-        if (result == null) {
-            throw new IllegalStateException("Turn transaction returned no result");
-        }
-
-        turnDispatcher.dispatch(result.turn().id());
+        SessionInitVO result = new SessionInitVO();
+        result.setSessionId(session.getId());
+        result.setUpdatedAt(session.getUpdateTime());
+        result.setTurnId(turn.getTurn().getId());
         return result;
     }
 
-    public SessionSnapshot getSnapshot(String projectId, String sessionId) {
-        SessionEntity session = requireOwnedSession(projectId, sessionId);
-        return new SessionSnapshot(
-                toSessionView(session),
-                repository.findTurnsBySessionId(sessionId).stream().map(SessionService::toTurnView).toList(),
-                repository.findMessagesBySessionId(sessionId).stream().map(SessionService::toMessageView).toList());
+    /**
+     * 新增 Turn。
+     *
+     * @param dto 新增 Turn 入参
+     * @return Turn 创建结果
+     */
+    public TurnStartVO addTurn(@NotNull @Valid AddTurnDTO dto) {
+        String projectId = StringUtils.strip(dto.projectId());
+        String sessionId = StringUtils.strip(dto.sessionId());
+        String content = StringUtils.strip(dto.content());
+
+        TurnStartVO result = transactionTemplate.execute(status -> {
+            SessionEntity session = queryOwnedSession(projectId, sessionId);
+            if (session.getStatus() != SessionStatusEnum.ACTIVE) {
+                throw new SessionInactiveException(sessionId);
+            }
+            return addPendingTurn(session, content);
+        });
+
+        turnDispatcher.dispatch(result.getTurn().getId());
+        return result;
     }
 
-    public SessionChanges getChanges(String projectId, String sessionId, long afterSequence) {
-        if (afterSequence < 0) {
-            throw new IllegalArgumentException("afterSequence must not be negative");
-        }
+    /**
+     * 查询 Session 详情。
+     *
+     * @param dto Session 查询入参
+     * @return Session 详情
+     */
+    public SessionDetailVO querySession(@NotNull @Valid QuerySessionDTO dto) {
+        String projectId = StringUtils.strip(dto.projectId());
+        String sessionId = StringUtils.strip(dto.sessionId());
+        SessionEntity session = queryOwnedSession(projectId, sessionId);
 
-        requireOwnedSession(projectId, sessionId);
-        TurnEntity latest = repository.findLatestTurn(sessionId)
+        SessionDetailVO result = new SessionDetailVO();
+        result.setSession(toSessionVO(session));
+        result.setTurns(sessionRepository.findTurnsBySessionId(sessionId).stream().map(SessionService::toTurnVO).toList());
+        result.setMessages(sessionRepository.findMessagesBySessionId(sessionId).stream().map(SessionService::toMessageVO).toList());
+        return result;
+    }
+
+    /**
+     * 查询 Session 增量变化。
+     *
+     * @param dto Session 增量查询入参
+     * @return Session 增量变化
+     */
+    public SessionChangesVO querySessionChanges(@NotNull @Valid QuerySessionChangesDTO dto) {
+        String projectId = StringUtils.strip(dto.projectId());
+        String sessionId = StringUtils.strip(dto.sessionId());
+        queryOwnedSession(projectId, sessionId);
+
+        TurnEntity latest = sessionRepository.findLatestTurn(sessionId)
                 .orElseThrow(() -> new SessionNotFoundException(sessionId));
 
-        return new SessionChanges(
-                toTurnView(latest),
-                repository.findMessagesAfter(sessionId, afterSequence).stream().map(SessionService::toMessageView).toList(),
-                repository.latestMessageSequence(sessionId));
+        SessionChangesVO result = new SessionChangesVO();
+        result.setLatestTurn(toTurnVO(latest));
+        result.setMessages(sessionRepository.findMessagesAfter(sessionId, dto.afterSequence())
+                .stream().map(SessionService::toMessageVO).toList());
+        result.setLatestSequence(sessionRepository.latestMessageSequence(sessionId));
+        return result;
     }
 
-    public MessagePage getMessagePage(String projectId, String sessionId, Long beforeSequence, int limit) {
-        if (beforeSequence != null && beforeSequence <= 0) {
-            throw new IllegalArgumentException("beforeSequence must be positive");
-        }
-        if (limit <= 0 || limit > MAX_MESSAGE_PAGE_SIZE) {
-            throw new IllegalArgumentException("limit must be between 1 and " + MAX_MESSAGE_PAGE_SIZE);
-        }
+    /**
+     * 查询 Session 消息。
+     *
+     * @param dto Session 消息查询入参
+     * @return Session 消息分页数据
+     */
+    public SessionMessagePageVO querySessionMessage(@NotNull @Valid QuerySessionMessagesDTO dto) {
+        String projectId = StringUtils.strip(dto.projectId());
+        String sessionId = StringUtils.strip(dto.sessionId());
+        queryOwnedSession(projectId, sessionId);
 
-        requireOwnedSession(projectId, sessionId);
-        List<MessageEntity> rows = repository.findMessagesBefore(sessionId, beforeSequence, limit + 1);
-        boolean hasMore = rows.size() > limit;
-        List<MessageEntity> pageRows = hasMore ? rows.subList(0, limit) : rows;
+        List<MessageEntity> rows = sessionRepository.findMessagesBefore(sessionId, dto.beforeSequence(), dto.limit() + 1);
+        boolean hasMore = rows.size() > dto.limit();
+        List<MessageEntity> pageRows = hasMore ? rows.subList(0, dto.limit()) : rows;
 
-        List<MessageView> messages = new ArrayList<>(pageRows.stream().map(SessionService::toMessageView).toList());
+        List<MessageVO> messages = new ArrayList<>(pageRows.stream().map(SessionService::toMessageVO).toList());
         Collections.reverse(messages);
 
-        Long nextBeforeSequence = hasMore && !messages.isEmpty() ? messages.get(0).sequence() : null;
-        return new MessagePage(messages, nextBeforeSequence, hasMore);
+        SessionMessagePageVO result = new SessionMessagePageVO();
+        result.setMessages(messages);
+        result.setNextBeforeSequence(hasMore && !messages.isEmpty() ? messages.get(0).getSequence() : null);
+        result.setHasMore(hasMore);
+        return result;
     }
 
-    private TurnStart createPendingTurn(SessionEntity session, String content) {
-        if (!repository.lockSession(session.getId())) {
+    private TurnStartVO addPendingTurn(SessionEntity session, String content) {
+        if (!sessionRepository.lockSession(session.getId())) {
             throw new SessionNotFoundException(session.getId());
         }
-        if (repository.countActiveTurns(session.getId()) > 0) {
+        if (sessionRepository.countActiveTurns(session.getId()) > 0) {
             throw new SessionBusyException(session.getId());
         }
 
@@ -120,7 +183,7 @@ public final class SessionService {
         turn.setSessionId(session.getId());
         turn.setStatus(TurnStatusEnum.PENDING);
         turn.setAttemptCount(0);
-        repository.insertTurn(turn);
+        sessionRepository.insertTurn(turn);
 
         MessageEntity message = new MessageEntity();
         message.initCreate();
@@ -128,73 +191,61 @@ public final class SessionService {
         message.setTurnId(turn.getId());
         message.setRole(MessageRoleEnum.USER);
         message.setContent(content);
-        message.setMessageSequence(repository.nextMessageSequence(session.getId()));
-        repository.insertMessage(message);
+        message.setMessageSequence(sessionRepository.nextMessageSequence(session.getId()));
+        sessionRepository.insertMessage(message);
 
         session.initUpdate();
-        repository.saveSession(session);
-        return new TurnStart(toTurnView(turn), toMessageView(message));
+        sessionRepository.saveSession(session);
+
+        TurnStartVO result = new TurnStartVO();
+        result.setTurn(toTurnVO(turn));
+        result.setUserMessage(toMessageVO(message));
+        return result;
     }
 
-    private SessionEntity requireOwnedSession(String projectId, String sessionId) {
-        String normalizedProjectId = requireText(projectId, "projectId");
-        String normalizedSessionId = requireText(sessionId, "sessionId");
-        return repository.findOwnedSession(normalizedProjectId, normalizedSessionId)
-                .orElseThrow(() -> new SessionNotFoundException(normalizedSessionId));
+    private SessionEntity queryOwnedSession(String projectId, String sessionId) {
+        return sessionRepository.findOwnedSession(projectId, sessionId)
+                .orElseThrow(() -> new SessionNotFoundException(sessionId));
     }
 
-    private static SessionView toSessionView(SessionEntity entity) {
-        return new SessionView(
-                entity.getId(),
-                entity.getProjectId(),
-                entity.getTitle(),
-                new ModelView(entity.getProvider(), entity.getModel()),
-                entity.getStatus().name(),
-                entity.getCreateTime(),
-                entity.getUpdateTime());
+    private static SessionVO toSessionVO(SessionEntity entity) {
+        SessionVO result = ConverUtils.convert(entity, SessionVO.class);
+        result.setModel(ConverUtils.convert(entity, SessionModelVO.class));
+        result.setStatus(entity.getStatus().name());
+        result.setCreatedAt(entity.getCreateTime());
+        result.setUpdatedAt(entity.getUpdateTime());
+        return result;
     }
 
-    private static TurnView toTurnView(TurnEntity entity) {
-        return new TurnView(
-                entity.getId(),
-                entity.getStatus().name(),
-                entity.getAttemptCount() == null ? 0 : entity.getAttemptCount(),
-                entity.getErrorMessage(),
-                toInvocationView(entity),
-                entity.getStartedAt(),
-                entity.getFinishedAt(),
-                durationMillis(entity),
-                entity.getCreateTime(),
-                entity.getUpdateTime());
+    private static TurnVO toTurnVO(TurnEntity entity) {
+        TurnVO result = ConverUtils.convert(entity, TurnVO.class);
+        result.setStatus(entity.getStatus().name());
+        result.setAttemptCount(entity.getAttemptCount() == null ? 0 : entity.getAttemptCount());
+        result.setInvocation(toInvocationVO(entity));
+        result.setDurationMs(durationMillis(entity));
+        result.setCreatedAt(entity.getCreateTime());
+        result.setUpdatedAt(entity.getUpdateTime());
+        return result;
     }
 
-    private static InvocationView toInvocationView(TurnEntity entity) {
+    private static TurnInvocationVO toInvocationVO(TurnEntity entity) {
         if (entity.getProvider() == null && entity.getModel() == null) {
             return null;
         }
 
-        TokenUsageView usage = entity.getInputTokens() == null
-                && entity.getOutputTokens() == null
-                && entity.getTotalTokens() == null
-                ? null
-                : new TokenUsageView(entity.getInputTokens(), entity.getOutputTokens(), entity.getTotalTokens());
-
-        return new InvocationView(
-                entity.getProvider(),
-                entity.getModel(),
-                usage,
-                entity.getProviderRequestId(),
-                entity.getFinishReason());
+        TurnInvocationVO result = ConverUtils.convert(entity, TurnInvocationVO.class);
+        if (entity.getInputTokens() != null || entity.getOutputTokens() != null || entity.getTotalTokens() != null) {
+            result.setUsage(ConverUtils.convert(entity, TokenUsageVO.class));
+        }
+        return result;
     }
 
-    private static MessageView toMessageView(MessageEntity entity) {
-        return new MessageView(
-                entity.getId(),
-                entity.getTurnId(),
-                entity.getRole().name(),
-                entity.getContent(),
-                entity.getMessageSequence(),
-                entity.getCreateTime());
+    private static MessageVO toMessageVO(MessageEntity entity) {
+        MessageVO result = ConverUtils.convert(entity, MessageVO.class);
+        result.setRole(entity.getRole().name());
+        result.setSequence(entity.getMessageSequence());
+        result.setCreatedAt(entity.getCreateTime());
+        return result;
     }
 
     private static Long durationMillis(TurnEntity entity) {
@@ -204,68 +255,19 @@ public final class SessionService {
         return Duration.between(entity.getStartedAt(), entity.getFinishedAt()).toMillis();
     }
 
-    private static String requireText(String value, String field) {
-        Objects.requireNonNull(value, field);
-        String normalized = value.strip();
-        if (normalized.isEmpty()) {
-            throw new IllegalArgumentException(field + " must not be blank");
-        }
-        return normalized;
-    }
-
-    public record InitialSession(String sessionId, LocalDateTime updatedAt, String turnId) {
-    }
-
-    public record SessionSnapshot(SessionView session, List<TurnView> turns, List<MessageView> messages) {
-    }
-
-    public record SessionChanges(TurnView latestTurn, List<MessageView> messages, long latestSequence) {
-    }
-
-    public record MessagePage(List<MessageView> messages, Long nextBeforeSequence, boolean hasMore) {
-    }
-
-    public record SessionView(
-            String id, String projectId, String title, ModelView model, String status,
-            LocalDateTime createdAt, LocalDateTime updatedAt) {
-    }
-
-    public record ModelView(String provider, String model) {
-    }
-
-    public record TurnView(
-            String id, String status, int attemptCount, String errorMessage, InvocationView invocation,
-            LocalDateTime startedAt, LocalDateTime finishedAt, Long durationMs,
-            LocalDateTime createdAt, LocalDateTime updatedAt) {
-    }
-
-    public record InvocationView(
-            String provider, String model, TokenUsageView usage, String providerRequestId, String finishReason) {
-    }
-
-    public record TokenUsageView(Long inputTokens, Long outputTokens, Long totalTokens) {
-    }
-
-    public record MessageView(
-            String id, String turnId, String role, String content, long sequence, LocalDateTime createdAt) {
-    }
-
-    public record TurnStart(TurnView turn, MessageView userMessage) {
-    }
-
-    public static class SessionNotFoundException extends RuntimeException {
+    public static class SessionNotFoundException extends BusinessException {
         public SessionNotFoundException(String sessionId) {
             super("Session not found: " + sessionId);
         }
     }
 
-    public static class SessionBusyException extends RuntimeException {
+    public static class SessionBusyException extends BusinessException {
         public SessionBusyException(String sessionId) {
             super("Session already has an active turn: " + sessionId);
         }
     }
 
-    public static class SessionInactiveException extends RuntimeException {
+    public static class SessionInactiveException extends BusinessException {
         public SessionInactiveException(String sessionId) {
             super("Session is not active: " + sessionId);
         }
