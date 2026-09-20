@@ -12,8 +12,11 @@ export interface PromptComposerProps {
   className?: string;
   disabled?: boolean;
   leadingActions?: ReactNode;
+  onStop?: () => void;
   onSubmit?: PromptComposerSubmitHandler;
   placeholder?: string;
+  running?: boolean;
+  stopLabel?: string;
   submitLabel?: string;
   submitTooltip?: string;
   trailingActions?: ReactNode;
@@ -24,8 +27,11 @@ export function PromptComposer({
   className,
   disabled = false,
   leadingActions,
+  onStop,
   onSubmit,
   placeholder = 'Ask Yakable to build...',
+  running = false,
+  stopLabel = 'Stop generating',
   submitLabel = 'Submit prompt',
   submitTooltip = 'Send prompt',
   trailingActions,
@@ -41,7 +47,7 @@ export function PromptComposer({
     textareaRef,
     value,
   } = useComposerInput({
-    disabled,
+    disabled: disabled || running,
     onSubmit,
   });
 
@@ -73,9 +79,12 @@ export function PromptComposer({
         canSubmit={canSubmit}
         isSubmitting={isSubmitting}
         leadingActions={leadingActions}
+        running={running}
+        stopLabel={stopLabel}
         trailingActions={trailingActions}
         submitLabel={submitLabel}
         submitTooltip={submitTooltip}
+        onStop={onStop}
         onSubmit={() => {
           void submit();
         }}

@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import io.yakable.common.Result;
 import io.yakable.common.bean.dto.session.AddTurnDTO;
 import io.yakable.common.bean.dto.session.AddTurnRequestDTO;
+import io.yakable.common.bean.dto.session.CancelTurnDTO;
 import io.yakable.common.bean.dto.session.QuerySessionChangesDTO;
 import io.yakable.common.bean.dto.session.QuerySessionDTO;
 import io.yakable.common.bean.dto.session.QuerySessionMessagesDTO;
@@ -12,6 +13,7 @@ import io.yakable.common.bean.vo.session.SessionChangesVO;
 import io.yakable.common.bean.vo.session.SessionDetailVO;
 import io.yakable.common.bean.vo.session.SessionMessagePageVO;
 import io.yakable.common.bean.vo.session.TurnStartVO;
+import io.yakable.common.bean.vo.session.TurnVO;
 import io.yakable.common.utils.StringUtils;
 import io.yakable.core.llm.LlmStreamEvent;
 import io.yakable.service.session.SessionService;
@@ -79,6 +81,13 @@ public class SessionController {
         return Result.success(sessionService.addTurn(new AddTurnDTO(projectId, sessionId, dto.content())));
     }
 
+    @Operation(summary = "取消 Turn")
+    @PostMapping("/{sessionId}/turns/{turnId}/cancel")
+    public Result<TurnVO> cancelTurn(
+            @PathVariable String projectId, @PathVariable String sessionId, @PathVariable String turnId) {
+        return Result.success(sessionService.cancelTurn(new CancelTurnDTO(projectId, sessionId, turnId)));
+    }
+
     @Operation(summary = "流式新增 Turn")
     @PostMapping(value = "/{sessionId}/turns/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamingTurn(
@@ -92,9 +101,19 @@ public class SessionController {
 
         response.setHeader(HttpHeaders.CACHE_CONTROL, "no-cache");
         response.setHeader("X-Accel-Buffering", "no");
-        emitter.onCompletion(() -> closed.set(true));
-        emitter.onTimeout(() -> complete(emitter, closed));
-        emitter.onError(error -> closed.set(true));
+        CancelTurnDTO cancel = new CancelTurnDTO(projectId, sessionId, started.getTurn().getId());
+        emitter.onCompletion(() -> {
+            closed.set(true);
+            sessionService.cancelTurn(cancel);
+        });
+        emitter.onTimeout(() -> {
+            sessionService.cancelTurn(cancel);
+            complete(emitter, closed);
+        });
+        emitter.onError(error -> {
+            closed.set(true);
+            sessionService.cancelTurn(cancel);
+        });
 
         send(emitter, closed, "started", started);
         sessionService.executeTurnStreamingAsync(

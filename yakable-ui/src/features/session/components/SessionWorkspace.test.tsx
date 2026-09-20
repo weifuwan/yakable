@@ -83,6 +83,16 @@ const streamedTurn = {
   },
 } as const;
 
+const cancelledTurn = {
+  ...streamedTurn.turn,
+  status: 'CANCELLED',
+  attemptCount: 1,
+  startedAt: '2026-09-19T00:00:02Z',
+  finishedAt: '2026-09-19T00:00:03Z',
+  durationMs: 1000,
+  updatedAt: '2026-09-19T00:00:03Z',
+} as const;
+
 const completedChanges = {
   latestTurn: {
     ...streamedTurn.turn,
@@ -233,6 +243,85 @@ describe('SessionWorkspace', () => {
     expect(
       screen.queryByRole('button', { name: 'Scroll to bottom' }),
     ).toBeNull();
+  });
+
+  it('stops an active streaming turn', async () => {
+    const encoder = new TextEncoder();
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (
+          init?.method === 'POST' &&
+          String(input).endsWith('/turns/stream')
+        ) {
+          return new Response(
+            new ReadableStream({
+              start(controller) {
+                controller.enqueue(
+                  encoder.encode(
+                    'event: started\ndata: ' +
+                      JSON.stringify(streamedTurn) +
+                      '\n\n',
+                  ),
+                );
+                init.signal?.addEventListener('abort', () => {
+                  controller.close();
+                });
+              },
+            }),
+            {
+              status: 200,
+              headers: { 'Content-Type': 'text/event-stream' },
+            },
+          );
+        }
+
+        if (
+          init?.method === 'POST' &&
+          String(input).endsWith('/turns/turn-2/cancel')
+        ) {
+          return apiResponse(cancelledTurn);
+        }
+
+        return apiResponse(completedSnapshot);
+      },
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(
+      <SessionWorkspace
+        projectId="project-1"
+        sessionId="session-1"
+      />,
+    );
+
+    const input = await screen.findByRole('textbox', {
+      name: 'Send a message',
+    });
+    fireEvent.change(input, { target: { value: 'Tell me more' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(await screen.findByText('Tell me more')).toBeTruthy();
+
+    const stopButton = screen.getByRole('button', {
+      name: 'Stop generating',
+    });
+    fireEvent.click(stopButton);
+
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(
+          ([url, init]) =>
+            init?.method === 'POST' &&
+            String(url).endsWith('/turns/turn-2/cancel'),
+        ),
+      ).toBe(true);
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('button', { name: 'Stop generating' }),
+      ).toBeNull();
+    });
   });
 
   it('streams assistant content through SessionService', async () => {

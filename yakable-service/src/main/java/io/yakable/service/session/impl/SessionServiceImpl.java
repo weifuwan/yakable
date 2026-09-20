@@ -2,6 +2,7 @@ package io.yakable.service.session.impl;
 
 import io.yakable.common.bean.dto.session.AddSessionDTO;
 import io.yakable.common.bean.dto.session.AddTurnDTO;
+import io.yakable.common.bean.dto.session.CancelTurnDTO;
 import io.yakable.common.bean.dto.session.QuerySessionChangesDTO;
 import io.yakable.common.bean.dto.session.QuerySessionDTO;
 import io.yakable.common.bean.dto.session.QuerySessionMessagesDTO;
@@ -59,6 +60,8 @@ public class SessionServiceImpl implements SessionService {
 
     private static final String SYSTEM_PROMPT = "You are Yakable, a concise and accurate assistant.";
     private static final String TURN_RECOVERY_TASK = "turn-recovery";
+    private static final String TURN_TASK_PREFIX = "turn-";
+    private static final String TURN_STREAM_TASK_PREFIX = "turn-stream-";
     private static final int RECOVERY_BATCH_SIZE = 100;
 
     @Resource
@@ -121,14 +124,31 @@ public class SessionServiceImpl implements SessionService {
     }
 
     @Override
+    public TurnVO cancelTurn(CancelTurnDTO dto) {
+        queryOwnedSession(dto.projectId(), dto.sessionId());
+        TurnExecutionVO execution = turnService.queryTurnExecution(dto.turnId())
+                .filter(turn -> dto.sessionId().equals(turn.getSessionId()))
+                .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
+
+        int updated = turnService.updateTurnCancelled(execution.getId(), dto.sessionId(), DateUtils.now());
+        if (updated == 1) {
+            ThreadUtils.cancel(TURN_TASK_PREFIX + dto.turnId());
+            ThreadUtils.cancel(TURN_STREAM_TASK_PREFIX + dto.turnId());
+            updateSession(dto.sessionId());
+        }
+        return turnService.queryTurn(dto.turnId())
+                .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
+    }
+
+    @Override
     public void executeTurnAsync(String turnId) {
-        ThreadUtils.execute("turn-" + turnId, () -> executeTurn(turnId));
+        ThreadUtils.execute(TURN_TASK_PREFIX + turnId, () -> executeTurn(turnId));
     }
 
     @Override
     public void executeTurnStreamingAsync(
             String turnId, Consumer<LlmStreamEvent> consumer, Consumer<RuntimeException> errorHandler) {
-        ThreadUtils.execute("turn-stream-" + turnId, () -> {
+        ThreadUtils.execute(TURN_STREAM_TASK_PREFIX + turnId, () -> {
             try {
                 executeTurnStreaming(turnId, consumer);
             } catch (RuntimeException exception) {
