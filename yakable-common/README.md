@@ -18,7 +18,8 @@ io.yakable.common
 ├── utils
 │   ├── ConverUtils
 │   ├── DateUtils
-│   └── IdUtils
+│   ├── IdUtils
+│   └── ThreadUtils
 ├── constant
 │   └── SystemConstant
 ├── enums
@@ -54,6 +55,9 @@ io.yakable.common
 - `ConverUtils`：对象类型转换，统一处理 `source -> Target.class`。
 - `DateUtils`：时间处理，统一处理 `LocalDateTime` 的获取、格式化、解析和转换。
 - `IdUtils`：统一生成雪花 ID。
+- `ThreadUtils`：统一创建和管理线程、线程池、调度线程池。
+
+线程相关能力统一走 `ThreadUtils`。业务模块禁止直接使用 `new Thread`、`Executors`、`ThreadFactory`、`Thread.ofVirtual()`、`Thread.ofPlatform()` 创建线程或线程池；需要新的线程模型时先在 `ThreadUtils` 中增加统一方法，再由业务代码调用。
 
 ## constant
 
