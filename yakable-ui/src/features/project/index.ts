@@ -1,4 +1,5 @@
 export { CreateProjectComposer } from './components/CreateProjectComposer';
+export { ProjectHeader } from './components/ProjectHeader';
 export { ProjectList } from './components/ProjectList';
 export { RecentProjects } from './components/RecentProjects';
 export { ProjectsProvider } from './context/ProjectsProvider';
