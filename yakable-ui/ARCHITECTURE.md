@@ -167,6 +167,9 @@ shared/ui/
 ├── input/
 │   ├── Input.tsx
 │   └── index.ts
+├── markdown/
+│   ├── Markdown.tsx
+│   └── index.ts
 ├── prompt-composer/
 │   ├── PromptComposer.tsx
 │   ├── PromptComposerActions.tsx
@@ -184,6 +187,7 @@ Current primitive rules:
 - `IconButton` requires an accessible name.
 - feature-specific composites stay inside the owning feature.
 - shared UI owns interaction mechanics while features own product meaning; for example PromptComposer owns text entry and keyboard behavior, while Project owns what a submitted prompt creates.
+- Markdown content is rendered only through `shared/ui/markdown`; message features pass content strings and do not own Markdown parsing.
 - do not promote a component into `shared/ui` merely because it is visually reusable once.
 - colocate primitive behavior tests with their owning component when a stable contract is worth protecting.
 
