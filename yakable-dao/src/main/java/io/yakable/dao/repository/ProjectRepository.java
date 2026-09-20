@@ -9,20 +9,15 @@ import java.util.Optional;
 /**
  * Project 数据访问入口。
  */
-public interface ProjectRepository {
+public interface ProjectRepository extends BaseRepository<ProjectEntity> {
 
     /**
-     * 新增 Project。
-     */
-    ProjectEntity addProject(ProjectEntity entity);
-
-    /**
-     * 分页查询 Project。
+     * 分页查询 Project，并关联最新 Session。
      */
     PageData<ProjectEntity> queryProject(PageDTO dto);
 
     /**
-     * 查询 Project 详情。
+     * 查询 Project 详情，并关联最新 Session。
      */
     Optional<ProjectEntity> queryProject(String projectId);
 }

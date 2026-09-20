@@ -6,7 +6,6 @@ import io.yakable.common.bean.PageData;
 import io.yakable.common.bean.dto.PageDTO;
 import io.yakable.dao.entity.ProjectEntity;
 import io.yakable.dao.mapper.ProjectMapper;
-import io.yakable.dao.repository.BaseRepository;
 import io.yakable.dao.repository.ProjectRepository;
 import jakarta.annotation.Resource;
 import org.springframework.context.annotation.DependsOn;
@@ -16,7 +15,7 @@ import java.util.Optional;
 
 @Repository
 @DependsOn("yakableFlyway")
-public class ProjectRepositoryImpl extends BaseRepository<ProjectMapper, ProjectEntity> implements ProjectRepository {
+public class ProjectRepositoryImpl extends BaseRepositoryImpl<ProjectMapper, ProjectEntity> implements ProjectRepository {
 
     @Resource
     private ProjectMapper projectMapper;
@@ -24,11 +23,6 @@ public class ProjectRepositoryImpl extends BaseRepository<ProjectMapper, Project
     @Override
     protected ProjectMapper mapper() {
         return projectMapper;
-    }
-
-    @Override
-    public ProjectEntity addProject(ProjectEntity entity) {
-        return add(entity);
     }
 
     @Override
