@@ -28,6 +28,10 @@
 
 12. Service 层暂不提供 `BaseService`、`BaseServiceImpl`。通用数据库 CRUD 已由 Repository 层负责，Service 层只表达业务能力，禁止再封装一层通用 CRUD。
 
+## LLM
+
+Service 调用大模型统一依赖 `yakable-core` 的 `LlmClient / LlmRequest / LlmResponse`。Service 禁止直接依赖具体 Provider、Model Plugin 或 Provider 原始请求响应，也禁止在 Service 内重新定义 Message、Reply、Usage 等第二套 LLM 协议。
+
 ## DTO 与参数校验
 
 13. add / delete / update / query 的输入参数统一封装为 DTO，不直接堆多个基础参数；DTO 按操作和领域命名，并统一放到 `yakable-common.bean.dto.<domain>`。

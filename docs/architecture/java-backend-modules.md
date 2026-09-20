@@ -1,6 +1,6 @@
 # Java Backend Architecture
 
-Yakable 后端只保留三层：
+Yakable 主业务链保持：
 
 ```text
 yakable-boot
@@ -8,6 +8,13 @@ yakable-boot
 yakable-service
     ↓
 yakable-dao
+```
+
+LLM 等稳定运行时契约放在独立 Core：
+
+```text
+yakable-service ──→ yakable-core
+model plugins ───→ yakable-core
 ```
 
 ## yakable-boot
@@ -18,6 +25,7 @@ yakable-dao
 - Spring Boot 启动
 - Bean 配置
 - 运行时配置
+- 组装内置 Model Plugin
 
 Controller 只调用 Service。
 
@@ -28,18 +36,38 @@ Controller 只调用 Service。
 ```text
 io.yakable.service
 ├── project
-│   └── ProjectService
 ├── session
-│   └── SessionService
-├── model
-│   └── ModelClient
-└── turn
-    ├── TurnExecutor
-    ├── TurnDispatcher
-    └── TurnRecoveryWorker
+├── message
+├── turn
+└── llm
+    └── PluginLlmClient
 ```
 
+Service 只通过 `yakable-core` 的 LLM 契约调用模型，不直接依赖 Model Plugin API。
+
 详细规范见 `yakable-service/README.md`。
+
+## yakable-core
+
+负责 Yakable 自己定义的稳定运行时契约。
+
+当前：
+
+```text
+io.yakable.core
+└── llm
+    ├── LlmClient
+    ├── LlmProvider
+    ├── LlmRequest
+    ├── LlmResponse
+    ├── LlmMessage
+    ├── LlmUsage
+    └── LlmProviderConfiguration
+```
+
+具体 Provider 不能反向定义 Core 的输入输出结构。
+
+详细说明见 `yakable-core/README.md`。
 
 ## yakable-dao
 
@@ -48,8 +76,6 @@ io.yakable.service
 ```text
 io.yakable.dao
 ├── repository
-│   ├── ProjectRepository
-│   └── SessionRepository
 ├── mapper
 ├── entity
 └── config
@@ -57,7 +83,7 @@ io.yakable.dao
 
 详细规范见 `yakable-dao/README.md`。
 
-## 固定调用链
+## 固定业务调用链
 
 ```text
 Controller
@@ -71,10 +97,23 @@ Mapper
 Entity
 ```
 
+LLM 调用链：
+
+```text
+Service
+    ↓
+LlmClient
+    ↓
+LlmProvider
+    ↓
+Provider / Protocol implementation
+```
+
 ## 原则
 
 - 不为了分层而分层。
-- 不提前创建 Port、Gateway、Adapter、Manager、UseCase。
 - 一个领域优先一个 Service。
 - 一个领域的数据访问优先一个 Repository。
+- Core 只定义稳定契约，不承载业务编排。
+- Provider 适配外部模型，不把外部协议泄露给 Service。
 - 复杂度真实出现后再拆。

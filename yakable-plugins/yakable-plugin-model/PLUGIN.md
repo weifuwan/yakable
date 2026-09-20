@@ -1,120 +1,75 @@
 # Model Plugin Contract
 
-> Model plugins are the stable extension boundary for LLM providers in Yakable.
+Model Plugin 负责把具体 Provider 接到 Yakable 的统一 LLM 契约上。
 
-## Module responsibilities
+## 边界
 
-```text
-yakable-plugin-model-api
-  -> stable plugin contracts; no Spring and no provider-specific code
+LLM 的稳定输入输出不属于 Plugin。
 
-yakable-plugin-model-openai-compatible
-  -> shared OpenAI-compatible protocol client
-
-yakable-plugin-model-deepseek
-  -> DeepSeek provider implementation
-
-yakable-plugin-model-all
-  -> runtime aggregation of built-in model plugins
-```
-
-Runtime responsibilities:
+统一契约只定义在：
 
 ```text
-yakable-application
-  -> ModelGateway port; no plugin API dependency
-
-yakable-infrastructure
-  -> ServiceLoader discovery, registry validation, provider routing,
-     and ModelGateway-to-plugin adaptation
-
-yakable-boot
-  -> application assembly and provider configuration only
+yakable-core
+└── io.yakable.core.llm
 ```
 
-## Stable plugin entry
+包括：
 
-Each provider implements `ModelPlugin`:
+```text
+LlmClient
+LlmProvider
+LlmRequest
+LlmResponse
+LlmMessage
+LlmUsage
+LlmProviderConfiguration
+```
+
+Plugin API 只保留插件元数据、能力描述和插件异常。
+
+## 调用关系
+
+```text
+Service
+  ↓
+LlmClient.chat(LlmRequest)
+  ↓
+LlmProvider
+  ↓
+ModelPlugin
+  ↓
+Protocol Client
+  ↓
+Provider API
+```
+
+Service 不直接依赖 `yakable-plugin-model-api`。
+
+## ModelPlugin
+
+`ModelPlugin` 继承 core 的 `LlmProvider`，并补充插件描述信息：
 
 ```java
-ModelPluginDescriptor descriptor();
+public interface ModelPlugin extends LlmProvider {
 
-LlmResponse chat(
-    ModelPluginConfiguration configuration,
-    LlmRequest request
-);
+    ModelPluginDescriptor descriptor();
+}
 ```
 
-`LlmResponse` carries the assistant content plus optional invocation
-observability metadata:
-
-```text
-usage.inputTokens
-usage.outputTokens
-usage.totalTokens
-providerRequestId
-finishReason
-```
-
-Providers should populate these values when the upstream API exposes them.
-Missing metadata must not change the semantic success or failure of the model
-call. Yakable persists the available values on the Turn for diagnostics and
-future usage/cost analysis.
-
-Plugins must be registered with AutoService:
+Provider 实现仍然使用 AutoService：
 
 ```java
-@AutoService(ModelPlugin.class)
+@AutoService({LlmProvider.class, ModelPlugin.class})
 public final class DeepSeekModelPlugin implements ModelPlugin {
     ...
 }
 ```
 
-AutoService generates:
+运行时的统一入口通过 `ServiceLoader<LlmProvider>` 发现 Provider。
 
-```text
-META-INF/services/io.yakable.plugin.model.api.ModelPlugin
-```
+## Provider vs Protocol
 
-at compile time. Runtime discovery uses standard Java `ServiceLoader`.
-
-Domain and Application code must never instantiate a concrete provider plugin
-or import the plugin API.
-
-## Descriptor
-
-`ModelPluginDescriptor` is the stable provider metadata contract:
-
-```text
-provider
-displayName
-apiVersion
-capabilities
-```
-
-Current API version:
-
-```text
-1
-```
-
-Current capability:
-
-```text
-CHAT
-```
-
-Registry startup validates:
-
-- descriptor is present;
-- provider identity is consistent;
-- API version is supported;
-- required capabilities are declared;
-- provider IDs are unique.
-
-## Provider vs protocol
-
-A provider is not a protocol.
+Provider 不是 Protocol。
 
 ```text
 DeepSeek ----\
@@ -122,35 +77,43 @@ Kimi --------+--> OpenAI-compatible protocol
 Qwen --------/
 ```
 
-Provider plugins own provider identity and defaults.
-
-Protocol modules own HTTP request/response mapping.
-
-Do not copy `/chat/completions`, authorization, message mapping, SSE parsing,
-or usage parsing into every provider plugin when providers share a protocol.
-
-## Lifecycle
-
-`ModelPlugin` implementations are discovered once and may be reused by the
-registry.
-
-Plugins must not keep request-level mutable state.
-
-Request-specific information is passed through:
+Provider Plugin 负责：
 
 ```text
-ModelPluginConfiguration
-LlmRequest
+Provider identity
+Provider defaults
+Provider capabilities
 ```
 
-Secrets must not be logged or included in exceptions.
+Protocol 模块负责：
+
+```text
+HTTP endpoint
+request mapping
+response mapping
+usage mapping
+stream parsing
+```
+
+如果多个 Provider 使用同一种协议，不要把相同 HTTP 代码复制到每个 Provider。
 
 ## Configuration
 
-Boot maps strongly typed application configuration to
-`ModelPluginConfiguration`.
+Provider 的 API Key、Base URL 等运行时配置不会进入 Service 的 `LlmRequest`。
 
-Current provider configuration:
+```text
+Service
+  ↓
+LlmRequest
+  ↓
+PluginLlmClient
+  ↓
+LlmProviderConfiguration
+  ↓
+LlmProvider
+```
+
+当前配置：
 
 ```yaml
 yakable:
@@ -161,41 +124,31 @@ yakable:
         base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
 ```
 
-A plugin owns provider defaults. Boot must not import or construct a concrete
-plugin implementation.
+## 当前不做
+
+```text
+Provider Registry API
+自动路由
+Fallback
+Retry
+Streaming contract
+Tool Call contract
+```
+
+先固定非流式 Chat 的内部边界。
 
 ## Adding a provider
 
-For an OpenAI-compatible provider:
+OpenAI-compatible Provider：
 
 ```text
-1. add yakable-plugin-model-<provider>
-2. depend on yakable-plugin-model-api
-3. depend on yakable-plugin-model-openai-compatible
-4. implement ModelPlugin
-5. annotate implementation with @AutoService(ModelPlugin.class)
-6. define descriptor/provider defaults
-7. add the module to yakable-plugin-model-all
-8. add ServiceLoader assembly test
-9. add provider protocol/configuration tests
+1. 新增 yakable-plugin-model-<provider>
+2. 依赖 yakable-plugin-model-api
+3. 依赖 yakable-plugin-model-openai-compatible
+4. 实现 ModelPlugin
+5. 注册 LlmProvider / ModelPlugin
+6. 定义 descriptor 和 Provider 默认配置
+7. 加入 yakable-plugin-model-all
 ```
 
-Do not modify `TurnExecutor` when adding a provider.
-
-If a provider requires a protocol the platform does not have yet, introduce a
-protocol module instead of adding provider-specific HTTP code to Domain,
-Application, Interfaces, or Boot.
-
-## Review checklist
-
-```text
-[ ] Plugin API has no Spring dependency
-[ ] Concrete provider is outside Domain/Application/Boot
-[ ] @AutoService(ModelPlugin.class) is present
-[ ] ServiceLoader assembly test passes
-[ ] descriptor provider/apiVersion/capabilities are valid
-[ ] duplicate provider registration is rejected
-[ ] secrets are not logged
-[ ] shared protocol logic is not copied into provider plugins
-[ ] TurnExecutor only knows ModelGateway
-```
+新增 Provider 时，不修改 SessionService 的 LLM 请求响应结构。
