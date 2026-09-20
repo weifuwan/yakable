@@ -89,6 +89,8 @@ export function SessionWorkspace({
   const [sendError, setSendError] = useState<string | null>(null);
   const [streamingTurnId, setStreamingTurnId] = useState<string | null>(null);
   const [streamingContent, setStreamingContent] = useState('');
+  const [optimisticMessage, setOptimisticMessage] =
+    useState<SessionMessage | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -155,7 +157,13 @@ export function SessionWorkspace({
     if (followOutputRef.current) {
       scrollToBottom();
     }
-  }, [loadedSessionId, messageCount, scrollToBottom, streamingContent]);
+  }, [
+    loadedSessionId,
+    messageCount,
+    optimisticMessage,
+    scrollToBottom,
+    streamingContent,
+  ]);
 
   const activeTurn = hasActiveTurn(snapshot);
   const activeTurnId = latestActiveTurnId(snapshot);
@@ -228,6 +236,7 @@ export function SessionWorkspace({
             onStarted: (started) => {
               currentTurnIdRef.current = started.turn.id;
               setStreamingTurnId(started.turn.id);
+              setOptimisticMessage(null);
               setSnapshot((current) => {
                 if (!current) return current;
                 return {
@@ -253,6 +262,9 @@ export function SessionWorkspace({
           current ? mergeChanges(current, changes) : current,
         );
       } catch (requestError) {
+        if (!currentTurnIdRef.current) {
+          setOptimisticMessage(null);
+        }
         if (controller.signal.aborted && stopRequestedRef.current) return;
 
         try {
@@ -295,6 +307,14 @@ export function SessionWorkspace({
       streamAbortRef.current = controller;
       currentTurnIdRef.current = null;
       stopRequestedRef.current = false;
+      setOptimisticMessage({
+        id: 'optimistic-user-' + Date.now(),
+        turnId: 'optimistic',
+        role: 'USER',
+        content,
+        sequence: latestSequence + 1,
+        createdAt: new Date().toISOString(),
+      });
       setIsGenerating(true);
       setSendError(null);
       setStreamingContent('');
@@ -311,6 +331,7 @@ export function SessionWorkspace({
     streamAbortRef.current?.abort();
 
     if (!turnId) {
+      setOptimisticMessage(null);
       setIsGenerating(false);
       return;
     }
@@ -378,11 +399,18 @@ export function SessionWorkspace({
               <MessageItem key={message.id} message={message} />
             ))}
 
+            {optimisticMessage && (
+              <MessageItem
+                key={optimisticMessage.id}
+                message={optimisticMessage}
+              />
+            )}
+
             {streamingMessage && (
               <MessageItem key={streamingMessage.id} message={streamingMessage} />
             )}
 
-            {activeTurn && !streamingContent && (
+            {generating && !streamingContent && (
               <p className="m-0 px-1 text-sm text-black/40" role="status">
                 Thinking...
               </p>
