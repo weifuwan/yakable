@@ -148,6 +148,25 @@ function streamResponse() {
   );
 }
 
+function setScrollMetrics(
+  element: HTMLElement,
+  {
+    scrollHeight,
+    clientHeight,
+    scrollTop,
+  }: {
+    scrollHeight: number;
+    clientHeight: number;
+    scrollTop: number;
+  },
+) {
+  Object.defineProperties(element, {
+    scrollHeight: { configurable: true, value: scrollHeight },
+    clientHeight: { configurable: true, value: clientHeight },
+    scrollTop: { configurable: true, writable: true, value: scrollTop },
+  });
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -177,6 +196,44 @@ describe('SessionWorkspace', () => {
         signal: expect.any(AbortSignal),
       }),
     );
+  });
+
+  it('shows a scroll-to-bottom button when the user scrolls away from the bottom', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(apiResponse(completedSnapshot)));
+
+    render(
+      <SessionWorkspace
+        projectId="project-1"
+        sessionId="session-1"
+      />,
+    );
+
+    await screen.findByText('I am Yakable.');
+
+    const scroller = screen.getByTestId('session-message-scroll');
+    setScrollMetrics(scroller, {
+      scrollHeight: 1000,
+      clientHeight: 400,
+      scrollTop: 100,
+    });
+    const scrollTo = vi.fn();
+    Object.defineProperty(scroller, 'scrollTo', {
+      configurable: true,
+      value: scrollTo,
+    });
+
+    fireEvent.scroll(scroller);
+
+    const button = screen.getByRole('button', { name: 'Scroll to bottom' });
+    fireEvent.click(button);
+
+    expect(scrollTo).toHaveBeenCalledWith({
+      top: 1000,
+      behavior: 'smooth',
+    });
+    expect(
+      screen.queryByRole('button', { name: 'Scroll to bottom' }),
+    ).toBeNull();
   });
 
   it('streams assistant content through SessionService', async () => {
