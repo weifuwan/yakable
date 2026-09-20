@@ -65,3 +65,23 @@ io.yakable.common
 公共异常统一放在 `exception` 下。
 
 - `BusinessException`：统一业务异常，Service 中可预期的业务错误统一使用该异常。
+
+## 代码格式
+
+只有参数较多或单行明显过长时才允许换行；换行后必须保持结构紧凑、统一。
+
+简单方法、构造方法、record 声明、方法调用能一行写完就写一行，禁止为了一个参数做无意义换行。
+
+禁止把右括号和左花括号单独悬空，例如：
+
+```java
+public Optional<ProjectDetailVO> queryProject(
+        @NotNull @Valid QueryProjectDTO dto
+) {
+```
+
+应写成：
+
+```java
+public Optional<ProjectDetailVO> queryProject(@NotNull @Valid QueryProjectDTO dto) {
+```
