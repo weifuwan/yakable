@@ -36,3 +36,30 @@ updateBy
 12. 枚举使用 MyBatis-Plus `@EnumValue` 标记数据库值，由 `MybatisEnumTypeHandler` 自动完成“枚举 ↔ 数字”转换。
 
 13. Service、Repository 直接使用枚举本身，不调用 `getValue()` 操作数据库值。
+
+
+## 注释规范
+
+14. 每个 Entity 类必须有中文类注释，类注释必须与对应 Flyway 建表语句中的表 `COMMENT` 保持一致。
+
+15. 每个持久化字段必须有中文字段注释，字段注释必须与 Flyway 中对应列的 `COMMENT` 完全一致；禁止 Entity 和数据库分别维护两套不同文案。
+
+16. `BaseEntity` 中的公共字段只在 `BaseEntity` 中维护注释，但所有业务表中对应公共列的 `COMMENT` 必须统一使用相同文案：
+
+```text
+id         -> 主键ID
+createTime -> 创建时间
+updateTime -> 更新时间
+createBy   -> 创建人ID
+updateBy   -> 更新人ID
+```
+
+17. 枚举字段的 Entity 注释必须像 Flyway 一样完整写明每个数字值的业务含义，例如：
+
+```text
+执行轮次状态：0-待执行，1-执行中，2-成功，3-失败
+```
+
+禁止只写“状态”“类型”等缺少取值说明的注释。
+
+18. 修改 Flyway 字段 `COMMENT` 时，必须在同一个变更中同步修改对应 Entity 注释；修改 Entity 字段业务语义时，也必须同步检查数据库 `COMMENT`，保证两边长期一致。
