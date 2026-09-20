@@ -73,6 +73,12 @@ SSE configuration:
 YAKABLE_SSE_TIMEOUT   # default: 10m
 ```
 
+Session context configuration:
+
+```text
+YAKABLE_CONTEXT_MAX_HISTORY_TURNS   # default: 20
+```
+
 ## Backend structure
 
 ```text
