@@ -2,7 +2,7 @@ package io.yakable.boot.controller.project;
 
 import io.yakable.common.bean.PageData;
 import io.yakable.common.bean.dto.project.AddProjectDTO;
-import io.yakable.common.bean.dto.PageDTO;
+import io.yakable.common.bean.dto.common.PageDTO;
 import io.yakable.common.bean.dto.project.QueryProjectDTO;
 import io.yakable.common.bean.vo.project.ProjectDetailVO;
 import io.yakable.common.bean.vo.project.ProjectListVO;
