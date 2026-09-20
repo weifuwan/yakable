@@ -199,7 +199,10 @@ describe('SessionWorkspace', () => {
   });
 
   it('shows a scroll-to-bottom button when the user scrolls away from the bottom', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(apiResponse(completedSnapshot)));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(apiResponse(completedSnapshot)),
+    );
 
     render(
       <SessionWorkspace
