@@ -16,7 +16,7 @@ const userMessage: SessionMessage = {
 
 describe('MessageItem', () => {
   it('shows hover actions for a user message without changing layout', () => {
-    render(<MessageItem message={userMessage} />);
+    render(<MessageItem message={userMessage} onEdit={() => undefined} />);
 
     const actions = screen.getByTestId('user-message-actions');
 
@@ -24,6 +24,7 @@ describe('MessageItem', () => {
     expect(actions.className).toContain('opacity-0');
     expect(actions.className).toContain('group-hover:opacity-100');
     expect(screen.getByRole('button', { name: 'Copy message' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Edit message' })).toBeTruthy();
     expect(screen.getByText('Sep 20 at 9:52 AM')).toBeTruthy();
   });
 
@@ -41,6 +42,16 @@ describe('MessageItem', () => {
     expect(writeText).toHaveBeenCalledWith('Build a membership system');
   });
 
+  it('forwards the selected user message to the edit action', () => {
+    const onEdit = vi.fn();
+
+    render(<MessageItem message={userMessage} onEdit={onEdit} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit message' }));
+
+    expect(onEdit).toHaveBeenCalledWith(userMessage);
+  });
+
   it('does not render user actions for assistant messages', () => {
     render(
       <MessageItem
@@ -55,5 +66,6 @@ describe('MessageItem', () => {
 
     expect(screen.queryByTestId('user-message-actions')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Copy message' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Edit message' })).toBeNull();
   });
 });
