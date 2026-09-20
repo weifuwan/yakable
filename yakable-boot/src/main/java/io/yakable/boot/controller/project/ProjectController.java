@@ -1,11 +1,11 @@
 package io.yakable.boot.controller.project;
 
 import io.yakable.common.bean.PageData;
-import io.yakable.common.bean.dto.AddProjectDTO;
+import io.yakable.common.bean.dto.project.AddProjectDTO;
 import io.yakable.common.bean.dto.PageDTO;
-import io.yakable.common.bean.dto.QueryProjectDTO;
-import io.yakable.common.bean.vo.ProjectDetailVO;
-import io.yakable.common.bean.vo.ProjectListVO;
+import io.yakable.common.bean.dto.project.QueryProjectDTO;
+import io.yakable.common.bean.vo.project.ProjectDetailVO;
+import io.yakable.common.bean.vo.project.ProjectListVO;
 import io.yakable.service.project.ProjectService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
