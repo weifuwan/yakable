@@ -20,11 +20,11 @@
 
 ## DTO / VO
 
-7. 对外业务输入使用 `bean.dto.<domain>` DTO，参数校验使用 Jakarta Validation；Controller 用 `@Valid`，需要方法级校验时 ServiceImpl 用 `@Validated`。
+7. add、delete、update、query 的对外输入统一使用 `bean.dto.<domain>` DTO；参数校验使用 Jakarta Validation，Controller 用 `@Valid`，需要方法级校验时 Impl 用 `@Validated`。
 
 8. 对外返回统一使用 `bean.vo.<domain>` VO，禁止直接返回 Entity、DTO 或内部对象。分页使用公共 `PageDTO`，有额外条件时业务 DTO 继承它。
 
-9. 已通过 DTO 校验的输入不在 Service 重复判空或静默 `trim / strip`；ID、provider、model、prompt、content 等值默认保持原值，只有明确业务规则才规范化。
+9. DTO / Entity / VO 转换优先使用 Common 转换能力，只补充无法自动转换的字段；已校验输入不重复判空或静默 `trim / strip`，原始用户输入默认保持原值。
 
 ## LLM
 
@@ -32,4 +32,4 @@
 
 ## 异常
 
-11. 每个领域原则上只保留一个 `XxxException`，具体原因使用 `XxxErrorCode`；业务错误禁止使用 `IllegalArgumentException / IllegalStateException` 表达。
+11. 每个领域原则上只保留一个领域异常，具体原因使用对应错误码；业务错误禁止使用 `IllegalArgumentException / IllegalStateException` 表达。

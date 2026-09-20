@@ -10,7 +10,7 @@
 
 ## 结构
 
-3. 每张表使用 `XxxRepository + repository.impl/XxxRepositoryImpl`。接口继承 `BaseRepository<Entity>`，Impl 继承 `BaseRepositoryImpl<Mapper, Entity>` 并只注入本表 Mapper。
+3. 每张表使用 `XxxRepository + repository.impl/XxxRepositoryImpl`。接口继承 `BaseRepository<Entity>`，Impl 继承 `BaseRepositoryImpl<Mapper, Entity>`，使用 `@Repository`，并通过 `@Resource` 只注入本表 Mapper。
 
 4. `BaseRepository` 已提供的 add、deleteById、update、queryById、queryList、queryCount、queryPage 直接使用，禁止在领域 Repository 重复声明或做无意义转发。
 
