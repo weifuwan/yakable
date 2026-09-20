@@ -1,5 +1,6 @@
 package io.yakable.common.enums;
 
+import com.baomidou.mybatisplus.annotation.EnumValue;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -14,14 +15,6 @@ public enum MessageRoleEnum {
     ASSISTANT(1),
     SYSTEM(2);
 
+    @EnumValue
     private final Integer value;
-
-    public static MessageRoleEnum fromValue(Integer value) {
-        for (MessageRoleEnum item : values()) {
-            if (item.value.equals(value)) {
-                return item;
-            }
-        }
-        throw new IllegalArgumentException("Unknown message role: " + value);
-    }
 }
