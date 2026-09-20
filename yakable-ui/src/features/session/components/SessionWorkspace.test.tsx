@@ -236,6 +236,43 @@ describe('SessionWorkspace', () => {
     );
   });
 
+  it('renders the project header and toggles workspace expansion', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(apiResponse(completedSnapshot)),
+    );
+
+    const { container } = render(
+      <SessionWorkspace
+        projectId="project-1"
+        sessionId="session-1"
+      />,
+    );
+
+    expect(await screen.findByText('CRM')).toBeTruthy();
+
+    const workspace = container.firstElementChild as HTMLElement;
+    const expandButton = screen.getByRole('button', {
+      name: 'Expand workspace',
+    });
+
+    fireEvent.click(expandButton);
+
+    expect(workspace.className).toContain('fixed');
+    expect(
+      screen.getByRole('button', { name: 'Collapse workspace' }),
+    ).toBeTruthy();
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    await waitFor(() => {
+      expect(workspace.className).not.toContain('fixed');
+      expect(
+        screen.getByRole('button', { name: 'Expand workspace' }),
+      ).toBeTruthy();
+    });
+  });
+
   it('shows a scroll-to-bottom button when the user scrolls away from the bottom', async () => {
     vi.stubGlobal(
       'fetch',
