@@ -30,7 +30,7 @@
 
 ## 异常与防御性代码
 
-11. 业务异常统一继承 `BusinessException`，具体业务异常统一放到 `yakable-common.exception`，禁止在 Service、Controller、Repository 等业务类内部定义异常类；不使用 `IllegalArgumentException`、`IllegalStateException` 表达业务错误，也不写没有实际意义的 `Objects.requireNonNull`。
+11. 每个业务领域原则上只定义一个领域异常，例如 `SessionException`；具体错误原因统一通过领域自己的 `XxxErrorCode implements ErrorCode` 表达。领域异常统一继承 `BusinessException`，异常类型放到 `yakable-common.exception`，业务错误码枚举保留在所属业务模块，不放入 common。Service 直接抛 `new XxxException(XxxErrorCode.XXX)`，不再为每个错误场景拆一个异常类；也不使用 `IllegalArgumentException`、`IllegalStateException` 表达业务错误。
 
 ## 代码格式
 
