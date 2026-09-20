@@ -1,7 +1,7 @@
 package io.yakable.dao.entity;
 
 import com.baomidou.mybatisplus.annotation.TableName;
-import io.yakable.common.enums.ProjectStatusEnum;
+import io.yakable.common.enums.project.ProjectStatusEnum;
 import lombok.Getter;
 import lombok.Setter;
 

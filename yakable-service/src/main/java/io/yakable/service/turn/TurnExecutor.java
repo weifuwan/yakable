@@ -1,7 +1,7 @@
 package io.yakable.service.turn;
 
-import io.yakable.common.enums.MessageRoleEnum;
-import io.yakable.common.enums.TurnStatusEnum;
+import io.yakable.common.enums.session.MessageRoleEnum;
+import io.yakable.common.enums.session.TurnStatusEnum;
 import io.yakable.common.utils.DateUtils;
 import io.yakable.dao.entity.MessageEntity;
 import io.yakable.dao.entity.SessionEntity;

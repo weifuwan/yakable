@@ -20,7 +20,7 @@ io.yakable.common
 
 1. 公共数据对象统一放在 `bean` 包。
 
-2. DTO、VO、枚举都必须按领域再分一层包，禁止把不同领域的对象直接平铺在 `dto`、`vo`、`enums` 根包下。例如 Project 领域使用 `bean.dto.project`、`bean.vo.project`、`enums.project`，Session 领域使用对应的 `session` 包。
+2. DTO、VO、枚举都必须按领域再分一层包，禁止把不同领域的对象直接平铺在 `dto`、`vo`、`enums` 根包下。例如 Project 领域使用 `bean.dto.project`、`bean.vo.project`、`enums.project`，Session 领域使用对应的 `session` 包；真正跨领域复用的 DTO 使用 `bean.dto.common`。
 
 3. 输入参数对象统一放在 `bean.dto.<domain>`，返回对象统一放在 `bean.vo.<domain>`，领域枚举统一放在 `enums.<domain>`。
 

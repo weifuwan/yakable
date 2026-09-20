@@ -2,7 +2,7 @@ package io.yakable.dao.repository;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import io.yakable.common.constant.SystemConstant;
-import io.yakable.common.enums.TurnStatusEnum;
+import io.yakable.common.enums.session.TurnStatusEnum;
 import io.yakable.dao.entity.MessageEntity;
 import io.yakable.dao.entity.SessionEntity;
 import io.yakable.dao.entity.TurnEntity;

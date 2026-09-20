@@ -1,4 +1,4 @@
-package io.yakable.common.bean.dto;
+package io.yakable.common.bean.dto.session;
 
 import jakarta.validation.constraints.NotBlank;
 

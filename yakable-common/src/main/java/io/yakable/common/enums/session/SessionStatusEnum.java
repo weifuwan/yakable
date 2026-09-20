@@ -1,20 +1,18 @@
-package io.yakable.common.enums;
+package io.yakable.common.enums.session;
 
 import com.baomidou.mybatisplus.annotation.EnumValue;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
- * Turn 状态。
+ * Session 状态。
  */
 @Getter
 @AllArgsConstructor
-public enum TurnStatusEnum {
+public enum SessionStatusEnum {
 
-    PENDING(0),
-    RUNNING(1),
-    SUCCEEDED(2),
-    FAILED(3);
+    ACTIVE(0),
+    CLOSED(1);
 
     @EnumValue
     private final Integer value;

@@ -1,4 +1,4 @@
-package io.yakable.common.bean.dto;
+package io.yakable.common.bean.dto.common;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;

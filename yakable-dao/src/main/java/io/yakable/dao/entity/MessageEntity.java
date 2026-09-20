@@ -1,7 +1,7 @@
 package io.yakable.dao.entity;
 
 import com.baomidou.mybatisplus.annotation.TableName;
-import io.yakable.common.enums.MessageRoleEnum;
+import io.yakable.common.enums.session.MessageRoleEnum;
 import lombok.Getter;
 import lombok.Setter;
 

@@ -1,7 +1,7 @@
 package io.yakable.dao.repository;
 
 import io.yakable.common.bean.PageData;
-import io.yakable.common.bean.dto.PageDTO;
+import io.yakable.common.bean.dto.common.PageDTO;
 import io.yakable.dao.entity.BaseEntity;
 
 import java.util.List;

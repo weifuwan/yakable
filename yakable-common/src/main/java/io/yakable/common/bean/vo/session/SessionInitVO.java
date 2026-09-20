@@ -1,4 +1,4 @@
-package io.yakable.common.bean.vo;
+package io.yakable.common.bean.vo.session;
 
 import lombok.Getter;
 import lombok.Setter;

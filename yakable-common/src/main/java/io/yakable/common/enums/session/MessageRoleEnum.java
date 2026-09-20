@@ -1,17 +1,19 @@
-package io.yakable.common.enums;
+package io.yakable.common.enums.session;
 
 import com.baomidou.mybatisplus.annotation.EnumValue;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
- * Project 状态。
+ * Message 角色。
  */
 @Getter
 @AllArgsConstructor
-public enum ProjectStatusEnum {
+public enum MessageRoleEnum {
 
-    CREATED(0);
+    USER(0),
+    ASSISTANT(1),
+    SYSTEM(2);
 
     @EnumValue
     private final Integer value;

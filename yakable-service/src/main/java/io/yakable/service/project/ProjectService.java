@@ -1,14 +1,14 @@
 package io.yakable.service.project;
 
 import io.yakable.common.bean.PageData;
-import io.yakable.common.bean.dto.AddProjectDTO;
-import io.yakable.common.bean.dto.AddSessionDTO;
-import io.yakable.common.bean.dto.PageDTO;
-import io.yakable.common.bean.dto.QueryProjectDTO;
-import io.yakable.common.bean.vo.ProjectDetailVO;
-import io.yakable.common.bean.vo.ProjectListVO;
-import io.yakable.common.bean.vo.SessionInitVO;
-import io.yakable.common.enums.ProjectStatusEnum;
+import io.yakable.common.bean.dto.project.AddProjectDTO;
+import io.yakable.common.bean.dto.session.AddSessionDTO;
+import io.yakable.common.bean.dto.common.PageDTO;
+import io.yakable.common.bean.dto.project.QueryProjectDTO;
+import io.yakable.common.bean.vo.project.ProjectDetailVO;
+import io.yakable.common.bean.vo.project.ProjectListVO;
+import io.yakable.common.bean.vo.session.SessionInitVO;
+import io.yakable.common.enums.project.ProjectStatusEnum;
 import io.yakable.common.utils.ConverUtils;
 import io.yakable.dao.entity.ProjectEntity;
 import io.yakable.dao.repository.ProjectRepository;

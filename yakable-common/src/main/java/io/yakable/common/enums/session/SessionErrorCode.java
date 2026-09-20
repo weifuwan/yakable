@@ -1,4 +1,4 @@
-package io.yakable.common.enums;
+package io.yakable.common.enums.session;
 
 import io.yakable.common.ErrorCode;
 import lombok.Getter;

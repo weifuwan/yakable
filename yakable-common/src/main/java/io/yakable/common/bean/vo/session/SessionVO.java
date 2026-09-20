@@ -1,4 +1,4 @@
-package io.yakable.common.bean.vo;
+package io.yakable.common.bean.vo.session;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -6,15 +6,16 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 /**
- * Project 详情页面返回对象。
+ * Session 展示对象。
  */
 @Getter
 @Setter
-public class ProjectDetailVO {
+public class SessionVO {
 
     private String id;
-    private String name;
-    private String latestSessionId;
+    private String projectId;
+    private String title;
+    private SessionModelVO model;
     private String status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
