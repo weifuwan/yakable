@@ -29,10 +29,11 @@ src/
 ├── assets/
 ├── pages/
 ├── features/
+├── service/
 └── shared/
 ```
 
-See [ARCHITECTURE.md](./ARCHITECTURE.md) for ownership and dependency rules.
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for ownership and dependency rules, and [SERVICE_README.md](./SERVICE_README.md) for backend API conventions.
 
 Browser-native behavior stays in this module, including Preview DOM interaction and visual selection.
 

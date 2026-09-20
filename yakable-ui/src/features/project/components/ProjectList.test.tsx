@@ -10,17 +10,23 @@ afterEach(() => {
 });
 
 describe('ProjectList', () => {
-  it('loads projects from the project API and renders the empty state', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        records: [],
-        total: 0,
-        pages: 0,
-        current: 1,
-        pageSize: 50,
-      }),
-    });
+  it('loads projects from ProjectService and renders the empty state', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          code: 0,
+          message: 'Success',
+          data: {
+            records: [],
+            total: 0,
+            pages: 0,
+            current: 1,
+            pageSize: 50,
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
 
     vi.stubGlobal('fetch', fetchMock);
 

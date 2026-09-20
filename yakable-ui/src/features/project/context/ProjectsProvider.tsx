@@ -7,10 +7,10 @@ import {
   type ReactNode,
 } from 'react';
 
-import { isAbortError } from '@/shared/api';
-
-import { getProjects } from '../api/project-api';
-import type { ProjectSummary } from '../types';
+import {
+  ProjectService,
+  type ProjectSummary,
+} from '@/service/project';
 
 const PROJECT_PAGE_SIZE = 50;
 
@@ -56,7 +56,11 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const controller = new AbortController();
 
-    void getProjects(1, PROJECT_PAGE_SIZE, controller.signal)
+    void ProjectService.queryProjectPage(
+      1,
+      PROJECT_PAGE_SIZE,
+      controller.signal,
+    )
       .then((page) => {
         setProjects((current) => {
           const serverIds = new Set(
@@ -72,8 +76,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
         setError(null);
       })
       .catch((requestError: unknown) => {
-        if (isAbortError(requestError, controller.signal)) return;
-
+        if (controller.signal.aborted) return;
         setError(
           requestError instanceof Error
             ? requestError.message
@@ -94,13 +97,11 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
 
     setIsLoadingMore(true);
     try {
-      const page = await getProjects(
+      const page = await ProjectService.queryProjectPage(
         currentPage + 1,
         PROJECT_PAGE_SIZE,
       );
-      setProjects((current) =>
-        mergeProjects(current, page.records),
-      );
+      setProjects((current) => mergeProjects(current, page.records));
       setCurrentPage(page.current);
       setHasMore(page.current < page.pages);
       setError(null);
@@ -134,10 +135,8 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
 
 export function useProjectsContext(): ProjectsState {
   const value = useContext(ProjectsContext);
-
   if (!value) {
     throw new Error('useProjects must be used within ProjectsProvider.');
   }
-
   return value;
 }

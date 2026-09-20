@@ -1,18 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import { isAbortError } from '@/shared/api';
+import {
+  SessionService,
+  type SessionChanges,
+  type SessionMessage,
+  type SessionSnapshot,
+} from '@/service/session';
 import { PromptComposer } from '@/shared/ui';
 
-import {
-  getSession,
-  getSessionChanges,
-  streamSessionTurn,
-} from '../api/session-api';
-import type {
-  SessionChanges,
-  SessionMessage,
-  SessionSnapshot,
-} from '../types';
 import { MessageItem } from './MessageItem';
 
 const SESSION_POLL_INTERVAL_MS = 1000;
@@ -72,14 +67,13 @@ export function SessionWorkspace({
   useEffect(() => {
     const controller = new AbortController();
 
-    void getSession(projectId, sessionId, controller.signal)
+    void SessionService.querySession(projectId, sessionId, controller.signal)
       .then((result) => {
         setSnapshot(result);
         setLoadError(null);
       })
       .catch((requestError: unknown) => {
-        if (isAbortError(requestError, controller.signal)) return;
-
+        if (controller.signal.aborted) return;
         setLoadError(
           requestError instanceof Error
             ? requestError.message
@@ -101,7 +95,7 @@ export function SessionWorkspace({
     let disposed = false;
 
     const timer = window.setInterval(() => {
-      void getSessionChanges(
+      void SessionService.queryChanges(
         projectId,
         sessionId,
         latestSequence,
@@ -152,7 +146,7 @@ export function SessionWorkspace({
     const afterSequence = latestSequence;
 
     try {
-      await streamSessionTurn(projectId, sessionId, content, {
+      await SessionService.streamingTurn(projectId, sessionId, content, {
         onStarted: (started) => {
           setStreamingTurnId(started.turn.id);
           setSnapshot((current) => {
@@ -169,7 +163,7 @@ export function SessionWorkspace({
         },
       });
 
-      const changes = await getSessionChanges(
+      const changes = await SessionService.queryChanges(
         projectId,
         sessionId,
         afterSequence,
@@ -180,7 +174,7 @@ export function SessionWorkspace({
       return true;
     } catch (requestError) {
       try {
-        const changes = await getSessionChanges(
+        const changes = await SessionService.queryChanges(
           projectId,
           sessionId,
           afterSequence,
@@ -226,10 +220,7 @@ export function SessionWorkspace({
           )}
 
           {activeTurn && !streamingContent && (
-            <p
-              className="m-0 px-1 text-sm text-black/40"
-              role="status"
-            >
+            <p className="m-0 px-1 text-sm text-black/40" role="status">
               Yakable is working...
             </p>
           )}

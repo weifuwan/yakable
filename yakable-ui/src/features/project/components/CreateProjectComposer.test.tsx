@@ -14,22 +14,30 @@ const createdProject = {
   updatedAt: '2026-09-19T00:00:00Z',
 };
 
+function apiResponse(data: unknown, status = 200) {
+  return new Response(
+    JSON.stringify({ code: 0, message: 'Success', data }),
+    {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    },
+  );
+}
+
 function stubProjectApi() {
   const fetchMock = vi.fn(
     async (_input: RequestInfo | URL, init?: RequestInit) => {
       if (init?.method === 'POST') {
-        return {
-          ok: true,
-          status: 201,
-          json: async () => createdProject,
-        };
+        return apiResponse(createdProject, 201);
       }
 
-      return {
-        ok: true,
-        status: 200,
-        json: async () => [],
-      };
+      return apiResponse({
+        records: [],
+        total: 0,
+        pages: 0,
+        current: 1,
+        pageSize: 50,
+      });
     },
   );
 
@@ -68,9 +76,7 @@ describe('CreateProjectComposer', () => {
     const submitButton = screen.getByRole('button', { name: 'Create project' });
 
     expect((submitButton as HTMLButtonElement).disabled).toBe(true);
-
     fireEvent.change(input, { target: { value: 'Build a CRM dashboard' } });
-
     expect((submitButton as HTMLButtonElement).disabled).toBe(false);
   });
 
