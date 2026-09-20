@@ -26,7 +26,7 @@
 
 9. 时间类型统一使用 `LocalDateTime`；时间格式化、解析、转换等公共处理统一使用 `DateUtils`，不混用 `Date`、`Instant`、`Timestamp`。
 
-10. 字符串判空、判空白等通用处理统一使用 Apache Commons Lang `StringUtils`，不重复封装 `requireText`、`isBlank` 等通用字符串方法。
+10. 字符串合法性优先通过 DTO 的 Jakarta Validation 提前校验，Service 不对已经通过校验的入参统一做 `strip / trim`，也不使用 `StringUtils` 做重复判空或静默清洗。ID、provider、model 等精确值以及 prompt、content 等原始用户输入默认保持原值；只有业务明确要求规范化的派生字段或持久化字段，才在唯一入口单独处理。需要限制首尾空白等格式时优先通过 DTO 校验规则表达，而不是在 Service 中偷偷修改值。
 
 ## 异常与防御性代码
 
