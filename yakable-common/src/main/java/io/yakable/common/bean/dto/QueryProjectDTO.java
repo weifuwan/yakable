@@ -7,5 +7,4 @@ import jakarta.validation.constraints.NotBlank;
  *
  * @param projectId Project ID
  */
-public record QueryProjectDTO(@NotBlank String projectId) {
-}
+public record QueryProjectDTO(@NotBlank String projectId) {}
