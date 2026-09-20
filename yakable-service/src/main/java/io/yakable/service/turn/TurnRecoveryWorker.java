@@ -74,12 +74,12 @@ public final class TurnRecoveryWorker implements AutoCloseable {
 
     public void runOnce() {
         LocalDateTime now = DateUtils.now();
-        int recovered = repository.recoverStaleRunningTurns(
+        int recovered = repository.updateStaleTurnPending(
                 now.minus(runningTimeout),
                 now
         );
 
-        repository.findPendingTurnIds(batchSize)
+        repository.queryPendingTurnIdList(batchSize)
                 .forEach(dispatcher::dispatch);
 
         if (recovered > 0) {
