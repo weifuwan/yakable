@@ -67,10 +67,6 @@ public class SessionService {
     public SessionInitVO addSession(@NotNull @Valid AddSessionDTO dto) {
         SessionEntity session = ConverUtils.convert(dto, SessionEntity.class);
         session.initCreate();
-        session.setProjectId(StringUtils.strip(session.getProjectId()));
-        session.setTitle(StringUtils.strip(session.getTitle()));
-        session.setProvider(StringUtils.strip(session.getProvider()));
-        session.setModel(StringUtils.strip(session.getModel()));
         session.setStatus(SessionStatusEnum.ACTIVE);
         sessionRepository.add(session);
 
