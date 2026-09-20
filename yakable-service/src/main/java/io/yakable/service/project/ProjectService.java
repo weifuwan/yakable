@@ -78,7 +78,7 @@ public class ProjectService {
      * 分页查询 Project。
      */
     public PageData<ProjectListVO> queryProject(@NotNull @Valid PageDTO dto) {
-        return projectRepository.queryPage(dto).map(this::toListVO);
+        return projectRepository.queryProject(dto).map(this::toListVO);
     }
 
     /**
