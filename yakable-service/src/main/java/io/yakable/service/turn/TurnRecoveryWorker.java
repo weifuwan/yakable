@@ -3,7 +3,9 @@ package io.yakable.service.turn;
 import io.yakable.dao.repository.SessionRepository;
 
 import java.time.Duration;
-import java.time.Instant;
+import io.yakable.common.utils.DateUtils;
+
+import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -72,7 +74,7 @@ public final class TurnRecoveryWorker implements AutoCloseable {
     }
 
     public void runOnce() {
-        Instant now = Instant.now();
+        LocalDateTime now = DateUtils.now();
         int recovered = repository.recoverStaleRunningTurns(
                 now.minus(runningTimeout),
                 now
