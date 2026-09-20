@@ -50,20 +50,21 @@ export function RecentProjects({
       </h2>
 
       {recentProjects.length === 0 && isLoading && (
-        <div className="px-2 py-1" role="status">
+        <div
+          className="flex flex-col gap-0.5"
+          role="status"
+          data-testid="recent-projects-skeleton"
+        >
           <span className="sr-only">Loading recent projects</span>
-          <div
-            aria-hidden="true"
-            className="flex flex-col gap-3"
-            data-testid="recent-projects-skeleton"
-          >
-            {Array.from({ length: limit }, (_, index) => (
-              <div
-                key={index}
-                className="h-3 w-full animate-pulse rounded-full bg-black/[0.08]"
-              />
-            ))}
-          </div>
+          {Array.from({ length: limit }, (_, index) => (
+            <div
+              key={index}
+              aria-hidden="true"
+              className="flex h-8 items-center px-2"
+            >
+              <div className="h-3 w-full animate-pulse rounded-full bg-black/[0.08]" />
+            </div>
+          ))}
         </div>
       )}
 

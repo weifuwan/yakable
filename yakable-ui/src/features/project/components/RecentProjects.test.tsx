@@ -57,7 +57,17 @@ describe('RecentProjects', () => {
     expect(screen.getByRole('status').textContent).toContain(
       'Loading recent projects',
     );
-    expect(skeleton.children).toHaveLength(5);
+    expect(skeleton.className).toContain('gap-0.5');
+    expect(skeleton.children).toHaveLength(6);
+
+    const rows = Array.from(skeleton.querySelectorAll('[aria-hidden="true"]'));
+    expect(rows).toHaveLength(5);
+    rows.forEach((row) => {
+      expect(row.className).toContain('h-8');
+      expect(row.className).toContain('px-2');
+      expect(row.firstElementChild?.className).toContain('h-3');
+    });
+
     expect(screen.queryByText('Loading...')).toBeNull();
   });
 
