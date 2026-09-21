@@ -236,6 +236,79 @@ describe('SessionWorkspace', () => {
     );
   });
 
+  it('shows a loading transition while switching sessions', async () => {
+    let resolveSecondSession!: (response: Response) => void;
+    const pendingSecondSession = new Promise<Response>((resolve) => {
+      resolveSecondSession = resolve;
+    });
+    const secondSnapshot = {
+      ...completedSnapshot,
+      session: {
+        ...completedSnapshot.session,
+        id: 'session-2',
+        projectId: 'project-2',
+        title: 'Analytics',
+      },
+      messages: [
+        {
+          id: 'message-3',
+          turnId: 'turn-1',
+          role: 'ASSISTANT',
+          content: 'Second session answer',
+          sequence: 1,
+          createdAt: '2026-09-19T00:00:02Z',
+        },
+      ],
+    } as const;
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      if (
+        String(input).includes(
+          '/api/projects/project-2/sessions/session-2',
+        )
+      ) {
+        return pendingSecondSession;
+      }
+
+      return Promise.resolve(apiResponse(completedSnapshot));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { rerender } = render(
+      <SessionWorkspace
+        projectId="project-1"
+        sessionId="session-1"
+      />,
+    );
+
+    expect(await screen.findByText('I am Yakable.')).toBeTruthy();
+
+    rerender(
+      <SessionWorkspace
+        projectId="project-2"
+        sessionId="session-2"
+      />,
+    );
+
+    expect(
+      screen.getByRole('status', { name: 'Loading session' }),
+    ).toBeTruthy();
+    expect(screen.queryByText('I am Yakable.')).toBeNull();
+    expect(
+      (
+        screen.getByRole('textbox', {
+          name: 'Send a message',
+        }) as HTMLTextAreaElement
+      ).disabled,
+    ).toBe(true);
+
+    resolveSecondSession(apiResponse(secondSnapshot));
+
+    expect(await screen.findByText('Second session answer')).toBeTruthy();
+    expect(
+      screen.queryByRole('status', { name: 'Loading session' }),
+    ).toBeNull();
+  });
+
   it('regenerates from the inline user message editor', async () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
