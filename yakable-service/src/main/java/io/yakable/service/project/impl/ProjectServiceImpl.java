@@ -25,8 +25,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.validation.annotation.Validated;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
 
 @Service
 @Validated
@@ -75,10 +73,7 @@ public class ProjectServiceImpl implements ProjectService {
 
     @Override
     public PageData<ProjectListVO> queryProject(QueryProjectPageDTO dto) {
-        PageData<ProjectEntity> page = projectRepository.queryProject(dto);
-        List<String> projectIds = page.records().stream().map(ProjectEntity::getId).toList();
-        Map<String, SessionVO> latestSessions = sessionService.queryLatestSessionMap(projectIds);
-        return page.map(entity -> toListVO(entity, latestSessions.get(entity.getId())));
+        return projectRepository.queryProject(dto).map(ProjectServiceImpl::toListVO);
     }
 
     @Override
@@ -88,12 +83,10 @@ public class ProjectServiceImpl implements ProjectService {
         return toDetailVO(entity, sessionService.queryLatestSession(entity.getId()).orElse(null));
     }
 
-    private static ProjectListVO toListVO(ProjectEntity entity, SessionVO session) {
+    private static ProjectListVO toListVO(ProjectEntity entity) {
         ProjectListVO result = ConverUtils.convert(entity, ProjectListVO.class);
-        if (session != null) {
-            result.setLatestSessionId(session.getId());
-        }
-        result.setUpdatedAt(latestUpdateTime(entity.getUpdateTime(), session));
+        result.setLatestSessionId(entity.getLatestSessionId());
+        result.setUpdatedAt(entity.getActivityTime());
         return result;
     }
 

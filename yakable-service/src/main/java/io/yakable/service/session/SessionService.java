@@ -17,8 +17,6 @@ import io.yakable.core.llm.LlmStreamEvent;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 
@@ -67,11 +65,6 @@ public interface SessionService {
      * 查询 Project 最新 Session。
      */
     Optional<SessionVO> queryLatestSession(String projectId);
-
-    /**
-     * 批量查询 Project 最新 Session。
-     */
-    Map<String, SessionVO> queryLatestSessionMap(List<String> projectIds);
 
     /**
      * 查询 Session 增量变化。

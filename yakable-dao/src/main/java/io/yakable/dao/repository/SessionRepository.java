@@ -2,7 +2,6 @@ package io.yakable.dao.repository;
 
 import io.yakable.dao.entity.SessionEntity;
 
-import java.util.List;
 import java.util.Optional;
 
 /**
@@ -19,11 +18,6 @@ public interface SessionRepository extends BaseRepository<SessionEntity> {
      * 查询 Project 最新 Session。
      */
     Optional<SessionEntity> queryLatestSession(String projectId);
-
-    /**
-     * 批量查询 Project 最新 Session。
-     */
-    List<SessionEntity> queryLatestSessionList(List<String> projectIds);
 
     /**
      * 查询并锁定 Session。

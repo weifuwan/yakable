@@ -56,7 +56,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -206,14 +205,6 @@ public class SessionServiceImpl implements SessionService {
     @Override
     public Optional<SessionVO> queryLatestSession(String projectId) {
         return sessionRepository.queryLatestSession(projectId).map(SessionServiceImpl::toSessionVO);
-    }
-
-    @Override
-    public Map<String, SessionVO> queryLatestSessionMap(List<String> projectIds) {
-        return sessionRepository.queryLatestSessionList(projectIds)
-                .stream()
-                .map(SessionServiceImpl::toSessionVO)
-                .collect(Collectors.toMap(SessionVO::getProjectId, Function.identity()));
     }
 
     @Override

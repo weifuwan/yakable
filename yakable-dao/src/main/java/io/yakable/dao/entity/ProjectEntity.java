@@ -1,9 +1,12 @@
 package io.yakable.dao.entity;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import io.yakable.common.enums.project.ProjectStatusEnum;
 import lombok.Getter;
 import lombok.Setter;
+
+import java.time.LocalDateTime;
 
 /**
  * 项目表
@@ -22,4 +25,16 @@ public class ProjectEntity extends BaseEntity {
      * 项目状态：0-已创建
      */
     private ProjectStatusEnum status;
+
+    /**
+     * 最近活动 Session ID，仅用于 Recent Projects 查询
+     */
+    @TableField(exist = false)
+    private String latestSessionId;
+
+    /**
+     * 最近活动时间，仅用于 Recent Projects 查询
+     */
+    @TableField(exist = false)
+    private LocalDateTime activityTime;
 }

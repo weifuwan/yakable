@@ -12,7 +12,7 @@ import java.util.Optional;
 public interface ProjectRepository extends BaseRepository<ProjectEntity> {
 
     /**
-     * 按用户分页查询 Project。
+     * 按用户和最近活动时间分页查询 Project。
      */
     PageData<ProjectEntity> queryProject(QueryProjectPageDTO dto);
 
