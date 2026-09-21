@@ -10,10 +10,12 @@ function modelValue(model: ModelSelection): string {
 }
 
 export function ModelSelector({
+  disabled = false,
   models = MODEL_CATALOG,
   onValueChange,
   value,
 }: {
+  disabled?: boolean;
   models?: readonly ModelOption[];
   onValueChange: (value: ModelSelection) => void;
   value: ModelSelection;
@@ -30,6 +32,7 @@ export function ModelSelector({
   return (
     <Select
       aria-label="Select model"
+      disabled={disabled}
       value={modelValue(value)}
       options={options}
       align="end"
