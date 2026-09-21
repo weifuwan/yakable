@@ -86,10 +86,12 @@ class SessionServiceImplTest {
         when(turnService.addTurn("session-1")).thenReturn(turn);
         when(messageService.addMessage("session-1", "turn-1", MessageRoleEnum.USER, "Hello")).thenReturn(message);
 
-        TurnStartVO result = sessionService.addStreamingTurn(new AddTurnDTO("project-1", "session-1", "Hello"));
+        TurnStartVO result = sessionService.addStreamingTurn(new AddTurnDTO("project-1", "session-1", "kimi", "kimi-k3", "Hello"));
 
         assertThat(result.getTurn()).isSameAs(turn);
         assertThat(result.getUserMessage()).isSameAs(message);
+        assertThat(session.getProvider()).isEqualTo("kimi");
+        assertThat(session.getModel()).isEqualTo("kimi-k3");
         verify(sessionRepository).update(session);
     }
 
@@ -101,7 +103,7 @@ class SessionServiceImplTest {
         when(sessionRepository.querySession("project-1", "session-1")).thenReturn(Optional.of(session));
 
         assertThatThrownBy(() ->
-                sessionService.addStreamingTurn(new AddTurnDTO("project-1", "session-1", "Hello")))
+                sessionService.addStreamingTurn(new AddTurnDTO("project-1", "session-1", "kimi", "kimi-k3", "Hello")))
                 .isInstanceOf(SessionException.class)
                 .satisfies(exception ->
                         assertThat(((SessionException) exception).getErrorCode()).isEqualTo(SessionErrorCode.INACTIVE));
@@ -119,7 +121,7 @@ class SessionServiceImplTest {
         when(turnService.queryActiveTurnCount("session-1")).thenReturn(1L);
 
         assertThatThrownBy(() ->
-                sessionService.addStreamingTurn(new AddTurnDTO("project-1", "session-1", "Hello")))
+                sessionService.addStreamingTurn(new AddTurnDTO("project-1", "session-1", "kimi", "kimi-k3", "Hello")))
                 .isInstanceOf(SessionException.class)
                 .satisfies(exception ->
                         assertThat(((SessionException) exception).getErrorCode()).isEqualTo(SessionErrorCode.BUSY));

@@ -58,7 +58,9 @@ class SessionControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "content": "Tell me more"
+                                  "content": "Tell me more",
+                                  "provider": "kimi",
+                                  "model": "kimi-k3"
                                 }
                                 """))
                 .andExpect(status().isAccepted())
@@ -70,6 +72,8 @@ class SessionControllerTest {
         verify(sessionService).addTurn(captor.capture());
         assertThat(captor.getValue().projectId()).isEqualTo("project-1");
         assertThat(captor.getValue().sessionId()).isEqualTo("session-1");
+        assertThat(captor.getValue().provider()).isEqualTo("kimi");
+        assertThat(captor.getValue().model()).isEqualTo("kimi-k3");
         assertThat(captor.getValue().content()).isEqualTo("Tell me more");
     }
 
@@ -79,7 +83,9 @@ class SessionControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "content": " "
+                                  "content": " ",
+                                  "provider": "deepseek",
+                                  "model": "deepseek-flash"
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
@@ -95,7 +101,9 @@ class SessionControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "content": "Tell me more"
+                                  "content": "Tell me more",
+                                  "provider": "deepseek",
+                                  "model": "deepseek-flash"
                                 }
                                 """))
                 .andExpect(status().isConflict())
@@ -125,7 +133,9 @@ class SessionControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "content": "Say hello"
+                                  "content": "Say hello",
+                                  "provider": "deepseek",
+                                  "model": "deepseek-flash"
                                 }
                                 """))
                 .andExpect(request().asyncStarted())

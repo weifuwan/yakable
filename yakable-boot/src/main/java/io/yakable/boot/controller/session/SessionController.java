@@ -78,7 +78,8 @@ public class SessionController {
             @PathVariable String projectId,
             @PathVariable String sessionId,
             @Valid @RequestBody AddTurnRequestDTO dto) {
-        return Result.success(sessionService.addTurn(new AddTurnDTO(projectId, sessionId, dto.content())));
+        return Result.success(sessionService.addTurn(
+                new AddTurnDTO(projectId, sessionId, dto.provider(), dto.model(), dto.content())));
     }
 
     @Operation(summary = "取消 Turn")
@@ -95,7 +96,8 @@ public class SessionController {
             @PathVariable String sessionId,
             @Valid @RequestBody AddTurnRequestDTO dto,
             HttpServletResponse response) {
-        TurnStartVO started = sessionService.addStreamingTurn(new AddTurnDTO(projectId, sessionId, dto.content()));
+        TurnStartVO started = sessionService.addStreamingTurn(
+                new AddTurnDTO(projectId, sessionId, dto.provider(), dto.model(), dto.content()));
         SseEmitter emitter = new SseEmitter(sseTimeout.toMillis());
         AtomicBoolean closed = new AtomicBoolean();
 

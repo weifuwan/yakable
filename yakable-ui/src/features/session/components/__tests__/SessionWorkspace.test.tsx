@@ -217,6 +217,9 @@ describe('SessionWorkspace', () => {
     expect(await screen.findByText('Who are you?')).toBeTruthy();
     expect(screen.getByText('I am Yakable.')).toBeTruthy();
     expect(
+      screen.getByRole('button', { name: 'Select model' }).textContent,
+    ).toContain('DeepSeek');
+    expect(
       screen.queryByRole('status', { name: 'Loading session' }),
     ).toBeNull();
   });
@@ -279,7 +282,7 @@ describe('SessionWorkspace', () => {
     );
 
     let handlers:
-      | Parameters<typeof SessionService.streamingTurn>[3]
+      | Parameters<typeof SessionService.streamingTurn>[4]
       | undefined;
     let resolveStream!: () => void;
 
@@ -288,6 +291,7 @@ describe('SessionWorkspace', () => {
         _projectId,
         _sessionId,
         _content,
+        _model,
         nextHandlers,
       ) => {
         handlers = nextHandlers;
@@ -308,10 +312,28 @@ describe('SessionWorkspace', () => {
       name: 'Send a message',
     });
 
+    await user.click(
+      screen.getByRole('button', { name: 'Select model' }),
+    );
+    await user.click(
+      screen.getByRole('menuitemradio', { name: 'Kimi' }),
+    );
+
     await user.type(input, 'Tell me more');
     await user.keyboard('{Enter}');
 
     expect(await screen.findByText('Tell me more')).toBeTruthy();
+    expect(SessionService.streamingTurn).toHaveBeenCalledWith(
+      'project-1',
+      'session-1',
+      'Tell me more',
+      {
+        provider: 'kimi',
+        model: 'kimi-k3',
+      },
+      expect.any(Object),
+      expect.anything(),
+    );
     expect(screen.getByText('Thinking...')).toBeTruthy();
     expect(
       screen.getByRole('button', { name: 'Stop generating' }),
