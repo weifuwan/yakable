@@ -35,6 +35,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -54,10 +55,10 @@ class ProjectServiceImplTest {
 
     @Test
     void shouldCreateProjectAndInitialSession() {
-        when(transactionTemplate.execute(any(TransactionCallback.class))).thenAnswer(invocation -> {
+        doAnswer(invocation -> {
             TransactionCallback<?> callback = invocation.getArgument(0);
             return callback.doInTransaction(mock(TransactionStatus.class));
-        });
+        }).when(transactionTemplate).execute(any(TransactionCallback.class));
 
         LocalDateTime sessionUpdatedAt = LocalDateTime.of(2026, 9, 21, 10, 30);
         SessionInitVO session = new SessionInitVO();
