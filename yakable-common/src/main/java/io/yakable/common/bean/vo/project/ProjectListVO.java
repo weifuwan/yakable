@@ -7,11 +7,11 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 /**
- * Project 列表页面返回对象。
+ * Project 摘要。
  */
 @Getter
 @Setter
-@Schema(description = "Project 列表项")
+@Schema(description = "Project 摘要")
 public class ProjectListVO {
 
     @Schema(description = "Project ID")
