@@ -590,6 +590,9 @@ export function SessionWorkspace({
               trailingActions={
                 selectedModel ? (
                   <ModelSelector
+                    disabled={
+                      !snapshot || snapshot.session.status !== 'ACTIVE'
+                    }
                     value={selectedModel}
                     onValueChange={setSelectedModel}
                   />
