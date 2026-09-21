@@ -5,29 +5,48 @@ import {
 
 export interface ProjectHeaderProps {
   title: string;
+  loading?: boolean;
   expanded: boolean;
   onToggleExpanded: () => void;
 }
 
 export function ProjectHeader({
   title,
+  loading = false,
   expanded,
   onToggleExpanded,
 }: ProjectHeaderProps) {
   return (
     <header className="flex h-14 shrink-0 items-center justify-between bg-white px-4">
-      <div className="flex min-w-0 items-center gap-1.5">
-        <span
-          title={title}
-          className="truncate text-sm font-semibold tracking-[-0.01em] text-[#20201e]"
+      {loading ? (
+        <div
+          className="flex min-w-0 items-center gap-1.5"
+          role="status"
+          aria-label="Loading session header"
         >
-          {title}
-        </span>
+          <span
+            aria-hidden="true"
+            className="h-4 w-24 animate-pulse rounded-full bg-[#ECECEC]"
+          />
+          <span
+            aria-hidden="true"
+            className="size-3 animate-pulse rounded-full bg-[#ECECEC]"
+          />
+        </div>
+      ) : (
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span
+            title={title}
+            className="truncate text-sm font-semibold tracking-[-0.01em] text-[#20201e]"
+          >
+            {title}
+          </span>
 
-        <Icon size={14} className="shrink-0 text-black/40">
-          <path d="m7 10 5 5 5-5" />
-        </Icon>
-      </div>
+          <Icon size={14} className="shrink-0 text-black/40">
+            <path d="m7 10 5 5 5-5" />
+          </Icon>
+        </div>
+      )}
 
       <IconButton
         aria-label={expanded ? 'Collapse workspace' : 'Expand workspace'}
