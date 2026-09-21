@@ -77,7 +77,7 @@ export function ModelSelector({
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
-        className="flex h-8 max-w-40 cursor-pointer items-center gap-1 rounded-lg px-2 text-sm font-medium text-black/60 outline-none hover:bg-black/[0.05] hover:text-[#20201e] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black/50"
+        className="flex h-8 max-w-40 cursor-pointer items-center gap-1 rounded-lg px-2 text-sm font-medium text-foreground-soft outline-none hover:bg-surface-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring-strong"
       >
         <span className="truncate">{selectedModel?.label ?? 'Select model'}</span>
         <Icon size={14} viewBox="0 0 20 20" strokeWidth={1.6}>
@@ -89,7 +89,7 @@ export function ModelSelector({
         <div
           role="listbox"
           aria-label="Models"
-          className="absolute top-full right-0 z-30 mt-2 w-44 rounded-xl border border-black/[0.10] bg-white p-1"
+          className="absolute top-full right-0 z-30 mt-2 w-44 rounded-xl border border-border bg-surface p-1"
         >
           {models.map((model) => {
             const selected = isSameModel(model, value);
@@ -111,9 +111,9 @@ export function ModelSelector({
                 className={cx(
                   'flex h-9 w-full cursor-pointer items-center justify-between gap-2 rounded-lg px-2.5 text-left text-sm outline-none',
                   selected
-                    ? 'bg-black/[0.06] font-medium text-[#20201e]'
-                    : 'text-black/65 hover:bg-black/[0.04] hover:text-[#20201e]',
-                  'focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-black/40',
+                    ? 'bg-surface-soft font-medium text-foreground'
+                    : 'text-foreground-tertiary hover:bg-menu-hover hover:text-foreground',
+                  'focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring',
                 )}
               >
                 <span className="truncate">{model.label}</span>
