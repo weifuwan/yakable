@@ -15,6 +15,8 @@ import { createPortal } from 'react-dom';
 import { cva, type VariantProps } from 'class-variance-authority';
 
 import { cx } from '../cx';
+import { SelectTriggerEffects } from './SelectTriggerEffects';
+import './select.css';
 
 export interface SelectOption {
   value: string;
@@ -27,12 +29,12 @@ export type SelectSide = 'auto' | 'top' | 'bottom';
 export type SelectAlign = 'start' | 'center' | 'end';
 
 const selectTriggerVariants = cva(
-  'inline-flex shrink-0 cursor-pointer items-center justify-center gap-1 rounded-full border border-border-control bg-surface font-medium text-foreground shadow-sm outline-none transition-colors hover:bg-surface-hover-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring-strong disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-40',
+  'yak-select-trigger inline-flex shrink-0 cursor-pointer items-center justify-center gap-1 rounded-full bg-transparent font-medium text-foreground outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring-strong disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-40',
   {
     variants: {
       size: {
-        sm: 'h-7 px-2.5 text-xs',
-        md: 'h-9 px-3 text-sm',
+        sm: 'h-7 py-1 pl-[9px] pr-1.5 text-xs',
+        md: 'h-9 py-1.5 pl-3 pr-2.5 text-sm',
       },
     },
     defaultVariants: {
@@ -380,7 +382,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
             data-allow-shadow="true"
             data-side={position?.side}
             className={cx(
-              'fixed z-50 flex min-w-48 max-w-80 flex-col overflow-hidden rounded-xl border border-border bg-surface p-1 text-foreground shadow-lg outline-none',
+              'yak-select-menu fixed z-50 flex min-w-48 max-w-80 flex-col overflow-hidden rounded-xl border border-border bg-surface p-1 text-foreground outline-none',
               contentClassName,
             )}
             style={{
@@ -466,17 +468,23 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
         disabled={disabled}
-        data-allow-shadow="true"
+        data-open={open ? '' : undefined}
         className={cx(selectTriggerVariants({ size }), className)}
         onClick={() => {
           open ? closeAndRestoreFocus() : openSelect('selected');
         }}
         onKeyDown={handleTriggerKeyDown}
       >
-        <span className="truncate px-0.5">
-          {selectedOption?.label ?? placeholder}
+        <SelectTriggerEffects />
+        <span
+          data-button-content=""
+          className="relative z-20 flex min-w-0 items-center justify-center gap-1"
+        >
+          <span className="truncate px-0.5">
+            {selectedOption?.label ?? placeholder}
+          </span>
+          <ChevronIcon open={open} />
         </span>
-        <ChevronIcon open={open} />
       </button>
 
       {menu}

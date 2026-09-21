@@ -26,6 +26,7 @@ The initial primitive set is intentionally small:
 - `PromptComposer` owns reusable input mechanics such as autosizing, IME safety, Enter/Shift+Enter behavior, and submission state; it does not know what a prompt creates or edits
 - `Markdown` is the single renderer for message Markdown; features must not parse or render Markdown themselves
 - `Select` owns trigger, floating menu, radio selection, keyboard navigation, focus restoration, and viewport-aware positioning; features provide option data and optional footer content
+- `Select` trigger surface is owned by its layered chassis; feature code must not recreate or override its fill, rim, shadow, highlight, pressed, or engaged effects
 - feature-specific shortcuts, mode semantics, and labels such as Build or Plan stay outside `Select`
 - add a new primitive only after a real reusable boundary appears
 
