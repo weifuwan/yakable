@@ -65,9 +65,17 @@ describe('MessageItem', () => {
     expect(writeText).toHaveBeenCalledWith('Build a membership system');
     expect((await screen.findByRole('status')).textContent).toBe('Copied');
 
-    const copyButton = screen.getByRole('button', { name: 'Copy message' });
-    const successIcon = copyButton.querySelector('span[aria-hidden="true"]');
-    expect(successIcon?.className).toContain('bg-[#22A559]');
+    const copyIcon = screen.getByTestId('copy-message-icon');
+    expect(copyIcon.getAttribute('data-copied')).toBe('true');
+
+    const successCircle = copyIcon.querySelector('rect');
+    const check = copyIcon.querySelector('polyline');
+
+    expect(successCircle?.getAttribute('rx')).toBe('6.5');
+    expect(successCircle?.style.stroke).toBe('#467C2A');
+    expect(check?.style.opacity).toBe('1');
+    expect(check?.style.strokeDashoffset).toBe('0');
+    expect(check?.style.stroke).toBe('#467C2A');
   });
 
   it('edits the message inline and cancels without regenerating', () => {
