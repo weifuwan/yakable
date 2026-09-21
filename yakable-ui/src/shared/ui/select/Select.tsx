@@ -67,7 +67,7 @@ interface SelectPosition {
 
 const VIEWPORT_PADDING = 8;
 const CONTENT_GAP = 6;
-const MIN_CONTENT_HEIGHT = 96;
+const MIN_CONTENT_HEIGHT = 48;
 
 function CheckIcon() {
   return (
@@ -165,35 +165,38 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
     [closeAndRestoreFocus, onValueChange, options, value],
   );
 
-  const focusOption = useCallback((mode: 'selected' | 'first' | 'last') => {
-    const content = contentRef.current;
-    if (!content) return;
+  const focusOption = useCallback(
+    (mode: 'selected' | 'first' | 'last') => {
+      const content = contentRef.current;
+      if (!content) return;
 
-    const items = Array.from(
-      content.querySelectorAll<HTMLElement>(
-        '[data-select-option]:not([aria-disabled="true"])',
-      ),
-    );
-
-    if (items.length === 0) return;
-
-    if (mode === 'last') {
-      items.at(-1)?.focus();
-      return;
-    }
-
-    if (mode === 'selected' && currentValue) {
-      const selected = items.find(
-        (item) => item.dataset.value === currentValue,
+      const items = Array.from(
+        content.querySelectorAll<HTMLElement>(
+          '[data-select-option]:not([aria-disabled="true"])',
+        ),
       );
-      if (selected) {
-        selected.focus();
+
+      if (items.length === 0) return;
+
+      if (mode === 'last') {
+        items.at(-1)?.focus();
         return;
       }
-    }
 
-    items[0]?.focus();
-  }, [currentValue]);
+      if (mode === 'selected' && currentValue) {
+        const selected = items.find(
+          (item) => item.dataset.value === currentValue,
+        );
+        if (selected) {
+          selected.focus();
+          return;
+        }
+      }
+
+      items[0]?.focus();
+    },
+    [currentValue],
+  );
 
   const updatePosition = useCallback(() => {
     const trigger = triggerRef.current;
@@ -391,6 +394,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
               id={listboxId}
               role="listbox"
               aria-labelledby={triggerId}
+              tabIndex={-1}
               className="min-h-0 flex-1 overflow-y-auto"
               onKeyDown={handleContentKeyDown}
             >
