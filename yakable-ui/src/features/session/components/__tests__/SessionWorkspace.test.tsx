@@ -222,6 +222,14 @@ describe('SessionWorkspace', () => {
     expect(modelTrigger.textContent).toContain('DeepSeek');
     expect(modelTrigger.getAttribute('data-surface')).toBe('chassis');
     expect(
+      screen.queryByTestId('prompt-composer-animated-placeholder'),
+    ).toBeNull();
+    expect(
+      screen.getByRole('textbox', { name: 'Send a message' }).getAttribute(
+        'placeholder',
+      ),
+    ).toBe('Ask Yakable...');
+    expect(
       screen.queryByRole('status', { name: 'Loading session' }),
     ).toBeNull();
   });
