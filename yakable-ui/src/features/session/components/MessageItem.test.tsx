@@ -45,6 +45,8 @@ describe('MessageItem', () => {
 
     expect(copyButton.className).toContain('size-6');
     expect(editButton.className).toContain('size-6');
+    expect(copyButton.className).toContain('cursor-pointer');
+    expect(editButton.className).toContain('cursor-pointer');
     expect(copyButton.className).toContain('text-[#858585]');
     expect(editButton.className).toContain('text-[#858585]');
     expect(timestamp.className).toContain('text-[13px]');
@@ -68,14 +70,12 @@ describe('MessageItem', () => {
     const copyIcon = screen.getByTestId('copy-message-icon');
     expect(copyIcon.getAttribute('data-copied')).toBe('true');
 
-    const successCircle = copyIcon.querySelector('rect');
-    const check = copyIcon.querySelector('polyline');
-
-    expect(successCircle?.getAttribute('rx')).toBe('6.5');
-    expect(successCircle?.style.stroke).toBe('#467C2A');
-    expect(check?.style.opacity).toBe('1');
-    expect(check?.style.strokeDashoffset).toBe('0');
-    expect(check?.style.stroke).toBe('#467C2A');
+    const icons = copyIcon.querySelectorAll('svg');
+    expect(icons).toHaveLength(2);
+    expect(icons[0]?.getAttribute('class')).toContain('opacity-0');
+    expect(icons[1]?.getAttribute('class')).toContain('opacity-100');
+    expect(icons[1]?.getAttribute('class')).toContain('text-[#4F7F37]');
+    expect(icons[1]?.querySelector('circle')).toBeTruthy();
   });
 
   it('edits the message inline and cancels without regenerating', () => {
