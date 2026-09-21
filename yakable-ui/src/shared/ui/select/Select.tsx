@@ -119,7 +119,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
 ) {
   const generatedId = useId();
   const triggerId = id ?? `select-${generatedId}-trigger`;
-  const listboxId = `select-${generatedId}-listbox`;
+  const menuId = `select-${generatedId}-menu`;
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const initialFocusRef = useRef<'selected' | 'first' | 'last'>('selected');
@@ -391,8 +391,8 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
             }}
           >
             <div
-              id={listboxId}
-              role="listbox"
+              id={menuId}
+              role="menu"
               aria-labelledby={triggerId}
               tabIndex={-1}
               className="min-h-0 flex-1 overflow-y-auto"
@@ -405,8 +405,8 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
                   <button
                     key={option.value}
                     type="button"
-                    role="option"
-                    aria-selected={selected}
+                    role="menuitemradio"
+                    aria-checked={selected}
                     aria-disabled={option.disabled || undefined}
                     disabled={option.disabled}
                     data-select-option=""
@@ -462,10 +462,9 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
         ref={setTriggerRef}
         id={triggerId}
         type="button"
-        role="combobox"
-        aria-haspopup="listbox"
+        aria-haspopup="menu"
         aria-expanded={open}
-        aria-controls={open ? listboxId : undefined}
+        aria-controls={open ? menuId : undefined}
         disabled={disabled}
         data-allow-shadow="true"
         className={cx(selectTriggerVariants({ size }), className)}
