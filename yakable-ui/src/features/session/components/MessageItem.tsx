@@ -22,6 +22,7 @@ export type MessageRegenerateHandler = (
 const EDIT_TEXTAREA_MIN_HEIGHT = 48;
 const EDIT_TEXTAREA_MAX_HEIGHT = 160;
 const COMPOSITION_END_DELAY_MS = 50;
+const COPY_FEEDBACK_DURATION_MS = 1800;
 
 const messageDateFormatter = new Intl.DateTimeFormat('en-US', {
   month: 'short',
@@ -70,9 +71,11 @@ export function MessageItem({
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState(message.content);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [copied, setCopied] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isComposingRef = useRef(false);
   const compositionEndTimerRef = useRef<number | null>(null);
+  const copyFeedbackTimerRef = useRef<number | null>(null);
 
   const clearCompositionEndTimer = useCallback(() => {
     if (compositionEndTimerRef.current === null) return;
@@ -81,11 +84,19 @@ export function MessageItem({
     compositionEndTimerRef.current = null;
   }, []);
 
+  const clearCopyFeedbackTimer = useCallback(() => {
+    if (copyFeedbackTimerRef.current === null) return;
+
+    window.clearTimeout(copyFeedbackTimerRef.current);
+    copyFeedbackTimerRef.current = null;
+  }, []);
+
   useEffect(
     () => () => {
       clearCompositionEndTimer();
+      clearCopyFeedbackTimer();
     },
-    [clearCompositionEndTimer],
+    [clearCompositionEndTimer, clearCopyFeedbackTimer],
   );
 
   useLayoutEffect(() => {
@@ -112,7 +123,21 @@ export function MessageItem({
 
   const handleCopy = () => {
     if (!navigator.clipboard) return;
-    void navigator.clipboard.writeText(message.content);
+
+    void navigator.clipboard
+      .writeText(message.content)
+      .then(() => {
+        clearCopyFeedbackTimer();
+        setCopied(true);
+
+        copyFeedbackTimerRef.current = window.setTimeout(() => {
+          copyFeedbackTimerRef.current = null;
+          setCopied(false);
+        }, COPY_FEEDBACK_DURATION_MS);
+      })
+      .catch(() => {
+        // Clipboard permission or availability can fail silently.
+      });
   };
 
   const handleEdit = () => {
@@ -242,13 +267,34 @@ export function MessageItem({
                 type="button"
                 aria-label="Copy message"
                 title="Copy message"
-                className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-[#858585] outline-none transition-colors hover:bg-black/[0.05] hover:text-[#5F5F5F] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-black/40"
+                className="relative inline-flex size-6 shrink-0 items-center justify-center rounded-md text-[#858585] outline-none transition-colors hover:bg-black/[0.05] hover:text-[#5F5F5F] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-black/40"
                 onClick={handleCopy}
               >
-                <Icon size={15}>
-                  <rect x="9" y="9" width="10" height="10" rx="2" />
-                  <path d="M15 9V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" />
-                </Icon>
+                {copied && (
+                  <span
+                    role="status"
+                    data-allow-shadow="true"
+                    className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg border border-black/[0.08] bg-white px-2.5 py-1 text-xs font-medium text-[#20201e] shadow-sm"
+                  >
+                    Copied
+                  </span>
+                )}
+
+                {copied ? (
+                  <span
+                    aria-hidden="true"
+                    className="inline-flex size-[18px] items-center justify-center rounded-full bg-[#22A559] text-white"
+                  >
+                    <Icon size={12} strokeWidth={2.4}>
+                      <path d="m5 12 4 4L19 6" />
+                    </Icon>
+                  </span>
+                ) : (
+                  <Icon size={15}>
+                    <rect x="9" y="9" width="10" height="10" rx="2" />
+                    <path d="M15 9V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" />
+                  </Icon>
+                )}
               </button>
 
               {onRegenerate && (

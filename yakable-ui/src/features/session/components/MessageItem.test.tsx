@@ -51,7 +51,7 @@ describe('MessageItem', () => {
     expect(timestamp.className).toContain('text-[#858585]');
   });
 
-  it('copies the user message content', () => {
+  it('shows copied feedback after copying the user message content', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(window.navigator, 'clipboard', {
       configurable: true,
@@ -63,6 +63,11 @@ describe('MessageItem', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Copy message' }));
 
     expect(writeText).toHaveBeenCalledWith('Build a membership system');
+    expect((await screen.findByRole('status')).textContent).toBe('Copied');
+
+    const copyButton = screen.getByRole('button', { name: 'Copy message' });
+    const successIcon = copyButton.querySelector('span[aria-hidden="true"]');
+    expect(successIcon?.className).toContain('bg-[#22A559]');
   });
 
   it('edits the message inline and cancels without regenerating', () => {
