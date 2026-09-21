@@ -17,7 +17,7 @@ export function ProjectHeader({
   onToggleExpanded,
 }: ProjectHeaderProps) {
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between bg-[#F5F5F5] px-4">
+    <header className="flex h-14 shrink-0 items-center justify-between bg-workspace px-4">
       {loading ? (
         <div
           className="flex min-w-0 items-center gap-1.5"
@@ -26,23 +26,23 @@ export function ProjectHeader({
         >
           <span
             aria-hidden="true"
-            className="h-4 w-24 animate-pulse rounded-full bg-[#ECECEC]"
+            className="h-4 w-24 animate-pulse rounded-full bg-skeleton"
           />
           <span
             aria-hidden="true"
-            className="size-3 animate-pulse rounded-full bg-[#ECECEC]"
+            className="size-3 animate-pulse rounded-full bg-skeleton"
           />
         </div>
       ) : (
         <div className="flex min-w-0 items-center gap-1.5">
           <span
             title={title}
-            className="truncate text-sm font-semibold tracking-[-0.01em] text-[#20201e]"
+            className="truncate text-sm font-semibold tracking-[-0.01em] text-foreground"
           >
             {title}
           </span>
 
-          <Icon size={14} className="shrink-0 text-black/40">
+          <Icon size={14} className="shrink-0 text-foreground-subtle">
             <path d="m7 10 5 5 5-5" />
           </Icon>
         </div>
