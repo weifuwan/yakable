@@ -5,3 +5,4 @@ export * from './icon-button';
 export * from './input';
 export * from './markdown';
 export * from './prompt-composer';
+export * from './select';
