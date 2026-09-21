@@ -88,7 +88,7 @@ function SessionLoadingIndicator() {
     >
       <svg
         aria-hidden="true"
-        className="size-5 animate-spin text-black/35"
+        className="size-5 animate-spin text-[#B0B0B0]"
         viewBox="0 0 24 24"
         fill="none"
       >
@@ -97,14 +97,14 @@ function SessionLoadingIndicator() {
           strokeWidth="2"
           strokeLinecap="round"
         >
-          <path d="M12 3v3" opacity="1" />
-          <path d="m18.36 5.64-2.12 2.12" opacity=".85" />
-          <path d="M21 12h-3" opacity=".7" />
-          <path d="m18.36 18.36-2.12-2.12" opacity=".55" />
-          <path d="M12 21v-3" opacity=".4" />
-          <path d="m5.64 18.36 2.12-2.12" opacity=".3" />
-          <path d="M3 12h3" opacity=".2" />
-          <path d="m5.64 5.64 2.12 2.12" opacity=".12" />
+          <path d="M12 3v3" />
+          <path d="m18.36 5.64-2.12 2.12" />
+          <path d="M21 12h-3" />
+          <path d="m18.36 18.36-2.12-2.12" />
+          <path d="M12 21v-3" />
+          <path d="m5.64 18.36 2.12-2.12" />
+          <path d="M3 12h3" />
+          <path d="m5.64 5.64 2.12 2.12" />
         </g>
       </svg>
     </div>
