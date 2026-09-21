@@ -73,6 +73,22 @@ describe('Select', () => {
     );
   });
 
+  it('keeps the selected item background neutral and uses only the checkmark', async () => {
+    const user = userEvent.setup();
+
+    render(<Select defaultValue="build" options={options} />);
+
+    await user.click(screen.getByRole('button', { name: /Build/ }));
+
+    const selected = screen.getByRole('menuitemradio', {
+      name: 'Build Make changes directly',
+    });
+
+    expect(selected.getAttribute('aria-checked')).toBe('true');
+    expect(selected.className).toContain('focus:bg-transparent');
+    expect(selected.className).toContain('hover:bg-transparent');
+  });
+
   it('updates uncontrolled value and closes after selection', async () => {
     const user = userEvent.setup();
     const onValueChange = vi.fn();

@@ -415,7 +415,9 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
                     data-value={option.value}
                     className={cx(
                       'relative flex min-h-8 w-full cursor-pointer items-start rounded-lg px-2 py-2 pr-8 text-left text-sm outline-none transition-colors',
-                      'hover:bg-surface-hover focus:bg-surface-hover',
+                      selected
+                        ? 'hover:bg-transparent focus:bg-transparent'
+                        : 'hover:bg-surface-hover focus:bg-surface-hover',
                       'disabled:pointer-events-none disabled:opacity-40',
                     )}
                     onClick={() => selectValue(option.value)}
