@@ -29,6 +29,9 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 public class UserServiceImpl implements UserService {
 
+    private static final String DUMMY_PASSWORD_HASH =
+            "$2y$10$EkT/cJxMLzor7bAEyFaWAeCuBMd8aLCzz1KhoCYe5eWM7OgaZ3EOy";
+
     @Resource
     private UserRepository userRepository;
 
@@ -41,7 +44,9 @@ public class UserServiceImpl implements UserService {
     @Override
     public CurrentUserVO authenticateUser(LoginDTO dto) {
         UserEntity user = userRepository.queryUserByUsername(dto.username());
-        if (user == null || !passwordEncoder.matches(dto.password(), user.getPasswordHash())) {
+        String passwordHash = user == null ? DUMMY_PASSWORD_HASH : user.getPasswordHash();
+        boolean passwordMatches = passwordEncoder.matches(dto.password(), passwordHash);
+        if (user == null || !passwordMatches) {
             throw new AuthException(AuthErrorCode.INVALID_CREDENTIALS);
         }
         ensureActive(user);

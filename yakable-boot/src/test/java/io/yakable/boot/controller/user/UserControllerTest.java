@@ -3,6 +3,7 @@ package io.yakable.boot.controller.user;
 import io.yakable.boot.configuration.exception.GlobalExceptionHandler;
 import io.yakable.boot.configuration.security.AuthCookieConstant;
 import io.yakable.boot.configuration.security.AuthSessionAuthenticationFilter;
+import io.yakable.boot.configuration.security.CsrfCookieFilter;
 import io.yakable.boot.configuration.security.SecurityConfiguration;
 import io.yakable.common.bean.PageData;
 import io.yakable.common.bean.dto.user.*;
@@ -26,6 +27,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -33,8 +35,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(UserController.class)
-@Import({GlobalExceptionHandler.class, SecurityConfiguration.class, AuthSessionAuthenticationFilter.class})
+@Import({
+        GlobalExceptionHandler.class,
+        SecurityConfiguration.class,
+        AuthSessionAuthenticationFilter.class,
+        CsrfCookieFilter.class
+})
 class UserControllerTest {
+
+    private static final String CSRF_HEADER = "X-XSRF-TOKEN";
+    private static final String CSRF_TOKEN = "csrf-token";
 
     @Autowired
     private MockMvc mockMvc;
@@ -74,6 +84,26 @@ class UserControllerTest {
     }
 
     @Test
+    void shouldRejectAdminMutationWithoutCsrf() throws Exception {
+        when(authService.queryCurrentUser(any())).thenReturn(currentUser("admin-1", "ADMIN"));
+
+        mockMvc.perform(post("/api/users")
+                        .cookie(sessionCookie())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "username": "alice",
+                                  "name": "Alice",
+                                  "password": "password123"
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(30004));
+
+        verify(userService, never()).addUser(any());
+    }
+
+    @Test
     void shouldCreateUserWithCurrentAdminAsOperator() throws Exception {
         when(authService.queryCurrentUser(any())).thenReturn(currentUser("admin-1", "ADMIN"));
         UserVO created = new UserVO();
@@ -84,7 +114,8 @@ class UserControllerTest {
         when(userService.addUser(any(AddUserDTO.class))).thenReturn(created);
 
         mockMvc.perform(post("/api/users")
-                        .cookie(sessionCookie())
+                        .cookie(sessionCookie(), csrfCookie())
+                        .header(CSRF_HEADER, CSRF_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -107,7 +138,8 @@ class UserControllerTest {
         when(authService.queryCurrentUser(any())).thenReturn(currentUser("admin-1", "ADMIN"));
 
         mockMvc.perform(put("/api/users/user-1/status")
-                        .cookie(sessionCookie())
+                        .cookie(sessionCookie(), csrfCookie())
+                        .header(CSRF_HEADER, CSRF_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -129,7 +161,8 @@ class UserControllerTest {
                 .thenReturn(currentUser("user-1", "USER"));
 
         mockMvc.perform(put("/api/users/me")
-                        .cookie(sessionCookie())
+                        .cookie(sessionCookie(), csrfCookie())
+                        .header(CSRF_HEADER, CSRF_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -149,7 +182,8 @@ class UserControllerTest {
         when(authService.queryCurrentUser(any())).thenReturn(currentUser("user-1", "USER"));
 
         mockMvc.perform(put("/api/users/me/password")
-                        .cookie(sessionCookie())
+                        .cookie(sessionCookie(), csrfCookie())
+                        .header(CSRF_HEADER, CSRF_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -173,7 +207,8 @@ class UserControllerTest {
                 .thenThrow(new UserException(UserErrorCode.USERNAME_EXISTS));
 
         mockMvc.perform(post("/api/users")
-                        .cookie(sessionCookie())
+                        .cookie(sessionCookie(), csrfCookie())
+                        .header(CSRF_HEADER, CSRF_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -188,6 +223,10 @@ class UserControllerTest {
 
     private static Cookie sessionCookie() {
         return new Cookie(AuthCookieConstant.SESSION_COOKIE, "session-token");
+    }
+
+    private static Cookie csrfCookie() {
+        return new Cookie("XSRF-TOKEN", CSRF_TOKEN);
     }
 
     private static CurrentUserVO currentUser(String id, String role) {

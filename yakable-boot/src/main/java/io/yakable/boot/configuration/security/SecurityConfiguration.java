@@ -16,6 +16,9 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfFilter;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 
 import java.io.IOException;
 
@@ -31,10 +34,24 @@ public class SecurityConfiguration {
     }
 
     @Bean
+    public CookieCsrfTokenRepository csrfTokenRepository() {
+        CookieCsrfTokenRepository repository = CookieCsrfTokenRepository.withHttpOnlyFalse();
+        repository.setCookiePath("/");
+        repository.setCookieCustomizer(cookie -> cookie.sameSite("Strict"));
+        return repository;
+    }
+
+    @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
-            AuthSessionAuthenticationFilter authSessionAuthenticationFilter) throws Exception {
-        http.csrf(AbstractHttpConfigurer::disable)
+            AuthSessionAuthenticationFilter authSessionAuthenticationFilter,
+            CsrfCookieFilter csrfCookieFilter,
+            CookieCsrfTokenRepository csrfTokenRepository) throws Exception {
+        CsrfTokenRequestAttributeHandler csrfRequestHandler = new CsrfTokenRequestAttributeHandler();
+
+        http.csrf(csrf -> csrf
+                        .csrfTokenRepository(csrfTokenRepository)
+                        .csrfTokenRequestHandler(csrfRequestHandler))
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable)
@@ -59,6 +76,7 @@ public class SecurityConfiguration {
                                 writeError(response, HttpServletResponse.SC_UNAUTHORIZED, AuthErrorCode.UNAUTHORIZED))
                         .accessDeniedHandler((request, response, accessDeniedException) ->
                                 writeError(response, HttpServletResponse.SC_FORBIDDEN, AuthErrorCode.FORBIDDEN)))
+                .addFilterAfter(csrfCookieFilter, CsrfFilter.class)
                 .addFilterBefore(authSessionAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

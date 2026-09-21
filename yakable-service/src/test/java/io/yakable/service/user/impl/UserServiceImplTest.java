@@ -69,6 +69,7 @@ class UserServiceImplTest {
                 .isInstanceOf(AuthException.class)
                 .satisfies(exception ->
                         assertThat(((AuthException) exception).getErrorCode()).isEqualTo(AuthErrorCode.INVALID_CREDENTIALS));
+        verify(passwordEncoder).matches(eq("password123"), startsWith("$2y$10$"));
     }
 
     @Test
@@ -82,6 +83,29 @@ class UserServiceImplTest {
                 .satisfies(exception ->
                         assertThat(((AuthException) exception).getErrorCode()).isEqualTo(AuthErrorCode.ACCOUNT_DISABLED));
         verify(userRepository, never()).update(user);
+    }
+
+    @Test
+    void shouldAllowReenabledUserToAuthenticateWithExistingPassword() {
+        UserEntity target = user("user-1", UserRoleEnum.USER, UserStatusEnum.DISABLED);
+        when(userRepository.queryById("user-1")).thenReturn(Optional.of(target));
+        when(userRepository.updateUserStatus(
+                eq("user-1"), eq(UserStatusEnum.DISABLED), eq(UserStatusEnum.ACTIVE), any(LocalDateTime.class), eq("admin-1")))
+                .thenReturn(1);
+
+        UpdateUserStatusDTO status = new UpdateUserStatusDTO();
+        status.setUserId("user-1");
+        status.setOperatorId("admin-1");
+        status.setStatus(UserStatusEnum.ACTIVE);
+        userService.updateUserStatus(status);
+
+        when(userRepository.queryUserByUsername("user")).thenReturn(target);
+        when(passwordEncoder.matches("password123", "hash")).thenReturn(true);
+
+        CurrentUserVO result = userService.authenticateUser(new LoginDTO("user", "password123"));
+
+        assertThat(target.getStatus()).isEqualTo(UserStatusEnum.ACTIVE);
+        assertThat(result.getId()).isEqualTo("user-1");
     }
 
     @Test

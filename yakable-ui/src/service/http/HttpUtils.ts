@@ -47,6 +47,28 @@ type UnauthorizedHandler = () => void;
 
 let unauthorizedHandler: UnauthorizedHandler | null = null;
 
+const CSRF_COOKIE = 'XSRF-TOKEN';
+const CSRF_HEADER = 'X-XSRF-TOKEN';
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS', 'TRACE']);
+
+function readCookie(name: string) {
+  if (typeof document === 'undefined') return null;
+
+  const prefix = name + '=';
+  const value = document.cookie
+    .split(';')
+    .map((item) => item.trim())
+    .find((item) => item.startsWith(prefix));
+  return value ? decodeURIComponent(value.slice(prefix.length)) : null;
+}
+
+function csrfHeaders(method: string | undefined) {
+  if (SAFE_METHODS.has((method ?? 'GET').toUpperCase())) return {};
+
+  const token = readCookie(CSRF_COOKIE);
+  return token ? { [CSRF_HEADER]: token } : {};
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -196,6 +218,7 @@ export class HttpUtils {
         headers: {
           Accept: 'text/event-stream',
           'Content-Type': 'application/json',
+          ...csrfHeaders('POST'),
         },
         body: JSON.stringify(body),
         signal: options.signal,
@@ -251,6 +274,7 @@ export class HttpUtils {
         headers: {
           Accept: 'application/json',
           ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+          ...csrfHeaders(init.method),
         },
       });
     } catch (error) {
