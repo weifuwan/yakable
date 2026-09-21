@@ -5,14 +5,6 @@ export interface ProjectSummary {
   updatedAt: string;
 }
 
-export interface ProjectPage {
-  records: ProjectSummary[];
-  total: number;
-  pages: number;
-  current: number;
-  pageSize: number;
-}
-
 export interface ProjectModel {
   provider: string;
   model: string;

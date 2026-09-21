@@ -2,9 +2,21 @@ import { ApiError, HttpUtils } from '../http';
 import type {
   CreateProjectInput,
   ProjectDetails,
-  ProjectPage,
   ProjectSummary,
 } from './types';
+
+interface PageData<T> {
+  records: T[];
+  total: number;
+  pages: number;
+  current: number;
+  pageSize: number;
+}
+
+interface PageQuery {
+  current: number;
+  pageSize: number;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -28,7 +40,9 @@ function isProjectDetails(value: unknown): value is ProjectDetails {
   );
 }
 
-function isProjectPage(value: unknown): value is ProjectPage {
+function isProjectPageData(
+  value: unknown,
+): value is PageData<ProjectSummary> {
   return (
     isRecord(value) &&
     Array.isArray(value.records) &&
@@ -44,32 +58,39 @@ function invalidResponse(message: string, data: unknown): never {
   throw new ApiError(message, { kind: 'parse', data });
 }
 
-async function queryProjectPage(
-  current = 1,
-  pageSize = 50,
+async function queryProject(
+  query: PageQuery,
+  signal?: AbortSignal,
+): Promise<PageData<ProjectSummary>>;
+async function queryProject(
+  projectId: string,
+  signal?: AbortSignal,
+): Promise<ProjectDetails>;
+async function queryProject(
+  queryOrProjectId: PageQuery | string,
   signal?: AbortSignal,
 ) {
+  if (typeof queryOrProjectId === 'string') {
+    const data = await HttpUtils.get<unknown>(
+      '/api/projects/' + encodeURIComponent(queryOrProjectId),
+      { signal },
+    );
+    return isProjectDetails(data)
+      ? data
+      : invalidResponse('Project API returned an invalid project.', data);
+  }
+
   const params = new URLSearchParams({
-    current: String(current),
-    pageSize: String(pageSize),
+    current: String(queryOrProjectId.current),
+    pageSize: String(queryOrProjectId.pageSize),
   });
   const data = await HttpUtils.get<unknown>(
     '/api/projects?' + params.toString(),
     { signal },
   );
-  return isProjectPage(data)
+  return isProjectPageData(data)
     ? data
-    : invalidResponse('Project API returned an invalid page.', data);
-}
-
-async function queryProject(projectId: string, signal?: AbortSignal) {
-  const data = await HttpUtils.get<unknown>(
-    '/api/projects/' + encodeURIComponent(projectId),
-    { signal },
-  );
-  return isProjectDetails(data)
-    ? data
-    : invalidResponse('Project API returned an invalid project.', data);
+    : invalidResponse('Project API returned invalid PageData.', data);
 }
 
 async function addProject(input: CreateProjectInput, signal?: AbortSignal) {
@@ -80,7 +101,6 @@ async function addProject(input: CreateProjectInput, signal?: AbortSignal) {
 }
 
 export const ProjectService = {
-  queryProjectPage,
   queryProject,
   addProject,
 };

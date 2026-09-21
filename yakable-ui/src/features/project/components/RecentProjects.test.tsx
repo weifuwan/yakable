@@ -1,4 +1,10 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -15,6 +21,15 @@ function apiResponse(data: unknown) {
     JSON.stringify({ code: 0, message: 'Success', data }),
     { status: 200, headers: { 'Content-Type': 'application/json' } },
   );
+}
+
+function project(index: number) {
+  return {
+    id: `project-${index}`,
+    name: `Project ${index}`,
+    latestSessionId: `session-${index}`,
+    updatedAt: new Date(Date.UTC(2026, 8, 30 - index)).toISOString(),
+  };
 }
 
 function UpsertProjectButton() {
@@ -38,7 +53,7 @@ function UpsertProjectButton() {
 }
 
 describe('RecentProjects', () => {
-  it('shows skeleton rows while recent projects are loading', () => {
+  it('shows twenty skeleton rows while the first page is loading', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockReturnValue(new Promise<Response>(() => undefined)),
@@ -53,15 +68,14 @@ describe('RecentProjects', () => {
     );
 
     const skeleton = screen.getByTestId('recent-projects-skeleton');
+    const rows = Array.from(skeleton.children);
 
     expect(screen.getByRole('status').textContent).toContain(
       'Loading recent projects',
     );
     expect(skeleton.className).toContain('gap-0.5');
-    expect(skeleton.children).toHaveLength(6);
+    expect(rows).toHaveLength(20);
 
-    const rows = Array.from(skeleton.querySelectorAll('[aria-hidden="true"]'));
-    expect(rows).toHaveLength(5);
     rows.forEach((row) => {
       expect(row.className).toContain('h-8');
       expect(row.className).toContain('px-2');
@@ -71,26 +85,54 @@ describe('RecentProjects', () => {
     expect(screen.queryByText('Loading...')).toBeNull();
   });
 
-  it('shows the five most recently updated projects and marks the project route active', async () => {
-    const projects = Array.from({ length: 6 }, (_, index) => ({
-      id: `project-${index + 1}`,
-      name: `Project ${index + 1}`,
-      latestSessionId: `session-${index + 1}`,
-      updatedAt: new Date(Date.UTC(2026, 8, 6 - index)).toISOString(),
-    }));
-
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(
-        apiResponse({
-          records: projects,
-          total: projects.length,
-          pages: 1,
-          current: 1,
-          pageSize: 50,
-        }),
-      ),
+  it('loads twenty projects first and appends the next page when the sentinel becomes visible', async () => {
+    const firstPage = Array.from({ length: 20 }, (_, index) => project(index + 1));
+    const secondPage = Array.from(
+      { length: 20 },
+      (_, index) => project(index + 21),
     );
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.includes('current=2')) {
+        return apiResponse({
+          records: secondPage,
+          total: 40,
+          pages: 2,
+          current: 2,
+          pageSize: 20,
+        });
+      }
+
+      return apiResponse({
+        records: firstPage,
+        total: 40,
+        pages: 2,
+        current: 1,
+        pageSize: 20,
+      });
+    });
+
+    let intersectionCallback: IntersectionObserverCallback | null = null;
+    const observe = vi.fn();
+    const disconnect = vi.fn();
+
+    class IntersectionObserverMock {
+      constructor(callback: IntersectionObserverCallback) {
+        intersectionCallback = callback;
+      }
+
+      observe = observe;
+      disconnect = disconnect;
+      unobserve = vi.fn();
+      takeRecords = () => [];
+      root = null;
+      rootMargin = '0px';
+      thresholds = [0];
+    }
+
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('IntersectionObserver', IntersectionObserverMock);
 
     render(
       <MemoryRouter
@@ -105,11 +147,40 @@ describe('RecentProjects', () => {
     );
 
     expect(await screen.findByRole('link', { name: 'Project 1' })).toBeTruthy();
-    expect(screen.queryByRole('link', { name: 'Project 6' })).toBeNull();
-    expect(screen.getAllByRole('link')).toHaveLength(5);
+    expect(screen.getAllByRole('link')).toHaveLength(20);
     expect(
       screen.getByRole('link', { name: 'Project 5' }).getAttribute('aria-current'),
     ).toBe('page');
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/projects?current=1&pageSize=20',
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+      }),
+    );
+    expect(observe).toHaveBeenCalledWith(
+      screen.getByTestId('recent-projects-load-more'),
+    );
+
+    await act(async () => {
+      intersectionCallback?.(
+        [{ isIntersecting: true } as IntersectionObserverEntry],
+        {} as IntersectionObserver,
+      );
+    });
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/projects?current=2&pageSize=20',
+        expect.anything(),
+      );
+    });
+
+    expect(await screen.findByRole('link', { name: 'Project 40' })).toBeTruthy();
+    expect(screen.getAllByRole('link')).toHaveLength(40);
+    expect(
+      screen.queryByTestId('recent-projects-load-more'),
+    ).toBeNull();
+    expect(disconnect).toHaveBeenCalled();
   });
 
   it('shows an upserted project after the initial project list request fails', async () => {
