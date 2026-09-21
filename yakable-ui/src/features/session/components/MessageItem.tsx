@@ -60,6 +60,65 @@ function resizeEditTextarea(element: HTMLTextAreaElement | null) {
     element.scrollHeight > EDIT_TEXTAREA_MAX_HEIGHT ? 'auto' : 'hidden';
 }
 
+function CopyStatusIcon({ copied }: { copied: boolean }) {
+  return (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      data-testid="copy-message-icon"
+      data-copied={copied ? 'true' : 'false'}
+      className="size-[15px]"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path
+        d="M19 15h1a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2h-9a2 2 0 0 0-2 2v1"
+        style={{
+          opacity: copied ? 0 : 1,
+          transition: copied
+            ? 'opacity 150ms ease-out'
+            : 'opacity 150ms ease-out 180ms',
+        }}
+      />
+      <rect
+        x="2"
+        y="9"
+        width="13"
+        height="13"
+        rx={copied ? 6 : 2}
+        ry={copied ? 6 : 2}
+        style={{
+          transform: copied
+            ? 'translate(0px, 0px) scale(0.95)'
+            : 'translate(0px, 0px) scale(1)',
+          transformOrigin: '8.5px 15.5px',
+          strokeWidth: 2,
+          color: 'currentcolor',
+          stroke: 'currentcolor',
+          transition:
+            'rx 220ms ease-in-out, ry 220ms ease-in-out, transform 220ms ease-in-out, stroke-width 220ms ease-in-out, stroke 150ms ease-in-out 100ms',
+        }}
+      />
+      <polyline
+        points="8 12.5 11 15.5 15.5 9"
+        style={{
+          strokeDasharray: 20,
+          strokeDashoffset: copied ? 0 : 20,
+          opacity: copied ? 1 : 0,
+          stroke: '#22A559',
+          transition: copied
+            ? 'stroke-dashoffset 120ms ease-in, opacity 80ms ease-in'
+            : 'stroke-dashoffset 120ms ease-out, opacity 80ms ease-out',
+        }}
+      />
+    </svg>
+  );
+}
+
 export function MessageItem({
   message,
   onRegenerate,
@@ -280,21 +339,7 @@ export function MessageItem({
                   </span>
                 )}
 
-                {copied ? (
-                  <span
-                    aria-hidden="true"
-                    className="inline-flex size-[18px] items-center justify-center rounded-full bg-[#22A559] text-white"
-                  >
-                    <Icon size={12} strokeWidth={2.4}>
-                      <path d="m5 12 4 4L19 6" />
-                    </Icon>
-                  </span>
-                ) : (
-                  <Icon size={15}>
-                    <rect x="9" y="9" width="10" height="10" rx="2" />
-                    <path d="M15 9V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" />
-                  </Icon>
-                )}
+                <CopyStatusIcon copied={copied} />
               </button>
 
               {onRegenerate && (
