@@ -32,6 +32,7 @@ function apiResponse(
 }
 
 afterEach(() => {
+  document.cookie = 'XSRF-TOKEN=; Max-Age=0; path=/';
   setUnauthorizedHandler(null);
   vi.unstubAllGlobals();
 });
@@ -78,6 +79,26 @@ describe('HttpUtils', () => {
         headers: {
           Accept: 'application/json',
           'Content-Type': 'application/json',
+        },
+      }),
+    );
+  });
+
+  it('sends the CSRF cookie value for unsafe requests', async () => {
+    document.cookie = 'XSRF-TOKEN=csrf-token; path=/';
+    const fetchMock = vi.fn().mockResolvedValue(apiResponse(null));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await HttpUtils.post('/api/auth/logout', {});
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/auth/logout',
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'X-XSRF-TOKEN': 'csrf-token',
         },
       }),
     );

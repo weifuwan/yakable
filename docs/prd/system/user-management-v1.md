@@ -1,6 +1,6 @@
 # Yakable 用户管理 PRD V1
 
-> 状态：Draft  
+> 状态：Done  
 > 版本：V1  
 > 范围：系统用户管理
 
