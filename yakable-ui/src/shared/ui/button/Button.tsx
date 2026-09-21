@@ -11,10 +11,10 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variants: Record<ButtonVariant, string> = {
-  primary: 'bg-[#20201e] text-white hover:bg-[#343431]',
+  primary: 'bg-primary text-primary-foreground hover:bg-primary-hover',
   secondary:
-    'border border-black/[0.12] bg-white text-[#20201e] hover:bg-black/[0.03]',
-  ghost: 'bg-transparent text-[#20201e] hover:bg-black/[0.05]',
+    'border border-border-control bg-surface text-foreground hover:bg-surface-hover-subtle',
+  ghost: 'bg-transparent text-foreground hover:bg-surface-hover',
 };
 
 const sizes: Record<ButtonSize, string> = {
@@ -37,7 +37,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       ref={ref}
       type={type}
       className={cx(
-        'inline-flex shrink-0 items-center justify-center gap-2 rounded-lg font-medium outline-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black/50 disabled:pointer-events-none disabled:opacity-40',
+        'inline-flex shrink-0 items-center justify-center gap-2 rounded-lg font-medium outline-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring-strong disabled:pointer-events-none disabled:opacity-40',
         variants[variant],
         sizes[size],
         className,
