@@ -89,6 +89,11 @@ const started: TurnStartResult = {
   },
 };
 
+const selectedModel = {
+  provider: 'kimi',
+  model: 'kimi-k3',
+};
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -139,6 +144,7 @@ describe('SessionService', () => {
       'project-1',
       'session-1',
       'Tell me more',
+      selectedModel,
       {
         onStarted,
         onDelta,
@@ -147,7 +153,11 @@ describe('SessionService', () => {
 
     expect(postSse).toHaveBeenCalledWith(
       '/api/projects/project-1/sessions/session-1/turns/stream',
-      { content: 'Tell me more' },
+      {
+        content: 'Tell me more',
+        provider: 'kimi',
+        model: 'kimi-k3',
+      },
       expect.any(Function),
       { signal: undefined },
     );
@@ -170,6 +180,7 @@ describe('SessionService', () => {
         'project-1',
         'session-1',
         'Hello',
+        selectedModel,
         {
           onStarted: vi.fn(),
           onDelta: vi.fn(),
