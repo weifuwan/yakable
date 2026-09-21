@@ -17,6 +17,8 @@ The initial primitive set is intentionally small:
 - product features import primitives from `@/shared/ui`
 - prefer native HTML semantics and preserve keyboard/focus behavior
 - `Button` and `IconButton` default to `type="button"` to avoid accidental form submission
+- `Button` visual intent must be expressed through its `variant` and `size` contract; feature code must not redefine button color, background, border, radius, or control height through `className`
+- `Button className` is an escape hatch for layout concerns such as width, positioning, or surrounding spacing; use `asChild` when a link or another element needs Button presentation while keeping its native semantics
 - every `IconButton` requires an accessible `aria-label`
 - `Icon` is decorative by default; provide `label` only when the icon itself carries meaning
 - feature-specific composites stay with the owning feature instead of being promoted into `shared/ui` early
