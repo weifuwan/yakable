@@ -10,5 +10,6 @@ import jakarta.validation.constraints.NotBlank;
 public record CancelTurnDTO(
         @Schema(description = "Project ID") @NotBlank String projectId,
         @Schema(description = "Session ID") @NotBlank String sessionId,
-        @Schema(description = "Turn ID") @NotBlank String turnId) {
+        @Schema(description = "Turn ID") @NotBlank String turnId,
+        @Schema(hidden = true) @NotBlank String userId) {
 }

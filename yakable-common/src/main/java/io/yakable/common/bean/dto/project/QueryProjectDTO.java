@@ -7,7 +7,9 @@ import jakarta.validation.constraints.NotBlank;
  * 查询单个 Project 入参。
  *
  * @param projectId Project ID
+ * @param userId 当前用户ID
  */
 @Schema(description = "查询 Project 参数")
 public record QueryProjectDTO(
-        @Schema(description = "Project ID") @NotBlank String projectId) {}
+        @Schema(description = "Project ID") @NotBlank String projectId,
+        @Schema(hidden = true) @NotBlank String userId) {}

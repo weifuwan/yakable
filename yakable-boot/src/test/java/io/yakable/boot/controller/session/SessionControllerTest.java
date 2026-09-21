@@ -5,12 +5,16 @@ import io.yakable.common.bean.dto.session.AddTurnDTO;
 import io.yakable.common.bean.vo.session.MessageVO;
 import io.yakable.common.bean.vo.session.TurnStartVO;
 import io.yakable.common.bean.vo.session.TurnVO;
+import io.yakable.common.bean.vo.user.CurrentUserVO;
+import io.yakable.common.enums.session.MessageRoleEnum;
 import io.yakable.common.enums.session.SessionErrorCode;
 import io.yakable.common.exception.SessionException;
 import io.yakable.core.llm.LlmResponse;
 import io.yakable.core.llm.LlmStreamEvent;
 import io.yakable.core.llm.LlmUsage;
 import io.yakable.service.session.SessionService;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,10 +23,13 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -52,8 +59,25 @@ class SessionControllerTest {
     @MockBean
     private SessionService sessionService;
 
+    @BeforeEach
+    void setCurrentUser() {
+        CurrentUserVO user = new CurrentUserVO();
+        user.setId("user-1");
+        user.setUsername("alice");
+        user.setName("Alice");
+        user.setRole("USER");
+        user.setStatus("ACTIVE");
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(user, null, List.of()));
+    }
+
+    @AfterEach
+    void clearCurrentUser() {
+        SecurityContextHolder.clearContext();
+    }
+
     @Test
-    void shouldAcceptNewTurn() throws Exception {
+    void shouldAcceptNewTurnForCurrentUser() throws Exception {
         when(sessionService.addTurn(any(AddTurnDTO.class))).thenReturn(turnStart("turn-1", "message-1"));
 
         mockMvc.perform(post("/api/projects/project-1/sessions/session-1/turns")
@@ -77,6 +101,7 @@ class SessionControllerTest {
         assertThat(captor.getValue().provider()).isEqualTo("kimi");
         assertThat(captor.getValue().model()).isEqualTo("kimi-k3");
         assertThat(captor.getValue().content()).isEqualTo("Tell me more");
+        assertThat(captor.getValue().userId()).isEqualTo("user-1");
     }
 
     @Test
@@ -114,7 +139,7 @@ class SessionControllerTest {
     }
 
     @Test
-    void shouldExposeStartedDeltaAndCompleteAsSseEvents() throws Exception {
+    void shouldExposeStartedDeltaAndCompleteAsSseEventsForCurrentUser() throws Exception {
         TurnStartVO started = turnStart("turn-1", "message-1");
         when(sessionService.addStreamingTurn(any(AddTurnDTO.class))).thenReturn(started);
 
@@ -143,6 +168,10 @@ class SessionControllerTest {
                 .andExpect(request().asyncStarted())
                 .andReturn();
 
+        ArgumentCaptor<AddTurnDTO> captor = ArgumentCaptor.forClass(AddTurnDTO.class);
+        verify(sessionService).addStreamingTurn(captor.capture());
+        assertThat(captor.getValue().userId()).isEqualTo("user-1");
+
         mockMvc.perform(asyncDispatch(result))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM))
@@ -164,7 +193,7 @@ class SessionControllerTest {
         MessageVO message = new MessageVO();
         message.setId(messageId);
         message.setTurnId(turnId);
-        message.setRole("USER");
+        message.setRole(MessageRoleEnum.USER.name());
         message.setContent("Tell me more");
         message.setSequence(1L);
         message.setCreatedAt(LocalDateTime.of(2026, 9, 21, 9, 0));

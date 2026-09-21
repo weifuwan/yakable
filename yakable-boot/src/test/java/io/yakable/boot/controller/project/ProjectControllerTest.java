@@ -1,12 +1,18 @@
 package io.yakable.boot.controller.project;
 
 import io.yakable.boot.configuration.exception.GlobalExceptionHandler;
+import io.yakable.common.bean.PageData;
 import io.yakable.common.bean.dto.project.AddProjectDTO;
 import io.yakable.common.bean.dto.project.QueryProjectDTO;
+import io.yakable.common.bean.dto.project.QueryProjectPageDTO;
 import io.yakable.common.bean.vo.project.ProjectDetailVO;
+import io.yakable.common.bean.vo.project.ProjectListVO;
+import io.yakable.common.bean.vo.user.CurrentUserVO;
 import io.yakable.common.enums.project.ProjectErrorCode;
 import io.yakable.common.exception.ProjectException;
 import io.yakable.service.project.ProjectService;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,9 +21,12 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -39,8 +48,25 @@ class ProjectControllerTest {
     @MockBean
     private ProjectService projectService;
 
+    @BeforeEach
+    void setCurrentUser() {
+        CurrentUserVO user = new CurrentUserVO();
+        user.setId("user-1");
+        user.setUsername("alice");
+        user.setName("Alice");
+        user.setRole("USER");
+        user.setStatus("ACTIVE");
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(user, null, List.of()));
+    }
+
+    @AfterEach
+    void clearCurrentUser() {
+        SecurityContextHolder.clearContext();
+    }
+
     @Test
-    void shouldCreateProjectWithStableHttpContract() throws Exception {
+    void shouldCreateProjectForCurrentUser() throws Exception {
         ProjectDetailVO project = new ProjectDetailVO();
         project.setId("project-1");
         project.setName("Build a CRM");
@@ -68,9 +94,43 @@ class ProjectControllerTest {
 
         ArgumentCaptor<AddProjectDTO> captor = ArgumentCaptor.forClass(AddProjectDTO.class);
         verify(projectService).addProject(captor.capture());
+        assertThat(captor.getValue().userId()).isEqualTo("user-1");
         assertThat(captor.getValue().prompt()).isEqualTo("Build a CRM");
         assertThat(captor.getValue().model().provider()).isEqualTo("deepseek");
-        assertThat(captor.getValue().model().model()).isEqualTo("deepseek-flash");
+    }
+
+    @Test
+    void shouldQueryProjectListForCurrentUser() throws Exception {
+        when(projectService.queryProject(any(QueryProjectPageDTO.class)))
+                .thenReturn(new PageData<>(List.<ProjectListVO>of(), 0, 0, 1, 20));
+
+        mockMvc.perform(get("/api/projects")
+                        .param("current", "1")
+                        .param("pageSize", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0));
+
+        ArgumentCaptor<QueryProjectPageDTO> captor = ArgumentCaptor.forClass(QueryProjectPageDTO.class);
+        verify(projectService).queryProject(captor.capture());
+        assertThat(captor.getValue().getUserId()).isEqualTo("user-1");
+        assertThat(captor.getValue().getCurrent()).isEqualTo(1);
+        assertThat(captor.getValue().getPageSize()).isEqualTo(20);
+    }
+
+    @Test
+    void shouldMapUnavailableProjectToNotFoundForCurrentUser() throws Exception {
+        when(projectService.queryProject(any(QueryProjectDTO.class)))
+                .thenThrow(new ProjectException(ProjectErrorCode.NOT_FOUND));
+
+        mockMvc.perform(get("/api/projects/project-1"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(20001))
+                .andExpect(jsonPath("$.message").value("Project not found"));
+
+        ArgumentCaptor<QueryProjectDTO> captor = ArgumentCaptor.forClass(QueryProjectDTO.class);
+        verify(projectService).queryProject(captor.capture());
+        assertThat(captor.getValue().projectId()).isEqualTo("project-1");
+        assertThat(captor.getValue().userId()).isEqualTo("user-1");
     }
 
     @Test
@@ -88,16 +148,5 @@ class ProjectControllerTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(40000));
-    }
-
-    @Test
-    void shouldMapMissingProjectToNotFound() throws Exception {
-        when(projectService.queryProject(any(QueryProjectDTO.class)))
-                .thenThrow(new ProjectException(ProjectErrorCode.NOT_FOUND));
-
-        mockMvc.perform(get("/api/projects/missing"))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value(20001))
-                .andExpect(jsonPath("$.message").value("Project not found"));
     }
 }

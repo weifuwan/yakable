@@ -25,11 +25,12 @@ public class SessionRepositoryImpl extends BaseRepositoryImpl<SessionMapper, Ses
     }
 
     @Override
-    public Optional<SessionEntity> querySession(String projectId, String sessionId) {
+    public Optional<SessionEntity> querySession(String projectId, String sessionId, String userId) {
         return Optional.ofNullable(sessionMapper.selectOne(
                 Wrappers.<SessionEntity>lambdaQuery()
                         .eq(SessionEntity::getId, sessionId)
-                        .eq(SessionEntity::getProjectId, projectId)));
+                        .eq(SessionEntity::getProjectId, projectId)
+                        .eq(SessionEntity::getCreateBy, userId)));
     }
 
     @Override

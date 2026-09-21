@@ -11,9 +11,9 @@ import java.util.Optional;
 public interface SessionRepository extends BaseRepository<SessionEntity> {
 
     /**
-     * 查询指定 Project 下的 Session。
+     * 查询指定用户在 Project 下的 Session。
      */
-    Optional<SessionEntity> querySession(String projectId, String sessionId);
+    Optional<SessionEntity> querySession(String projectId, String sessionId, String userId);
 
     /**
      * 查询 Project 最新 Session。

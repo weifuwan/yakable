@@ -12,5 +12,6 @@ public record AddSessionDTO(
         @Schema(description = "Session 标题") @NotBlank String title,
         @Schema(description = "模型提供商", example = "deepseek") @NotBlank String provider,
         @Schema(description = "模型名称", example = "deepseek-chat") @NotBlank String model,
-        @Schema(description = "用户输入内容") @NotBlank String content) {
+        @Schema(description = "用户输入内容") @NotBlank String content,
+        @Schema(hidden = true) @NotBlank String userId) {
 }

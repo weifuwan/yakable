@@ -1,14 +1,15 @@
 package io.yakable.service.project.impl;
 
 import io.yakable.common.bean.PageData;
-import io.yakable.common.bean.dto.common.PageDTO;
 import io.yakable.common.bean.dto.project.AddProjectDTO;
 import io.yakable.common.bean.dto.project.QueryProjectDTO;
+import io.yakable.common.bean.dto.project.QueryProjectPageDTO;
 import io.yakable.common.bean.dto.session.AddSessionDTO;
 import io.yakable.common.bean.vo.project.ProjectDetailVO;
 import io.yakable.common.bean.vo.project.ProjectListVO;
 import io.yakable.common.bean.vo.session.SessionInitVO;
 import io.yakable.common.bean.vo.session.SessionVO;
+import io.yakable.common.enums.common.CommonErrorCode;
 import io.yakable.common.enums.project.ProjectErrorCode;
 import io.yakable.common.enums.project.ProjectStatusEnum;
 import io.yakable.common.exception.ProjectException;
@@ -44,16 +45,23 @@ public class ProjectServiceImpl implements ProjectService {
 
     @Override
     public ProjectDetailVO addProject(AddProjectDTO dto) {
+        requireUserId(dto.userId());
         String prompt = dto.prompt();
         CreatedProject created = transactionTemplate.execute(status -> {
             ProjectEntity project = new ProjectEntity();
-            project.initCreate();
+            project.initCreate(dto.userId());
             project.setName(projectName(prompt));
             project.setStatus(ProjectStatusEnum.CREATED);
             projectRepository.add(project);
 
             SessionInitVO session = sessionService.addSession(
-                    new AddSessionDTO(project.getId(), project.getName(), dto.model().provider(), dto.model().model(), prompt));
+                    new AddSessionDTO(
+                            project.getId(),
+                            project.getName(),
+                            dto.model().provider(),
+                            dto.model().model(),
+                            prompt,
+                            dto.userId()));
             return new CreatedProject(project, session);
         });
 
@@ -66,7 +74,7 @@ public class ProjectServiceImpl implements ProjectService {
     }
 
     @Override
-    public PageData<ProjectListVO> queryProject(PageDTO dto) {
+    public PageData<ProjectListVO> queryProject(QueryProjectPageDTO dto) {
         PageData<ProjectEntity> page = projectRepository.queryProject(dto);
         List<String> projectIds = page.records().stream().map(ProjectEntity::getId).toList();
         Map<String, SessionVO> latestSessions = sessionService.queryLatestSessionMap(projectIds);
@@ -75,7 +83,7 @@ public class ProjectServiceImpl implements ProjectService {
 
     @Override
     public ProjectDetailVO queryProject(QueryProjectDTO dto) {
-        ProjectEntity entity = projectRepository.queryById(dto.projectId())
+        ProjectEntity entity = projectRepository.queryProject(dto.projectId(), dto.userId())
                 .orElseThrow(() -> new ProjectException(ProjectErrorCode.NOT_FOUND));
         return toDetailVO(entity, sessionService.queryLatestSession(entity.getId()).orElse(null));
     }
@@ -110,6 +118,12 @@ public class ProjectServiceImpl implements ProjectService {
     private static String projectName(String prompt) {
         String firstLine = prompt.lines().findFirst().orElse(prompt);
         return StringUtils.abbreviate(firstLine.strip(), MAX_PROJECT_NAME_LENGTH);
+    }
+
+    private static void requireUserId(String userId) {
+        if (userId == null || userId.isBlank()) {
+            throw new ProjectException(CommonErrorCode.PARAM_NOT_VALID);
+        }
     }
 
     private record CreatedProject(ProjectEntity project, SessionInitVO session) {

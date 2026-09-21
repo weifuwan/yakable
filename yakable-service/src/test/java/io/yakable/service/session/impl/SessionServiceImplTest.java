@@ -1,6 +1,8 @@
 package io.yakable.service.session.impl;
 
+import io.yakable.common.bean.dto.session.AddSessionDTO;
 import io.yakable.common.bean.dto.session.AddTurnDTO;
+import io.yakable.common.bean.dto.session.QuerySessionDTO;
 import io.yakable.common.bean.dto.session.QuerySessionMessagesDTO;
 import io.yakable.common.bean.vo.session.MessageVO;
 import io.yakable.common.bean.vo.session.SessionMessagePageVO;
@@ -73,6 +75,42 @@ class SessionServiceImplTest {
     private SessionServiceImpl sessionService;
 
     @Test
+    void shouldCreateInitialSessionForProjectOwner() {
+        SessionEntity session = session("project-1", "session-1", SessionStatusEnum.ACTIVE);
+        TurnVO turn = turn("turn-1", TurnStatusEnum.PENDING);
+        MessageVO message = message("message-1", "turn-1", MessageRoleEnum.USER, "Hello", 1L);
+
+        when(sessionRepository.querySessionForUpdate(any())).thenReturn(true);
+        when(turnService.queryActiveTurnCount(any())).thenReturn(0L);
+        when(turnService.addTurn(any())).thenReturn(turn);
+        when(messageService.addMessage(any(), any(), eq(MessageRoleEnum.USER), eq("Hello"))).thenReturn(message);
+
+        sessionService.addSession(
+                new AddSessionDTO(
+                        "project-1", "CRM", "deepseek", "deepseek-flash", "Hello", "user-1"));
+
+        ArgumentCaptor<SessionEntity> captor = ArgumentCaptor.forClass(SessionEntity.class);
+        verify(sessionRepository).add(captor.capture());
+        assertThat(captor.getValue().getProjectId()).isEqualTo("project-1");
+        assertThat(captor.getValue().getCreateBy()).isEqualTo("user-1");
+    }
+
+    @Test
+    void shouldRejectSessionOwnedByAnotherUser() {
+        when(sessionRepository.querySession("project-1", "session-1", "user-2"))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() ->
+                sessionService.querySession(new QuerySessionDTO("project-1", "session-1", "user-2")))
+                .isInstanceOf(SessionException.class)
+                .satisfies(exception ->
+                        assertThat(((SessionException) exception).getErrorCode()).isEqualTo(SessionErrorCode.NOT_FOUND));
+
+        verify(sessionRepository).querySession("project-1", "session-1", "user-2");
+        verifyNoInteractions(turnService, messageService);
+    }
+
+    @Test
     void shouldCreatePendingTurnForActiveSession() {
         stubExecuteInline();
 
@@ -80,13 +118,13 @@ class SessionServiceImplTest {
         TurnVO turn = turn("turn-1", TurnStatusEnum.PENDING);
         MessageVO message = message("message-1", "turn-1", MessageRoleEnum.USER, "Hello", 1L);
 
-        when(sessionRepository.querySession("project-1", "session-1")).thenReturn(Optional.of(session));
+        when(sessionRepository.querySession("project-1", "session-1", "user-1")).thenReturn(Optional.of(session));
         when(sessionRepository.querySessionForUpdate("session-1")).thenReturn(true);
         when(turnService.queryActiveTurnCount("session-1")).thenReturn(0L);
         when(turnService.addTurn("session-1")).thenReturn(turn);
         when(messageService.addMessage("session-1", "turn-1", MessageRoleEnum.USER, "Hello")).thenReturn(message);
 
-        TurnStartVO result = sessionService.addStreamingTurn(new AddTurnDTO("project-1", "session-1", "kimi", "kimi-k3", "Hello"));
+        TurnStartVO result = sessionService.addStreamingTurn(new AddTurnDTO("project-1", "session-1", "kimi", "kimi-k3", "Hello", "user-1"));
 
         assertThat(result.getTurn()).isSameAs(turn);
         assertThat(result.getUserMessage()).isSameAs(message);
@@ -100,10 +138,10 @@ class SessionServiceImplTest {
         stubExecuteInline();
 
         SessionEntity session = session("project-1", "session-1", SessionStatusEnum.ARCHIVED);
-        when(sessionRepository.querySession("project-1", "session-1")).thenReturn(Optional.of(session));
+        when(sessionRepository.querySession("project-1", "session-1", "user-1")).thenReturn(Optional.of(session));
 
         assertThatThrownBy(() ->
-                sessionService.addStreamingTurn(new AddTurnDTO("project-1", "session-1", "kimi", "kimi-k3", "Hello")))
+                sessionService.addStreamingTurn(new AddTurnDTO("project-1", "session-1", "kimi", "kimi-k3", "Hello", "user-1")))
                 .isInstanceOf(SessionException.class)
                 .satisfies(exception ->
                         assertThat(((SessionException) exception).getErrorCode()).isEqualTo(SessionErrorCode.INACTIVE));
@@ -116,12 +154,12 @@ class SessionServiceImplTest {
         stubExecuteInline();
 
         SessionEntity session = session("project-1", "session-1", SessionStatusEnum.ACTIVE);
-        when(sessionRepository.querySession("project-1", "session-1")).thenReturn(Optional.of(session));
+        when(sessionRepository.querySession("project-1", "session-1", "user-1")).thenReturn(Optional.of(session));
         when(sessionRepository.querySessionForUpdate("session-1")).thenReturn(true);
         when(turnService.queryActiveTurnCount("session-1")).thenReturn(1L);
 
         assertThatThrownBy(() ->
-                sessionService.addStreamingTurn(new AddTurnDTO("project-1", "session-1", "kimi", "kimi-k3", "Hello")))
+                sessionService.addStreamingTurn(new AddTurnDTO("project-1", "session-1", "kimi", "kimi-k3", "Hello", "user-1")))
                 .isInstanceOf(SessionException.class)
                 .satisfies(exception ->
                         assertThat(((SessionException) exception).getErrorCode()).isEqualTo(SessionErrorCode.BUSY));
@@ -133,14 +171,14 @@ class SessionServiceImplTest {
     @Test
     void shouldPageMessagesInDisplayOrderAndExposeNextCursor() {
         SessionEntity session = session("project-1", "session-1", SessionStatusEnum.ACTIVE);
-        when(sessionRepository.querySession("project-1", "session-1")).thenReturn(Optional.of(session));
+        when(sessionRepository.querySession("project-1", "session-1", "user-1")).thenReturn(Optional.of(session));
         when(messageService.queryMessageBefore("session-1", 10L, 3)).thenReturn(List.of(
                 message("message-9", "turn-3", MessageRoleEnum.ASSISTANT, "nine", 9L),
                 message("message-8", "turn-3", MessageRoleEnum.USER, "eight", 8L),
                 message("message-7", "turn-2", MessageRoleEnum.ASSISTANT, "seven", 7L)));
 
         SessionMessagePageVO result = sessionService.querySessionMessage(
-                new QuerySessionMessagesDTO("project-1", "session-1", 10L, 2));
+                new QuerySessionMessagesDTO("project-1", "session-1", 10L, 2, "user-1"));
 
         assertThat(result.isHasMore()).isTrue();
         assertThat(result.getNextBeforeSequence()).isEqualTo(8L);
@@ -310,6 +348,8 @@ class SessionServiceImplTest {
         session.setProvider("deepseek");
         session.setModel("deepseek-flash");
         session.setStatus(status);
+        session.setCreateBy("user-1");
+        session.setUpdateBy("user-1");
         session.setCreateTime(LocalDateTime.of(2026, 9, 21, 9, 0));
         session.setUpdateTime(LocalDateTime.of(2026, 9, 21, 9, 0));
         return session;

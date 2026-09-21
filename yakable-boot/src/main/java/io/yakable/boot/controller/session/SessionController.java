@@ -14,6 +14,7 @@ import io.yakable.common.bean.vo.session.SessionDetailVO;
 import io.yakable.common.bean.vo.session.SessionMessagePageVO;
 import io.yakable.common.bean.vo.session.TurnStartVO;
 import io.yakable.common.bean.vo.session.TurnVO;
+import io.yakable.common.bean.vo.user.CurrentUserVO;
 import io.yakable.common.utils.StringUtils;
 import io.yakable.core.llm.LlmStreamEvent;
 import io.yakable.service.session.SessionService;
@@ -24,6 +25,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -45,8 +47,12 @@ public class SessionController {
 
     @Operation(summary = "查询 Session 详情")
     @GetMapping("/{sessionId}")
-    public Result<SessionDetailVO> querySession(@PathVariable String projectId, @PathVariable String sessionId) {
-        return Result.success(sessionService.querySession(new QuerySessionDTO(projectId, sessionId)));
+    public Result<SessionDetailVO> querySession(
+            @PathVariable String projectId,
+            @PathVariable String sessionId,
+            @AuthenticationPrincipal CurrentUserVO currentUser) {
+        return Result.success(
+                sessionService.querySession(new QuerySessionDTO(projectId, sessionId, currentUser.getId())));
     }
 
     @Operation(summary = "查询 Session 增量变化")
@@ -54,9 +60,11 @@ public class SessionController {
     public Result<SessionChangesVO> querySessionChanges(
             @PathVariable String projectId,
             @PathVariable String sessionId,
-            @RequestParam(defaultValue = "0") long afterSequence) {
+            @RequestParam(defaultValue = "0") long afterSequence,
+            @AuthenticationPrincipal CurrentUserVO currentUser) {
         return Result.success(
-                sessionService.querySessionChanges(new QuerySessionChangesDTO(projectId, sessionId, afterSequence)));
+                sessionService.querySessionChanges(
+                        new QuerySessionChangesDTO(projectId, sessionId, afterSequence, currentUser.getId())));
     }
 
     @Operation(summary = "查询 Session 消息")
@@ -65,10 +73,12 @@ public class SessionController {
             @PathVariable String projectId,
             @PathVariable String sessionId,
             @RequestParam(required = false) Long beforeSequence,
-            @RequestParam(defaultValue = "50") int limit) {
+            @RequestParam(defaultValue = "50") int limit,
+            @AuthenticationPrincipal CurrentUserVO currentUser) {
         return Result.success(
                 sessionService.querySessionMessage(
-                        new QuerySessionMessagesDTO(projectId, sessionId, beforeSequence, limit)));
+                        new QuerySessionMessagesDTO(
+                                projectId, sessionId, beforeSequence, limit, currentUser.getId())));
     }
 
     @Operation(summary = "新增 Turn")
@@ -77,16 +87,23 @@ public class SessionController {
     public Result<TurnStartVO> addTurn(
             @PathVariable String projectId,
             @PathVariable String sessionId,
-            @Valid @RequestBody AddTurnRequestDTO dto) {
+            @Valid @RequestBody AddTurnRequestDTO dto,
+            @AuthenticationPrincipal CurrentUserVO currentUser) {
         return Result.success(sessionService.addTurn(
-                new AddTurnDTO(projectId, sessionId, dto.provider(), dto.model(), dto.content())));
+                new AddTurnDTO(
+                        projectId, sessionId, dto.provider(), dto.model(), dto.content(), currentUser.getId())));
     }
 
     @Operation(summary = "取消 Turn")
     @PostMapping("/{sessionId}/turns/{turnId}/cancel")
     public Result<TurnVO> cancelTurn(
-            @PathVariable String projectId, @PathVariable String sessionId, @PathVariable String turnId) {
-        return Result.success(sessionService.cancelTurn(new CancelTurnDTO(projectId, sessionId, turnId)));
+            @PathVariable String projectId,
+            @PathVariable String sessionId,
+            @PathVariable String turnId,
+            @AuthenticationPrincipal CurrentUserVO currentUser) {
+        return Result.success(
+                sessionService.cancelTurn(
+                        new CancelTurnDTO(projectId, sessionId, turnId, currentUser.getId())));
     }
 
     @Operation(summary = "流式新增 Turn")
@@ -95,15 +112,17 @@ public class SessionController {
             @PathVariable String projectId,
             @PathVariable String sessionId,
             @Valid @RequestBody AddTurnRequestDTO dto,
-            HttpServletResponse response) {
+            HttpServletResponse response,
+            @AuthenticationPrincipal CurrentUserVO currentUser) {
         TurnStartVO started = sessionService.addStreamingTurn(
-                new AddTurnDTO(projectId, sessionId, dto.provider(), dto.model(), dto.content()));
+                new AddTurnDTO(
+                        projectId, sessionId, dto.provider(), dto.model(), dto.content(), currentUser.getId()));
         SseEmitter emitter = new SseEmitter(sseTimeout.toMillis());
         AtomicBoolean closed = new AtomicBoolean();
 
         response.setHeader(HttpHeaders.CACHE_CONTROL, "no-cache");
         response.setHeader("X-Accel-Buffering", "no");
-        CancelTurnDTO cancel = new CancelTurnDTO(projectId, sessionId, started.getTurn().getId());
+        CancelTurnDTO cancel = new CancelTurnDTO(projectId, sessionId, started.getTurn().getId(), currentUser.getId());
         emitter.onCompletion(() -> closed.set(true));
         emitter.onTimeout(() -> {
             sessionService.cancelTurn(cancel);
