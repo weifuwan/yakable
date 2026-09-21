@@ -79,6 +79,38 @@ function mergeChanges(
   };
 }
 
+function SessionLoadingIndicator() {
+  return (
+    <div
+      className="flex h-full items-center justify-center"
+      role="status"
+      aria-label="Loading session"
+    >
+      <svg
+        aria-hidden="true"
+        className="size-5 animate-spin text-black/35"
+        viewBox="0 0 24 24"
+        fill="none"
+      >
+        <g
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+        >
+          <path d="M12 3v3" opacity="1" />
+          <path d="m18.36 5.64-2.12 2.12" opacity=".85" />
+          <path d="M21 12h-3" opacity=".7" />
+          <path d="m18.36 18.36-2.12-2.12" opacity=".55" />
+          <path d="M12 21v-3" opacity=".4" />
+          <path d="m5.64 18.36 2.12-2.12" opacity=".3" />
+          <path d="M3 12h3" opacity=".2" />
+          <path d="m5.64 5.64 2.12 2.12" opacity=".12" />
+        </g>
+      </svg>
+    </div>
+  );
+}
+
 export function SessionWorkspace({
   projectId,
   sessionId,
@@ -94,6 +126,7 @@ export function SessionWorkspace({
   const [optimisticMessage, setOptimisticMessage] =
     useState<SessionMessage | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSessionLoading, setIsSessionLoading] = useState(true);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -141,13 +174,23 @@ export function SessionWorkspace({
   useEffect(() => {
     const controller = new AbortController();
 
+    initialScrollDoneRef.current = false;
+    followOutputRef.current = true;
+    setShowScrollBottom(false);
+    setSnapshot(null);
+    setLoadError(null);
+    setSendError(null);
+    setOptimisticMessage(null);
+    setStreamingTurnId(null);
+    setStreamingContent('');
+    setIsGenerating(false);
+    setIsSessionLoading(true);
+
     void SessionService.querySession(projectId, sessionId, controller.signal)
       .then((result) => {
-        initialScrollDoneRef.current = false;
-        followOutputRef.current = true;
-        setShowScrollBottom(false);
+        if (controller.signal.aborted) return;
         setSnapshot(result);
-        setLoadError(null);
+        setIsSessionLoading(false);
       })
       .catch((requestError: unknown) => {
         if (controller.signal.aborted) return;
@@ -156,6 +199,7 @@ export function SessionWorkspace({
             ? requestError.message
             : 'Unable to load session.',
         );
+        setIsSessionLoading(false);
       });
 
     return () => {
@@ -419,52 +463,59 @@ export function SessionWorkspace({
           className="h-full overflow-y-auto"
           onScroll={handleScroll}
         >
-          <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-8">
-            {loadError && (
-              <div
-                className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
-                role="alert"
-              >
-                {loadError}
-              </div>
-            )}
+          {isSessionLoading ? (
+            <SessionLoadingIndicator />
+          ) : (
+            <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-8">
+              {loadError && (
+                <div
+                  className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+                  role="alert"
+                >
+                  {loadError}
+                </div>
+              )}
 
-            {snapshot?.messages.map((message) => (
-              <MessageItem
-                key={message.id}
-                message={message}
-                onRegenerate={
-                  generating ? undefined : handleRegenerateMessage
-                }
-              />
-            ))}
+              {snapshot?.messages.map((message) => (
+                <MessageItem
+                  key={message.id}
+                  message={message}
+                  onRegenerate={
+                    generating ? undefined : handleRegenerateMessage
+                  }
+                />
+              ))}
 
-            {optimisticMessage && (
-              <MessageItem
-                key={optimisticMessage.id}
-                message={optimisticMessage}
-              />
-            )}
+              {optimisticMessage && (
+                <MessageItem
+                  key={optimisticMessage.id}
+                  message={optimisticMessage}
+                />
+              )}
 
-            {streamingMessage && (
-              <MessageItem key={streamingMessage.id} message={streamingMessage} />
-            )}
+              {streamingMessage && (
+                <MessageItem
+                  key={streamingMessage.id}
+                  message={streamingMessage}
+                />
+              )}
 
-            {generating && !streamingContent && (
-              <p className="m-0 px-1 text-sm text-black/40" role="status">
-                Thinking...
-              </p>
-            )}
+              {generating && !streamingContent && (
+                <p className="m-0 px-1 text-sm text-black/40" role="status">
+                  Thinking...
+                </p>
+              )}
 
-            {latestTurn?.status === 'FAILED' && (
-              <div
-                className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-                role="alert"
-              >
-                {latestTurn.errorMessage ?? 'Turn failed.'}
-              </div>
-            )}
-          </div>
+              {latestTurn?.status === 'FAILED' && (
+                <div
+                  className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+                  role="alert"
+                >
+                  {latestTurn.errorMessage ?? 'Turn failed.'}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div
@@ -484,7 +535,7 @@ export function SessionWorkspace({
           }}
         />
 
-        {showScrollBottom && (
+        {!isSessionLoading && showScrollBottom && (
           <IconButton
             aria-label="Scroll to bottom"
             variant="secondary"
@@ -517,7 +568,11 @@ export function SessionWorkspace({
             placeholder="Ask Yakable..."
             submitLabel="Send message"
             submitTooltip="Send prompt"
-            disabled={!snapshot || snapshot.session.status !== 'ACTIVE'}
+            disabled={
+              isSessionLoading ||
+              !snapshot ||
+              snapshot.session.status !== 'ACTIVE'
+            }
             running={generating}
             onStop={handleStop}
             onSubmit={handleSubmit}
