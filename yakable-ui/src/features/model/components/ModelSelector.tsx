@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 
-import { Select } from '@/shared/ui';
+import { Select, type SelectSurface } from '@/shared/ui';
 
 import { MODEL_CATALOG } from '../catalog';
 import type { ModelOption, ModelSelection } from '../types';
@@ -13,10 +13,12 @@ export function ModelSelector({
   disabled = false,
   models = MODEL_CATALOG,
   onValueChange,
+  surface = 'chassis',
   value,
 }: {
   disabled?: boolean;
   models?: readonly ModelOption[];
+  surface?: SelectSurface;
   onValueChange: (value: ModelSelection) => void;
   value: ModelSelection;
 }) {
@@ -37,6 +39,7 @@ export function ModelSelector({
       options={options}
       align="end"
       size="sm"
+      surface={surface}
       className="max-w-40"
       onValueChange={(nextValue) => {
         const selected = models.find(

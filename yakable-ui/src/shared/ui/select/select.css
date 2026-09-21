@@ -15,6 +15,21 @@
   background: transparent;
 }
 
+.yak-select-trigger-borderless {
+  transition:
+    background-color 75ms ease,
+    color 75ms ease;
+}
+
+.yak-select-trigger-borderless:hover:not(:disabled),
+.yak-select-trigger-borderless[data-open] {
+  background: var(--surface-hover-subtle);
+}
+
+.yak-select-trigger-borderless:active:not(:disabled) {
+  background: var(--surface-soft);
+}
+
 .yak-select-fx-root {
   position: absolute;
   inset: 0;

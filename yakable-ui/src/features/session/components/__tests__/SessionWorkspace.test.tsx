@@ -216,9 +216,11 @@ describe('SessionWorkspace', () => {
 
     expect(await screen.findByText('Who are you?')).toBeTruthy();
     expect(screen.getByText('I am Yakable.')).toBeTruthy();
-    expect(
-      screen.getByRole('button', { name: 'Select model' }).textContent,
-    ).toContain('DeepSeek');
+    const modelTrigger = screen.getByRole('button', {
+      name: 'Select model',
+    });
+    expect(modelTrigger.textContent).toContain('DeepSeek');
+    expect(modelTrigger.getAttribute('data-surface')).toBe('chassis');
     expect(
       screen.queryByRole('status', { name: 'Loading session' }),
     ).toBeNull();

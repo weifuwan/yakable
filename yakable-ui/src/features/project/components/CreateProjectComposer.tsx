@@ -61,6 +61,7 @@ export function CreateProjectComposer() {
           submitLabel="Create project"
           trailingActions={
             <ModelSelector
+              surface="borderless"
               value={selectedModel}
               onValueChange={setSelectedModel}
             />

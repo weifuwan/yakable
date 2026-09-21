@@ -56,6 +56,8 @@ describe('Select', () => {
     const trigger = screen.getByRole('button', { name: /Build/ });
     const layers = trigger.querySelectorAll('[data-fx-layer]');
 
+    expect(trigger.getAttribute('data-surface')).toBe('chassis');
+    expect(trigger.className).toContain('yak-select-trigger-chassis');
     expect(layers).toHaveLength(12);
     expect(
       trigger.querySelector('[data-fx-layer="drop-shadow"]'),
@@ -71,6 +73,22 @@ describe('Select', () => {
     expect(screen.getByRole('menu').className).toContain(
       'yak-select-menu',
     );
+  });
+
+  it('renders borderless surface without the layered chassis', () => {
+    render(
+      <Select
+        defaultValue="build"
+        options={options}
+        surface="borderless"
+      />,
+    );
+
+    const trigger = screen.getByRole('button', { name: /Build/ });
+
+    expect(trigger.getAttribute('data-surface')).toBe('borderless');
+    expect(trigger.className).toContain('yak-select-trigger-borderless');
+    expect(trigger.querySelectorAll('[data-fx-layer]')).toHaveLength(0);
   });
 
   it('keeps selected state neutral but preserves hover feedback', async () => {

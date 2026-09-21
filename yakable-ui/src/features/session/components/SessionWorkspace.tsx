@@ -590,6 +590,7 @@ export function SessionWorkspace({
               trailingActions={
                 selectedModel ? (
                   <ModelSelector
+                    surface="chassis"
                     disabled={
                       !snapshot || snapshot.session.status !== 'ACTIVE'
                     }
