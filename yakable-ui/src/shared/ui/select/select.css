@@ -1,0 +1,229 @@
+/*
+ * Select surface chassis.
+ *
+ * The trigger mirrors the layered control structure from the reference:
+ * shadow -> fill -> interaction -> highlights -> rim -> engaged states.
+ * Values that were explicitly present in the reference are kept here.
+ * Reference-only theme variables are mapped to Yakable semantic tokens.
+ */
+
+.yak-select-trigger {
+  --_select-border: 1px;
+  position: relative;
+  isolation: isolate;
+  overflow: visible;
+  background: transparent;
+}
+
+.yak-select-fx-root {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.yak-select-fx-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  transition:
+    opacity 150ms ease,
+    background-color 75ms ease;
+}
+
+.yak-select-fx-layer[data-fx-layer='drop-shadow'] {
+  z-index: 0;
+  box-shadow:
+    0 2px 2px -1px oklch(0 0 0 / 0.04),
+    0 4px 4px -2px oklch(0 0 0 / 0.02);
+}
+
+.yak-select-fx-layer[data-fx-layer='engaged-drop-shadow'] {
+  z-index: 0;
+  opacity: 0;
+  box-shadow:
+    0 2px 2px -1px oklch(0 0 0 / 0.08),
+    0 4px 4px -2px oklch(0 0 0 / 0.08);
+}
+
+.yak-select-fx-layer[data-fx-layer='base-fill'] {
+  z-index: 1;
+  background: var(--surface);
+}
+
+.yak-select-fx-layer[data-fx-layer='interaction'] {
+  z-index: 2;
+  opacity: 0;
+  background: oklch(0 0 0);
+}
+
+.yak-select-fx-layer[data-fx-layer='engaged-fill'] {
+  z-index: 3;
+  opacity: 0;
+  background:
+    linear-gradient(var(--surface-soft), var(--surface-soft)),
+    linear-gradient(var(--surface), var(--surface));
+  box-shadow:
+    inset 0 0 0 var(--_select-border) var(--border-control),
+    inset 0 0 0 1px oklch(1 0 0 / 0.56);
+}
+
+.yak-select-fx-layer[data-fx-layer='spotlights'] {
+  z-index: 4;
+  box-shadow:
+    inset 0 2px 0 -1px oklch(1 0 0),
+    inset 0 -2px 0 -1px oklch(1 0 0 / 0.8);
+}
+
+.yak-select-fx-layer[data-fx-layer='dome-overlay'] {
+  z-index: 5;
+  background-image: linear-gradient(transparent, oklch(0 0 0 / 0.04));
+}
+
+.yak-select-fx-layer[data-fx-layer='engaged-dome'] {
+  z-index: 6;
+  opacity: 0;
+  background-image: linear-gradient(transparent, oklch(0 0 0 / 0.04));
+}
+
+.yak-select-fx-layer[data-fx-layer='rim'] {
+  z-index: 7;
+  box-shadow: inset 0 0 0 var(--_select-border) oklch(0 0 0 / 0.16);
+}
+
+.yak-select-fx-layer[data-fx-layer='engaged-highlights'] {
+  z-index: 8;
+  opacity: 0;
+  box-shadow:
+    inset 0 var(--_select-border) 0 0 oklch(1 0 0 / 0.48),
+    inset 0 calc(var(--_select-border) * -1) 0 0 oklch(1 0 0 / 0.16);
+}
+
+.yak-select-fx-layer[data-fx-layer='secondary-spotlights'] {
+  z-index: 9;
+  box-shadow:
+    inset 0 0.5px 0 0 oklch(0 0 0 / 0.08),
+    inset 0 -0.5px 0 0 oklch(0 0 0 / 0.16);
+}
+
+.yak-select-fx-layer[data-fx-layer='engaged-glow'] {
+  z-index: 10;
+  opacity: 0;
+  background: oklch(0 0 0);
+}
+
+.yak-select-trigger:hover:not([data-open]):not(:disabled)
+  .yak-select-fx-layer[data-fx-layer='interaction'] {
+  opacity: 0.04;
+}
+
+.yak-select-trigger:active:not([data-open]):not(:disabled)
+  .yak-select-fx-layer[data-fx-layer='interaction'] {
+  opacity: 0.06;
+}
+
+.yak-select-trigger:active:not(:disabled)
+  .yak-select-fx-layer[data-fx-layer='drop-shadow'],
+.yak-select-trigger:active:not(:disabled)
+  .yak-select-fx-layer[data-fx-layer='spotlights'],
+.yak-select-trigger:active:not(:disabled)
+  .yak-select-fx-layer[data-fx-layer='secondary-spotlights'] {
+  opacity: 0;
+}
+
+.yak-select-trigger[data-open]
+  .yak-select-fx-layer[data-fx-layer='drop-shadow'],
+.yak-select-trigger[data-open]
+  .yak-select-fx-layer[data-fx-layer='base-fill'],
+.yak-select-trigger[data-open]
+  .yak-select-fx-layer[data-fx-layer='interaction'],
+.yak-select-trigger[data-open]
+  .yak-select-fx-layer[data-fx-layer='spotlights'],
+.yak-select-trigger[data-open]
+  .yak-select-fx-layer[data-fx-layer='dome-overlay'],
+.yak-select-trigger[data-open]
+  .yak-select-fx-layer[data-fx-layer='rim'],
+.yak-select-trigger[data-open]
+  .yak-select-fx-layer[data-fx-layer='secondary-spotlights'] {
+  opacity: 0;
+}
+
+.yak-select-trigger[data-open]
+  .yak-select-fx-layer[data-fx-layer='engaged-drop-shadow'],
+.yak-select-trigger[data-open]
+  .yak-select-fx-layer[data-fx-layer='engaged-fill'],
+.yak-select-trigger[data-open]
+  .yak-select-fx-layer[data-fx-layer='engaged-dome'],
+.yak-select-trigger[data-open]
+  .yak-select-fx-layer[data-fx-layer='engaged-highlights'] {
+  opacity: 1;
+}
+
+.yak-select-trigger[data-open]:hover:not(:disabled)
+  .yak-select-fx-layer[data-fx-layer='engaged-glow'] {
+  opacity: 0.08;
+}
+
+.yak-select-trigger[data-open]:active:not(:disabled)
+  .yak-select-fx-layer[data-fx-layer='engaged-glow'] {
+  opacity: 0.16;
+}
+
+/*
+ * The reference exposes the menu's floating-shadow token name but not its
+ * computed shadow value. Keep the same layered floating character using the
+ * Yakable surface and border tokens.
+ */
+.yak-select-menu {
+  box-shadow:
+    0 12px 24px -12px oklch(0 0 0 / 0.18),
+    0 4px 8px -4px oklch(0 0 0 / 0.08),
+    inset 0 0.5px 0 oklch(1 0 0 / 0.9);
+  animation-duration: 150ms;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  animation-fill-mode: both;
+}
+
+.yak-select-menu[data-side='bottom'] {
+  transform-origin: top right;
+  animation-name: yak-select-menu-in-bottom;
+}
+
+.yak-select-menu[data-side='top'] {
+  transform-origin: bottom right;
+  animation-name: yak-select-menu-in-top;
+}
+
+@keyframes yak-select-menu-in-bottom {
+  from {
+    opacity: 0;
+    transform: translateY(-2px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes yak-select-menu-in-top {
+  from {
+    opacity: 0;
+    transform: translateY(2px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .yak-select-fx-layer,
+  .yak-select-menu {
+    transition: none;
+    animation: none;
+  }
+}
