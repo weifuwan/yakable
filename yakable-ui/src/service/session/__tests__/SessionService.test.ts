@@ -206,6 +206,7 @@ describe('SessionService', () => {
         'project-1',
         'session-1',
         'Hello',
+        selectedModel,
         {
           onStarted: vi.fn(),
           onDelta: vi.fn(),
