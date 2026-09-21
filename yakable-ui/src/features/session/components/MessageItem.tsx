@@ -227,7 +227,10 @@ export function MessageItem({
           </div>
         ) : (
           <>
-            <div className="rounded-2xl rounded-br-md bg-black/[0.06] px-4 py-3">
+            <div
+              className="rounded-[22px] rounded-br-md border border-[#E1E1E0] bg-white px-4 py-3"
+              data-testid="user-message-bubble"
+            >
               <Markdown content={message.content} />
             </div>
 

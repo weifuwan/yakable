@@ -24,6 +24,12 @@ describe('MessageItem', () => {
     );
 
     const actions = screen.getByTestId('user-message-actions');
+    const bubble = screen.getByTestId('user-message-bubble');
+
+    expect(bubble.className).toContain('rounded-[22px]');
+    expect(bubble.className).toContain('rounded-br-md');
+    expect(bubble.className).toContain('border-[#E1E1E0]');
+    expect(bubble.className).toContain('bg-white');
 
     expect(actions.className).toContain('absolute');
     expect(actions.className).toContain('top-full');
