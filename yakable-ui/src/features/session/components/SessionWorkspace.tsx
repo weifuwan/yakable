@@ -6,6 +6,7 @@ import {
   useState,
 } from 'react';
 
+import { ModelSelector, type ModelSelection } from '@/features/model';
 import { ProjectHeader } from '@/features/project';
 import {
   SessionService,
@@ -130,6 +131,7 @@ export function SessionWorkspace({
   const [isSessionLoading, setIsSessionLoading] = useState(true);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<ModelSelection | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const streamAbortRef = useRef<AbortController | null>(null);
   const currentTurnIdRef = useRef<string | null>(null);
@@ -185,12 +187,14 @@ export function SessionWorkspace({
     setStreamingTurnId(null);
     setStreamingContent('');
     setIsGenerating(false);
+    setSelectedModel(null);
     setIsSessionLoading(true);
 
     void SessionService.querySession(projectId, sessionId, controller.signal)
       .then((result) => {
         if (controller.signal.aborted) return;
         setSnapshot(result);
+        setSelectedModel(result.session.model);
         setIsSessionLoading(false);
       })
       .catch((requestError: unknown) => {
@@ -287,6 +291,7 @@ export function SessionWorkspace({
   const runStreamingTurn = useCallback(
     async (
       content: string,
+      model: ModelSelection,
       controller: AbortController,
       afterSequence: number,
     ) => {
@@ -295,6 +300,7 @@ export function SessionWorkspace({
           projectId,
           sessionId,
           content,
+          model,
           {
             onStarted: (started) => {
               currentTurnIdRef.current = started.turn.id;
@@ -304,6 +310,10 @@ export function SessionWorkspace({
                 if (!current) return current;
                 return {
                   ...current,
+                  session: {
+                    ...current.session,
+                    model,
+                  },
                   turns: [...current.turns, started.turn],
                   messages: [...current.messages, started.userMessage],
                 };
@@ -366,6 +376,8 @@ export function SessionWorkspace({
 
   const handleSubmit = useCallback(
     (content: string) => {
+      if (!selectedModel) return false;
+
       const controller = new AbortController();
       streamAbortRef.current = controller;
       currentTurnIdRef.current = null;
@@ -382,10 +394,10 @@ export function SessionWorkspace({
       setSendError(null);
       setStreamingContent('');
 
-      void runStreamingTurn(content, controller, latestSequence);
+      void runStreamingTurn(content, selectedModel, controller, latestSequence);
       return true;
     },
-    [latestSequence, runStreamingTurn],
+    [latestSequence, runStreamingTurn, selectedModel],
   );
 
   const handleRegenerateMessage = useCallback(
@@ -575,6 +587,14 @@ export function SessionWorkspace({
               submitTooltip="Send prompt"
               disabled={!snapshot || snapshot.session.status !== 'ACTIVE'}
               running={generating}
+              trailingActions={
+                selectedModel ? (
+                  <ModelSelector
+                    value={selectedModel}
+                    onValueChange={setSelectedModel}
+                  />
+                ) : undefined
+              }
               onStop={handleStop}
               onSubmit={handleSubmit}
             />
