@@ -7,7 +7,7 @@ import {
   type ModelSelection,
 } from '@/features/model';
 import { ProjectService } from '@/service/project';
-import { PromptComposer } from '@/shared/ui';
+import { PromptComposer, PromptComposerSkeleton } from '@/shared/ui';
 
 import { useProjects } from '../hooks/useProjects';
 
@@ -22,7 +22,7 @@ function projectSessionPath(projectId: string, sessionId: string) {
 
 export function CreateProjectComposer() {
   const navigate = useNavigate();
-  const { upsertProject } = useProjects();
+  const { isLoading, upsertProject } = useProjects();
   const [selectedModel, setSelectedModel] = useState<ModelSelection>(
     DEFAULT_MODEL_SELECTION,
   );
@@ -52,18 +52,22 @@ export function CreateProjectComposer() {
 
   return (
     <div>
-      <PromptComposer
-        ariaLabel="Describe the project you want to build"
-        placeholder="Ask Yakable to build..."
-        submitLabel="Create project"
-        trailingActions={
-          <ModelSelector
-            value={selectedModel}
-            onValueChange={setSelectedModel}
-          />
-        }
-        onSubmit={handleSubmit}
-      />
+      {isLoading ? (
+        <PromptComposerSkeleton />
+      ) : (
+        <PromptComposer
+          ariaLabel="Describe the project you want to build"
+          placeholder="Ask Yakable to build..."
+          submitLabel="Create project"
+          trailingActions={
+            <ModelSelector
+              value={selectedModel}
+              onValueChange={setSelectedModel}
+            />
+          }
+          onSubmit={handleSubmit}
+        />
+      )}
 
       {error && (
         <p className="mb-0 mt-2 px-2 text-sm text-red-600" role="alert">
