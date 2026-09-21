@@ -13,12 +13,12 @@ Project 用来承载这层长期上下文，但不承担一次具体 AI 生成�
 ## 2. 产品目标
 
 Project V1 需要让用户能够从一个 Prompt 创建项目，并立即进入这个项目继续工作。  
-用户之后能够从 Recent Projects 找回自己的项目，并进入该项目最近使用的 Session。  
+用户之后能够从 Recent Projects 找回自己的项目，并进入该项目最近活动的 Session。  
 Project 只负责“这个工作是什么、属于谁、从哪里继续”，不提前承担复杂项目管理能力。
 
 ## 3. 本期范围
 
-本期包含 Project 创建、Project 详情、Recent Projects 列表和 Project 打开行为。  
+本期包含 Project 创建、Recent Projects 列表和 Project 打开行为。  
 创建 Project 时同时建立第一个 Session，并把创建时的 Prompt 作为这个 Session 的第一条用户输入。  
 用户选择的模型用于初始化第一个 Session，不作为 Project 永久绑定的模型。
 
@@ -57,7 +57,7 @@ Project 和初始 Session 建立成功后，应立即进入 Project 页面。
 ### 5.3 Project 名称
 
 用户创建 Project 时不需要额外填写名称。  
-Project 名称由系统根据首次 Prompt 自动生成，优先使用 Prompt 的第一行有效内容，并去除首尾空白。  
+Project 名称由系统根据首次 Prompt 自动生成，使用 Prompt 中第一个非空行，并去除首尾空白。  
 名称最长 48 个字符，超出部分应以简洁方式省略，不能因为 Prompt 很长而影响列表可读性。
 
 Project 名称创建后在 V1 中保持不变。  
@@ -70,8 +70,8 @@ Project 名称创建后在 V1 中保持不变。
 创建 Project 时选择的模型和首次 Prompt 属于这个初始 Session，Project 本身不保存“当前模型”的产品含义。  
 未来同一个 Project 是否创建更多 Session，以及新 Session 如何命名和切换，由 Session PRD 定义。
 
-Project 需要能够识别最近使用的 Session。  
-用户从 Project 列表重新进入一个 Project 时，应默认进入这个 Project 最近使用的 Session。  
+Project 需要能够识别最近活动的 Session。  
+用户从 Project 列表重新进入一个 Project 时，应默认进入这个 Project 最近活动的 Session。  
 用户不需要先经过一个空的 Project 中转页再选择 Session。
 
 ### 5.5 Recent Projects
@@ -81,12 +81,14 @@ Project 需要能够识别最近使用的 Session。
 没有 Project 时显示明确空状态，加载失败时允许用户重新尝试。
 
 Recent Projects 按最近活动时间从新到旧排列。  
-Project 刚创建时应立即出现在列表顶部；后续 Session 产生新的有效交互后，对应 Project 也应回到更靠前的位置。  
-列表中的 Project 至少展示名称，并能够直接进入其最近使用的 Session。
+Project 的最近活动时间由 Project 创建时间和其 Session 最近活动时间共同决定，以其中最新时间为准。  
+Project 刚创建时应立即出现在列表顶部；Session 产生新的有效交互后，对应 Project 也应回到更靠前的位置。  
+列表中的 Project 至少展示名称，并能够直接进入其最近活动的 Session。
 
 ### 5.6 打开 Project
 
-用户通过 Recent Projects 打开 Project 时，系统应进入该 Project 最近使用的 Session。  
+用户通过 Recent Projects 打开 Project 时，系统应进入该 Project 最近活动的 Session。  
+最近活动的 Session 指最近发生真实用户交互的 Session，不以最后创建或最后打开作为判断标准；具体活动时间更新规则由 Session PRD 定义。  
 刷新 Project 页面后，当前 Project 和 Session 应能够通过持久化数据恢复，不能依赖浏览器临时状态。  
 如果目标 Project 不存在、已经不可访问或不属于当前用户，应进入统一的不可用处理，而不是展示其他用户的数据。
 
@@ -102,8 +104,8 @@ Project 创建成功和 AI 回答成功是两个不同结果。
 创建成功后立即进入该 Project 的初始 Session，不需要等待 AI 完成回答；新 Project 同时出现在 Recent Projects 顶部。  
 刷新页面后仍然能够恢复并进入同一个 Project 和 Session。
 
-Project 名称能够从首次 Prompt 自动生成，空白内容不能创建 Project，长名称不会破坏 Recent Projects 的可读性。  
-同一 Project 后续产生新的 Session 活动后，应按照最近活动重新排序；超过 20 个 Project 时能够继续加载更多。  
+Project 名称能够从首次 Prompt 的第一个非空行自动生成，空白内容不能创建 Project，长名称不会破坏 Recent Projects 的可读性。  
+同一 Project 后续产生新的 Session 活动后，应按照 Project 创建时间与 Session 最近活动时间中的最新时间重新排序；超过 20 个 Project 时能够继续加载更多。  
 AI 回答失败时，已经创建的 Project 不会消失。
 
 用户只能查询和打开自己的 Project。  
