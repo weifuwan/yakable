@@ -48,6 +48,31 @@ describe('Select', () => {
     expect(screen.getByText('Switch modes with Alt P')).toBeTruthy();
   });
 
+  it('keeps the layered trigger chassis and engaged state contract', async () => {
+    const user = userEvent.setup();
+
+    render(<Select defaultValue="build" options={options} />);
+
+    const trigger = screen.getByRole('button', { name: /Build/ });
+    const layers = trigger.querySelectorAll('[data-fx-layer]');
+
+    expect(layers).toHaveLength(12);
+    expect(
+      trigger.querySelector('[data-fx-layer="drop-shadow"]'),
+    ).toBeTruthy();
+    expect(
+      trigger.querySelector('[data-fx-layer="engaged-glow"]'),
+    ).toBeTruthy();
+    expect(trigger.hasAttribute('data-open')).toBe(false);
+
+    await user.click(trigger);
+
+    expect(trigger.hasAttribute('data-open')).toBe(true);
+    expect(screen.getByRole('menu').className).toContain(
+      'yak-select-menu',
+    );
+  });
+
   it('updates uncontrolled value and closes after selection', async () => {
     const user = userEvent.setup();
     const onValueChange = vi.fn();
