@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  ApiError,
   HttpUtils,
   type SseEvent,
 } from '../HttpUtils';
@@ -107,7 +106,7 @@ describe('HttpUtils', () => {
     );
 
     await expect(HttpUtils.get('/api/projects')).rejects.toEqual(
-      expect.objectContaining<ApiError>({
+      expect.objectContaining({
         name: 'ApiError',
         kind: 'network',
         message: 'Unable to connect to server.',
