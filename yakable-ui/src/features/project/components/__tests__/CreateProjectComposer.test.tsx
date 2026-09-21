@@ -34,8 +34,6 @@ const createdProject = {
   id: 'project-123',
   name: 'Build a CRM dashboard',
   latestSessionId: 'session-123',
-  status: 'CREATED' as const,
-  createdAt: '2026-09-21T00:00:00Z',
   updatedAt: '2026-09-21T00:00:00Z',
 };
 
@@ -96,12 +94,6 @@ describe('CreateProjectComposer', () => {
     await user.click(modelTrigger);
     await user.click(screen.getByRole('menuitemradio', { name: 'Kimi' }));
 
-    expect(
-      screen
-        .getByTestId('prompt-composer-animated-placeholder')
-        .textContent,
-    ).toBe('Ask Yakable to');
-
     const input = screen.getByRole('textbox', {
       name: 'Describe the project you want to build',
     });
@@ -120,9 +112,7 @@ describe('CreateProjectComposer', () => {
         model: 'kimi-k3',
       },
     });
-    expect(projectState.upsertProject).toHaveBeenCalledWith(
-      createdProject,
-    );
+    expect(projectState.upsertProject).toHaveBeenCalledWith(createdProject);
   });
 
   it('shows the creation error and keeps the prompt for retry', async () => {

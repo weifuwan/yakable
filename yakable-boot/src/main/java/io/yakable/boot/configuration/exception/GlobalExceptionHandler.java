@@ -4,7 +4,6 @@ import io.yakable.common.ErrorCode;
 import io.yakable.common.Result;
 import io.yakable.common.enums.auth.AuthErrorCode;
 import io.yakable.common.enums.common.CommonErrorCode;
-import io.yakable.common.enums.project.ProjectErrorCode;
 import io.yakable.common.enums.session.SessionErrorCode;
 import io.yakable.common.enums.user.UserErrorCode;
 import io.yakable.common.exception.BusinessException;
@@ -69,7 +68,6 @@ public class GlobalExceptionHandler {
             return HttpStatus.FORBIDDEN;
         }
         if (errorCode == UserErrorCode.NOT_FOUND
-                || errorCode == ProjectErrorCode.NOT_FOUND
                 || errorCode == SessionErrorCode.NOT_FOUND) {
             return HttpStatus.NOT_FOUND;
         }

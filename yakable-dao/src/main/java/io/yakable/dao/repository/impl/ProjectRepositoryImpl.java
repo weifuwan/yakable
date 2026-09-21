@@ -11,8 +11,6 @@ import jakarta.annotation.Resource;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Repository;
 
-import java.util.Optional;
-
 @Repository
 @DependsOn("yakableFlyway")
 public class ProjectRepositoryImpl extends BaseRepositoryImpl<ProjectMapper, ProjectEntity> implements ProjectRepository {
@@ -35,13 +33,5 @@ public class ProjectRepositoryImpl extends BaseRepositoryImpl<ProjectMapper, Pro
                 result.getPages(),
                 Math.toIntExact(result.getCurrent()),
                 Math.toIntExact(result.getSize()));
-    }
-
-    @Override
-    public Optional<ProjectEntity> queryProject(String projectId, String userId) {
-        return Optional.ofNullable(projectMapper.selectOne(
-                com.baomidou.mybatisplus.core.toolkit.Wrappers.<ProjectEntity>lambdaQuery()
-                        .eq(ProjectEntity::getId, projectId)
-                        .eq(ProjectEntity::getCreateBy, userId)));
     }
 }

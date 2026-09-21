@@ -10,13 +10,6 @@ export interface ProjectModel {
   model: string;
 }
 
-export type ProjectStatus = 'CREATED';
-
-export interface ProjectDetails extends ProjectSummary {
-  status: ProjectStatus;
-  createdAt: string;
-}
-
 export interface CreateProjectInput {
   prompt: string;
   model: ProjectModel;

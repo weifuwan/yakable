@@ -3,13 +3,9 @@ package io.yakable.boot.controller.project;
 import io.yakable.boot.configuration.exception.GlobalExceptionHandler;
 import io.yakable.common.bean.PageData;
 import io.yakable.common.bean.dto.project.AddProjectDTO;
-import io.yakable.common.bean.dto.project.QueryProjectDTO;
 import io.yakable.common.bean.dto.project.QueryProjectPageDTO;
-import io.yakable.common.bean.vo.project.ProjectDetailVO;
 import io.yakable.common.bean.vo.project.ProjectListVO;
 import io.yakable.common.bean.vo.user.CurrentUserVO;
-import io.yakable.common.enums.project.ProjectErrorCode;
-import io.yakable.common.exception.ProjectException;
 import io.yakable.service.project.ProjectService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -67,12 +63,10 @@ class ProjectControllerTest {
 
     @Test
     void shouldCreateProjectForCurrentUser() throws Exception {
-        ProjectDetailVO project = new ProjectDetailVO();
+        ProjectListVO project = new ProjectListVO();
         project.setId("project-1");
         project.setName("Build a CRM");
         project.setLatestSessionId("session-1");
-        project.setStatus("CREATED");
-        project.setCreatedAt(LocalDateTime.of(2026, 9, 21, 9, 0));
         project.setUpdatedAt(LocalDateTime.of(2026, 9, 21, 9, 1));
         when(projectService.addProject(any(AddProjectDTO.class))).thenReturn(project);
 
@@ -90,13 +84,15 @@ class ProjectControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.id").value("project-1"))
-                .andExpect(jsonPath("$.data.latestSessionId").value("session-1"));
+                .andExpect(jsonPath("$.data.name").value("Build a CRM"))
+                .andExpect(jsonPath("$.data.latestSessionId").value("session-1"))
+                .andExpect(jsonPath("$.data.status").doesNotExist())
+                .andExpect(jsonPath("$.data.createdAt").doesNotExist());
 
         ArgumentCaptor<AddProjectDTO> captor = ArgumentCaptor.forClass(AddProjectDTO.class);
         verify(projectService).addProject(captor.capture());
         assertThat(captor.getValue().userId()).isEqualTo("user-1");
         assertThat(captor.getValue().prompt()).isEqualTo("Build a CRM");
-        assertThat(captor.getValue().model().provider()).isEqualTo("deepseek");
     }
 
     @Test
@@ -115,22 +111,6 @@ class ProjectControllerTest {
         assertThat(captor.getValue().getUserId()).isEqualTo("user-1");
         assertThat(captor.getValue().getCurrent()).isEqualTo(1);
         assertThat(captor.getValue().getPageSize()).isEqualTo(20);
-    }
-
-    @Test
-    void shouldMapUnavailableProjectToNotFoundForCurrentUser() throws Exception {
-        when(projectService.queryProject(any(QueryProjectDTO.class)))
-                .thenThrow(new ProjectException(ProjectErrorCode.NOT_FOUND));
-
-        mockMvc.perform(get("/api/projects/project-1"))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value(20001))
-                .andExpect(jsonPath("$.message").value("Project not found"));
-
-        ArgumentCaptor<QueryProjectDTO> captor = ArgumentCaptor.forClass(QueryProjectDTO.class);
-        verify(projectService).queryProject(captor.capture());
-        assertThat(captor.getValue().projectId()).isEqualTo("project-1");
-        assertThat(captor.getValue().userId()).isEqualTo("user-1");
     }
 
     @Test

@@ -2,15 +2,10 @@ package io.yakable.service.project.impl;
 
 import io.yakable.common.bean.PageData;
 import io.yakable.common.bean.dto.project.AddProjectDTO;
-import io.yakable.common.bean.dto.project.QueryProjectDTO;
 import io.yakable.common.bean.dto.project.QueryProjectPageDTO;
 import io.yakable.common.bean.dto.session.AddSessionDTO;
-import io.yakable.common.bean.vo.project.ProjectDetailVO;
 import io.yakable.common.bean.vo.project.ProjectListVO;
 import io.yakable.common.bean.vo.session.SessionInitVO;
-import io.yakable.common.enums.project.ProjectErrorCode;
-import io.yakable.common.enums.project.ProjectStatusEnum;
-import io.yakable.common.exception.ProjectException;
 import io.yakable.dao.entity.ProjectEntity;
 import io.yakable.dao.repository.ProjectRepository;
 import io.yakable.service.session.SessionService;
@@ -26,10 +21,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -70,7 +63,7 @@ class ProjectServiceImplTest {
                 "  Build a CRM dashboard  \nIgnore this second line",
                 new AddProjectDTO.ModelDTO("deepseek", "deepseek-flash"));
 
-        ProjectDetailVO result = projectService.addProject(dto);
+        ProjectListVO result = projectService.addProject(dto);
 
         ArgumentCaptor<ProjectEntity> projectCaptor = ArgumentCaptor.forClass(ProjectEntity.class);
         verify(projectRepository).add(projectCaptor.capture());
@@ -78,16 +71,63 @@ class ProjectServiceImplTest {
 
         assertThat(savedProject.getName()).isEqualTo("Build a CRM dashboard");
         assertThat(savedProject.getCreateBy()).isEqualTo("user-1");
-        assertThat(savedProject.getStatus()).isEqualTo(ProjectStatusEnum.CREATED);
 
         ArgumentCaptor<AddSessionDTO> sessionCaptor = ArgumentCaptor.forClass(AddSessionDTO.class);
         verify(sessionService).addSession(sessionCaptor.capture());
         assertThat(sessionCaptor.getValue().userId()).isEqualTo("user-1");
+        assertThat(sessionCaptor.getValue().title()).isEqualTo("Build a CRM dashboard");
 
         verify(sessionService).executeTurnAsync("turn-1");
         assertThat(result.getId()).isEqualTo(savedProject.getId());
+        assertThat(result.getName()).isEqualTo("Build a CRM dashboard");
         assertThat(result.getLatestSessionId()).isEqualTo("session-1");
         assertThat(result.getUpdatedAt()).isEqualTo(sessionUpdatedAt);
+    }
+
+    @Test
+    void shouldUseFirstNonBlankPromptLineAsProjectName() {
+        doAnswer(invocation -> {
+            TransactionCallback<?> callback = invocation.getArgument(0);
+            return callback.doInTransaction(mock(TransactionStatus.class));
+        }).when(transactionTemplate).execute(any(TransactionCallback.class));
+
+        SessionInitVO session = new SessionInitVO();
+        session.setSessionId("session-1");
+        session.setTurnId("turn-1");
+        session.setUpdatedAt(LocalDateTime.of(2026, 9, 21, 10, 30));
+        when(sessionService.addSession(any(AddSessionDTO.class))).thenReturn(session);
+
+        projectService.addProject(new AddProjectDTO(
+                "user-1",
+                "\n   \n   Build a CRM dashboard   \nSecond line",
+                new AddProjectDTO.ModelDTO("deepseek", "deepseek-flash")));
+
+        ArgumentCaptor<ProjectEntity> captor = ArgumentCaptor.forClass(ProjectEntity.class);
+        verify(projectRepository).add(captor.capture());
+        assertThat(captor.getValue().getName()).isEqualTo("Build a CRM dashboard");
+    }
+
+    @Test
+    void shouldKeepProjectNameWithinFortyEightCharacters() {
+        doAnswer(invocation -> {
+            TransactionCallback<?> callback = invocation.getArgument(0);
+            return callback.doInTransaction(mock(TransactionStatus.class));
+        }).when(transactionTemplate).execute(any(TransactionCallback.class));
+
+        SessionInitVO session = new SessionInitVO();
+        session.setSessionId("session-1");
+        session.setTurnId("turn-1");
+        session.setUpdatedAt(LocalDateTime.of(2026, 9, 21, 10, 30));
+        when(sessionService.addSession(any(AddSessionDTO.class))).thenReturn(session);
+
+        projectService.addProject(new AddProjectDTO(
+                "user-1",
+                "Build a very long customer relationship management dashboard with analytics",
+                new AddProjectDTO.ModelDTO("deepseek", "deepseek-flash")));
+
+        ArgumentCaptor<ProjectEntity> captor = ArgumentCaptor.forClass(ProjectEntity.class);
+        verify(projectRepository).add(captor.capture());
+        assertThat(captor.getValue().getName()).hasSizeLessThanOrEqualTo(48);
     }
 
     @Test
@@ -115,21 +155,10 @@ class ProjectServiceImplTest {
                 .isEqualTo(LocalDateTime.of(2026, 9, 21, 12, 0));
     }
 
-    @Test
-    void shouldHideProjectOwnedByAnotherUserAsNotFound() {
-        when(projectRepository.queryProject("project-1", "user-2")).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> projectService.queryProject(new QueryProjectDTO("project-1", "user-2")))
-                .isInstanceOf(ProjectException.class)
-                .satisfies(exception ->
-                        assertThat(((ProjectException) exception).getErrorCode()).isEqualTo(ProjectErrorCode.NOT_FOUND));
-    }
-
     private static ProjectEntity project(String id, String name) {
         ProjectEntity project = new ProjectEntity();
         project.setId(id);
         project.setName(name);
-        project.setStatus(ProjectStatusEnum.CREATED);
         project.setCreateTime(LocalDateTime.of(2026, 9, 21, 9, 0));
         project.setUpdateTime(LocalDateTime.of(2026, 9, 21, 9, 0));
         project.setCreateBy("user-1");
