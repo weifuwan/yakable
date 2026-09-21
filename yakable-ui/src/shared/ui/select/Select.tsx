@@ -27,17 +27,23 @@ export interface SelectOption {
 
 export type SelectSide = 'auto' | 'top' | 'bottom';
 export type SelectAlign = 'start' | 'center' | 'end';
+export type SelectSurface = 'chassis' | 'borderless';
 
 const selectTriggerVariants = cva(
   'yak-select-trigger inline-flex shrink-0 cursor-pointer items-center justify-center gap-1 rounded-full bg-transparent font-medium text-foreground outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring-strong disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-40',
   {
     variants: {
+      surface: {
+        chassis: 'yak-select-trigger-chassis',
+        borderless: 'yak-select-trigger-borderless',
+      },
       size: {
         sm: 'h-7 py-1 pl-[9px] pr-1.5 text-xs',
         md: 'h-9 py-1.5 pl-3 pr-2.5 text-sm',
       },
     },
     defaultVariants: {
+      surface: 'chassis',
       size: 'sm',
     },
   },
@@ -114,6 +120,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
     placeholder = 'Select',
     side = 'auto',
     size,
+    surface = 'chassis',
     value,
     ...props
   },
@@ -471,13 +478,17 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
         aria-controls={open ? menuId : undefined}
         disabled={disabled}
         data-open={open ? '' : undefined}
-        className={cx(selectTriggerVariants({ size }), className)}
+        data-surface={surface}
+        className={cx(
+          selectTriggerVariants({ size, surface }),
+          className,
+        )}
         onClick={() => {
           open ? closeAndRestoreFocus() : openSelect('selected');
         }}
         onKeyDown={handleTriggerKeyDown}
       >
-        <SelectTriggerEffects />
+        {surface === 'chassis' && <SelectTriggerEffects />}
         <span
           data-button-content=""
           className="relative z-20 flex min-w-0 items-center justify-center gap-1"
