@@ -89,16 +89,16 @@ function CopyStatusIcon({ copied }: { copied: boolean }) {
         y="9"
         width="13"
         height="13"
-        rx={copied ? 6 : 2}
-        ry={copied ? 6 : 2}
+        rx={copied ? 6.5 : 2}
+        ry={copied ? 6.5 : 2}
         style={{
           transform: copied
-            ? 'translate(0px, 0px) scale(0.95)'
+            ? 'translate(0px, 0px) scale(0.92)'
             : 'translate(0px, 0px) scale(1)',
           transformOrigin: '8.5px 15.5px',
           strokeWidth: 2,
           color: 'currentcolor',
-          stroke: 'currentcolor',
+          stroke: copied ? '#467C2A' : 'currentcolor',
           transition:
             'rx 220ms ease-in-out, ry 220ms ease-in-out, transform 220ms ease-in-out, stroke-width 220ms ease-in-out, stroke 150ms ease-in-out 100ms',
         }}
@@ -109,7 +109,7 @@ function CopyStatusIcon({ copied }: { copied: boolean }) {
           strokeDasharray: 20,
           strokeDashoffset: copied ? 0 : 20,
           opacity: copied ? 1 : 0,
-          stroke: '#22A559',
+          stroke: '#467C2A',
           transition: copied
             ? 'stroke-dashoffset 120ms ease-in, opacity 80ms ease-in'
             : 'stroke-dashoffset 120ms ease-out, opacity 80ms ease-out',
