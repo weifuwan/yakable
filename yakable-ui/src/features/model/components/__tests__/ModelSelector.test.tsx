@@ -31,6 +31,25 @@ describe('ModelSelector', () => {
     ).toBe('true');
   });
 
+  it('forwards the requested Select surface', () => {
+    render(
+      <ModelSelector
+        surface="borderless"
+        value={{
+          provider: 'deepseek',
+          model: 'deepseek-flash',
+        }}
+        onValueChange={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen
+        .getByRole('button', { name: 'Select model' })
+        .getAttribute('data-surface'),
+    ).toBe('borderless');
+  });
+
   it('maps Select values back to ModelSelection', async () => {
     const user = userEvent.setup();
     const onValueChange = vi.fn();
