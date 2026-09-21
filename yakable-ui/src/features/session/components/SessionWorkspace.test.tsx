@@ -292,6 +292,9 @@ describe('SessionWorkspace', () => {
     expect(
       screen.getByRole('status', { name: 'Loading session' }),
     ).toBeTruthy();
+    expect(
+      screen.getByRole('status', { name: 'Loading session header' }),
+    ).toBeTruthy();
     expect(screen.queryByText('I am Yakable.')).toBeNull();
     expect(
       screen.getByRole('status', { name: 'Loading prompt composer' }),
@@ -306,6 +309,10 @@ describe('SessionWorkspace', () => {
     expect(
       screen.queryByRole('status', { name: 'Loading session' }),
     ).toBeNull();
+    expect(
+      screen.queryByRole('status', { name: 'Loading session header' }),
+    ).toBeNull();
+    expect(screen.getByText('Analytics')).toBeTruthy();
     expect(
       screen.queryByRole('status', { name: 'Loading prompt composer' }),
     ).toBeNull();

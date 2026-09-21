@@ -453,6 +453,7 @@ export function SessionWorkspace({
     >
       <ProjectHeader
         title={snapshot?.session.title ?? 'Project'}
+        loading={isSessionLoading}
         expanded={expanded}
         onToggleExpanded={() => setExpanded((current) => !current)}
       />
