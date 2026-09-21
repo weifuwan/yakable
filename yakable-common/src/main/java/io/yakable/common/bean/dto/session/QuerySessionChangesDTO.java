@@ -11,5 +11,6 @@ import jakarta.validation.constraints.PositiveOrZero;
 public record QuerySessionChangesDTO(
         @Schema(description = "Project ID") @NotBlank String projectId,
         @Schema(description = "Session ID") @NotBlank String sessionId,
-        @Schema(description = "已读取的 Message 序号", example = "0") @PositiveOrZero long afterSequence) {
+        @Schema(description = "已读取的 Message 序号", example = "0") @PositiveOrZero long afterSequence,
+        @Schema(hidden = true) @NotBlank String userId) {
 }

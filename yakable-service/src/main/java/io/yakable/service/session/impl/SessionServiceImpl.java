@@ -109,7 +109,7 @@ public class SessionServiceImpl implements SessionService {
     @Override
     public SessionInitVO addSession(AddSessionDTO dto) {
         SessionEntity session = ConverUtils.convert(dto, SessionEntity.class);
-        session.initCreate();
+        session.initCreate(dto.userId());
         session.setStatus(SessionStatusEnum.ACTIVE);
         sessionRepository.add(session);
 
@@ -136,7 +136,7 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     public TurnVO cancelTurn(CancelTurnDTO dto) {
-        queryOwnedSession(dto.projectId(), dto.sessionId());
+        queryOwnedSession(dto.projectId(), dto.sessionId(), dto.userId());
         TurnExecutionVO execution = turnService.queryTurnExecution(dto.turnId())
                 .filter(turn -> dto.sessionId().equals(turn.getSessionId()))
                 .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
@@ -194,7 +194,7 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     public SessionDetailVO querySession(QuerySessionDTO dto) {
-        SessionEntity session = queryOwnedSession(dto.projectId(), dto.sessionId());
+        SessionEntity session = queryOwnedSession(dto.projectId(), dto.sessionId(), dto.userId());
 
         SessionDetailVO result = new SessionDetailVO();
         result.setSession(toSessionVO(session));
@@ -218,7 +218,7 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     public SessionChangesVO querySessionChanges(QuerySessionChangesDTO dto) {
-        queryOwnedSession(dto.projectId(), dto.sessionId());
+        queryOwnedSession(dto.projectId(), dto.sessionId(), dto.userId());
 
         TurnVO latest = turnService.queryLatestTurn(dto.sessionId())
                 .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
@@ -232,7 +232,7 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     public SessionMessagePageVO querySessionMessage(QuerySessionMessagesDTO dto) {
-        queryOwnedSession(dto.projectId(), dto.sessionId());
+        queryOwnedSession(dto.projectId(), dto.sessionId(), dto.userId());
 
         List<MessageVO> rows = messageService.queryMessageBefore(dto.sessionId(), dto.beforeSequence(), dto.limit() + 1);
         boolean hasMore = rows.size() > dto.limit();
@@ -250,7 +250,7 @@ public class SessionServiceImpl implements SessionService {
 
     private TurnStartVO createTurn(AddTurnDTO dto) {
         return transactionTemplate.execute(status -> {
-            SessionEntity session = queryOwnedSession(dto.projectId(), dto.sessionId());
+            SessionEntity session = queryOwnedSession(dto.projectId(), dto.sessionId(), dto.userId());
             if (session.getStatus() != SessionStatusEnum.ACTIVE) {
                 throw new SessionException(SessionErrorCode.INACTIVE);
             }
@@ -500,8 +500,8 @@ public class SessionServiceImpl implements SessionService {
         sessionRepository.update(session);
     }
 
-    private SessionEntity queryOwnedSession(String projectId, String sessionId) {
-        return sessionRepository.querySession(projectId, sessionId)
+    private SessionEntity queryOwnedSession(String projectId, String sessionId, String userId) {
+        return sessionRepository.querySession(projectId, sessionId, userId)
                 .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
     }
 

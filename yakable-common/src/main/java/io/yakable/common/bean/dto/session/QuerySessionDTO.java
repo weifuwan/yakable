@@ -9,5 +9,6 @@ import jakarta.validation.constraints.NotBlank;
 @Schema(description = "查询 Session 参数")
 public record QuerySessionDTO(
         @Schema(description = "Project ID") @NotBlank String projectId,
-        @Schema(description = "Session ID") @NotBlank String sessionId) {
+        @Schema(description = "Session ID") @NotBlank String sessionId,
+        @Schema(hidden = true) @NotBlank String userId) {
 }

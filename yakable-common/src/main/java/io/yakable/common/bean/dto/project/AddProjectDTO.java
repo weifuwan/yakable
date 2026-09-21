@@ -8,13 +8,19 @@ import jakarta.validation.constraints.NotNull;
 /**
  * 新增 Project 入参。
  *
+ * @param userId 当前用户ID
  * @param prompt 用户输入内容
  * @param model 模型配置
  */
 @Schema(description = "新增 Project 参数")
 public record AddProjectDTO(
+        @Schema(hidden = true) String userId,
         @Schema(description = "用户输入内容") @NotBlank String prompt,
         @Schema(description = "模型配置") @NotNull @Valid ModelDTO model) {
+
+    public AddProjectDTO(String prompt, ModelDTO model) {
+        this(null, prompt, model);
+    }
 
     /**
      * Project 创建时使用的模型配置。
