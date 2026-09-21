@@ -88,7 +88,7 @@ function SessionLoadingIndicator() {
     >
       <svg
         aria-hidden="true"
-        className="size-5 animate-spin text-black/35"
+        className="size-5 animate-spin text-[#B0B0B0]"
         viewBox="0 0 24 24"
         fill="none"
       >
