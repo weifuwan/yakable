@@ -19,6 +19,12 @@ yakable:
   session:
     context:
       max-history-turns: ${YAKABLE_CONTEXT_MAX_HISTORY_TURNS:20}
+  auth:
+    session-ttl-seconds: ${YAKABLE_AUTH_SESSION_TTL_SECONDS:604800}
+    initial-admin:
+      username: ${YAKABLE_ADMIN_USERNAME:}
+      name: ${YAKABLE_ADMIN_NAME:}
+      password: ${YAKABLE_ADMIN_PASSWORD:}
   model:
     providers:
       deepseek:

@@ -2,9 +2,11 @@ package io.yakable.boot.configuration.exception;
 
 import io.yakable.common.ErrorCode;
 import io.yakable.common.Result;
+import io.yakable.common.enums.auth.AuthErrorCode;
 import io.yakable.common.enums.common.CommonErrorCode;
 import io.yakable.common.enums.project.ProjectErrorCode;
 import io.yakable.common.enums.session.SessionErrorCode;
+import io.yakable.common.enums.user.UserErrorCode;
 import io.yakable.common.exception.BusinessException;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
@@ -60,10 +62,23 @@ public class GlobalExceptionHandler {
     }
 
     private static HttpStatus businessStatus(ErrorCode errorCode) {
-        if (errorCode == ProjectErrorCode.NOT_FOUND || errorCode == SessionErrorCode.NOT_FOUND) {
+        if (errorCode == AuthErrorCode.UNAUTHORIZED || errorCode == AuthErrorCode.INVALID_CREDENTIALS) {
+            return HttpStatus.UNAUTHORIZED;
+        }
+        if (errorCode == AuthErrorCode.ACCOUNT_DISABLED || errorCode == AuthErrorCode.FORBIDDEN) {
+            return HttpStatus.FORBIDDEN;
+        }
+        if (errorCode == UserErrorCode.NOT_FOUND
+                || errorCode == ProjectErrorCode.NOT_FOUND
+                || errorCode == SessionErrorCode.NOT_FOUND) {
             return HttpStatus.NOT_FOUND;
         }
-        if (errorCode == SessionErrorCode.BUSY || errorCode == SessionErrorCode.INACTIVE) {
+        if (errorCode == UserErrorCode.USERNAME_EXISTS
+                || errorCode == UserErrorCode.CANNOT_OPERATE_SELF
+                || errorCode == UserErrorCode.LAST_ACTIVE_ADMIN
+                || errorCode == UserErrorCode.STATUS_CHANGED
+                || errorCode == SessionErrorCode.BUSY
+                || errorCode == SessionErrorCode.INACTIVE) {
             return HttpStatus.CONFLICT;
         }
         return HttpStatus.BAD_REQUEST;
