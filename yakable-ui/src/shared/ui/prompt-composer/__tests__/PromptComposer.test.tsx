@@ -28,6 +28,23 @@ describe('PromptComposer', () => {
     });
   });
 
+  it('renders submit through the shared compact circular Button contract', async () => {
+    const user = userEvent.setup();
+
+    render(<PromptComposer onSubmit={() => true} />);
+
+    const input = screen.getByRole('textbox', { name: 'Prompt' });
+    const submit = screen.getByRole('button', { name: 'Submit prompt' });
+
+    expect(submit.className).toContain('bg-primary');
+    expect(submit.className).toContain('size-8');
+    expect(submit.className).toContain('rounded-full');
+
+    await user.type(input, 'Hello');
+
+    expect(submit.disabled).toBe(false);
+  });
+
   it('keeps Shift+Enter as multiline input instead of submitting', async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
@@ -89,6 +106,10 @@ describe('PromptComposer', () => {
     const stopButton = screen.getByRole('button', {
       name: 'Stop generating',
     });
+
+    expect(stopButton.className).toContain('bg-action-active');
+    expect(stopButton.className).toContain('size-8');
+    expect(stopButton.className).toContain('rounded-full');
 
     await user.click(stopButton);
 
