@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 
 import { cx } from '../cx';
 import { PromptComposerActions } from './PromptComposerActions';
+import { PromptComposerAnimatedPlaceholder } from './PromptComposerAnimatedPlaceholder';
 import { PromptComposerSurfaceEffects } from './PromptComposerSurfaceEffects';
 import {
   useComposerInput,
@@ -17,6 +18,8 @@ export interface PromptComposerProps {
   onStop?: () => void;
   onSubmit?: PromptComposerSubmitHandler;
   placeholder?: string;
+  placeholderPrefix?: string;
+  placeholderSuggestions?: readonly string[];
   running?: boolean;
   stopLabel?: string;
   submitLabel?: string;
@@ -32,6 +35,8 @@ export function PromptComposer({
   onStop,
   onSubmit,
   placeholder = 'Ask Yakable to build...',
+  placeholderPrefix,
+  placeholderSuggestions,
   running = false,
   stopLabel = 'Stop generating',
   submitLabel = 'Submit prompt',
@@ -52,6 +57,10 @@ export function PromptComposer({
     disabled: disabled || running,
     onSubmit,
   });
+
+  const animatedPlaceholder =
+    Boolean(placeholderPrefix) &&
+    Boolean(placeholderSuggestions?.length);
 
   return (
     <div
@@ -74,20 +83,29 @@ export function PromptComposer({
         <PromptComposerSurfaceEffects />
 
         <div className="relative z-10">
-          <textarea
-            ref={textareaRef}
-            aria-label={ariaLabel}
-            autoComplete="off"
-            disabled={disabled}
-            rows={1}
-            value={value}
-            placeholder={placeholder}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            onCompositionStart={handleCompositionStart}
-            onCompositionEnd={handleCompositionEnd}
-            className="block min-h-14 w-full resize-none bg-transparent px-2 py-1 text-[15px] leading-6 text-foreground outline-none placeholder:text-foreground-placeholder disabled:cursor-not-allowed"
-          />
+          <div className="relative">
+            {animatedPlaceholder && value.length === 0 && (
+              <PromptComposerAnimatedPlaceholder
+                prefix={placeholderPrefix ?? ''}
+                suggestions={placeholderSuggestions ?? []}
+              />
+            )}
+
+            <textarea
+              ref={textareaRef}
+              aria-label={ariaLabel}
+              autoComplete="off"
+              disabled={disabled}
+              rows={1}
+              value={value}
+              placeholder={animatedPlaceholder ? undefined : placeholder}
+              onChange={handleChange}
+              onKeyDown={handleKeyDown}
+              onCompositionStart={handleCompositionStart}
+              onCompositionEnd={handleCompositionEnd}
+              className="relative block min-h-14 w-full resize-none bg-transparent px-2 py-1 text-[15px] leading-6 text-foreground outline-none placeholder:text-foreground-placeholder disabled:cursor-not-allowed"
+            />
+          </div>
 
           <PromptComposerActions
             canSubmit={canSubmit}
