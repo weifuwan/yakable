@@ -5,4 +5,5 @@ export {
   type SelectOption,
   type SelectProps,
   type SelectSide,
+  type SelectSurface,
 } from './Select';
