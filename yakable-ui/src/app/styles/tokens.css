@@ -49,6 +49,8 @@
   --color-danger: var(--danger);
   --color-danger-surface: var(--danger-surface);
   --color-danger-border: var(--danger-border);
+  --color-danger-border-subtle: var(--danger-border-subtle);
+  --color-danger-foreground: var(--danger-foreground);
   --color-danger-ring: var(--danger-ring);
   --color-warning: var(--warning);
   --color-warning-surface: var(--warning-surface);
@@ -114,6 +116,8 @@
   --danger: oklch(0.577 0.245 27.325);
   --danger-surface: oklch(0.971 0.013 17.38);
   --danger-border: oklch(0.637 0.237 25.331 / 70%);
+  --danger-border-subtle: oklch(0.885 0.062 18.334);
+  --danger-foreground: oklch(0.505 0.213 27.518);
   --danger-ring: oklch(0.637 0.237 25.331 / 30%);
   --warning: oklch(0.473 0.137 46.201);
   --warning-surface: oklch(0.987 0.022 95.277);
