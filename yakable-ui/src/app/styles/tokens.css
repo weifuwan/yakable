@@ -1,0 +1,129 @@
+@theme inline {
+  --color-background: var(--background);
+  --color-workspace: var(--workspace);
+  --color-surface: var(--surface);
+
+  --color-foreground: var(--foreground);
+  --color-heading-foreground: var(--heading-foreground);
+  --color-title-foreground: var(--title-foreground);
+  --color-foreground-secondary: var(--foreground-secondary);
+  --color-foreground-tertiary: var(--foreground-tertiary);
+  --color-foreground-soft: var(--foreground-soft);
+  --color-foreground-muted: var(--foreground-muted);
+  --color-foreground-subtle: var(--foreground-subtle);
+  --color-foreground-faint: var(--foreground-faint);
+  --color-foreground-placeholder: var(--foreground-placeholder);
+  --color-foreground-disabled: var(--foreground-disabled);
+  --color-icon-muted: var(--icon-muted);
+  --color-icon-secondary: var(--icon-secondary);
+  --color-icon-hover: var(--icon-hover);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-action-active: var(--action-active);
+
+  --color-surface-hover-subtle: var(--surface-hover-subtle);
+  --color-surface-hover: var(--surface-hover);
+  --color-navigation-hover: var(--navigation-hover);
+  --color-menu-hover: var(--menu-hover);
+  --color-surface-soft: var(--surface-soft);
+  --color-surface-selected: var(--surface-selected);
+  --color-surface-skeleton: var(--surface-skeleton);
+
+  --color-border: var(--border);
+  --color-border-control: var(--border-control);
+  --color-border-quiet: var(--border-quiet);
+  --color-border-quote: var(--border-quote);
+  --color-border-strong: var(--border-strong);
+  --color-border-focus: var(--border-focus);
+  --color-focus-ring-soft: var(--focus-ring-soft);
+  --color-focus-ring: var(--focus-ring);
+  --color-focus-ring-strong: var(--focus-ring-strong);
+  --color-message-border: var(--message-border);
+
+  --color-skeleton: var(--skeleton);
+  --color-loading: var(--loading);
+  --color-success: var(--success);
+  --color-link: var(--link);
+  --color-danger: var(--danger);
+  --color-danger-surface: var(--danger-surface);
+  --color-danger-border: var(--danger-border);
+  --color-danger-border-subtle: var(--danger-border-subtle);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-danger-ring: var(--danger-ring);
+  --color-warning: var(--warning);
+  --color-warning-surface: var(--warning-surface);
+  --color-warning-border: var(--warning-border);
+}
+
+:root {
+  /*
+   * Yakable semantic color tokens.
+   *
+   * Components consume semantic Tailwind utilities such as bg-surface,
+   * text-foreground and border-border. Visual values live here so a taste
+   * change can be made without rewriting component markup.
+   */
+
+  --background: #f4f4f2;
+  --workspace: #f5f5f5;
+  --surface: #ffffff;
+
+  --foreground: #20201e;
+  --heading-foreground: #151515;
+  --title-foreground: #182020;
+  --foreground-secondary: rgb(0 0 0 / 70%);
+  --foreground-tertiary: rgb(0 0 0 / 65%);
+  --foreground-soft: rgb(0 0 0 / 60%);
+  --foreground-muted: rgb(0 0 0 / 45%);
+  --foreground-subtle: rgb(0 0 0 / 40%);
+  --foreground-faint: rgb(0 0 0 / 35%);
+  --foreground-placeholder: rgb(0 0 0 / 38%);
+  --foreground-disabled: rgb(0 0 0 / 25%);
+  --icon-muted: #858585;
+  --icon-secondary: #5f6868;
+  --icon-hover: #5f5f5f;
+
+  --primary: #20201e;
+  --primary-hover: #343431;
+  --primary-foreground: #ffffff;
+  --action-active: #2f7df4;
+
+  --surface-hover-subtle: rgb(0 0 0 / 3%);
+  --surface-hover: rgb(0 0 0 / 5%);
+  --navigation-hover: rgb(0 0 0 / 4.5%);
+  --menu-hover: rgb(0 0 0 / 4%);
+  --surface-soft: rgb(0 0 0 / 6%);
+  --surface-selected: rgb(0 0 0 / 7%);
+  --surface-skeleton: rgb(0 0 0 / 8%);
+
+  --border: rgb(0 0 0 / 10%);
+  --border-control: rgb(0 0 0 / 12%);
+  --border-quiet: rgb(0 0 0 / 8%);
+  --border-quote: rgb(0 0 0 / 15%);
+  --border-strong: rgb(0 0 0 / 18%);
+  --border-focus: rgb(0 0 0 / 30%);
+  --focus-ring-soft: rgb(0 0 0 / 20%);
+  --focus-ring: rgb(0 0 0 / 40%);
+  --focus-ring-strong: rgb(0 0 0 / 50%);
+  --message-border: #e1e1e0;
+
+  --skeleton: #ececec;
+  --loading: #b0b0b0;
+  --success: #4f7f37;
+  --link: oklch(0.546 0.245 262.881);
+  --danger: oklch(0.577 0.245 27.325);
+  --danger-surface: oklch(0.971 0.013 17.38);
+  --danger-border: oklch(0.637 0.237 25.331 / 70%);
+  --danger-border-subtle: oklch(0.885 0.062 18.334);
+  --danger-foreground: oklch(0.505 0.213 27.518);
+  --danger-ring: oklch(0.637 0.237 25.331 / 30%);
+  --warning: oklch(0.473 0.137 46.201);
+  --warning-surface: oklch(0.987 0.022 95.277);
+  --warning-border: oklch(0.924 0.12 95.746);
+
+  --workspace-fade-strong: rgb(245 245 245 / 96%);
+  --workspace-fade-soft: rgb(245 245 245 / 72%);
+  --workspace-fade-transparent: rgb(245 245 245 / 0%);
+}

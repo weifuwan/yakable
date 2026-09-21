@@ -70,7 +70,7 @@ export function CreateProjectComposer() {
       )}
 
       {error && (
-        <p className="mb-0 mt-2 px-2 text-sm text-red-600" role="alert">
+        <p className="mb-0 mt-2 px-2 text-sm text-danger" role="alert">
           {error}
         </p>
       )}

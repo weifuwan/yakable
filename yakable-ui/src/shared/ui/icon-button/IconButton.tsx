@@ -19,9 +19,9 @@ export interface IconButtonProps
 
 const variants: Record<IconButtonVariant, string> = {
   secondary:
-    'border border-black/[0.12] bg-white text-[#20201e] hover:bg-black/[0.03]',
+    'border border-border-control bg-surface text-foreground hover:bg-surface-hover-subtle',
   ghost:
-    'bg-transparent text-[#5f6868] hover:bg-black/[0.05] hover:text-[#20201e]',
+    'bg-transparent text-icon-secondary hover:bg-surface-hover hover:text-foreground',
 };
 
 const sizes: Record<IconButtonSize, string> = {
@@ -46,7 +46,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
         ref={ref}
         type={type}
         className={cx(
-          'inline-flex shrink-0 items-center justify-center rounded-lg outline-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black/50 disabled:pointer-events-none disabled:opacity-40',
+          'inline-flex shrink-0 items-center justify-center rounded-lg outline-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring-strong disabled:pointer-events-none disabled:opacity-40',
           variants[variant],
           sizes[size],
           className,

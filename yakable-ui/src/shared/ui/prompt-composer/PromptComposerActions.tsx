@@ -42,11 +42,11 @@ export function PromptComposerActions({
           <span
             id={tooltipId}
             role="tooltip"
-            className="pointer-events-none absolute right-0 bottom-full z-20 mb-2 hidden items-center gap-1.5 whitespace-nowrap rounded-lg bg-[#20201e] px-2.5 py-1.5 text-xs font-medium text-white group-hover:flex group-focus-within:flex"
+            className="pointer-events-none absolute right-0 bottom-full z-20 mb-2 hidden items-center gap-1.5 whitespace-nowrap rounded-lg bg-primary px-2.5 py-1.5 text-xs font-medium text-primary-foreground group-hover:flex group-focus-within:flex"
           >
             <span>{tooltip}</span>
             {!stoppingEnabled && (
-              <kbd className="rounded bg-white/10 px-1 py-0.5 text-[10px] leading-none text-white/70">
+              <kbd className="rounded bg-primary-foreground/10 px-1 py-0.5 text-[10px] leading-none text-primary-foreground/70">
                 ↵
               </kbd>
             )}
@@ -59,16 +59,16 @@ export function PromptComposerActions({
             disabled={stoppingEnabled ? false : !canSubmit}
             onClick={stoppingEnabled ? onStop : onSubmit}
             className={cx(
-              'inline-flex size-8 cursor-pointer items-center justify-center rounded-full text-white outline-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black/50 disabled:pointer-events-none disabled:cursor-default disabled:bg-black/[0.08] disabled:text-black/25',
+              'inline-flex size-8 cursor-pointer items-center justify-center rounded-full text-primary-foreground outline-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring-strong disabled:pointer-events-none disabled:cursor-default disabled:bg-surface-skeleton disabled:text-foreground-disabled',
               stoppingEnabled
-                ? 'bg-[#2f7df4] hover:bg-[#2f7df4]'
-                : 'bg-[#20201e] hover:bg-[#343431]',
+                ? 'bg-action-active hover:bg-action-active'
+                : 'bg-primary hover:bg-primary-hover',
             )}
           >
             {stoppingEnabled ? (
               <span
                 aria-hidden="true"
-                className="size-2.5 rounded-[2px] bg-white"
+                className="size-2.5 rounded-[2px] bg-primary-foreground"
               />
             ) : isSubmitting ? (
               <span

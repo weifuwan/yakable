@@ -54,8 +54,8 @@ export function PromptComposer({
   return (
     <div
       className={cx(
-        'w-full rounded-[24px] border border-black/[0.10] bg-white p-3',
-        'focus-within:border-black/[0.18]',
+        'w-full rounded-[24px] border border-border bg-surface p-3',
+        'focus-within:border-border-strong',
         disabled && 'opacity-55',
         className,
       )}
@@ -72,7 +72,7 @@ export function PromptComposer({
         onKeyDown={handleKeyDown}
         onCompositionStart={handleCompositionStart}
         onCompositionEnd={handleCompositionEnd}
-        className="block min-h-14 w-full resize-none bg-transparent px-2 py-1 text-[15px] leading-6 text-[#20201e] outline-none placeholder:text-black/38 disabled:cursor-not-allowed"
+        className="block min-h-14 w-full resize-none bg-transparent px-2 py-1 text-[15px] leading-6 text-foreground outline-none placeholder:text-foreground-placeholder disabled:cursor-not-allowed"
       />
 
       <PromptComposerActions

@@ -89,7 +89,7 @@ function SessionLoadingIndicator() {
     >
       <svg
         aria-hidden="true"
-        className="size-5 animate-spin text-[#B0B0B0]"
+        className="size-5 animate-spin text-loading"
         viewBox="0 0 24 24"
         fill="none"
       >
@@ -447,7 +447,7 @@ export function SessionWorkspace({
   return (
     <div
       className={cx(
-        'flex min-h-0 flex-col bg-[#F5F5F5]',
+        'flex min-h-0 flex-col bg-workspace',
         expanded ? 'fixed inset-0 z-50 h-screen' : 'h-full',
       )}
     >
@@ -471,7 +471,7 @@ export function SessionWorkspace({
             <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-8">
               {loadError && (
                 <div
-                  className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+                  className="rounded-xl border border-warning-border bg-warning-surface px-4 py-3 text-sm text-warning"
                   role="alert"
                 >
                   {loadError}
@@ -503,14 +503,14 @@ export function SessionWorkspace({
               )}
 
               {generating && !streamingContent && (
-                <p className="m-0 px-1 text-sm text-black/40" role="status">
+                <p className="m-0 px-1 text-sm text-foreground-subtle" role="status">
                   Thinking...
                 </p>
               )}
 
               {latestTurn?.status === 'FAILED' && (
                 <div
-                  className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+                  className="rounded-xl border border-danger-border-subtle bg-danger-surface px-4 py-3 text-sm text-danger-foreground"
                   role="alert"
                 >
                   {latestTurn.errorMessage ?? 'Turn failed.'}
@@ -525,7 +525,7 @@ export function SessionWorkspace({
           className="pointer-events-none absolute inset-x-0 top-0 z-10 h-10"
           style={{
             background:
-              'linear-gradient(to bottom, rgba(245, 245, 245, 0.96) 0%, rgba(245, 245, 245, 0.72) 45%, rgba(245, 245, 245, 0) 100%)',
+              'linear-gradient(to bottom, var(--workspace-fade-strong) 0%, var(--workspace-fade-soft) 45%, var(--workspace-fade-transparent) 100%)',
           }}
         />
         <div
@@ -533,7 +533,7 @@ export function SessionWorkspace({
           className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-10"
           style={{
             background:
-              'linear-gradient(to top, rgba(245, 245, 245, 0.96) 0%, rgba(245, 245, 245, 0.72) 45%, rgba(245, 245, 245, 0) 100%)',
+              'linear-gradient(to top, var(--workspace-fade-strong) 0%, var(--workspace-fade-soft) 45%, var(--workspace-fade-transparent) 100%)',
           }}
         />
 
@@ -544,7 +544,7 @@ export function SessionWorkspace({
             size="md"
             data-allow-shadow="true"
             className="absolute bottom-3 left-1/2 z-20 -translate-x-1/2 cursor-pointer hover:shadow-md"
-            style={{ borderRadius: '50%', backgroundColor: '#fff' }}
+            style={{ borderRadius: '50%', backgroundColor: 'var(--surface)' }}
             onClick={scrollToBottom}
           >
             {generating ? (
@@ -563,7 +563,7 @@ export function SessionWorkspace({
         )}
       </div>
 
-      <div className="shrink-0 bg-[#F5F5F5] px-6 py-4">
+      <div className="shrink-0 bg-workspace px-6 py-4">
         <div className="mx-auto w-full max-w-3xl">
           {isSessionLoading ? (
             <PromptComposerSkeleton />
@@ -581,7 +581,7 @@ export function SessionWorkspace({
           )}
 
           {sendError && (
-            <p className="mb-0 mt-2 px-2 text-sm text-red-600" role="alert">
+            <p className="mb-0 mt-2 px-2 text-sm text-danger" role="alert">
               {sendError}
             </p>
           )}
