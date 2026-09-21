@@ -42,7 +42,7 @@ describe('PromptComposer', () => {
 
     await user.type(input, 'Hello');
 
-    expect(submit.disabled).toBe(false);
+    expect(submit.hasAttribute('disabled')).toBe(false);
   });
 
   it('keeps Shift+Enter as multiline input instead of submitting', async () => {
