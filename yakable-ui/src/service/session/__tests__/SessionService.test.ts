@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ApiError, HttpUtils } from '@/service/http';
+import { HttpUtils } from '@/service/http';
 
 import { SessionService } from '../SessionService';
 import type {
@@ -115,7 +115,7 @@ describe('SessionService', () => {
     await expect(
       SessionService.querySession('project-1', 'session-1'),
     ).rejects.toEqual(
-      expect.objectContaining<ApiError>({
+      expect.objectContaining({
         name: 'ApiError',
         kind: 'parse',
       }),
