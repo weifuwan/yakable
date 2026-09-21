@@ -37,7 +37,7 @@ describe('Select', () => {
     expect(screen.getByRole('menu')).toBeTruthy();
     expect(
       screen
-        .getByRole('option', {
+        .getByRole('menuitemradio', {
           name: 'Build Make changes directly',
         })
         .getAttribute('aria-checked'),
