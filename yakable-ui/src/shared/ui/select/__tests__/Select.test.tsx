@@ -29,18 +29,18 @@ describe('Select', () => {
       />,
     );
 
-    const trigger = screen.getByRole('combobox');
+    const trigger = screen.getByRole('button', { name: /Build/ });
     expect(trigger.textContent).toContain('Build');
 
     await user.click(trigger);
 
-    expect(screen.getByRole('listbox')).toBeTruthy();
+    expect(screen.getByRole('menu')).toBeTruthy();
     expect(
       screen
         .getByRole('option', {
           name: 'Build Make changes directly',
         })
-        .getAttribute('aria-selected'),
+        .getAttribute('aria-checked'),
     ).toBe('true');
     expect(
       screen.getByText('Detailed spec for complex builds'),
@@ -60,18 +60,18 @@ describe('Select', () => {
       />,
     );
 
-    const trigger = screen.getByRole('combobox');
+    const trigger = screen.getByRole('button', { name: /Build/ });
 
     await user.click(trigger);
     await user.click(
-      screen.getByRole('option', {
+      screen.getByRole('menuitemradio', {
         name: 'Plan Detailed spec for complex builds',
       }),
     );
 
     expect(onValueChange).toHaveBeenCalledWith('plan');
     expect(trigger.textContent).toContain('Plan');
-    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(screen.queryByRole('menu')).toBeNull();
   });
 
   it('supports Arrow navigation and Enter selection', async () => {
@@ -86,12 +86,12 @@ describe('Select', () => {
       />,
     );
 
-    const trigger = screen.getByRole('combobox');
+    const trigger = screen.getByRole('button', { name: /Build/ });
     trigger.focus();
 
     await user.keyboard('{ArrowDown}');
 
-    const buildOption = await screen.findByRole('option', {
+    const buildOption = await screen.findByRole('menuitemradio', {
       name: 'Build Make changes directly',
     });
 
@@ -100,7 +100,7 @@ describe('Select', () => {
     });
 
     await user.keyboard('{ArrowDown}');
-    const planOption = screen.getByRole('option', {
+    const planOption = screen.getByRole('menuitemradio', {
       name: 'Plan Detailed spec for complex builds',
     });
     expect(document.activeElement).toBe(planOption);
@@ -132,7 +132,7 @@ describe('Select', () => {
       />,
     );
 
-    const trigger = screen.getByRole('combobox');
+    const trigger = screen.getByRole('button', { name: /Build/ });
     trigger.focus();
     await user.keyboard('{ArrowDown}');
 
@@ -154,15 +154,15 @@ describe('Select', () => {
 
     render(<Select defaultValue="build" options={options} />);
 
-    const trigger = screen.getByRole('combobox');
+    const trigger = screen.getByRole('button', { name: /Build/ });
 
     await user.click(trigger);
-    expect(screen.getByRole('listbox')).toBeTruthy();
+    expect(screen.getByRole('menu')).toBeTruthy();
 
     await user.keyboard('{Escape}');
 
     await waitFor(() => {
-      expect(screen.queryByRole('listbox')).toBeNull();
+      expect(screen.queryByRole('menu')).toBeNull();
       expect(document.activeElement).toBe(trigger);
     });
   });
