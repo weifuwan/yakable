@@ -31,6 +31,29 @@ describe('Button', () => {
     expect(button.className).toContain('px-2.5');
   });
 
+  it('supports compact circular accent actions', () => {
+    const classes = buttonVariants({
+      variant: 'accent',
+      size: 'icon-sm',
+      shape: 'circle',
+    });
+
+    expect(classes).toContain('bg-action-active');
+    expect(classes).toContain('size-8');
+    expect(classes).toContain('rounded-full');
+  });
+
+  it('owns the primary disabled visual state', () => {
+    const classes = buttonVariants({
+      variant: 'primary',
+      size: 'icon-sm',
+      shape: 'circle',
+    });
+
+    expect(classes).toContain('disabled:bg-surface-skeleton');
+    expect(classes).toContain('disabled:text-foreground-disabled');
+  });
+
   it('keeps caller classes as an escape hatch', () => {
     render(<Button className="w-full">Continue</Button>);
 
