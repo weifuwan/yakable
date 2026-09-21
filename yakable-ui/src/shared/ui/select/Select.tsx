@@ -26,7 +26,7 @@ export type SelectSide = 'auto' | 'top' | 'bottom';
 export type SelectAlign = 'start' | 'center' | 'end';
 
 const selectTriggerVariants = cva(
-  'inline-flex shrink-0 cursor-pointer items-center justify-center gap-1 rounded-full border border-border-control bg-surface font-medium text-foreground outline-none transition-colors hover:bg-surface-hover-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring-strong disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-40',
+  'inline-flex shrink-0 cursor-pointer items-center justify-center gap-1 rounded-full border border-border-control bg-surface font-medium text-foreground shadow-sm outline-none transition-colors hover:bg-surface-hover-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring-strong disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-40',
   {
     variants: {
       size: {
@@ -43,7 +43,7 @@ const selectTriggerVariants = cva(
 export interface SelectProps
   extends Omit<
       ButtonHTMLAttributes<HTMLButtonElement>,
-      'defaultValue' | 'onChange' | 'value'
+      'defaultValue' | 'onChange' | 'onClick' | 'onKeyDown' | 'type' | 'value'
     >,
     VariantProps<typeof selectTriggerVariants> {
   options: readonly SelectOption[];
@@ -373,7 +373,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
             data-allow-shadow="true"
             data-side={position?.side}
             className={cx(
-              'fixed z-50 min-w-48 max-w-80 overflow-hidden rounded-xl border border-border bg-surface p-1 text-foreground shadow-lg outline-none',
+              'fixed z-50 flex min-w-48 max-w-80 flex-col overflow-hidden rounded-xl border border-border bg-surface p-1 text-foreground shadow-lg outline-none',
               contentClassName,
             )}
             style={{
@@ -387,12 +387,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
               id={listboxId}
               role="listbox"
               aria-labelledby={triggerId}
-              className="overflow-y-auto"
-              style={{
-                maxHeight: footer
-                  ? `calc(${position?.maxHeight ?? 240}px - 37px)`
-                  : position?.maxHeight,
-              }}
+              className="min-h-0 flex-1 overflow-y-auto"
               onKeyDown={handleContentKeyDown}
             >
               {options.map((option) => {
