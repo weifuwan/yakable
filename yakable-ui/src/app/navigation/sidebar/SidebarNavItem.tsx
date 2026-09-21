@@ -31,10 +31,10 @@ export function SidebarNavItem({
       to={route.href}
       aria-current={active ? 'page' : undefined}
       className={cx(
-        'flex h-8 items-center gap-2 rounded-lg px-2 text-sm font-medium text-black/70 no-underline transition-colors',
+        'flex h-8 items-center gap-2 rounded-lg px-2 text-sm font-medium text-foreground-secondary no-underline transition-colors',
         active
-          ? 'bg-black/[0.07] text-[#20201e]'
-          : 'hover:bg-black/[0.045] hover:text-[#20201e]',
+          ? 'bg-surface-selected text-foreground'
+          : 'hover:bg-navigation-hover hover:text-foreground',
       )}
     >
       <span className="flex size-5 shrink-0 items-center justify-center">
