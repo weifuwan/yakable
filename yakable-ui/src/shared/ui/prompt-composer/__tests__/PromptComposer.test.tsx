@@ -1,13 +1,18 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
   waitFor,
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { PromptComposer } from '../PromptComposer';
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe('PromptComposer', () => {
   it('submits with Enter and clears an accepted prompt', async () => {
@@ -26,6 +31,57 @@ describe('PromptComposer', () => {
     await waitFor(() => {
       expect((input as HTMLTextAreaElement).value).toBe('');
     });
+  });
+
+  it('types animated placeholder text without changing the input value', () => {
+    vi.useFakeTimers();
+
+    render(
+      <PromptComposer
+        placeholderPrefix="Ask Yakable to"
+        placeholderSuggestions={['build a landing page...']}
+        onSubmit={() => true}
+      />,
+    );
+
+    const input = screen.getByRole('textbox', { name: 'Prompt' });
+    const animated = screen.getByTestId(
+      'prompt-composer-animated-placeholder',
+    );
+
+    expect((input as HTMLTextAreaElement).value).toBe('');
+    expect(input.getAttribute('placeholder')).toBeNull();
+    expect(animated.textContent).toBe('Ask Yakable to');
+
+    act(() => {
+      vi.advanceTimersByTime(52);
+    });
+
+    expect(animated.textContent).toBe('Ask Yakable to b');
+    expect((input as HTMLTextAreaElement).value).toBe('');
+  });
+
+  it('hides the animated placeholder as soon as the user types', () => {
+    render(
+      <PromptComposer
+        placeholderPrefix="Ask Yakable to"
+        placeholderSuggestions={['build a landing page...']}
+        onSubmit={() => true}
+      />,
+    );
+
+    const input = screen.getByRole('textbox', { name: 'Prompt' });
+
+    expect(
+      screen.getByTestId('prompt-composer-animated-placeholder'),
+    ).toBeTruthy();
+
+    fireEvent.change(input, { target: { value: 'Hello' } });
+
+    expect(
+      screen.queryByTestId('prompt-composer-animated-placeholder'),
+    ).toBeNull();
+    expect((input as HTMLTextAreaElement).value).toBe('Hello');
   });
 
   it('renders the layered PromptComposer surface chassis', () => {
