@@ -1,5 +1,6 @@
 import { useLocation } from 'react-router-dom';
 
+import { UserMenu } from '@/features/auth';
 import { RecentProjects } from '@/features/project';
 
 import { SIDEBAR_ROUTES } from './routes';
@@ -32,6 +33,10 @@ export function Sidebar() {
 
       <div className="mt-5 min-h-0 flex-1 overflow-y-auto px-2 pb-4">
         <RecentProjects />
+      </div>
+
+      <div className="shrink-0 border-t border-border-quiet px-2 py-2">
+        <UserMenu />
       </div>
     </aside>
   );
