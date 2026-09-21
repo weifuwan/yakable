@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
@@ -144,24 +145,27 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
     }
   };
 
-  const closeAndRestoreFocus = () => {
+  const closeAndRestoreFocus = useCallback(() => {
     setOpen(false);
     requestAnimationFrame(() => triggerRef.current?.focus());
-  };
+  }, []);
 
-  const selectValue = (nextValue: string) => {
-    const option = options.find((item) => item.value === nextValue);
-    if (!option || option.disabled) return;
+  const selectValue = useCallback(
+    (nextValue: string) => {
+      const option = options.find((item) => item.value === nextValue);
+      if (!option || option.disabled) return;
 
-    if (value === undefined) {
-      setUncontrolledValue(nextValue);
-    }
+      if (value === undefined) {
+        setUncontrolledValue(nextValue);
+      }
 
-    onValueChange?.(nextValue);
-    closeAndRestoreFocus();
-  };
+      onValueChange?.(nextValue);
+      closeAndRestoreFocus();
+    },
+    [closeAndRestoreFocus, onValueChange, options, value],
+  );
 
-  const focusOption = (mode: 'selected' | 'first' | 'last') => {
+  const focusOption = useCallback((mode: 'selected' | 'first' | 'last') => {
     const content = contentRef.current;
     if (!content) return;
 
@@ -189,9 +193,9 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
     }
 
     items[0]?.focus();
-  };
+  }, [currentValue]);
 
-  const updatePosition = () => {
+  const updatePosition = useCallback(() => {
     const trigger = triggerRef.current;
     const content = contentRef.current;
     if (!trigger || !content) return;
@@ -242,7 +246,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
       maxHeight,
       side: resolvedSide,
     });
-  };
+  }, [align, side]);
 
   useLayoutEffect(() => {
     if (!open) {
@@ -251,7 +255,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
     }
 
     updatePosition();
-  }, [align, open, options, side]);
+  }, [open, options, updatePosition]);
 
   useEffect(() => {
     if (!open) return;
@@ -296,7 +300,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
       window.removeEventListener('resize', handleReposition);
       window.removeEventListener('scroll', handleReposition, true);
     };
-  }, [open]);
+  }, [closeAndRestoreFocus, focusOption, open, updatePosition]);
 
   const openSelect = (initialFocus: 'selected' | 'first' | 'last') => {
     if (disabled) return;
