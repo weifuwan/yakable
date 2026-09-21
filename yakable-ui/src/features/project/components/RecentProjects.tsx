@@ -40,7 +40,7 @@ function ProjectSkeletonRows({
           key={index}
           className="flex h-8 items-center px-2"
         >
-          <div className="h-3 w-full animate-pulse rounded-full bg-black/[0.08]" />
+          <div className="h-3 w-full animate-pulse rounded-full bg-surface-skeleton" />
         </div>
       ))}
     </div>
@@ -92,7 +92,7 @@ export function RecentProjects() {
     <section aria-labelledby="recent-projects-heading">
       <h2
         id="recent-projects-heading"
-        className="mb-1.5 px-2 text-xs font-medium text-black/45"
+        className="mb-1.5 px-2 text-xs font-medium text-foreground-muted"
       >
         Recents
       </h2>
@@ -108,13 +108,13 @@ export function RecentProjects() {
       )}
 
       {projects.length === 0 && !isLoading && error && (
-        <p className="m-0 px-2 py-1 text-xs leading-5 text-black/35">
+        <p className="m-0 px-2 py-1 text-xs leading-5 text-foreground-faint">
           Recent projects unavailable
         </p>
       )}
 
       {projects.length === 0 && !isLoading && !error && (
-        <p className="m-0 px-2 py-1 text-xs text-black/35">
+        <p className="m-0 px-2 py-1 text-xs text-foreground-faint">
           No recent projects
         </p>
       )}
@@ -133,10 +133,10 @@ export function RecentProjects() {
                   aria-current={active ? 'page' : undefined}
                   title={project.name}
                   className={cx(
-                    'block h-8 truncate rounded-lg px-2 leading-8 text-sm text-black/65 no-underline transition-colors',
+                    'block h-8 truncate rounded-lg px-2 leading-8 text-sm text-foreground-tertiary no-underline transition-colors',
                     active
-                      ? 'bg-black/[0.07] font-medium text-[#20201e]'
-                      : 'hover:bg-black/[0.045] hover:text-[#20201e]',
+                      ? 'bg-surface-selected font-medium text-foreground'
+                      : 'hover:bg-navigation-hover hover:text-foreground',
                   )}
                 >
                   {project.name}
@@ -159,7 +159,7 @@ export function RecentProjects() {
             <div className="px-2 py-2">
               <button
                 type="button"
-                className="text-xs text-black/45 hover:text-black/65"
+                className="text-xs text-foreground-muted hover:text-foreground-tertiary"
                 onClick={() => void loadMore()}
               >
                 Retry loading more
