@@ -3,7 +3,7 @@
  *
  * The composer is treated as a large interactive surface instead of a plain
  * bordered textarea. The visual stack stays deliberately small:
- * shadow -> fill -> highlight -> rim -> focus glow.
+ * shadow -> fill -> highlight -> rim -> focused rim.
  */
 
 .yak-composer-root {
@@ -89,14 +89,12 @@
 .yak-composer-fx-layer[data-composer-fx='focus-glow'] {
   z-index: 4;
   opacity: 0;
-  box-shadow:
-    inset 0 0 0 1px var(--border-strong),
-    0 0 0 3px var(--focus-ring-soft);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 
 .yak-composer-root:focus-within
   .yak-composer-fx-layer[data-composer-fx='focus-glow'] {
-  opacity: 0.32;
+  opacity: 1;
 }
 
 @media (prefers-reduced-motion: reduce) {
