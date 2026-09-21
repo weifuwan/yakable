@@ -1,0 +1,107 @@
+/*
+ * PromptComposer surface chassis.
+ *
+ * The composer is treated as a large interactive surface instead of a plain
+ * bordered textarea. The visual stack stays deliberately small:
+ * shadow -> fill -> highlight -> rim -> focus glow.
+ */
+
+.yak-composer-root {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+}
+
+.yak-composer-halo {
+  position: absolute;
+  right: 1.5rem;
+  bottom: 0.125rem;
+  left: 1.5rem;
+  z-index: 0;
+  height: 0.5rem;
+  pointer-events: none;
+  border-radius: 9999px;
+  opacity: 0;
+  filter: blur(6px);
+  background-image: linear-gradient(
+    90deg,
+    #5e89f2 0%,
+    #ff66f4 50%,
+    #fe7b02 100%
+  );
+  transition: opacity 200ms ease-out;
+}
+
+.yak-composer-root:focus-within .yak-composer-halo {
+  opacity: 0.2;
+}
+
+.yak-composer-surface {
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
+  border-radius: 26px;
+  background: transparent;
+}
+
+.yak-composer-fx-root {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.yak-composer-fx-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  transition:
+    opacity 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.yak-composer-fx-layer[data-composer-fx='drop-shadow'] {
+  z-index: 0;
+  box-shadow:
+    0 2px 3px -2px oklch(0 0 0 / 0.12),
+    0 10px 28px -16px oklch(0 0 0 / 0.22);
+}
+
+.yak-composer-fx-layer[data-composer-fx='base-fill'] {
+  z-index: 1;
+  background: var(--surface);
+}
+
+.yak-composer-fx-layer[data-composer-fx='top-highlight'] {
+  z-index: 2;
+  box-shadow:
+    inset 0 1px 0 0 oklch(1 0 0 / 0.92),
+    inset 0 -1px 0 0 oklch(0 0 0 / 0.025);
+}
+
+.yak-composer-fx-layer[data-composer-fx='rim'] {
+  z-index: 3;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.yak-composer-fx-layer[data-composer-fx='focus-glow'] {
+  z-index: 4;
+  opacity: 0;
+  box-shadow:
+    inset 0 0 0 1px var(--border-strong),
+    0 0 0 3px var(--focus-ring-soft);
+}
+
+.yak-composer-root:focus-within
+  .yak-composer-fx-layer[data-composer-fx='focus-glow'] {
+  opacity: 0.32;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .yak-composer-halo,
+  .yak-composer-fx-layer {
+    transition: none;
+  }
+}

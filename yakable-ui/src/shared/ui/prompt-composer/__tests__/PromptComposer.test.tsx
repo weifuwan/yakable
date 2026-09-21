@@ -28,6 +28,24 @@ describe('PromptComposer', () => {
     });
   });
 
+  it('renders the layered PromptComposer surface chassis', () => {
+    render(<PromptComposer onSubmit={() => true} />);
+
+    const surface = screen.getByTestId('prompt-composer-surface');
+    const halo = screen.getByTestId('prompt-composer-halo');
+    const layers = surface.querySelectorAll('[data-composer-fx]');
+
+    expect(surface.className).toContain('yak-composer-surface');
+    expect(halo.className).toContain('yak-composer-halo');
+    expect(layers).toHaveLength(5);
+    expect(
+      surface.querySelector('[data-composer-fx="drop-shadow"]'),
+    ).toBeTruthy();
+    expect(
+      surface.querySelector('[data-composer-fx="focus-glow"]'),
+    ).toBeTruthy();
+  });
+
   it('renders submit through the shared compact circular Button contract', async () => {
     const user = userEvent.setup();
 

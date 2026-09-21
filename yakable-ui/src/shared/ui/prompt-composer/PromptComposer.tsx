@@ -2,10 +2,12 @@ import type { ReactNode } from 'react';
 
 import { cx } from '../cx';
 import { PromptComposerActions } from './PromptComposerActions';
+import { PromptComposerSurfaceEffects } from './PromptComposerSurfaceEffects';
 import {
   useComposerInput,
   type PromptComposerSubmitHandler,
 } from './useComposerInput';
+import './prompt-composer.css';
 
 export interface PromptComposerProps {
   ariaLabel?: string;
@@ -54,41 +56,55 @@ export function PromptComposer({
   return (
     <div
       className={cx(
-        'w-full rounded-[24px] border border-border bg-surface p-3',
-        'focus-within:border-border-strong',
+        'yak-composer-root',
         disabled && 'opacity-55',
         className,
       )}
     >
-      <textarea
-        ref={textareaRef}
-        aria-label={ariaLabel}
-        autoComplete="off"
-        disabled={disabled}
-        rows={1}
-        value={value}
-        placeholder={placeholder}
-        onChange={handleChange}
-        onKeyDown={handleKeyDown}
-        onCompositionStart={handleCompositionStart}
-        onCompositionEnd={handleCompositionEnd}
-        className="block min-h-14 w-full resize-none bg-transparent px-2 py-1 text-[15px] leading-6 text-foreground outline-none placeholder:text-foreground-placeholder disabled:cursor-not-allowed"
+      <span
+        aria-hidden="true"
+        data-testid="prompt-composer-halo"
+        className="yak-composer-halo"
       />
 
-      <PromptComposerActions
-        canSubmit={canSubmit}
-        isSubmitting={isSubmitting}
-        leadingActions={leadingActions}
-        running={running}
-        stopLabel={stopLabel}
-        trailingActions={trailingActions}
-        submitLabel={submitLabel}
-        submitTooltip={submitTooltip}
-        onStop={onStop}
-        onSubmit={() => {
-          void submit();
-        }}
-      />
+      <div
+        data-testid="prompt-composer-surface"
+        className="yak-composer-surface p-3"
+      >
+        <PromptComposerSurfaceEffects />
+
+        <div className="relative z-10">
+          <textarea
+            ref={textareaRef}
+            aria-label={ariaLabel}
+            autoComplete="off"
+            disabled={disabled}
+            rows={1}
+            value={value}
+            placeholder={placeholder}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
+            className="block min-h-14 w-full resize-none bg-transparent px-2 py-1 text-[15px] leading-6 text-foreground outline-none placeholder:text-foreground-placeholder disabled:cursor-not-allowed"
+          />
+
+          <PromptComposerActions
+            canSubmit={canSubmit}
+            isSubmitting={isSubmitting}
+            leadingActions={leadingActions}
+            running={running}
+            stopLabel={stopLabel}
+            trailingActions={trailingActions}
+            submitLabel={submitLabel}
+            submitTooltip={submitTooltip}
+            onStop={onStop}
+            onSubmit={() => {
+              void submit();
+            }}
+          />
+        </div>
+      </div>
     </div>
   );
 }
