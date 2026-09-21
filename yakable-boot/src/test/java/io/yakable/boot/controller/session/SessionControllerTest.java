@@ -101,7 +101,9 @@ class SessionControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "content": "Tell me more"
+                                  "content": "Tell me more",
+                                  "provider": "deepseek",
+                                  "model": "deepseek-flash"
                                 }
                                 """))
                 .andExpect(status().isConflict())
