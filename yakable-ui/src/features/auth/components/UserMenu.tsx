@@ -67,6 +67,18 @@ export function UserMenu() {
       </summary>
 
       <div className="absolute bottom-full left-0 right-0 z-30 mb-2 rounded-xl border border-border bg-surface p-1">
+        {user.role === 'ADMIN' ? (
+          <>
+            <Link
+              to="/settings/users"
+              className="block rounded-lg px-3 py-2 text-sm text-foreground no-underline hover:bg-menu-hover"
+              onClick={closeMenu}
+            >
+              Users
+            </Link>
+            <div className="my-1 border-t border-border-quiet" />
+          </>
+        ) : null}
         <Link
           to="/settings/profile"
           className="block rounded-lg px-3 py-2 text-sm text-foreground no-underline hover:bg-menu-hover"
