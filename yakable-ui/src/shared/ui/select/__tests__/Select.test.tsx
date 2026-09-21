@@ -36,10 +36,12 @@ describe('Select', () => {
 
     expect(screen.getByRole('listbox')).toBeTruthy();
     expect(
-      screen.getByRole('option', {
-        name: 'Build Make changes directly',
-      }),
-    ).toHaveAttribute('aria-selected', 'true');
+      screen
+        .getByRole('option', {
+          name: 'Build Make changes directly',
+        })
+        .getAttribute('aria-selected'),
+    ).toBe('true');
     expect(
       screen.getByText('Detailed spec for complex builds'),
     ).toBeTruthy();
