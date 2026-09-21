@@ -18,6 +18,7 @@ import {
   Icon,
   IconButton,
   PromptComposer,
+  PromptComposerSkeleton,
 } from '@/shared/ui';
 
 import { MessageItem } from './MessageItem';
@@ -563,20 +564,20 @@ export function SessionWorkspace({
 
       <div className="shrink-0 bg-white px-6 py-4">
         <div className="mx-auto w-full max-w-3xl">
-          <PromptComposer
-            ariaLabel="Send a message"
-            placeholder="Ask Yakable..."
-            submitLabel="Send message"
-            submitTooltip="Send prompt"
-            disabled={
-              isSessionLoading ||
-              !snapshot ||
-              snapshot.session.status !== 'ACTIVE'
-            }
-            running={generating}
-            onStop={handleStop}
-            onSubmit={handleSubmit}
-          />
+          {isSessionLoading ? (
+            <PromptComposerSkeleton />
+          ) : (
+            <PromptComposer
+              ariaLabel="Send a message"
+              placeholder="Ask Yakable..."
+              submitLabel="Send message"
+              submitTooltip="Send prompt"
+              disabled={!snapshot || snapshot.session.status !== 'ACTIVE'}
+              running={generating}
+              onStop={handleStop}
+              onSubmit={handleSubmit}
+            />
+          )}
 
           {sendError && (
             <p className="mb-0 mt-2 px-2 text-sm text-red-600" role="alert">

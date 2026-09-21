@@ -294,12 +294,11 @@ describe('SessionWorkspace', () => {
     ).toBeTruthy();
     expect(screen.queryByText('I am Yakable.')).toBeNull();
     expect(
-      (
-        screen.getByRole('textbox', {
-          name: 'Send a message',
-        }) as HTMLTextAreaElement
-      ).disabled,
-    ).toBe(true);
+      screen.getByRole('status', { name: 'Loading prompt composer' }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole('textbox', { name: 'Send a message' }),
+    ).toBeNull();
 
     resolveSecondSession(apiResponse(secondSnapshot));
 
@@ -307,6 +306,12 @@ describe('SessionWorkspace', () => {
     expect(
       screen.queryByRole('status', { name: 'Loading session' }),
     ).toBeNull();
+    expect(
+      screen.queryByRole('status', { name: 'Loading prompt composer' }),
+    ).toBeNull();
+    expect(
+      screen.getByRole('textbox', { name: 'Send a message' }),
+    ).toBeTruthy();
   });
 
   it('regenerates from the inline user message editor', async () => {
