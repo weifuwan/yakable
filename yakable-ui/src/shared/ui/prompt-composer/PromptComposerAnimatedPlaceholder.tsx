@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const TYPE_DELAY_MS = 52;
 const DELETE_DELAY_MS = 28;
 const HOLD_DELAY_MS = 1400;
 const NEXT_DELAY_MS = 260;
 
-type TypewriterPhase = 'typing' | 'holding' | 'deleting';
+type TypewriterPhase = 'typing' | 'deleting';
 
 function prefersReducedMotion() {
   return (
@@ -22,13 +22,11 @@ export function PromptComposerAnimatedPlaceholder({
   prefix: string;
   suggestions: readonly string[];
 }) {
-  const suggestionsRef = useRef(suggestions);
   const [phraseIndex, setPhraseIndex] = useState(0);
   const [visibleLength, setVisibleLength] = useState(0);
   const [phase, setPhase] = useState<TypewriterPhase>('typing');
   const [reducedMotion, setReducedMotion] = useState(prefersReducedMotion);
 
-  suggestionsRef.current = suggestions;
 
   const currentSuggestion =
     suggestions[phraseIndex % Math.max(suggestions.length, 1)] ?? '';
@@ -83,16 +81,11 @@ export function PromptComposerAnimatedPlaceholder({
       } else {
         delay = NEXT_DELAY_MS;
         next = () => {
-          const count = Math.max(suggestionsRef.current.length, 1);
+          const count = Math.max(suggestions.length, 1);
           setPhraseIndex((current) => (current + 1) % count);
           setPhase('typing');
         };
       }
-    } else {
-      delay = HOLD_DELAY_MS;
-      next = () => {
-        setPhase('deleting');
-      };
     }
 
     const timer = window.setTimeout(next, delay);
