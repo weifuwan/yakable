@@ -3,6 +3,7 @@ import type {
   SessionChanges,
   SessionMessage,
   SessionMessagePage,
+  SessionModel,
   SessionSnapshot,
   SessionTurn,
   TurnInvocation,
@@ -189,11 +190,16 @@ async function addTurn(
   projectId: string,
   sessionId: string,
   content: string,
+  model: SessionModel,
   signal?: AbortSignal,
 ) {
   const data = await HttpUtils.post<unknown>(
     sessionPath(projectId, sessionId) + '/turns',
-    { content },
+    {
+      content,
+      provider: model.provider,
+      model: model.model,
+    },
     { signal },
   );
   return isTurnStartResult(data)
@@ -224,6 +230,7 @@ async function streamingTurn(
   projectId: string,
   sessionId: string,
   content: string,
+  model: SessionModel,
   handlers: {
     onStarted: (result: TurnStartResult) => void;
     onDelta: (content: string) => void;
@@ -234,7 +241,11 @@ async function streamingTurn(
 
   await HttpUtils.postSse(
     sessionPath(projectId, sessionId) + '/turns/stream',
-    { content },
+    {
+      content,
+      provider: model.provider,
+      model: model.model,
+    },
     ({ event, data }) => {
       if (event === 'started') {
         if (!isTurnStartResult(data)) {
