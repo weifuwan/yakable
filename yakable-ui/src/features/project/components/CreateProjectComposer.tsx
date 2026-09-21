@@ -11,6 +11,13 @@ import { PromptComposer, PromptComposerSkeleton } from '@/shared/ui';
 
 import { useProjects } from '../hooks/useProjects';
 
+const PLACEHOLDER_SUGGESTIONS = [
+  'build a landing page...',
+  'create a dashboard...',
+  'design a SaaS website...',
+  'build an admin panel...',
+] as const;
+
 function projectSessionPath(projectId: string, sessionId: string) {
   return (
     '/dashboard/project/' +
@@ -58,6 +65,8 @@ export function CreateProjectComposer() {
         <PromptComposer
           ariaLabel="Describe the project you want to build"
           placeholder="Ask Yakable to build..."
+          placeholderPrefix="Ask Yakable to"
+          placeholderSuggestions={PLACEHOLDER_SUGGESTIONS}
           submitLabel="Create project"
           trailingActions={
             <ModelSelector

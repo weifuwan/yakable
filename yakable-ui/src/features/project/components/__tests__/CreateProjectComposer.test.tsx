@@ -96,6 +96,12 @@ describe('CreateProjectComposer', () => {
     await user.click(modelTrigger);
     await user.click(screen.getByRole('menuitemradio', { name: 'Kimi' }));
 
+    expect(
+      screen
+        .getByTestId('prompt-composer-animated-placeholder')
+        .textContent,
+    ).toBe('Ask Yakable to');
+
     const input = screen.getByRole('textbox', {
       name: 'Describe the project you want to build',
     });
