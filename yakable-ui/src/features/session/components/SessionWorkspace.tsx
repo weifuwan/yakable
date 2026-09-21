@@ -447,7 +447,7 @@ export function SessionWorkspace({
   return (
     <div
       className={cx(
-        'flex min-h-0 flex-col bg-white',
+        'flex min-h-0 flex-col bg-[#F5F5F5]',
         expanded ? 'fixed inset-0 z-50 h-screen' : 'h-full',
       )}
     >
@@ -525,7 +525,7 @@ export function SessionWorkspace({
           className="pointer-events-none absolute inset-x-0 top-0 z-10 h-10"
           style={{
             background:
-              'linear-gradient(to bottom, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0.72) 45%, rgba(255, 255, 255, 0) 100%)',
+              'linear-gradient(to bottom, rgba(245, 245, 245, 0.96) 0%, rgba(245, 245, 245, 0.72) 45%, rgba(245, 245, 245, 0) 100%)',
           }}
         />
         <div
@@ -533,7 +533,7 @@ export function SessionWorkspace({
           className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-10"
           style={{
             background:
-              'linear-gradient(to top, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0.72) 45%, rgba(255, 255, 255, 0) 100%)',
+              'linear-gradient(to top, rgba(245, 245, 245, 0.96) 0%, rgba(245, 245, 245, 0.72) 45%, rgba(245, 245, 245, 0) 100%)',
           }}
         />
 
@@ -563,7 +563,7 @@ export function SessionWorkspace({
         )}
       </div>
 
-      <div className="shrink-0 bg-white px-6 py-4">
+      <div className="shrink-0 bg-[#F5F5F5] px-6 py-4">
         <div className="mx-auto w-full max-w-3xl">
           {isSessionLoading ? (
             <PromptComposerSkeleton />
