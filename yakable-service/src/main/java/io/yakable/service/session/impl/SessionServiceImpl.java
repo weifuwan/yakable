@@ -113,7 +113,7 @@ public class SessionServiceImpl implements SessionService {
         session.setStatus(SessionStatusEnum.ACTIVE);
         sessionRepository.add(session);
 
-        TurnStartVO turn = addPendingTurn(session, dto.content());
+        TurnStartVO turn = addPendingTurn(session, dto.provider(), dto.model(), dto.content());
 
         SessionInitVO result = new SessionInitVO();
         result.setSessionId(session.getId());
@@ -254,11 +254,12 @@ public class SessionServiceImpl implements SessionService {
             if (session.getStatus() != SessionStatusEnum.ACTIVE) {
                 throw new SessionException(SessionErrorCode.INACTIVE);
             }
-            return addPendingTurn(session, dto.content());
+            return addPendingTurn(session, dto.provider(), dto.model(), dto.content());
         });
     }
 
-    private TurnStartVO addPendingTurn(SessionEntity session, String content) {
+    private TurnStartVO addPendingTurn(
+            SessionEntity session, String provider, String model, String content) {
         if (!sessionRepository.querySessionForUpdate(session.getId())) {
             throw new SessionException(SessionErrorCode.NOT_FOUND);
         }
@@ -269,6 +270,8 @@ public class SessionServiceImpl implements SessionService {
         TurnVO turn = turnService.addTurn(session.getId());
         MessageVO message = messageService.addMessage(session.getId(), turn.getId(), MessageRoleEnum.USER, content);
 
+        session.setProvider(provider);
+        session.setModel(model);
         session.initUpdate();
         sessionRepository.update(session);
 
