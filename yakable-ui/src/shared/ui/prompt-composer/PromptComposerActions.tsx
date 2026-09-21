@@ -1,6 +1,6 @@
 import { useId, type ReactNode } from 'react';
 
-import { cx } from '../cx';
+import { Button } from '../button';
 import { Icon } from '../icon';
 
 export function PromptComposerActions({
@@ -52,18 +52,15 @@ export function PromptComposerActions({
             )}
           </span>
 
-          <button
-            type="button"
+          <Button
+            variant={stoppingEnabled ? 'accent' : 'primary'}
+            size="icon-sm"
+            shape="circle"
             aria-label={label}
             aria-describedby={tooltipId}
             disabled={stoppingEnabled ? false : !canSubmit}
             onClick={stoppingEnabled ? onStop : onSubmit}
-            className={cx(
-              'inline-flex size-8 cursor-pointer items-center justify-center rounded-full text-primary-foreground outline-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring-strong disabled:pointer-events-none disabled:cursor-default disabled:bg-surface-skeleton disabled:text-foreground-disabled',
-              stoppingEnabled
-                ? 'bg-action-active hover:bg-action-active'
-                : 'bg-primary hover:bg-primary-hover',
-            )}
+            className="cursor-pointer disabled:cursor-default"
           >
             {stoppingEnabled ? (
               <span
@@ -81,7 +78,7 @@ export function PromptComposerActions({
                 <path d="M5.75 8.75 10 4.5l4.25 4.25" />
               </Icon>
             )}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
