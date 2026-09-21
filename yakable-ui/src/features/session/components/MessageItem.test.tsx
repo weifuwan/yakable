@@ -33,13 +33,22 @@ describe('MessageItem', () => {
 
     expect(actions.className).toContain('absolute');
     expect(actions.className).toContain('top-full');
+    expect(actions.className).toContain('items-center');
+    expect(actions.className).toContain('h-7');
     expect(actions.className).toContain('pt-1');
     expect(actions.className).not.toContain('mt-1');
     expect(actions.className).toContain('opacity-0');
     expect(actions.className).toContain('group-hover:opacity-100');
-    expect(screen.getByRole('button', { name: 'Copy message' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Edit message' })).toBeTruthy();
-    expect(screen.getByText('Sep 20 at 9:52 AM')).toBeTruthy();
+    const copyButton = screen.getByRole('button', { name: 'Copy message' });
+    const editButton = screen.getByRole('button', { name: 'Edit message' });
+    const timestamp = screen.getByText('Sep 20 at 9:52 AM');
+
+    expect(copyButton.className).toContain('size-6');
+    expect(editButton.className).toContain('size-6');
+    expect(copyButton.className).toContain('text-[#858585]');
+    expect(editButton.className).toContain('text-[#858585]');
+    expect(timestamp.className).toContain('text-[13px]');
+    expect(timestamp.className).toContain('text-[#858585]');
   });
 
   it('copies the user message content', () => {
