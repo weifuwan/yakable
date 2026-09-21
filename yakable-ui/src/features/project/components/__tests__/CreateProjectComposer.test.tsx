@@ -88,9 +88,12 @@ describe('CreateProjectComposer', () => {
 
     renderComposer();
 
-    await user.click(
-      screen.getByRole('button', { name: 'Select model' }),
-    );
+    const modelTrigger = screen.getByRole('button', {
+      name: 'Select model',
+    });
+    expect(modelTrigger.getAttribute('data-surface')).toBe('borderless');
+
+    await user.click(modelTrigger);
     await user.click(screen.getByRole('menuitemradio', { name: 'Kimi' }));
 
     const input = screen.getByRole('textbox', {
