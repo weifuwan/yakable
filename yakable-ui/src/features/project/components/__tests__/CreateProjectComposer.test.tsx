@@ -91,7 +91,7 @@ describe('CreateProjectComposer', () => {
     await user.click(
       screen.getByRole('button', { name: 'Select model' }),
     );
-    await user.click(screen.getByRole('option', { name: 'Kimi' }));
+    await user.click(screen.getByRole('menuitemradio', { name: 'Kimi' }));
 
     const input = screen.getByRole('textbox', {
       name: 'Describe the project you want to build',
