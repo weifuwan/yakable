@@ -27,6 +27,15 @@ export function RequireAuth() {
   return <Outlet />;
 }
 
+export function RequireAdmin() {
+  const { user } = useAuth();
+
+  if (user?.role !== 'ADMIN') {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return <Outlet />;
+}
+
 export function AnonymousOnly() {
   const { status } = useAuth();
 

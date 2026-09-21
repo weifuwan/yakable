@@ -5,8 +5,9 @@ import { DashboardPage } from '@/pages/dashboard';
 import { LoginPage } from '@/pages/login';
 import { ProfilePage } from '@/pages/profile';
 import { ProjectPage } from '@/pages/project';
+import { UsersPage } from '@/pages/users';
 
-import { AnonymousOnly, RequireAuth } from './AuthRoutes';
+import { AnonymousOnly, RequireAdmin, RequireAuth } from './AuthRoutes';
 
 function AppRoutes() {
   return (
@@ -24,6 +25,9 @@ function AppRoutes() {
             element={<ProjectPage />}
           />
           <Route path="/settings/profile" element={<ProfilePage />} />
+          <Route element={<RequireAdmin />}>
+            <Route path="/settings/users" element={<UsersPage />} />
+          </Route>
         </Route>
       </Route>
 
