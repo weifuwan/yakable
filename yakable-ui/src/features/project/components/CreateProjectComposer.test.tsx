@@ -24,6 +24,16 @@ function apiResponse(data: unknown, status = 200) {
   );
 }
 
+function emptyProjectPage() {
+  return {
+    records: [],
+    total: 0,
+    pages: 0,
+    current: 1,
+    pageSize: 50,
+  };
+}
+
 function stubProjectApi() {
   const fetchMock = vi.fn(
     async (_input: RequestInfo | URL, init?: RequestInit) => {
@@ -31,13 +41,7 @@ function stubProjectApi() {
         return apiResponse(createdProject, 201);
       }
 
-      return apiResponse({
-        records: [],
-        total: 0,
-        pages: 0,
-        current: 1,
-        pageSize: 50,
-      });
+      return apiResponse(emptyProjectPage());
     },
   );
 
@@ -66,11 +70,49 @@ afterEach(() => {
 });
 
 describe('CreateProjectComposer', () => {
-  it('enables the create button when the prompt contains text', () => {
+  it('shows a composer skeleton while the initial project list is loading', async () => {
+    let resolveProjects!: (response: Response) => void;
+    const pendingProjects = new Promise<Response>((resolve) => {
+      resolveProjects = resolve;
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.method === 'POST') {
+          return Promise.resolve(apiResponse(createdProject, 201));
+        }
+        return pendingProjects;
+      }),
+    );
+
+    renderComposer();
+
+    expect(
+      screen.getByRole('status', { name: 'Loading prompt composer' }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole('textbox', {
+        name: 'Describe the project you want to build',
+      }),
+    ).toBeNull();
+
+    resolveProjects(apiResponse(emptyProjectPage()));
+
+    expect(
+      await screen.findByRole('textbox', {
+        name: 'Describe the project you want to build',
+      }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole('status', { name: 'Loading prompt composer' }),
+    ).toBeNull();
+  });
+
+  it('enables the create button when the prompt contains text', async () => {
     stubProjectApi();
     renderComposer();
 
-    const input = screen.getByRole('textbox', {
+    const input = await screen.findByRole('textbox', {
       name: 'Describe the project you want to build',
     });
     const submitButton = screen.getByRole('button', { name: 'Create project' });
@@ -83,6 +125,10 @@ describe('CreateProjectComposer', () => {
   it('creates with the selected model and navigates to the session route', async () => {
     const fetchMock = stubProjectApi();
     renderComposer();
+
+    await screen.findByRole('textbox', {
+      name: 'Describe the project you want to build',
+    });
 
     fireEvent.click(screen.getByRole('button', { name: 'Select model' }));
     fireEvent.click(screen.getByRole('option', { name: 'Kimi' }));
