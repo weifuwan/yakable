@@ -144,8 +144,14 @@ export function MessageItem({
 
   if (!isUser) {
     return (
-      <div className="flex justify-start" aria-label="Assistant message">
-        <div className="max-w-[78%] px-1 py-2">
+      <div
+        className="flex w-full justify-start"
+        aria-label="Assistant message"
+      >
+        <div
+          className="w-full min-w-0 px-1 py-2"
+          data-testid="assistant-message-content"
+        >
           <Markdown content={message.content} />
         </div>
       </div>

@@ -95,6 +95,14 @@ describe('MessageItem', () => {
     }) as HTMLTextAreaElement;
 
     expect(input.value).toBe('Build a membership system');
+    const messageRoot = screen.getByLabelText('Assistant message');
+    const content = screen.getByTestId('assistant-message-content');
+
+    expect(messageRoot.className).toContain('w-full');
+    expect(content.className).toContain('w-full');
+    expect(content.className).toContain('min-w-0');
+    expect(content.className).not.toContain('max-w-[78%]');
+
     expect(screen.queryByTestId('user-message-actions')).toBeNull();
 
     fireEvent.change(input, {
@@ -163,7 +171,7 @@ describe('MessageItem', () => {
     ).toBeTruthy();
   });
 
-  it('does not render user actions for assistant messages', () => {
+  it('uses the full conversation width for assistant messages', () => {
     render(
       <MessageItem
         message={{
