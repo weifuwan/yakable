@@ -85,7 +85,7 @@ function CopyStatusIcon({ copied }: { copied: boolean }) {
         size={16}
         strokeWidth={1.8}
         className={
-          'absolute inset-0 text-[#4F7F37] transition-all duration-150 ease-out ' +
+          'absolute inset-0 text-success transition-all duration-150 ease-out ' +
           (copied
             ? 'scale-100 opacity-100'
             : 'scale-90 opacity-0')
@@ -258,7 +258,7 @@ export function MessageItem({
       >
         {isEditing ? (
           <div
-            className="rounded-3xl bg-black/[0.06] p-4"
+            className="rounded-3xl bg-surface-soft p-4"
             data-testid="user-message-editor"
           >
             <textarea
@@ -271,7 +271,7 @@ export function MessageItem({
               onKeyDown={handleEditInputKeyDown}
               onCompositionStart={handleCompositionStart}
               onCompositionEnd={handleCompositionEnd}
-              className="block min-h-14 w-full resize-none bg-transparent px-1 py-1 text-sm leading-6 text-[#20201e] outline-none"
+              className="block min-h-14 w-full resize-none bg-transparent px-1 py-1 text-sm leading-6 text-foreground outline-none"
             />
 
             <div className="mt-3 flex items-center justify-end gap-2">
@@ -297,7 +297,7 @@ export function MessageItem({
         ) : (
           <>
             <div
-              className="rounded-[22px] rounded-br-md border border-[#E1E1E0] bg-white px-4 py-3"
+              className="rounded-[22px] rounded-br-md border border-message-border bg-surface px-4 py-3"
               data-testid="user-message-bubble"
             >
               <Markdown content={message.content} />
@@ -311,14 +311,14 @@ export function MessageItem({
                 type="button"
                 aria-label="Copy message"
                 title="Copy message"
-                className="relative inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-[#858585] outline-none transition-colors hover:bg-black/[0.05] hover:text-[#5F5F5F] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-black/40"
+                className="relative inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-icon-muted outline-none transition-colors hover:bg-surface-hover hover:text-icon-hover focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring"
                 onClick={handleCopy}
               >
                 {copied && (
                   <span
                     role="status"
                     data-allow-shadow="true"
-                    className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg border border-black/[0.08] bg-white px-2.5 py-1 text-xs font-medium text-[#20201e] shadow-sm"
+                    className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg border border-border-quiet bg-surface px-2.5 py-1 text-xs font-medium text-foreground shadow-sm"
                   >
                     Copied
                   </span>
@@ -332,7 +332,7 @@ export function MessageItem({
                   type="button"
                   aria-label="Edit message"
                   title="Edit message"
-                  className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-[#858585] outline-none transition-colors hover:bg-black/[0.05] hover:text-[#5F5F5F] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-black/40"
+                  className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-icon-muted outline-none transition-colors hover:bg-surface-hover hover:text-icon-hover focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring"
                   onClick={handleEdit}
                 >
                   <Icon size={15}>
@@ -345,7 +345,7 @@ export function MessageItem({
               {createdAtLabel && (
                 <time
                   dateTime={message.createdAt}
-                  className="whitespace-nowrap text-[13px] leading-6 text-[#858585]"
+                  className="whitespace-nowrap text-[13px] leading-6 text-icon-muted"
                 >
                   {createdAtLabel}
                 </time>
