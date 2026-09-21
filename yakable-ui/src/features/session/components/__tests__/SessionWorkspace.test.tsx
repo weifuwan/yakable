@@ -371,6 +371,50 @@ describe('SessionWorkspace', () => {
     });
   });
 
+  it('reports Project activity when the user Turn is persisted', async () => {
+    const user = userEvent.setup();
+    const onActivity = vi.fn();
+
+    vi.spyOn(SessionService, 'querySession').mockResolvedValue(
+      createSnapshot(),
+    );
+    vi.spyOn(SessionService, 'queryChanges').mockResolvedValue(
+      completedChanges,
+    );
+    vi.spyOn(SessionService, 'streamingTurn').mockImplementation(
+      async (
+        _projectId,
+        _sessionId,
+        _content,
+        _model,
+        handlers,
+      ) => {
+        handlers.onStarted(started);
+      },
+    );
+
+    render(
+      <SessionWorkspace
+        projectId="project-1"
+        sessionId="session-1"
+        onActivity={onActivity}
+      />,
+    );
+
+    const input = await screen.findByRole('textbox', {
+      name: 'Send a message',
+    });
+    await user.type(input, 'Tell me more');
+    await user.keyboard('{Enter}');
+
+    await waitFor(() => {
+      expect(onActivity).toHaveBeenCalledWith(
+        'session-1',
+        started.userMessage.createdAt,
+      );
+    });
+  });
+
   it('stops an active turn and keeps the partial answer visible', async () => {
     const user = userEvent.setup();
     const cancelTurn = vi

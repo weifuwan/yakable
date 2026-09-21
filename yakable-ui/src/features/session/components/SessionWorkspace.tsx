@@ -116,9 +116,11 @@ function SessionLoadingIndicator() {
 export function SessionWorkspace({
   projectId,
   sessionId,
+  onActivity,
 }: {
   projectId: string;
   sessionId: string;
+  onActivity?: (sessionId: string, updatedAt: string) => void;
 }) {
   const [snapshot, setSnapshot] = useState<SessionSnapshot | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -306,6 +308,7 @@ export function SessionWorkspace({
               currentTurnIdRef.current = started.turn.id;
               setStreamingTurnId(started.turn.id);
               setOptimisticMessage(null);
+              onActivity?.(sessionId, started.userMessage.createdAt);
               setSnapshot((current) => {
                 if (!current) return current;
                 return {
@@ -371,7 +374,7 @@ export function SessionWorkspace({
         }
       }
     },
-    [projectId, sessionId],
+    [onActivity, projectId, sessionId],
   );
 
   const handleSubmit = useCallback(

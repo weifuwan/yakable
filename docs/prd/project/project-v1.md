@@ -1,6 +1,6 @@
 # Yakable Project PRD V1
 
-> 状态：Draft  
+> 状态：Done  
 > 版本：V1  
 > 范围：Project
 
