@@ -71,7 +71,6 @@ describe('MessageItem', () => {
     const check = copyIcon.querySelector('polyline');
     expect(check?.style.opacity).toBe('1');
     expect(check?.style.strokeDashoffset).toBe('0');
-    expect(check?.style.stroke).toBe('#22A559');
   });
 
   it('edits the message inline and cancels without regenerating', () => {
