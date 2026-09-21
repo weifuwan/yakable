@@ -15,7 +15,6 @@ import io.yakable.common.exception.ProjectException;
 import io.yakable.dao.entity.ProjectEntity;
 import io.yakable.dao.repository.ProjectRepository;
 import io.yakable.service.session.SessionService;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -53,16 +52,13 @@ class ProjectServiceImplTest {
     @InjectMocks
     private ProjectServiceImpl projectService;
 
-    @BeforeEach
-    void setUp() {
+    @Test
+    void shouldCreateProjectAndInitialSession() {
         when(transactionTemplate.execute(any(TransactionCallback.class))).thenAnswer(invocation -> {
             TransactionCallback<?> callback = invocation.getArgument(0);
             return callback.doInTransaction(mock(TransactionStatus.class));
         });
-    }
 
-    @Test
-    void shouldCreateProjectAndInitialSession() {
         LocalDateTime sessionUpdatedAt = LocalDateTime.of(2026, 9, 21, 10, 30);
         SessionInitVO session = new SessionInitVO();
         session.setSessionId("session-1");
