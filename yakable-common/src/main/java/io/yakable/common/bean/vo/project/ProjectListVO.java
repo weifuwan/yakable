@@ -20,9 +20,9 @@ public class ProjectListVO {
     @Schema(description = "Project 名称")
     private String name;
 
-    @Schema(description = "最新 Session ID")
+    @Schema(description = "最近活动 Session ID")
     private String latestSessionId;
 
-    @Schema(description = "最后更新时间")
+    @Schema(description = "最近活动时间")
     private LocalDateTime updatedAt;
 }

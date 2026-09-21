@@ -9,7 +9,6 @@ import jakarta.annotation.Resource;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Repository;
 
-import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -44,11 +43,6 @@ public class SessionRepositoryImpl extends BaseRepositoryImpl<SessionMapper, Ses
                 .getRecords()
                 .stream()
                 .findFirst();
-    }
-
-    @Override
-    public List<SessionEntity> queryLatestSessionList(List<String> projectIds) {
-        return projectIds == null || projectIds.isEmpty() ? List.of() : sessionMapper.selectLatestByProjectIds(projectIds);
     }
 
     @Override

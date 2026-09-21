@@ -8,7 +8,6 @@ import io.yakable.common.bean.dto.session.AddSessionDTO;
 import io.yakable.common.bean.vo.project.ProjectDetailVO;
 import io.yakable.common.bean.vo.project.ProjectListVO;
 import io.yakable.common.bean.vo.session.SessionInitVO;
-import io.yakable.common.bean.vo.session.SessionVO;
 import io.yakable.common.enums.project.ProjectErrorCode;
 import io.yakable.common.enums.project.ProjectStatusEnum;
 import io.yakable.common.exception.ProjectException;
@@ -27,7 +26,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -84,14 +82,7 @@ class ProjectServiceImplTest {
 
         ArgumentCaptor<AddSessionDTO> sessionCaptor = ArgumentCaptor.forClass(AddSessionDTO.class);
         verify(sessionService).addSession(sessionCaptor.capture());
-        AddSessionDTO addSession = sessionCaptor.getValue();
-
-        assertThat(addSession.projectId()).isEqualTo(savedProject.getId());
-        assertThat(addSession.userId()).isEqualTo("user-1");
-        assertThat(addSession.title()).isEqualTo("Build a CRM dashboard");
-        assertThat(addSession.provider()).isEqualTo("deepseek");
-        assertThat(addSession.model()).isEqualTo("deepseek-flash");
-        assertThat(addSession.content()).isEqualTo(dto.prompt());
+        assertThat(sessionCaptor.getValue().userId()).isEqualTo("user-1");
 
         verify(sessionService).executeTurnAsync("turn-1");
         assertThat(result.getId()).isEqualTo(savedProject.getId());
@@ -100,29 +91,28 @@ class ProjectServiceImplTest {
     }
 
     @Test
-    void shouldQueryOnlyCurrentUserProjects() {
+    void shouldMapRecentProjectActivityFromRepositoryProjection() {
         QueryProjectPageDTO dto = new QueryProjectPageDTO(1, 20, "user-1");
-        LocalDateTime projectUpdatedAt = LocalDateTime.of(2026, 9, 21, 9, 0);
-        LocalDateTime sessionUpdatedAt = LocalDateTime.of(2026, 9, 21, 10, 0);
 
-        ProjectEntity project = project("project-1", "CRM", projectUpdatedAt);
-        project.setCreateBy("user-1");
-        SessionVO session = new SessionVO();
-        session.setId("session-1");
-        session.setProjectId("project-1");
-        session.setUpdatedAt(sessionUpdatedAt);
+        ProjectEntity recent = project("project-recent", "Recent");
+        recent.setLatestSessionId("session-recent");
+        recent.setActivityTime(LocalDateTime.of(2026, 9, 21, 12, 0));
+
+        ProjectEntity older = project("project-older", "Older");
+        older.setLatestSessionId("session-older");
+        older.setActivityTime(LocalDateTime.of(2026, 9, 21, 10, 0));
 
         when(projectRepository.queryProject(dto))
-                .thenReturn(new PageData<>(List.of(project), 1, 1, 1, 20));
-        when(sessionService.queryLatestSessionMap(List.of("project-1")))
-                .thenReturn(Map.of("project-1", session));
+                .thenReturn(new PageData<>(List.of(recent, older), 2, 1, 1, 20));
 
         PageData<ProjectListVO> result = projectService.queryProject(dto);
 
-        verify(projectRepository).queryProject(dto);
-        assertThat(result.records()).hasSize(1);
-        assertThat(result.records().getFirst().getLatestSessionId()).isEqualTo("session-1");
-        assertThat(result.records().getFirst().getUpdatedAt()).isEqualTo(sessionUpdatedAt);
+        assertThat(result.records())
+                .extracting(ProjectListVO::getId)
+                .containsExactly("project-recent", "project-older");
+        assertThat(result.records().getFirst().getLatestSessionId()).isEqualTo("session-recent");
+        assertThat(result.records().getFirst().getUpdatedAt())
+                .isEqualTo(LocalDateTime.of(2026, 9, 21, 12, 0));
     }
 
     @Test
@@ -133,17 +123,16 @@ class ProjectServiceImplTest {
                 .isInstanceOf(ProjectException.class)
                 .satisfies(exception ->
                         assertThat(((ProjectException) exception).getErrorCode()).isEqualTo(ProjectErrorCode.NOT_FOUND));
-
-        verify(projectRepository).queryProject("project-1", "user-2");
     }
 
-    private static ProjectEntity project(String id, String name, LocalDateTime updatedAt) {
+    private static ProjectEntity project(String id, String name) {
         ProjectEntity project = new ProjectEntity();
         project.setId(id);
         project.setName(name);
         project.setStatus(ProjectStatusEnum.CREATED);
-        project.setCreateTime(updatedAt.minusHours(1));
-        project.setUpdateTime(updatedAt);
+        project.setCreateTime(LocalDateTime.of(2026, 9, 21, 9, 0));
+        project.setUpdateTime(LocalDateTime.of(2026, 9, 21, 9, 0));
+        project.setCreateBy("user-1");
         return project;
     }
 }

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.yakable.dao.mapper.ProjectMapper">
+
+    <resultMap id="recentProjectEntity" type="io.yakable.dao.entity.ProjectEntity">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="status" column="status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="createBy" column="create_by"/>
+        <result property="updateBy" column="update_by"/>
+        <result property="latestSessionId" column="latest_session_id"/>
+        <result property="activityTime" column="activity_time"/>
+    </resultMap>
+
+    <select id="selectRecentProjectPage" resultMap="recentProjectEntity">
+        SELECT
+            p.id,
+            p.name,
+            p.status,
+            p.create_time,
+            p.update_time,
+            p.create_by,
+            p.update_by,
+            s.id AS latest_session_id,
+            GREATEST(
+                p.create_time,
+                COALESCE(s.update_time, p.create_time)
+            ) AS activity_time
+        FROM yak_project p
+        LEFT JOIN (
+            SELECT
+                id,
+                project_id,
+                update_time,
+                create_by,
+                ROW_NUMBER() OVER (
+                    PARTITION BY project_id
+                    ORDER BY update_time DESC, id DESC
+                ) AS rn
+            FROM yak_session
+            WHERE create_by = #{userId}
+        ) s
+            ON s.project_id = p.id
+            AND s.create_by = p.create_by
+            AND s.rn = 1
+        WHERE p.create_by = #{userId}
+        ORDER BY activity_time DESC, p.id DESC
+    </select>
+
+</mapper>
