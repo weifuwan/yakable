@@ -25,7 +25,7 @@ The initial primitive set is intentionally small:
 - feature-specific composites stay with the owning feature instead of being promoted into `shared/ui` early
 - `PromptComposer` owns reusable input mechanics such as autosizing, IME safety, Enter/Shift+Enter behavior, and submission state; it does not know what a prompt creates or edits
 - `Markdown` is the single renderer for message Markdown; features must not parse or render Markdown themselves
-- `Select` owns trigger, floating listbox, selection, keyboard navigation, focus restoration, and viewport-aware positioning; features provide option data and optional footer content
+- `Select` owns trigger, floating menu, radio selection, keyboard navigation, focus restoration, and viewport-aware positioning; features provide option data and optional footer content
 - feature-specific shortcuts, mode semantics, and labels such as Build or Plan stay outside `Select`
 - add a new primitive only after a real reusable boundary appears
 
