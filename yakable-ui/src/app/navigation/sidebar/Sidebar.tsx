@@ -11,7 +11,7 @@ export function Sidebar() {
   const { pathname } = useLocation();
 
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-black/[0.07] bg-[#f4f4f2]">
+    <aside className="flex h-full w-64 shrink-0 flex-col bg-[#f4f4f2]">
       <div className="flex h-14 shrink-0 items-center gap-2 px-3">
         <img
           src={logoUrl}
