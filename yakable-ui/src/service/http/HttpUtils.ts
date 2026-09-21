@@ -43,6 +43,10 @@ interface ApiResult<T> {
   data: T;
 }
 
+type UnauthorizedHandler = () => void;
+
+let unauthorizedHandler: UnauthorizedHandler | null = null;
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -79,7 +83,10 @@ function parseSseBlock(block: string): SseEvent | null {
 
   if (data.length === 0) return null;
   const raw = data.join('\n');
-  return { event, data: raw ? parseJson(raw, 'SSE event returned invalid JSON.') : null };
+  return {
+    event,
+    data: raw ? parseJson(raw, 'SSE event returned invalid JSON.') : null,
+  };
 }
 
 async function readText(response: Response) {
@@ -96,7 +103,9 @@ async function readText(response: Response) {
 
 async function toHttpError(response: Response) {
   const text = await readText(response);
-  const payload = text.trim() ? parseJson(text, 'HTTP error returned invalid JSON.') : undefined;
+  const payload = text.trim()
+    ? parseJson(text, 'HTTP error returned invalid JSON.')
+    : undefined;
 
   if (isApiResult(payload)) {
     return new ApiError(payload.message || 'Request failed.', {
@@ -137,17 +146,38 @@ async function parseResult<T>(response: Response): Promise<T> {
   return payload.data as T;
 }
 
+async function requireOk(response: Response) {
+  if (response.ok) return;
+
+  const error = await toHttpError(response);
+  if (response.status === 401) {
+    unauthorizedHandler?.();
+  }
+  throw error;
+}
+
 /**
  * 前端统一 HTTP 入口。
  */
 export class HttpUtils {
   static get<T>(url: string, options: HttpOptions = {}) {
-    return HttpUtils.request<T>(url, { method: 'GET', signal: options.signal });
+    return HttpUtils.request<T>(url, {
+      method: 'GET',
+      signal: options.signal,
+    });
   }
 
   static post<T>(url: string, body: unknown, options: HttpOptions = {}) {
     return HttpUtils.request<T>(url, {
       method: 'POST',
+      body: JSON.stringify(body),
+      signal: options.signal,
+    });
+  }
+
+  static put<T>(url: string, body: unknown, options: HttpOptions = {}) {
+    return HttpUtils.request<T>(url, {
+      method: 'PUT',
       body: JSON.stringify(body),
       signal: options.signal,
     });
@@ -178,7 +208,7 @@ export class HttpUtils {
       });
     }
 
-    if (!response.ok) throw await toHttpError(response);
+    await requireOk(response);
     if (!response.body) {
       throw new ApiError('Streaming response body is unavailable.', {
         kind: 'parse',
@@ -192,7 +222,9 @@ export class HttpUtils {
 
     while (true) {
       const { done, value } = await reader.read();
-      buffer += decoder.decode(value, { stream: !done }).replace(/\r\n/g, '\n');
+      buffer += decoder
+        .decode(value, { stream: !done })
+        .replace(/\r\n/g, '\n');
 
       let boundary = buffer.indexOf('\n\n');
       while (boundary >= 0) {
@@ -208,7 +240,10 @@ export class HttpUtils {
     }
   }
 
-  private static async request<T>(url: string, init: RequestInit): Promise<T> {
+  private static async request<T>(
+    url: string,
+    init: RequestInit,
+  ): Promise<T> {
     let response: Response;
     try {
       response = await fetch(url, {
@@ -226,9 +261,13 @@ export class HttpUtils {
       });
     }
 
-    if (!response.ok) throw await toHttpError(response);
+    await requireOk(response);
     return parseResult<T>(response);
   }
+}
+
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null) {
+  unauthorizedHandler = handler;
 }
 
 export function isApiError(error: unknown): error is ApiError {

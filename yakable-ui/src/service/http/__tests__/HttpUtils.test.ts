@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   HttpUtils,
+  setUnauthorizedHandler,
   type SseEvent,
 } from '../HttpUtils';
 
@@ -31,6 +32,7 @@ function apiResponse(
 }
 
 afterEach(() => {
+  setUnauthorizedHandler(null);
   vi.unstubAllGlobals();
 });
 
@@ -54,6 +56,52 @@ describe('HttpUtils', () => {
         },
       }),
     );
+  });
+
+  it('sends JSON PUT requests through the shared transport', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(apiResponse(null));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await HttpUtils.put('/api/users/me/password', {
+      currentPassword: 'old-password',
+      newPassword: 'new-password',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/users/me/password',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({
+          currentPassword: 'old-password',
+          newPassword: 'new-password',
+        }),
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+      }),
+    );
+  });
+
+  it('notifies the app when an HTTP request becomes unauthorized', async () => {
+    const onUnauthorized = vi.fn();
+    setUnauthorizedHandler(onUnauthorized);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        apiResponse(null, {
+          code: 30001,
+          message: 'Authentication required',
+          status: 401,
+        }),
+      ),
+    );
+
+    await expect(HttpUtils.get('/api/projects')).rejects.toMatchObject({
+      status: 401,
+      code: 30001,
+    });
+    expect(onUnauthorized).toHaveBeenCalledOnce();
   });
 
   it('reports a business error returned by the API envelope', async () => {
