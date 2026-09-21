@@ -63,10 +63,11 @@ describe('MessageItem', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Copy message' }));
 
     expect(writeText).toHaveBeenCalledWith('Build a membership system');
-    expect(await screen.findByRole('status')).toHaveTextContent('Copied');
+    expect((await screen.findByRole('status')).textContent).toBe('Copied');
 
     const copyButton = screen.getByRole('button', { name: 'Copy message' });
-    expect(copyButton.querySelector('.bg-\\[\\#22A559\\]')).toBeTruthy();
+    const successIcon = copyButton.querySelector('span[aria-hidden="true"]');
+    expect(successIcon?.className).toContain('bg-[#22A559]');
   });
 
   it('edits the message inline and cancels without regenerating', () => {
