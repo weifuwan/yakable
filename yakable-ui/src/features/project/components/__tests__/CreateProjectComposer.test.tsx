@@ -134,8 +134,8 @@ describe('CreateProjectComposer', () => {
     );
 
     expect(
-      await screen.findByRole('alert'),
-    ).toHaveTextContent('Unable to create project.');
+      (await screen.findByRole('alert')).textContent,
+    ).toContain('Unable to create project.');
     await waitFor(() => {
       expect((input as HTMLTextAreaElement).value).toBe(
         'Build a CRM dashboard',
