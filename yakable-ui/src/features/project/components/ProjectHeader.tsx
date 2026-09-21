@@ -17,7 +17,7 @@ export function ProjectHeader({
   onToggleExpanded,
 }: ProjectHeaderProps) {
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between bg-white px-4">
+    <header className="flex h-14 shrink-0 items-center justify-between bg-[#F5F5F5] px-4">
       {loading ? (
         <div
           className="flex min-w-0 items-center gap-1.5"
