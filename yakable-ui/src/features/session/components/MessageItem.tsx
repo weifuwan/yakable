@@ -235,17 +235,17 @@ export function MessageItem({
             </div>
 
             <div
-              className="pointer-events-none absolute right-0 top-full flex h-6 items-start gap-1.5 pt-1 opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
+              className="pointer-events-none absolute right-0 top-full flex h-7 items-center gap-1.5 pt-1 opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
               data-testid="user-message-actions"
             >
               <button
                 type="button"
                 aria-label="Copy message"
                 title="Copy message"
-                className="inline-flex size-5 shrink-0 items-center justify-center rounded-md text-black/40 outline-none transition-colors hover:bg-black/[0.05] hover:text-black/65 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-black/40"
+                className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-[#858585] outline-none transition-colors hover:bg-black/[0.05] hover:text-[#5F5F5F] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-black/40"
                 onClick={handleCopy}
               >
-                <Icon size={14}>
+                <Icon size={15}>
                   <rect x="9" y="9" width="10" height="10" rx="2" />
                   <path d="M15 9V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" />
                 </Icon>
@@ -256,10 +256,10 @@ export function MessageItem({
                   type="button"
                   aria-label="Edit message"
                   title="Edit message"
-                  className="inline-flex size-5 shrink-0 items-center justify-center rounded-md text-black/40 outline-none transition-colors hover:bg-black/[0.05] hover:text-black/65 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-black/40"
+                  className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-[#858585] outline-none transition-colors hover:bg-black/[0.05] hover:text-[#5F5F5F] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-black/40"
                   onClick={handleEdit}
                 >
-                  <Icon size={14}>
+                  <Icon size={15}>
                     <path d="M12 20h9" />
                     <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z" />
                   </Icon>
@@ -269,7 +269,7 @@ export function MessageItem({
               {createdAtLabel && (
                 <time
                   dateTime={message.createdAt}
-                  className="whitespace-nowrap text-xs text-black/35"
+                  className="whitespace-nowrap text-[13px] leading-6 text-[#858585]"
                 >
                   {createdAtLabel}
                 </time>
