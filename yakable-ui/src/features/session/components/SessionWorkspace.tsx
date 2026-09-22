@@ -564,13 +564,15 @@ export function SessionWorkspace({
         selectedModel.model,
         content,
       ].join('\n');
-      if (pendingRequestRef.current?.fingerprint !== fingerprint) {
-        pendingRequestRef.current = {
-          fingerprint,
-          requestId: globalThis.crypto.randomUUID(),
-        };
-      }
-      const requestId = pendingRequestRef.current.requestId;
+      const currentRequest = pendingRequestRef.current;
+      const pendingRequest = currentRequest?.fingerprint === fingerprint
+        ? currentRequest
+        : {
+            fingerprint,
+            requestId: globalThis.crypto.randomUUID(),
+          };
+      pendingRequestRef.current = pendingRequest;
+      const requestId = pendingRequest.requestId;
 
       const controller = new AbortController();
       streamAbortRef.current = controller;
