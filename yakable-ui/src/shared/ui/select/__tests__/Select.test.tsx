@@ -70,7 +70,7 @@ describe('Select', () => {
     await user.click(trigger);
 
     expect(trigger.hasAttribute('data-open')).toBe(true);
-    expect(screen.getByRole('menu').className).toContain(
+    expect(screen.getByRole('menu').parentElement?.className).toContain(
       'yak-select-menu',
     );
   });
