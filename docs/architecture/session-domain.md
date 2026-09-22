@@ -104,6 +104,10 @@ Streaming Assistant 内容同样受 Message 大小边界约束。流式缓冲达
 
 Turn 执行有全局并发上限和单用户并发上限。没有可用执行槽位时，Turn 保持 `PENDING`，等待后续 Recovery 再次尝试；不为等待中的 Turn 创建无限内存队列。执行槽位在成功、失败、Stop、中断或任务异常结束时都会释放。
 
+SaaS V1 的 Stream State、Stop 协作和实时 Snapshot 都属于当前 JVM，因此后端运行边界明确为单实例。当前不能把两个 Yakable 后端实例同时挂到负载均衡后面并期待 Streaming / Stop 语义仍然成立。
+
+正常停机采用 graceful shutdown：停止新的后台 Turn dispatch，停止 Recovery 调度，并给正在执行的 Turn 一个有限 drain 时间。超时仍未完成的本机 RUNNING Turn 会恢复为 `PENDING`，下次启动继续使用原 Turn、USER Message 和 Provider / Model identity 执行。
+
 ## Stop 与 Failure
 
 用户 Stop 时：
