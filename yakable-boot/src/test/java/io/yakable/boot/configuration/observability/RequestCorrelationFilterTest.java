@@ -18,7 +18,11 @@ class RequestCorrelationFilterTest {
         request.addHeader(RequestCorrelationFilter.HEADER_NAME, "request-123");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        filter.doFilter(request, response, new MockFilterChain());
+        filter.doFilter(
+                request,
+                response,
+                (servletRequest, servletResponse) ->
+                        assertThat(MDC.get(RequestCorrelationFilter.MDC_KEY)).isEqualTo("request-123"));
 
         assertThat(response.getHeader(RequestCorrelationFilter.HEADER_NAME)).isEqualTo("request-123");
         assertThat(MDC.get(RequestCorrelationFilter.MDC_KEY)).isNull();
