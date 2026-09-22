@@ -71,7 +71,13 @@ const started: TurnStartResult = {
     status: 'PENDING',
     attemptCount: 0,
     errorMessage: null,
-    invocation: null,
+    invocation: {
+      provider: 'kimi',
+      model: 'kimi-k3',
+      usage: null,
+      providerRequestId: null,
+      finishReason: null,
+    },
     startedAt: null,
     finishedAt: null,
     durationMs: null,
@@ -162,6 +168,25 @@ describe('SessionService', () => {
     );
     expect(onStarted).toHaveBeenCalledWith(started);
     expect(onDelta.mock.calls).toEqual([['Hello '], ['world']]);
+  });
+
+  it('stops a Turn through the stop endpoint', async () => {
+    const stopped = {
+      ...started.turn,
+      status: 'STOPPED' as const,
+      finishedAt: '2026-09-21T00:00:03Z',
+    };
+    const post = vi.spyOn(HttpUtils, 'post').mockResolvedValue(stopped);
+
+    await expect(
+      SessionService.stopTurn('project-1', 'session-1', 'turn-2'),
+    ).resolves.toEqual(stopped);
+
+    expect(post).toHaveBeenCalledWith(
+      '/api/projects/project-1/sessions/session-1/turns/turn-2/stop',
+      {},
+      { signal: undefined },
+    );
   });
 
   it('turns a stream error event into a business error', async () => {

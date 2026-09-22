@@ -55,12 +55,12 @@ function isSessionTurn(value: unknown): value is SessionTurn {
   return (
     isRecord(value) &&
     typeof value.id === 'string' &&
-    ['PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED'].includes(
+    ['PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'STOPPED'].includes(
       String(value.status),
     ) &&
     typeof value.attemptCount === 'number' &&
     isNullableString(value.errorMessage) &&
-    (value.invocation === null || isTurnInvocation(value.invocation)) &&
+    isTurnInvocation(value.invocation) &&
     isNullableString(value.startedAt) &&
     isNullableString(value.finishedAt) &&
     isNullableNumber(value.durationMs) &&
@@ -206,7 +206,7 @@ async function addTurn(
     : invalidResponse('Session API returned an invalid turn.', data);
 }
 
-async function cancelTurn(
+async function stopTurn(
   projectId: string,
   sessionId: string,
   turnId: string,
@@ -216,7 +216,7 @@ async function cancelTurn(
     sessionPath(projectId, sessionId) +
       '/turns/' +
       encodeURIComponent(turnId) +
-      '/cancel',
+      '/stop',
     {},
     { signal },
   );
@@ -288,6 +288,6 @@ export const SessionService = {
   queryChanges,
   queryMessages,
   addTurn,
-  cancelTurn,
+  stopTurn,
   streamingTurn,
 };

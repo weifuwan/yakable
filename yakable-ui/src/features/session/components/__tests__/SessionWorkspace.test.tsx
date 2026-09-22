@@ -91,7 +91,13 @@ const started: TurnStartResult = {
     status: 'PENDING',
     attemptCount: 0,
     errorMessage: null,
-    invocation: null,
+    invocation: {
+      provider: 'deepseek',
+      model: 'deepseek-flash',
+      usage: null,
+      providerRequestId: null,
+      finishReason: null,
+    },
     startedAt: null,
     finishedAt: null,
     durationMs: null,
@@ -150,9 +156,9 @@ const runningTurn: SessionTurn = {
   startedAt: '2026-09-21T00:00:02Z',
 };
 
-const cancelledTurn: SessionTurn = {
+const stoppedTurn: SessionTurn = {
   ...runningTurn,
-  status: 'CANCELLED',
+  status: 'STOPPED',
   finishedAt: '2026-09-21T00:00:03Z',
   durationMs: 1000,
   updatedAt: '2026-09-21T00:00:03Z',
@@ -177,8 +183,8 @@ const runningSnapshot: SessionSnapshot = {
   ],
 };
 
-const cancelledChanges: SessionChanges = {
-  latestTurn: cancelledTurn,
+const stoppedChanges: SessionChanges = {
+  latestTurn: stoppedTurn,
   messages: runningSnapshot.messages,
   latestSequence: 4,
 };
@@ -416,15 +422,15 @@ describe('SessionWorkspace', () => {
 
   it('stops an active turn and keeps the partial answer visible', async () => {
     const user = userEvent.setup();
-    const cancelTurn = vi
-      .spyOn(SessionService, 'cancelTurn')
-      .mockResolvedValue(cancelledTurn);
+    const stopTurn = vi
+      .spyOn(SessionService, 'stopTurn')
+      .mockResolvedValue(stoppedTurn);
 
     vi.spyOn(SessionService, 'querySession').mockResolvedValue(
       runningSnapshot,
     );
     vi.spyOn(SessionService, 'queryChanges').mockResolvedValue(
-      cancelledChanges,
+      stoppedChanges,
     );
 
     render(
@@ -441,7 +447,7 @@ describe('SessionWorkspace', () => {
     );
 
     await waitFor(() => {
-      expect(cancelTurn).toHaveBeenCalledWith(
+      expect(stopTurn).toHaveBeenCalledWith(
         'project-1',
         'session-1',
         'turn-2',

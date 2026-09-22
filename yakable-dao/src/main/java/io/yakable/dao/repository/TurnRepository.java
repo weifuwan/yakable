@@ -29,13 +29,13 @@ public interface TurnRepository extends BaseRepository<TurnEntity> {
     /**
      * 将待执行 Turn 更新为运行中状态。
      */
-    Optional<TurnEntity> updatePendingTurn(String turnId, LocalDateTime claimedAt, String provider, String model);
+    Optional<TurnEntity> updatePendingTurn(String turnId, LocalDateTime claimedAt);
 
     /**
      * 将运行中 Turn 更新为成功状态。
      */
     int updateTurnSucceeded(
-            String turnId, String sessionId, String provider, String model,
+            String turnId, String sessionId,
             Long inputTokens, Long outputTokens, Long totalTokens,
             String providerRequestId, String finishReason, LocalDateTime completedAt);
 
@@ -45,9 +45,9 @@ public interface TurnRepository extends BaseRepository<TurnEntity> {
     int updateTurnFailed(String turnId, String sessionId, String errorMessage, LocalDateTime failedAt);
 
     /**
-     * 将待执行或运行中的 Turn 更新为取消状态。
+     * 将待执行或运行中的 Turn 更新为停止状态。
      */
-    int updateTurnCancelled(String turnId, String sessionId, LocalDateTime cancelledAt);
+    int updateTurnStopped(String turnId, String sessionId, LocalDateTime stoppedAt);
 
     /**
      * 将超时运行中的 Turn 恢复为待执行状态。

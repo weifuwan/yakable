@@ -2,7 +2,7 @@ package io.yakable.service.session;
 
 import io.yakable.common.bean.dto.session.AddSessionDTO;
 import io.yakable.common.bean.dto.session.AddTurnDTO;
-import io.yakable.common.bean.dto.session.CancelTurnDTO;
+import io.yakable.common.bean.dto.session.StopTurnDTO;
 import io.yakable.common.bean.dto.session.QuerySessionChangesDTO;
 import io.yakable.common.bean.dto.session.QuerySessionDTO;
 import io.yakable.common.bean.dto.session.QuerySessionMessagesDTO;
@@ -41,9 +41,9 @@ public interface SessionService {
     TurnStartVO addStreamingTurn(@NotNull @Valid AddTurnDTO dto);
 
     /**
-     * 取消 Turn。
+     * 停止 Turn。
      */
-    TurnVO cancelTurn(@NotNull @Valid CancelTurnDTO dto);
+    TurnVO stopTurn(@NotNull @Valid StopTurnDTO dto);
 
     /**
      * 异步执行 Turn。
