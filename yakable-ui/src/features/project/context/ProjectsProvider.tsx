@@ -87,12 +87,36 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    void fetchInitial(controller.signal);
+
+    void ProjectService.queryProject(
+      {
+        current: 1,
+        pageSize: PROJECT_PAGE_SIZE,
+      },
+      controller.signal,
+    )
+      .then((page) => {
+        if (controller.signal.aborted) return;
+        setProjects(page.records);
+        setCurrentPage(page.current);
+        setHasMore(page.current < page.pages);
+      })
+      .catch((requestError: unknown) => {
+        if (controller.signal.aborted) return;
+        setError(
+          requestError instanceof Error
+            ? requestError.message
+            : 'Unable to load projects.',
+        );
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoading(false);
+      });
 
     return () => {
       controller.abort();
     };
-  }, [fetchInitial]);
+  }, []);
 
   const retryInitial = useCallback(() => loadInitial(), [loadInitial]);
 
