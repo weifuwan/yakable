@@ -34,6 +34,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -43,6 +44,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -53,6 +55,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -554,6 +557,114 @@ class SessionServiceImplTest {
     }
 
     @Test
+    void shouldKeepTurnPendingWhenGlobalExecutionLimitIsFull() throws Exception {
+        stubExecuteWithoutResultInline();
+        ReflectionTestUtils.setField(sessionService, "maxConcurrentExecutions", 1);
+        ReflectionTestUtils.setField(sessionService, "maxConcurrentExecutionsPerUser", 1);
+
+        SessionEntity firstSession = session("project-1", "session-1");
+        SessionEntity secondSession = session("project-2", "session-2");
+        secondSession.setCreateBy("user-2");
+
+        TurnVO first = turn("turn-1", TurnStatusEnum.RUNNING);
+        when(turnService.queryTurnExecution("turn-1"))
+                .thenReturn(Optional.of(execution("turn-1", "session-1")));
+        when(sessionRepository.queryById("session-1")).thenReturn(Optional.of(firstSession));
+        when(turnService.updatePendingTurn(eq("turn-1"), any(LocalDateTime.class)))
+                .thenReturn(Optional.of(first));
+        when(messageService.queryMessageList("session-1")).thenReturn(List.of(
+                message("m1", "turn-1", MessageRoleEnum.USER, "Hello", 1L)));
+        when(turnService.queryTurnList("session-1")).thenReturn(List.of(first));
+        when(llmClient.modelMetadata("deepseek", "deepseek-flash"))
+                .thenReturn(new LlmModelMetadata(100_000L, 10_000L));
+        when(turnService.updateTurnSucceeded(
+                eq("turn-1"), eq("session-1"),
+                any(), any(), any(), any(), any(), any(LocalDateTime.class)))
+                .thenReturn(1);
+
+        when(turnService.queryTurnExecution("turn-2"))
+                .thenReturn(Optional.of(execution("turn-2", "session-2")));
+        when(sessionRepository.queryById("session-2")).thenReturn(Optional.of(secondSession));
+        when(turnService.updatePendingTurn(eq("turn-2"), any(LocalDateTime.class)))
+                .thenReturn(Optional.empty());
+
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            Consumer<LlmStreamEvent> consumer = invocation.getArgument(1);
+            started.countDown();
+            release.await(2, TimeUnit.SECONDS);
+            consumer.accept(LlmStreamEvent.complete(
+                    response("deepseek", "deepseek-flash", "Done")));
+            return null;
+        }).when(llmClient).streamingChat(any(LlmRequest.class), any());
+
+        sessionService.executeTurnAsync("turn-1");
+        assertThat(started.await(2, TimeUnit.SECONDS)).isTrue();
+
+        sessionService.executeTurnAsync("turn-2");
+        verify(turnService, never()).updatePendingTurn(eq("turn-2"), any(LocalDateTime.class));
+
+        release.countDown();
+        awaitActiveExecutions(0);
+
+        sessionService.executeTurnAsync("turn-2");
+        verify(turnService, timeout(2000)).updatePendingTurn(eq("turn-2"), any(LocalDateTime.class));
+    }
+
+    @Test
+    void shouldKeepTurnPendingWhenUserExecutionLimitIsFull() throws Exception {
+        stubExecuteWithoutResultInline();
+        ReflectionTestUtils.setField(sessionService, "maxConcurrentExecutions", 2);
+        ReflectionTestUtils.setField(sessionService, "maxConcurrentExecutionsPerUser", 1);
+
+        SessionEntity firstSession = session("project-1", "session-1");
+        SessionEntity secondSession = session("project-2", "session-2");
+
+        TurnVO first = turn("turn-1", TurnStatusEnum.RUNNING);
+        when(turnService.queryTurnExecution("turn-1"))
+                .thenReturn(Optional.of(execution("turn-1", "session-1")));
+        when(sessionRepository.queryById("session-1")).thenReturn(Optional.of(firstSession));
+        when(turnService.updatePendingTurn(eq("turn-1"), any(LocalDateTime.class)))
+                .thenReturn(Optional.of(first));
+        when(messageService.queryMessageList("session-1")).thenReturn(List.of(
+                message("m1", "turn-1", MessageRoleEnum.USER, "Hello", 1L)));
+        when(turnService.queryTurnList("session-1")).thenReturn(List.of(first));
+        when(llmClient.modelMetadata("deepseek", "deepseek-flash"))
+                .thenReturn(new LlmModelMetadata(100_000L, 10_000L));
+        when(turnService.updateTurnSucceeded(
+                eq("turn-1"), eq("session-1"),
+                any(), any(), any(), any(), any(), any(LocalDateTime.class)))
+                .thenReturn(1);
+
+        when(turnService.queryTurnExecution("turn-2"))
+                .thenReturn(Optional.of(execution("turn-2", "session-2")));
+        when(sessionRepository.queryById("session-2")).thenReturn(Optional.of(secondSession));
+
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            Consumer<LlmStreamEvent> consumer = invocation.getArgument(1);
+            started.countDown();
+            release.await(2, TimeUnit.SECONDS);
+            consumer.accept(LlmStreamEvent.complete(
+                    response("deepseek", "deepseek-flash", "Done")));
+            return null;
+        }).when(llmClient).streamingChat(any(LlmRequest.class), any());
+
+        sessionService.executeTurnAsync("turn-1");
+        assertThat(started.await(2, TimeUnit.SECONDS)).isTrue();
+
+        sessionService.executeTurnAsync("turn-2");
+        verify(turnService, never()).updatePendingTurn(eq("turn-2"), any(LocalDateTime.class));
+
+        release.countDown();
+        awaitActiveExecutions(0);
+    }
+
+    @Test
     void shouldReplayStreamingSnapshotWhenWatchingActiveTurn() throws Exception {
         stubExecuteWithoutResultInline();
 
@@ -637,6 +748,17 @@ class SessionServiceImplTest {
         assertThat(delta.get()).isEqualTo(" answer");
 
         unsubscribe.run();
+    }
+
+    private void awaitActiveExecutions(int expected) {
+        AtomicInteger active = (AtomicInteger) ReflectionTestUtils.getField(sessionService, "activeExecutions");
+        assertThat(active).isNotNull();
+
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+        while (active.get() != expected && System.nanoTime() < deadline) {
+            Thread.onSpinWait();
+        }
+        assertThat(active.get()).isEqualTo(expected);
     }
 
     private void stubExecuteInline() {
