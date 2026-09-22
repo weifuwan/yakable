@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import {
@@ -34,16 +34,34 @@ export function CreateProjectComposer() {
     DEFAULT_MODEL_SELECTION,
   );
   const [error, setError] = useState<string | null>(null);
+  const pendingRequestRef = useRef<{
+    fingerprint: string;
+    requestId: string;
+  } | null>(null);
 
   const handleSubmit = async (prompt: string) => {
     setError(null);
+    const fingerprint = [
+      selectedModel.provider,
+      selectedModel.model,
+      prompt,
+    ].join('\n');
+    if (pendingRequestRef.current?.fingerprint !== fingerprint) {
+      pendingRequestRef.current = {
+        fingerprint,
+        requestId: globalThis.crypto.randomUUID(),
+      };
+    }
+    const requestId = pendingRequestRef.current.requestId;
 
     try {
       const project = await ProjectService.addProject({
         prompt,
         model: selectedModel,
+        requestId,
       });
 
+      pendingRequestRef.current = null;
       upsertProject(project);
       navigate(projectSessionPath(project.id, project.latestSessionId));
       return true;
