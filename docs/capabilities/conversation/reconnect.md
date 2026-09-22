@@ -1,6 +1,6 @@
 # Reconnect
 
-Status: Implementing
+Status: Review
 Domain: Conversation
 
 Depends On:
@@ -48,10 +48,10 @@ Tests:
 Known Gaps:
 - 当前没有覆盖“两个 Tab 同时 watch 同一 Turn、其中一个 Tab Stop、两个 Tab 收敛到 STOPPED”的完整回归测试（GAP-03，本 PR 不处理）。
 
-Implementation Design:
-- Reconnect 不新增自己的排序机制，继续依赖 Streaming 的 TurnStreamState。
-- Streaming 必须保证新 watcher 的可观察顺序为 snapshot → future delta → terminal。
-- 本次只修 watcher handoff ordering，不修改 reconnect API、changes fallback 或 multi-tab 语义。
+Review Notes:
+- GAP-02 的 snapshot / future delta ordering 已在 Streaming 的 TurnStreamState 中实现，不新增 Reconnect 私有排序机制。
+- Reconnect API、changes fallback 和 multi-tab 语义未改变。
+- GAP-02 目标 Maven 测试尚未实际执行；同时 GAP-03 仍存在，因此 Reconnect 保持 Review。
 
 ## Purpose
 
