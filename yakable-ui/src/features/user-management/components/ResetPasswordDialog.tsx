@@ -52,10 +52,9 @@ export function ResetPasswordDialog({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4"
-      role="dialog"
-      aria-modal="true"
+    <dialog
+      open
+      className="fixed inset-0 z-50 flex h-full w-full max-w-none items-center justify-center border-0 bg-black/20 p-4"
       aria-labelledby="reset-password-title"
     >
       <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-6">
@@ -128,6 +127,6 @@ export function ResetPasswordDialog({
           </div>
         </form>
       </div>
-    </div>
+    </dialog>
   );
 }
