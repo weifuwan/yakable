@@ -396,7 +396,7 @@ public class SessionServiceImpl implements SessionService {
     public List<TurnNavigationItemVO> queryTurnNavigation(QuerySessionTurnNavigationDTO dto) {
         queryOwnedSession(dto.projectId(), dto.sessionId(), dto.userId());
 
-        return messageService.queryUserMessageList(dto.sessionId()).stream()
+        return messageService.queryUserNavigationMessageList(dto.sessionId()).stream()
                 .map(SessionServiceImpl::toTurnNavigationItemVO)
                 .toList();
     }
