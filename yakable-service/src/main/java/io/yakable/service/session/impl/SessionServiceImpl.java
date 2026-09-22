@@ -112,7 +112,8 @@ public class SessionServiceImpl implements SessionService {
         session.setActivityTime(session.getCreateTime());
         sessionRepository.add(session);
 
-        TurnStartVO turn = addPendingTurn(session, dto.provider(), dto.model(), dto.content());
+        TurnStartVO turn = addPendingTurn(
+                session, dto.provider(), dto.model(), dto.content(), dto.requestId());
 
         SessionInitVO result = new SessionInitVO();
         result.setSessionId(session.getId());
@@ -267,20 +268,26 @@ public class SessionServiceImpl implements SessionService {
     private TurnStartVO createTurn(AddTurnDTO dto) {
         return transactionTemplate.execute(status -> {
             SessionEntity session = queryOwnedSession(dto.projectId(), dto.sessionId(), dto.userId());
-            return addPendingTurn(session, dto.provider(), dto.model(), dto.content());
+            return addPendingTurn(
+                    session, dto.provider(), dto.model(), dto.content(), dto.requestId());
         });
     }
 
     private TurnStartVO addPendingTurn(
-            SessionEntity session, String provider, String model, String content) {
+            SessionEntity session, String provider, String model, String content, String requestId) {
         if (!sessionRepository.querySessionForUpdate(session.getId())) {
             throw new SessionException(SessionErrorCode.NOT_FOUND);
+        }
+
+        TurnVO existing = turnService.queryTurnByRequestId(session.getId(), requestId).orElse(null);
+        if (existing != null) {
+            return existingTurnStart(existing);
         }
         if (turnService.queryActiveTurnCount(session.getId()) > 0) {
             throw new SessionException(SessionErrorCode.BUSY);
         }
 
-        TurnVO turn = turnService.addTurn(session.getId(), provider, model);
+        TurnVO turn = turnService.addTurn(session.getId(), provider, model, requestId);
         MessageVO message = messageService.addMessage(session.getId(), turn.getId(), MessageRoleEnum.USER, content);
 
         session.setProvider(provider);
@@ -289,6 +296,16 @@ public class SessionServiceImpl implements SessionService {
         session.initUpdate();
         sessionRepository.update(session);
 
+        TurnStartVO result = new TurnStartVO();
+        result.setTurn(turn);
+        result.setUserMessage(message);
+        return result;
+    }
+
+    private TurnStartVO existingTurnStart(TurnVO turn) {
+        MessageVO message = messageService.queryUserMessage(turn.getId())
+                .orElseThrow(() -> new IllegalStateException(
+                        "USER Message not found for Turn: " + turn.getId()));
         TurnStartVO result = new TurnStartVO();
         result.setTurn(turn);
         result.setUserMessage(message);
