@@ -155,13 +155,12 @@ export function MessageItem({
             onClick={handleCopy}
           >
             {copied && (
-              <span
-                role="status"
+              <output
                 data-allow-shadow="true"
                 className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg border border-border-quiet bg-surface px-2.5 py-1 text-xs font-medium text-foreground shadow-sm"
               >
                 Copied
-              </span>
+              </output>
             )}
 
             <CopyStatusIcon copied={copied} />
