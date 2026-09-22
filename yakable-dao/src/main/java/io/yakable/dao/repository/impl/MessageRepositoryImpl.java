@@ -55,6 +55,23 @@ public class MessageRepositoryImpl extends BaseRepositoryImpl<MessageMapper, Mes
     }
 
     @Override
+    public Optional<MessageEntity> queryMessage(String sessionId, long sequence) {
+        return Optional.ofNullable(messageMapper.selectOne(
+                Wrappers.<MessageEntity>lambdaQuery()
+                        .eq(MessageEntity::getSessionId, sessionId)
+                        .eq(MessageEntity::getMessageSequence, sequence)));
+    }
+
+    @Override
+    public List<MessageEntity> queryUserMessageList(String sessionId) {
+        return messageMapper.selectList(
+                Wrappers.<MessageEntity>lambdaQuery()
+                        .eq(MessageEntity::getSessionId, sessionId)
+                        .eq(MessageEntity::getRole, MessageRoleEnum.USER)
+                        .orderByAsc(MessageEntity::getMessageSequence));
+    }
+
+    @Override
     public List<MessageEntity> queryMessageList(String sessionId) {
         return messageMapper.selectList(
                 Wrappers.<MessageEntity>lambdaQuery()
