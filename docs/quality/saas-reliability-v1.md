@@ -131,9 +131,9 @@ SSE 连接结束、超时或异常后必须释放 listener 和相关资源。
 
 Streaming buffer 不能无限增长。单条 Message 必须同时存在应用层大小边界和与之匹配的数据库字段容量，不能只依赖数据库写入失败兜底。
 
-Message 页面加载必须分页，不能默认一次加载整个 Session 历史。
+Message 页面加载必须分页，不能默认一次加载整个 Session 历史。Session 首屏、增量查询和 Context 构建都必须保持数据库读取有界，不能先全量读取再在 JVM 中裁剪。
 
-Context 必须受模型 Token Budget 约束。
+Context 必须受模型 Token Budget 约束，并从最近历史向更早分批读取；达到预算后停止继续访问更老数据。
 
 恢复任务必须限制单次处理数量，不能一次扫描并执行全部历史任务。
 
