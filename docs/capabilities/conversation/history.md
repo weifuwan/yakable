@@ -1,6 +1,6 @@
 # History
 
-Status: Review
+Status: Implementing
 Domain: Conversation
 
 Depends On:
@@ -47,8 +47,13 @@ Tests:
 - `yakable-service/src/test/java/io/yakable/service/message/impl/MessageServiceImplTest.java`
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 
-Known Gaps:
-- GAP-05 — CONV-S06 已有生产实现，但当前 SessionWorkspace 回归测试只覆盖历史分页，没有保护“离开 latest 后 Streaming 不抢阅读位置、Scroll to bottom 出现、返回 latest 后恢复 follow output”的完整交互。
+Implementation Design:
+- GAP-05 不修改生产交互，只补 CONV-S06 的完整前端回归测试。
+- 测试显式构造可滚动容器的 scrollTop / scrollHeight / clientHeight。
+- 用户离开 latest 后触发 Streaming delta，断言 scrollTop 不变化，并显示 Scroll to bottom。
+- 点击 Scroll to bottom 后，断言滚动到当前 scrollHeight，并恢复 follow output。
+- 后续再增加 scrollHeight 并触发新的 Streaming delta，断言组件自动继续滚动到底部。
+- 本次不修改 SessionWorkspace、SessionService、后端、API 或滚动算法。
 
 ## Purpose
 
