@@ -72,11 +72,13 @@ Project 创建时由 ProjectService 在同一事务中创建初始 Session、Tur
 
 ```text
 SessionService
+  -> acquire global / user execution slot
   -> ThreadUtils
   -> claim PENDING
   -> build Context
   -> LlmClient.streamingChat
   -> persist SUCCEEDED / FAILED
+  -> release execution slot
 ```
 
 Turn 的后台执行生命周期不依赖某一个 SSE 连接。
@@ -93,6 +95,8 @@ watch existing Turn
 浏览器刷新、页面切换、SSE timeout 或网络断开只会取消当前 watcher，不会把 Turn 标记为 STOPPED。用户显式点击 Stop 才会进入停止流程。
 
 线程提交、异常兜底和调度线程池统一由 `ThreadUtils` 管理，业务 Service 不持有线程池。模型调用不放在数据库事务中。
+
+Turn 执行有全局并发上限和单用户并发上限。没有可用执行槽位时，Turn 保持 `PENDING`，等待后续 Recovery 再次尝试；不为等待中的 Turn 创建无限内存队列。执行槽位在成功、失败、Stop、中断或任务异常结束时都会释放。
 
 ## Stop 与 Failure
 
@@ -117,7 +121,9 @@ SessionService 定期把超时的 RUNNING Turn 恢复为 PENDING，并重新提�
 
 恢复不会创建新的 Turn，也不会改变原 Turn 的 provider / model。前端重新进入 Session 时会订阅已经存在的 PENDING / RUNNING Turn；watcher 不可用时可以通过增量查询继续恢复状态。
 
-恢复间隔和运行超时可配置，单次恢复数量暂固定为 100。
+恢复间隔和运行超时可配置，单次扫描上限暂固定为 100。Recovery 实际提交数量还受当前全局可用执行槽位约束，不会一次把全部 PENDING Turn 启动到 JVM 中。
+
+执行并发通过 `yakable.turn-execution.max-concurrent` 和 `yakable.turn-execution.max-concurrent-per-user` 配置。默认值只是 SaaS V1 的安全边界，不代表性能目标；后续应根据真实压测和生产指标调整。
 
 ## Context
 
