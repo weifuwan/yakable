@@ -8,6 +8,11 @@ Purpose:
 - Define execution boundaries
 - Do not duplicate detailed rules here
 
+Engineering Model:
+- `docs/engineering-context-model.md`
+
+Before changing engineering document structure or creating a new long-lived document type, load the Engineering Context Model first.
+
 ## Backend Context
 
 Any Java change starts with:

@@ -8,6 +8,20 @@
 
 > 人或 AI 接到一个任务后，能够快速知道它属于哪里、受什么规则约束、会影响谁、应该读哪些代码和测试。
 
+## Engineering Context Model
+
+Yakable 工程 Context 的总纲：
+
+```text
+What to build       → Capability Contract
+How to code         → *_RULES.md
+Where things belong → ARCHITECTURE.md
+How to test         → *_TEST_RULES.md
+How to prove        → CI Verification
+```
+
+完整定义见 [Engineering Context Model](./engineering-context-model.md)。
+
 ## Knowledge Map
 
 ```text
