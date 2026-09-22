@@ -64,11 +64,7 @@ public class MessageRepositoryImpl extends BaseRepositoryImpl<MessageMapper, Mes
 
     @Override
     public List<MessageEntity> queryUserMessageList(String sessionId) {
-        return messageMapper.selectList(
-                Wrappers.<MessageEntity>lambdaQuery()
-                        .eq(MessageEntity::getSessionId, sessionId)
-                        .eq(MessageEntity::getRole, MessageRoleEnum.USER)
-                        .orderByAsc(MessageEntity::getMessageSequence));
+        return messageMapper.selectUserNavigationMessageList(sessionId);
     }
 
     @Override
