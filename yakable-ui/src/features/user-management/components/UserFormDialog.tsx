@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 
 import {
   UserService,
@@ -30,16 +30,6 @@ export function UserFormDialog({
   const [password, setPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setUsername(user?.username ?? '');
-    setName(user?.name ?? '');
-    setEmail(user?.email ?? '');
-    setAvatar(user?.avatar ?? '');
-    setRole(user?.role ?? 'USER');
-    setPassword('');
-    setError(null);
-  }, [user]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -83,10 +73,9 @@ export function UserFormDialog({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4"
-      role="dialog"
-      aria-modal="true"
+    <dialog
+      open
+      className="fixed inset-0 z-50 flex h-full w-full max-w-none items-center justify-center border-0 bg-black/20 p-4"
       aria-labelledby="user-dialog-title"
     >
       <div className="w-full max-w-lg rounded-2xl border border-border bg-surface p-6">
@@ -227,6 +216,6 @@ export function UserFormDialog({
           </div>
         </form>
       </div>
-    </div>
+    </dialog>
   );
 }
