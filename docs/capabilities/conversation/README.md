@@ -321,6 +321,7 @@ yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerT
 yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java
 yakable-service/src/test/java/io/yakable/service/turn/impl/TurnServiceImplTest.java
 yakable-service/src/test/java/io/yakable/service/message/impl/MessageServiceImplTest.java
+yakable-service/src/test/java/io/yakable/service/observability/ConversationMetricsTest.java
 yakable-boot/src/test/java/io/yakable/boot/integration/ConversationPersistenceIT.java
 yakable-ui/src/features/session/components/__tests__/SessionWorkspace.test.tsx
 yakable-ui/src/service/session/__tests__/SessionService.test.ts
