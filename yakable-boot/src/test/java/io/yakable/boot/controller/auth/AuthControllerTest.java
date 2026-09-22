@@ -124,9 +124,9 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.code").value(30001))
                 .andReturn();
 
-        assertThat(result.getResponse().getHeaders(HttpHeaders.SET_COOKIE))
-                .anyMatch(value -> value.startsWith(CSRF_COOKIE + "=")
-                        && value.contains("SameSite=Strict"));
+        Cookie csrfCookie = result.getResponse().getCookie(CSRF_COOKIE);
+        assertThat(csrfCookie).isNotNull();
+        assertThat(csrfCookie.getAttribute("SameSite")).isEqualTo("Strict");
     }
 
     @Test
