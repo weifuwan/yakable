@@ -6,6 +6,7 @@ import io.yakable.common.bean.dto.project.AddProjectDTO;
 import io.yakable.common.bean.dto.project.QueryProjectPageDTO;
 import io.yakable.common.bean.vo.project.ProjectListVO;
 import io.yakable.common.bean.vo.user.CurrentUserVO;
+import io.yakable.common.constant.MessageConstant;
 import io.yakable.service.project.ProjectService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -113,6 +114,28 @@ class ProjectControllerTest {
         assertThat(captor.getValue().getUserId()).isEqualTo("user-1");
         assertThat(captor.getValue().getCurrent()).isEqualTo(1);
         assertThat(captor.getValue().getPageSize()).isEqualTo(20);
+    }
+
+    @Test
+    void shouldRejectOversizedProjectPrompt() throws Exception {
+        String oversized = "x".repeat(MessageConstant.MAX_CONTENT_LENGTH + 1);
+
+        mockMvc.perform(post("/api/projects")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "prompt": "%s",
+                                  "model": {
+                                    "provider": "deepseek",
+                                    "model": "deepseek-flash"
+                                  },
+                                  "requestId": "project-request-oversized"
+                                }
+                                """.formatted(oversized)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40000));
+
+        verify(projectService, org.mockito.Mockito.never()).addProject(any());
     }
 
     @Test
