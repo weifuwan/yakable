@@ -261,11 +261,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
   }, [align, side]);
 
   useLayoutEffect(() => {
-    if (!open) {
-      setPosition(null);
-      return;
-    }
-
+    if (!open) return;
     updatePosition();
   }, [open, options, updatePosition]);
 
@@ -317,6 +313,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
   const openSelect = (initialFocus: 'selected' | 'first' | 'last') => {
     if (disabled) return;
     initialFocusRef.current = initialFocus;
+    setPosition(null);
     setOpen(true);
   };
 
@@ -335,7 +332,11 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
 
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      open ? closeAndRestoreFocus() : openSelect('selected');
+      if (open) {
+        closeAndRestoreFocus();
+      } else {
+        openSelect('selected');
+      }
     }
   };
 
@@ -452,10 +453,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
 
             {footer && (
               <>
-                <div
-                  role="separator"
-                  className="-mx-1 my-1 h-px bg-border"
-                />
+                <hr className="-mx-1 my-1 border-0 border-t border-border" />
                 <div className="px-2 py-1 text-xs text-foreground-muted">
                   {footer}
                 </div>
@@ -484,7 +482,11 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
           className,
         )}
         onClick={() => {
-          open ? closeAndRestoreFocus() : openSelect('selected');
+          if (open) {
+            closeAndRestoreFocus();
+          } else {
+            openSelect('selected');
+          }
         }}
         onKeyDown={handleTriggerKeyDown}
       >
