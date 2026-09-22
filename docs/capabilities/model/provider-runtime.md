@@ -4,7 +4,7 @@ Status: Done
 Domain: Model
 
 Depends On:
-- Stable LLM Contract
+- None
 
 Related:
 - [Model Selection](./selection.md)
