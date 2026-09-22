@@ -30,13 +30,14 @@ class TurnServiceImplTest {
 
     @Test
     void shouldCreatePendingTurnWithModelIdentity() {
-        TurnVO result = turnService.addTurn("session-1", "kimi", "kimi-k3");
+        TurnVO result = turnService.addTurn("session-1", "kimi", "kimi-k3", "request-1");
 
         ArgumentCaptor<TurnEntity> captor = ArgumentCaptor.forClass(TurnEntity.class);
         verify(turnRepository).add(captor.capture());
 
         TurnEntity saved = captor.getValue();
         assertThat(saved.getSessionId()).isEqualTo("session-1");
+        assertThat(saved.getRequestId()).isEqualTo("request-1");
         assertThat(saved.getProvider()).isEqualTo("kimi");
         assertThat(saved.getModel()).isEqualTo("kimi-k3");
         assertThat(saved.getStatus()).isEqualTo(TurnStatusEnum.PENDING);

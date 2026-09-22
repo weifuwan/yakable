@@ -1,6 +1,7 @@
 package io.yakable.dao.repository.impl;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.yakable.common.bean.PageData;
 import io.yakable.common.bean.dto.project.QueryProjectPageDTO;
@@ -10,6 +11,8 @@ import io.yakable.dao.repository.ProjectRepository;
 import jakarta.annotation.Resource;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Repository;
+
+import java.util.Optional;
 
 @Repository
 @DependsOn("yakableFlyway")
@@ -21,6 +24,14 @@ public class ProjectRepositoryImpl extends BaseRepositoryImpl<ProjectMapper, Pro
     @Override
     protected ProjectMapper mapper() {
         return projectMapper;
+    }
+
+    @Override
+    public Optional<ProjectEntity> queryByRequestId(String userId, String requestId) {
+        return Optional.ofNullable(projectMapper.selectOne(
+                Wrappers.<ProjectEntity>lambdaQuery()
+                        .eq(ProjectEntity::getCreateBy, userId)
+                        .eq(ProjectEntity::getRequestId, requestId)));
     }
 
     @Override

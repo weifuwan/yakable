@@ -13,4 +13,5 @@ export interface ProjectModel {
 export interface CreateProjectInput {
   prompt: string;
   model: ProjectModel;
+  requestId: string;
 }

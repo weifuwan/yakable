@@ -12,6 +12,11 @@ import java.util.Optional;
 public interface TurnRepository extends BaseRepository<TurnEntity> {
 
     /**
+     * 按 Session 和客户端请求ID查询 Turn。
+     */
+    Optional<TurnEntity> queryByRequestId(String sessionId, String requestId);
+
+    /**
      * 查询 Session 当前活跃 Turn 数量。
      */
     long queryActiveTurnCount(String sessionId);

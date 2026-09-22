@@ -86,7 +86,8 @@ class SessionControllerTest {
                                 {
                                   "content": "Tell me more",
                                   "provider": "kimi",
-                                  "model": "kimi-k3"
+                                  "model": "kimi-k3",
+                                  "requestId": "turn-request-1"
                                 }
                                 """))
                 .andExpect(status().isAccepted())
@@ -101,6 +102,7 @@ class SessionControllerTest {
         assertThat(captor.getValue().provider()).isEqualTo("kimi");
         assertThat(captor.getValue().model()).isEqualTo("kimi-k3");
         assertThat(captor.getValue().content()).isEqualTo("Tell me more");
+        assertThat(captor.getValue().requestId()).isEqualTo("turn-request-1");
         assertThat(captor.getValue().userId()).isEqualTo("user-1");
     }
 
@@ -112,7 +114,8 @@ class SessionControllerTest {
                                 {
                                   "content": " ",
                                   "provider": "deepseek",
-                                  "model": "deepseek-flash"
+                                  "model": "deepseek-flash",
+                                  "requestId": "turn-request-2"
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
@@ -130,7 +133,8 @@ class SessionControllerTest {
                                 {
                                   "content": "Tell me more",
                                   "provider": "deepseek",
-                                  "model": "deepseek-flash"
+                                  "model": "deepseek-flash",
+                                  "requestId": "turn-request-3"
                                 }
                                 """))
                 .andExpect(status().isConflict())
@@ -170,7 +174,8 @@ class SessionControllerTest {
                                 {
                                   "content": "Say hello",
                                   "provider": "deepseek",
-                                  "model": "deepseek-flash"
+                                  "model": "deepseek-flash",
+                                  "requestId": "turn-request-4"
                                 }
                                 """))
                 .andExpect(request().asyncStarted())

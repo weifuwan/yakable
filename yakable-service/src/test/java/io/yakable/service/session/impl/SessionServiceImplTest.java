@@ -86,12 +86,12 @@ class SessionServiceImplTest {
 
         when(sessionRepository.querySessionForUpdate(any())).thenReturn(true);
         when(turnService.queryActiveTurnCount(any())).thenReturn(0L);
-        when(turnService.addTurn(any(), any(), any())).thenReturn(turn);
+        when(turnService.addTurn(any(), any(), any(), any())).thenReturn(turn);
         when(messageService.addMessage(any(), any(), eq(MessageRoleEnum.USER), eq("Hello"))).thenReturn(message);
 
         sessionService.addSession(
                 new AddSessionDTO(
-                        "project-1", "CRM", "deepseek", "deepseek-flash", "Hello", "user-1"));
+                        "project-1", "CRM", "deepseek", "deepseek-flash", "Hello", "initial-request-1", "user-1"));
 
         ArgumentCaptor<SessionEntity> captor = ArgumentCaptor.forClass(SessionEntity.class);
         verify(sessionRepository).add(captor.capture());
@@ -125,18 +125,46 @@ class SessionServiceImplTest {
         when(sessionRepository.querySession("project-1", "session-1", "user-1")).thenReturn(Optional.of(session));
         when(sessionRepository.querySessionForUpdate("session-1")).thenReturn(true);
         when(turnService.queryActiveTurnCount("session-1")).thenReturn(0L);
-        when(turnService.addTurn("session-1", "kimi", "kimi-k3")).thenReturn(turn);
+        when(turnService.addTurn("session-1", "kimi", "kimi-k3", "turn-request-1")).thenReturn(turn);
         when(messageService.addMessage("session-1", "turn-1", MessageRoleEnum.USER, "Hello")).thenReturn(message);
 
-        TurnStartVO result = sessionService.addStreamingTurn(new AddTurnDTO("project-1", "session-1", "kimi", "kimi-k3", "Hello", "user-1"));
+        TurnStartVO result = sessionService.addStreamingTurn(new AddTurnDTO("project-1", "session-1", "kimi", "kimi-k3", "Hello", "turn-request-1", "user-1"));
 
         assertThat(result.getTurn()).isSameAs(turn);
         assertThat(result.getUserMessage()).isSameAs(message);
-        verify(turnService).addTurn("session-1", "kimi", "kimi-k3");
+        verify(turnService).addTurn("session-1", "kimi", "kimi-k3", "turn-request-1");
         assertThat(session.getProvider()).isEqualTo("kimi");
         assertThat(session.getModel()).isEqualTo("kimi-k3");
         assertThat(session.getActivityTime()).isEqualTo(message.getCreatedAt());
         verify(sessionRepository).update(session);
+    }
+
+    @Test
+    void shouldReturnExistingTurnForRepeatedRequest() {
+        stubExecuteInline();
+
+        SessionEntity session = session("project-1", "session-1");
+        TurnVO existing = turn("turn-existing", TurnStatusEnum.SUCCEEDED, "deepseek", "deepseek-flash");
+        MessageVO userMessage = message(
+                "message-existing", "turn-existing", MessageRoleEnum.USER, "Hello", 1L);
+
+        when(sessionRepository.querySession("project-1", "session-1", "user-1"))
+                .thenReturn(Optional.of(session));
+        when(sessionRepository.querySessionForUpdate("session-1")).thenReturn(true);
+        when(turnService.queryTurnByRequestId("session-1", "turn-request-existing"))
+                .thenReturn(Optional.of(existing));
+        when(messageService.queryUserMessage("turn-existing"))
+                .thenReturn(Optional.of(userMessage));
+
+        TurnStartVO result = sessionService.addStreamingTurn(new AddTurnDTO(
+                "project-1", "session-1", "deepseek", "deepseek-flash",
+                "Hello", "turn-request-existing", "user-1"));
+
+        assertThat(result.getTurn()).isSameAs(existing);
+        assertThat(result.getUserMessage()).isSameAs(userMessage);
+        verify(turnService, never()).addTurn(any(), any(), any(), any());
+        verify(messageService, never()).addMessage(any(), any(), any(), any());
+        verify(sessionRepository, never()).update(any());
     }
 
     @Test
@@ -149,12 +177,12 @@ class SessionServiceImplTest {
         when(turnService.queryActiveTurnCount("session-1")).thenReturn(1L);
 
         assertThatThrownBy(() ->
-                sessionService.addStreamingTurn(new AddTurnDTO("project-1", "session-1", "kimi", "kimi-k3", "Hello", "user-1")))
+                sessionService.addStreamingTurn(new AddTurnDTO("project-1", "session-1", "kimi", "kimi-k3", "Hello", "turn-request-1", "user-1")))
                 .isInstanceOf(SessionException.class)
                 .satisfies(exception ->
                         assertThat(((SessionException) exception).getErrorCode()).isEqualTo(SessionErrorCode.BUSY));
 
-        verify(turnService, never()).addTurn(any(), any(), any());
+        verify(turnService, never()).addTurn(any(), any(), any(), any());
         verifyNoInteractions(messageService);
     }
 

@@ -21,6 +21,11 @@ public class ProjectEntity extends BaseEntity {
     private String name;
 
     /**
+     * 客户端创建请求ID
+     */
+    private String requestId;
+
+    /**
      * 最近活动 Session ID，仅用于 Recent Projects 查询
      */
     @TableField(exist = false)

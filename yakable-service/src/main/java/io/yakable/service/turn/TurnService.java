@@ -15,7 +15,12 @@ public interface TurnService {
     /**
      * 新增待执行 Turn，并确定本轮模型。
      */
-    TurnVO addTurn(String sessionId, String provider, String model);
+    TurnVO addTurn(String sessionId, String provider, String model, String requestId);
+
+    /**
+     * 按 Session 和客户端请求ID查询 Turn。
+     */
+    Optional<TurnVO> queryTurnByRequestId(String sessionId, String requestId);
 
     /**
      * 根据 ID 查询 Turn。

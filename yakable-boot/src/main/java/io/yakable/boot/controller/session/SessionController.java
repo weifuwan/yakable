@@ -93,7 +93,7 @@ public class SessionController {
             @AuthenticationPrincipal CurrentUserVO currentUser) {
         return Result.success(sessionService.addTurn(
                 new AddTurnDTO(
-                        projectId, sessionId, dto.provider(), dto.model(), dto.content(), currentUser.getId())));
+                        projectId, sessionId, dto.provider(), dto.model(), dto.content(), dto.requestId(), currentUser.getId())));
     }
 
     @Operation(summary = "停止 Turn")

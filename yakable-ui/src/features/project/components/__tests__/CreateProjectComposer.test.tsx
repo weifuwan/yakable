@@ -58,6 +58,9 @@ beforeEach(() => {
   projectState.isLoading = false;
   projectState.upsertProject.mockReset();
   vi.restoreAllMocks();
+  vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue(
+    '00000000-0000-4000-8000-000000000001',
+  );
 });
 
 describe('CreateProjectComposer', () => {
@@ -111,16 +114,17 @@ describe('CreateProjectComposer', () => {
         provider: 'kimi',
         model: 'kimi-k3',
       },
+      requestId: '00000000-0000-4000-8000-000000000001',
     });
     expect(projectState.upsertProject).toHaveBeenCalledWith(createdProject);
   });
 
-  it('shows the creation error and keeps the prompt for retry', async () => {
+  it('shows the creation error and keeps the same request identity for retry', async () => {
     const user = userEvent.setup();
 
-    vi.spyOn(ProjectService, 'addProject').mockRejectedValue(
-      new Error('Unable to create project.'),
-    );
+    const addProject = vi.spyOn(ProjectService, 'addProject')
+      .mockRejectedValueOnce(new Error('Unable to create project.'))
+      .mockResolvedValueOnce(createdProject);
 
     renderComposer();
 
@@ -140,5 +144,16 @@ describe('CreateProjectComposer', () => {
         'Build a CRM dashboard',
       );
     });
+
+    await user.click(
+      screen.getByRole('button', { name: 'Create project' }),
+    );
+
+    await waitFor(() => {
+      expect(addProject).toHaveBeenCalledTimes(2);
+    });
+    expect(addProject.mock.calls[0][0].requestId).toBe(
+      addProject.mock.calls[1][0].requestId,
+    );
   });
 });
