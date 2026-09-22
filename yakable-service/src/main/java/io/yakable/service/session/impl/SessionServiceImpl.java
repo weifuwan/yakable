@@ -193,9 +193,9 @@ public class SessionServiceImpl implements SessionService {
             stoppingTurns.add(dto.turnId());
         }
 
+        String partialContent = streamState == null ? "" : streamState.beginStopCutover();
         int updated;
         try {
-            String partialContent = streamState == null ? "" : streamState.snapshot();
             updated = transactionTemplate.execute(status -> {
                 int stopped = turnService.updateTurnStopped(execution.getId(), dto.sessionId(), DateUtils.now());
                 if (stopped == 1 && !StringUtils.isBlank(partialContent)) {
@@ -206,6 +206,9 @@ public class SessionServiceImpl implements SessionService {
             });
         } catch (RuntimeException exception) {
             stoppingTurns.remove(dto.turnId());
+            if (streamState != null) {
+                streamState.cancelStopCutover();
+            }
             throw exception;
         }
 
@@ -224,6 +227,9 @@ public class SessionServiceImpl implements SessionService {
             ThreadUtils.cancel(TURN_TASK_PREFIX + dto.turnId());
         } else {
             stoppingTurns.remove(dto.turnId());
+            if (streamState != null) {
+                streamState.cancelStopCutover();
+            }
         }
         return turnService.queryTurn(dto.turnId())
                 .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
@@ -834,6 +840,8 @@ public class SessionServiceImpl implements SessionService {
         private final List<WatcherSubscription> watchers = new ArrayList<>();
         private final AtomicReference<TerminalEvent> terminal = new AtomicReference<>();
 
+        private int stopCutoverCount;
+
         void add(TurnStreamListener listener) {
             synchronized (eventLock) {
                 WatcherSubscription watcher = new WatcherSubscription(listener);
@@ -873,7 +881,7 @@ public class SessionServiceImpl implements SessionService {
 
         void delta(String value) {
             synchronized (eventLock) {
-                if (terminal.get() != null) {
+                if (terminal.get() != null || stopCutoverCount > 0) {
                     return;
                 }
                 if ((long) content.length() + value.length() > MessageConstant.MAX_CONTENT_LENGTH) {
@@ -887,6 +895,21 @@ public class SessionServiceImpl implements SessionService {
         String snapshot() {
             synchronized (eventLock) {
                 return content.toString();
+            }
+        }
+
+        String beginStopCutover() {
+            synchronized (eventLock) {
+                stopCutoverCount++;
+                return content.toString();
+            }
+        }
+
+        void cancelStopCutover() {
+            synchronized (eventLock) {
+                if (stopCutoverCount > 0) {
+                    stopCutoverCount--;
+                }
             }
         }
 
