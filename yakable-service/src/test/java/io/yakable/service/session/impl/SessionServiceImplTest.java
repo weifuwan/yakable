@@ -181,6 +181,35 @@ class SessionServiceImplTest {
     }
 
     @Test
+    void shouldLoadOnlyLatestFiftyMessagesWhenQueryingSession() {
+        SessionEntity session = session("project-1", "session-1");
+        when(sessionRepository.querySession("project-1", "session-1", "user-1"))
+                .thenReturn(Optional.of(session));
+        when(turnService.queryTurnList("session-1")).thenReturn(List.of());
+
+        List<MessageVO> rows = java.util.stream.LongStream.rangeClosed(1, 51)
+                .mapToObj(sequence -> message(
+                        "message-" + sequence,
+                        "turn-" + sequence,
+                        MessageRoleEnum.USER,
+                        "message-" + sequence,
+                        sequence))
+                .sorted((left, right) -> Long.compare(right.getSequence(), left.getSequence()))
+                .toList();
+        when(messageService.queryMessageBefore("session-1", null, 51)).thenReturn(rows);
+
+        var result = sessionService.querySession(
+                new QuerySessionDTO("project-1", "session-1", "user-1"));
+
+        assertThat(result.getMessages()).hasSize(50);
+        assertThat(result.getMessages().getFirst().getSequence()).isEqualTo(2L);
+        assertThat(result.getMessages().getLast().getSequence()).isEqualTo(51L);
+        assertThat(result.isHasMoreMessages()).isTrue();
+        assertThat(result.getNextBeforeSequence()).isEqualTo(2L);
+        verify(messageService, never()).queryMessageList("session-1");
+    }
+
+    @Test
     void shouldPageMessagesInDisplayOrderAndExposeNextCursor() {
         SessionEntity session = session("project-1", "session-1");
         when(sessionRepository.querySession("project-1", "session-1", "user-1")).thenReturn(Optional.of(session));

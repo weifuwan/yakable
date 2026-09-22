@@ -45,6 +45,8 @@ const snapshot: SessionSnapshot = {
     updatedAt: '2026-09-21T00:00:01Z',
   },
   turns: [succeededTurn],
+  nextBeforeSequence: null,
+  hasMoreMessages: false,
   messages: [
     {
       id: 'message-1',
