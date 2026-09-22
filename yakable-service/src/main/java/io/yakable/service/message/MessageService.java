@@ -4,6 +4,7 @@ import io.yakable.common.bean.vo.session.MessageVO;
 import io.yakable.common.enums.session.MessageRoleEnum;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Message 业务服务。
@@ -14,6 +15,11 @@ public interface MessageService {
      * 新增 Message。
      */
     MessageVO addMessage(String sessionId, String turnId, MessageRoleEnum role, String content);
+
+    /**
+     * 查询 Turn 的 USER Message。
+     */
+    Optional<MessageVO> queryUserMessage(String turnId);
 
     /**
      * 查询 Session 下的 Message。
