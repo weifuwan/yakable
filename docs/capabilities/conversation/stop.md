@@ -1,6 +1,6 @@
 # Stop
 
-Status: Review
+Status: Implementing
 Domain: Conversation
 
 Depends On:
@@ -47,8 +47,14 @@ Tests:
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
 - `yakable-service/src/test/java/io/yakable/service/turn/impl/TurnServiceImplTest.java`
 
-Known Gaps:
-- GAP-04 — stopTurn 读取 partial snapshot 时需要获得 TurnStreamState eventLock。当前 watcher callback 也在同一把锁内执行，因此慢 watcher 可能延迟 explicit Stop；不满足 CONV-020。
+Implementation Design:
+- stopTurn 继续通过 TurnStreamState.snapshot() 读取当前 partial content。
+- snapshot() 只获取 Turn eventLock；watcher callback 已移出该锁，因此慢 SSE 连接不能延迟 partial snapshot 获取。
+- STOPPED terminal 只负责按顺序写入 watcher mailbox，stopTurn 不等待 watcher 实际完成网络发送。
+- 本次不修改 Stop API、partial persistence 或 Turn terminal 语义。
+
+Review Notes:
+- CONV-S02 与 CONV-S08 的既有 Stop 行为必须保持不变。
 
 ## Purpose
 
