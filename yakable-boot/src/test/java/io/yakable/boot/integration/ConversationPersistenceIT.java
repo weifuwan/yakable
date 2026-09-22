@@ -1,8 +1,11 @@
 package io.yakable.boot.integration;
 
 import io.yakable.boot.YakableApplication;
+import io.yakable.common.enums.session.MessageRoleEnum;
 import io.yakable.common.enums.session.TurnStatusEnum;
+import io.yakable.dao.entity.MessageEntity;
 import io.yakable.dao.entity.TurnEntity;
+import io.yakable.dao.repository.MessageRepository;
 import io.yakable.dao.repository.TurnRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,6 +52,9 @@ class ConversationPersistenceIT {
 
     @Autowired
     private TurnRepository turnRepository;
+
+    @Autowired
+    private MessageRepository messageRepository;
 
     @BeforeEach
     void cleanConversationData() {
@@ -105,6 +111,25 @@ class ConversationPersistenceIT {
                         TurnStatusEnum.PENDING,
                         null))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void shouldQueryUserNavigationMessagesAndMessageBySequence() {
+        insertProject("project-1", "user-1", "project-request-1");
+        insertSession("session-1", "project-1", "user-1");
+        insertTurn("turn-1", "session-1", "turn-request-1", TurnStatusEnum.SUCCEEDED, null);
+        insertTurn("turn-2", "session-1", "turn-request-2", TurnStatusEnum.SUCCEEDED, null);
+        insertMessage("message-1", "session-1", "turn-1", MessageRoleEnum.USER, "First", 1L);
+        insertMessage("message-2", "session-1", "turn-1", MessageRoleEnum.ASSISTANT, "Answer", 2L);
+        insertMessage("message-3", "session-1", "turn-2", MessageRoleEnum.USER, "Second", 3L);
+
+        assertThat(messageRepository.queryUserMessageList("session-1"))
+                .extracting(MessageEntity::getId)
+                .containsExactly("message-1", "message-3");
+        assertThat(messageRepository.queryMessage("session-1", 2L))
+                .get()
+                .extracting(MessageEntity::getId)
+                .isEqualTo("message-2");
     }
 
     @Test
@@ -221,6 +246,32 @@ class ConversationPersistenceIT {
                 sessionId,
                 userId,
                 userId);
+    }
+
+    private void insertMessage(
+            String messageId,
+            String sessionId,
+            String turnId,
+            MessageRoleEnum role,
+            String content,
+            long sequence) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO yak_message (
+                    id, session_id, turn_id, role, content, message_sequence,
+                    create_time, update_time, create_by, update_by
+                )
+                VALUES (
+                    ?, ?, ?, ?, ?, ?,
+                    CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6), 'user-1', 'user-1'
+                )
+                """,
+                messageId,
+                sessionId,
+                turnId,
+                role.getValue(),
+                content,
+                sequence);
     }
 
     private void insertTurn(
