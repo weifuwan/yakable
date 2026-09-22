@@ -6,6 +6,7 @@ import io.yakable.common.bean.dto.project.QueryProjectPageDTO;
 import io.yakable.common.bean.dto.session.AddSessionDTO;
 import io.yakable.common.bean.vo.project.ProjectListVO;
 import io.yakable.common.bean.vo.session.SessionInitVO;
+import io.yakable.common.bean.vo.session.SessionVO;
 import io.yakable.dao.entity.ProjectEntity;
 import io.yakable.dao.repository.ProjectRepository;
 import io.yakable.service.session.SessionService;
@@ -21,11 +22,13 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -61,7 +64,8 @@ class ProjectServiceImplTest {
         AddProjectDTO dto = new AddProjectDTO(
                 "user-1",
                 "  Build a CRM dashboard  \nIgnore this second line",
-                new AddProjectDTO.ModelDTO("deepseek", "deepseek-flash"));
+                new AddProjectDTO.ModelDTO("deepseek", "deepseek-flash"),
+                "project-request-1");
 
         ProjectListVO result = projectService.addProject(dto);
 
@@ -70,12 +74,14 @@ class ProjectServiceImplTest {
         ProjectEntity savedProject = projectCaptor.getValue();
 
         assertThat(savedProject.getName()).isEqualTo("Build a CRM dashboard");
+        assertThat(savedProject.getRequestId()).isEqualTo("project-request-1");
         assertThat(savedProject.getCreateBy()).isEqualTo("user-1");
 
         ArgumentCaptor<AddSessionDTO> sessionCaptor = ArgumentCaptor.forClass(AddSessionDTO.class);
         verify(sessionService).addSession(sessionCaptor.capture());
         assertThat(sessionCaptor.getValue().userId()).isEqualTo("user-1");
         assertThat(sessionCaptor.getValue().title()).isEqualTo("Build a CRM dashboard");
+        assertThat(sessionCaptor.getValue().requestId()).isEqualTo("project-request-1");
 
         verify(sessionService).executeTurnAsync("turn-1");
         assertThat(result.getId()).isEqualTo(savedProject.getId());
@@ -100,7 +106,8 @@ class ProjectServiceImplTest {
         projectService.addProject(new AddProjectDTO(
                 "user-1",
                 "\n   \n   Build a CRM dashboard   \nSecond line",
-                new AddProjectDTO.ModelDTO("deepseek", "deepseek-flash")));
+                new AddProjectDTO.ModelDTO("deepseek", "deepseek-flash"),
+                "project-request-2"));
 
         ArgumentCaptor<ProjectEntity> captor = ArgumentCaptor.forClass(ProjectEntity.class);
         verify(projectRepository).add(captor.capture());
@@ -123,11 +130,39 @@ class ProjectServiceImplTest {
         projectService.addProject(new AddProjectDTO(
                 "user-1",
                 "Build a very long customer relationship management dashboard with analytics",
-                new AddProjectDTO.ModelDTO("deepseek", "deepseek-flash")));
+                new AddProjectDTO.ModelDTO("deepseek", "deepseek-flash"),
+                "project-request-3"));
 
         ArgumentCaptor<ProjectEntity> captor = ArgumentCaptor.forClass(ProjectEntity.class);
         verify(projectRepository).add(captor.capture());
         assertThat(captor.getValue().getName()).hasSizeLessThanOrEqualTo(48);
+    }
+
+    @Test
+    void shouldReturnExistingProjectForRepeatedRequest() {
+        ProjectEntity existing = project("project-existing", "Existing");
+        existing.setRequestId("project-request-existing");
+
+        SessionVO session = new SessionVO();
+        session.setId("session-existing");
+        session.setUpdatedAt(LocalDateTime.of(2026, 9, 21, 11, 0));
+
+        when(projectRepository.queryByRequestId("user-1", "project-request-existing"))
+                .thenReturn(Optional.of(existing));
+        when(sessionService.queryLatestSession("project-existing"))
+                .thenReturn(Optional.of(session));
+
+        ProjectListVO result = projectService.addProject(new AddProjectDTO(
+                "user-1",
+                "Build a CRM dashboard",
+                new AddProjectDTO.ModelDTO("deepseek", "deepseek-flash"),
+                "project-request-existing"));
+
+        assertThat(result.getId()).isEqualTo("project-existing");
+        assertThat(result.getLatestSessionId()).isEqualTo("session-existing");
+        verify(projectRepository, never()).add(any());
+        verify(sessionService, never()).addSession(any());
+        verify(sessionService, never()).executeTurnAsync(any());
     }
 
     @Test
