@@ -1,49 +1,153 @@
-# Yakable CI Design V1
+# Yakable CI Verification V1
 
 Status: Designing
 
-## Purpose
+Scope:
+- Repository Verification
+- Pull Request Gate
+- Main Health
+- Capability Review → Done
 
-Yakable CI 不是流程装饰。
+Protects:
+- Backend Contract
+- Frontend Contract
+- Final Commit Evidence
+- main
 
-它只负责为两件事提供可重复、可绑定 Commit SHA 的 Verification Evidence：
+Backend:
+- Runtime: ubuntu-24.04 / Java 21 / Docker
+- Command: `./mvnw -B -ntp verify`
 
-- 代码是否允许进入 main。
-- Capability 是否具备从 Review 进入 Done 的客观执行证据。
+Frontend:
+- Runtime: ubuntu-24.04 / Node 22
+- Working Directory: `yakable-ui`
+- Commands:
+  - `npm ci`
+  - `npm run check`
+  - `npm run build`
 
-CI 不代替 Code Review，不自动修改 Capability Status。
+Required Check:
+- `Yakable / Quality Gate`
+
+Triggers:
+- `pull_request → main`
+- `push → main`
+- `workflow_dispatch`
+
+Main Rules:
+- Require Pull Request
+- Require `Yakable / Quality Gate`
+- No required approval count
+- Emergency bypass only
+
+Shared Rules:
+- CI-001
+- CI-002
+- CI-003
+- CI-004
+- CI-005
+- CI-006
+
+## Contract
+
+### CI-001 — Verification Evidence
+
+CI 为具体 Commit SHA 提供 Verification Evidence。
+
+CI 不自动修改 Capability Status。
+
+### CI-002 — Quality Gate
+
+Quality Gate 成功条件：
+
+```text
+Backend Verification = success
+AND
+Frontend Verification = success
+```
+
+除此之外全部失败。
+
+Quality Gate 必须 fail closed。
+
+即使上游 Job failed / cancelled / skipped，Quality Gate 仍必须执行并产生明确结果。
+
+实现时使用等价于 `if: always()` 的语义，并显式检查所有 `needs.*.result`。
+
+### CI-003 — Pull Request Verification
+
+同一个 PR 只验证最新 Head。
+
+```text
+new PR commit
+→ cancel previous PR run
+→ verify latest Head
+```
+
+PR 可以使用 `cancel-in-progress`。
+
+### CI-004 — Main Verification
+
+每一个进入 main 的 Commit 都必须完整执行 Main Health Verification。
+
+```text
+main A
+main B
+main C
+→ A / B / C 都保留独立 Verification Evidence
+```
+
+后续 main commit 不得取消前一个 main run。
+
+### CI-005 — Review → Done
+
+Capability 进入 Done 必须满足：
+
+```text
+Review completed
+Known Gaps = none
+Capability / Code / Tests aligned
+Final Commit Quality Gate passed
+```
+
+标记 `Status: Done` 的最终 Commit 本身必须通过 CI。
+
+禁止使用旧 Commit 的 CI 结果证明新的 Done Commit。
+
+CI 只提供 Evidence，不自动决定 Done。
+
+### CI-006 — Minimum Permission
+
+Verification Workflow 默认权限：
+
+```text
+permissions:
+  contents: read
+```
+
+禁止使用 `pull_request_target`。
+
+CI 不需要生产 Secret、真实 LLM Key 或生产数据库凭证。
 
 ## Flow
 
 ```text
-Pull Request
-  ├─ Backend Verification
-  └─ Frontend Verification
-          ↓
-  Yakable / Quality Gate
-          ↓
-        Merge
-          ↓
- Main Health Verification
-```
-
-V1 Trigger：
-
-```text
-pull_request → main
-push → main
-workflow_dispatch
+Implement
+→ Tests
+→ Status: Review
+→ Pull Request
+→ Backend Verification
+→ Frontend Verification
+→ Quality Gate
+→ Review Closed
+→ Status: Done
+→ Final Commit
+→ Quality Gate
+→ Merge
+→ Main Health Verification
 ```
 
 ## Backend Verification
-
-Runtime：
-
-```text
-ubuntu-24.04
-Java 21
-Docker available
-```
 
 执行：
 
@@ -51,7 +155,7 @@ Docker available
 ./mvnw -B -ntp verify
 ```
 
-保护当前后端真实边界：
+验证：
 
 ```text
 Compile
@@ -64,78 +168,33 @@ Flyway / Persistence
 Integration Test
 ```
 
-Integration Test 继续使用 Testcontainers + MySQL。
+Integration Test 使用 Testcontainers + MySQL。
 
-CI 不访问真实 LLM，不依赖生产数据库或生产 Secret。
+不访问真实 LLM。
 
 ## Frontend Verification
 
-Runtime：
-
-```text
-ubuntu-24.04
-Node 22
-```
-
-在 `yakable-ui` 执行：
+执行：
 
 ```bash
+cd yakable-ui
 npm ci
 npm run check
 npm run build
 ```
 
-`npm run check` 已包含 typecheck、lint、format:check、Vitest。
-
-`build` 单独保护 production bundle。
-
-## Quality Gate
-
-main Ruleset 只依赖一个稳定 Required Check：
+`npm run check` 当前负责：
 
 ```text
-Yakable / Quality Gate
+TypeScript
+Lint
+Format Check
+Vitest
 ```
 
-成功条件：
-
-```text
-Backend Verification = success
-AND
-Frontend Verification = success
-```
-
-### Fail Closed
-
-Quality Gate 即使上游 failed / cancelled / skipped 也必须执行。
-
-实现时使用等价于 `if: always()` 的语义，并显式检查所有 `needs.*.result`。
-
-除全部 success 外，其他状态统一视为 failure。
-
-禁止 Required Quality Gate 因上游失败而自身变成 skipped。
-
-## Concurrency
-
-PR 与 main 使用不同策略。
-
-### Pull Request
-
-同一个 PR 只验证最新 Head。
-
-新 commit 到来时可以取消旧 PR run。
-
-### Main
-
-每一个 main commit 都必须完整执行 Main Health Verification。
-
-后续 main commit 不得取消前一个 main run。
-
-这样每个 main Commit SHA 都保留自己的 Verification Evidence。
+`npm run build` 负责 production bundle。
 
 ## Timeout
-
-V1：
 
 ```text
 Backend Verification   15 min
@@ -143,130 +202,7 @@ Frontend Verification  10 min
 Quality Gate            5 min
 ```
 
-防止 Testcontainers、异步测试或构建异常长期占用 Runner。
-
-## Review → Done
-
-Capability 状态流保持：
-
-```text
-Planned → Designing → Implementing → Review → Done
-```
-
-进入 Review：
-
-```text
-implementation completed
-tests added / updated
-Capability updated
-```
-
-进入 Done：
-
-```text
-Review completed
-Known Gaps = none
-Capability / Code / Tests aligned
-Final commit Quality Gate passed
-```
-
-### Final Commit Rule
-
-标记 `Status: Done` 的最终 commit 本身必须通过 Quality Gate。
-
-不能拿旧 commit 的 CI 结果证明新的 Done commit。
-
-正确证据链：
-
-```text
-Capability: Done
-→ Final Commit SHA
-→ Tests
-→ Quality Gate ✅
-→ main
-```
-
-因此通常流程是：
-
-```text
-implementation + tests
-→ Status: Review
-→ CI pass
-→ Review closed
-→ Status: Done
-→ final commit
-→ CI pass
-→ Merge
-```
-
-CI 只提供 Evidence，不自动修改 Capability Status。
-
-## Main Protection
-
-main 正常路径：
-
-```text
-branch
-→ Pull Request
-→ Yakable / Quality Gate
-→ Merge
-```
-
-Ruleset：
-
-```text
-Require Pull Request
-Require Yakable / Quality Gate
-Block merge when Quality Gate fails
-```
-
-V1 不要求 Approval 数量。
-
-允许 emergency bypass，但不能作为正常开发方式。
-
-## Main Health Verification
-
-PR Quality Gate 回答：
-
-> 当前 PR 是否允许进入 main？
-
-Main Health Verification 回答：
-
-> 最终 main commit 是否仍然健康？
-
-Main Health 失败时 V1 不自动 rollback，只暴露失败事实。
-
-## Permissions
-
-Verification Workflow 使用最小权限：
-
-```text
-permissions:
-  contents: read
-```
-
-不需要 repository write、PR write、package publish、release 或 push commit 权限。
-
-V1 禁止使用 `pull_request_target`。
-
-## Full Run First
-
-V1 所有 PR 默认完整执行 Backend + Frontend Verification。
-
-暂不做：
-
-```text
-changed-files filter
-path filter
-selective test
-module dependency calculation
-```
-
-当前测试规模较小，优先保证简单、稳定、可信。
-
-只有 CI 执行时间成为真实问题后，再设计 Incremental CI。
-
-## Explicit Non-Goals
+## Non-Goals
 
 V1 不做：
 
@@ -280,18 +216,18 @@ Mutation Test
 Multi-JDK Matrix
 Multi-Node Matrix
 AI Review Gate
+Changed-file Test Selection
+Path Filter
 Automatic Capability Status Update
 ```
 
 新增 Gate 前必须回答：
 
-> 它解决过什么真实质量问题？
+> 它解决什么已经存在的质量问题？
 
-无法回答，不加入。
+没有真实问题，不加入。
 
 ## Evolution
-
-只有真实问题出现后才升级：
 
 ```text
 CI P95 持续过长
@@ -301,11 +237,27 @@ Vitest 无法证明关键浏览器行为
 → Playwright
 
 数据库兼容问题频繁出现
-→ 扩展 Integration Verification
+→ Integration Verification
 
 Capability / Test 映射经常失真
 → Capability Verification
 ```
+
+## Boundary
+
+Owns:
+- Verification execution
+- Commit evidence
+- Pull Request quality gate
+- Main health verification
+
+Does Not Own:
+- Capability design
+- Code Review
+- Product acceptance
+- Automatic Status changes
+- Deployment
+- Release
 
 ## Principle
 
