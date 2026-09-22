@@ -71,11 +71,7 @@ export function useSessionMessageWindow(projectId: string, sessionId: string) {
   }, []);
 
   const loadOlder = useCallback(async () => {
-    if (
-      loadingOlderRef.current ||
-      !windowState.hasOlder ||
-      windowState.olderCursor === null
-    ) {
+    if (loadingOlderRef.current || !windowState.hasOlder || windowState.olderCursor === null) {
       return false;
     }
 
@@ -104,11 +100,7 @@ export function useSessionMessageWindow(projectId: string, sessionId: string) {
   }, [projectId, sessionId, windowState.hasOlder, windowState.olderCursor]);
 
   const loadNewer = useCallback(async () => {
-    if (
-      loadingNewerRef.current ||
-      !windowState.hasNewer ||
-      windowState.newerCursor === null
-    ) {
+    if (loadingNewerRef.current || !windowState.hasNewer || windowState.newerCursor === null) {
       return false;
     }
 
