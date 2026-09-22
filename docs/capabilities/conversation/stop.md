@@ -1,6 +1,6 @@
 # Stop
 
-Status: Done
+Status: Review
 Domain: Conversation
 
 Depends On:
@@ -34,16 +34,21 @@ Shared Rules:
 - CONV-010
 - CONV-016
 - CONV-018
+- CONV-020
 
 Scenarios:
 - CONV-S02
 - CONV-S08
+- CONV-S09
 
 Tests:
 - `yakable-ui/src/features/session/components/__tests__/SessionWorkspace.test.tsx`
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
 - `yakable-service/src/test/java/io/yakable/service/turn/impl/TurnServiceImplTest.java`
+
+Known Gaps:
+- GAP-04 — stopTurn 读取 partial snapshot 时需要获得 TurnStreamState eventLock。当前 watcher callback 也在同一把锁内执行，因此慢 watcher 可能延迟 explicit Stop；不满足 CONV-020。
 
 ## Purpose
 
