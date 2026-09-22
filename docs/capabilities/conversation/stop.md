@@ -35,6 +35,7 @@ Shared Rules:
 - CONV-016
 - CONV-018
 - CONV-020
+- CONV-021
 
 Scenarios:
 - CONV-S02
@@ -46,6 +47,10 @@ Tests:
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
 - `yakable-service/src/test/java/io/yakable/service/turn/impl/TurnServiceImplTest.java`
+
+Known Gaps:
+- GAP-06 — stopTurn 先设置 `stoppingTurns` 再读取 `TurnStreamState.snapshot()`，但 Provider delta 对 `stoppingTurns` 的检查发生在 `state.delta()` 之前且不与 snapshot 共用原子边界；存在 post-cutover delta 可见但未持久化的竞态。
+- GAP-08 — 对已有 StreamState 的 PENDING Turn 执行 Stop 时会加入 `stoppingTurns`。若 Turn 尚未成功 claim 为 RUNNING，后续 `executeTurnStreaming()` 会在进入 cleanup finally 前直接 return，导致该 turnId 永久留在 `stoppingTurns`，形成进程级集合泄漏。
 
 Review Notes:
 - GAP-04 已实现：stopTurn 读取 partial snapshot 时只竞争短生命周期 Turn eventLock；watcher callback 已移出该锁。
