@@ -43,6 +43,7 @@ Shared Rules:
 - CONV-018
 - CONV-019
 - CONV-020
+- CONV-021
 
 Scenarios:
 - CONV-S01
@@ -60,6 +61,9 @@ Tests:
 - `yakable-ui/src/service/session/__tests__/SessionService.test.ts`
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
+
+Known Gaps:
+- GAP-06 — Stop 与 in-flight Provider delta 的 cutover 不是同一个原子边界。Provider callback 先通过 `stoppingTurns.contains(turnId)` 后，Stop 可能先截取 / 持久化 snapshot，随后该 callback 仍能进入 `state.delta()`。Watcher 可能看到一段没有写入 STOPPED partial Message 的 post-cutover delta，违反 CONV-021。
 
 Review Notes:
 - GAP-04 已实现：TurnStreamState 的 eventLock 只保护 content / terminal / watcher membership 与事件入队，不再执行外部 TurnStreamListener callback。
