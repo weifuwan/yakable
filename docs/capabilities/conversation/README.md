@@ -182,6 +182,17 @@ USER Message 一旦成立，后续 Provider / Context / Streaming / Recovery 错
 
 外部 Provider 调用不能放在建立本轮业务事实的数据库事务中。
 
+### CONV-020 — Watcher Isolation
+
+Watcher delivery 是传输职责，不能让单个慢连接反向控制 Turn Runtime。
+
+具体要求：
+
+- 外部 watcher callback 不应在持有 Turn 核心状态锁时执行。
+- 一个慢 watcher 不应阻塞其他 watcher 的 delta / terminal。
+- 一个慢 watcher 不应阻塞 explicit Stop、terminal publication 或后续 Turn Stream 状态推进。
+- watcher 失败只能影响自己的连接资源，不应拖慢或改变 Turn Execution。
+
 ## Cross-Capability Scenarios
 
 ### CONV-S01 — Send → Stream → Complete
@@ -290,6 +301,19 @@ Guarantees:
 - 所有 Watcher 最终观察到同一个 Turn 内容和终态。
 - 任一 Tab 的显式 Stop 是对该 Turn 的业务 Stop，其他 Tab 最终也看到 STOPPED。
 - 多 Tab reconnect 不能创建新 Turn。
+
+### CONV-S09 — Slow Watcher Isolation
+
+Involves:
+- Streaming
+- Reconnect
+- Stop
+
+Guarantees:
+- 某个 watcher 的 callback 变慢或阻塞时，不能长期持有 Turn 核心状态锁。
+- 其他 watcher 仍能继续接收 future delta / terminal。
+- explicit Stop 不应等待慢 watcher 才能读取当前 partial snapshot 并完成业务终态。
+- watcher 的连接问题不能反向阻塞 Turn Execution。
 
 ## Code Roots
 
