@@ -758,6 +758,153 @@ describe('SessionWorkspace', () => {
     });
   });
 
+  it('rewatches the same active Turn after a transient disconnect without clearing partial content', async () => {
+    let firstHandlers:
+      | Parameters<typeof SessionService.watchTurn>[3]
+      | undefined;
+    let secondHandlers:
+      | Parameters<typeof SessionService.watchTurn>[3]
+      | undefined;
+    let resolveSecondWatch!: () => void;
+    let secondWatchCompleted = false;
+
+    const recoveringSnapshot: SessionSnapshot = {
+      ...runningSnapshot,
+      messages: [
+        {
+          ...started.userMessage,
+          content: 'Continue',
+        },
+      ],
+    };
+    const activeChanges: SessionChanges = {
+      latestTurn: runningTurn,
+      messages: [],
+      latestSequence: 3,
+    };
+
+    vi.spyOn(SessionService, 'querySession').mockResolvedValue(
+      recoveringSnapshot,
+    );
+    vi.spyOn(SessionService, 'queryChanges').mockImplementation(
+      async () => secondWatchCompleted ? completedChanges : activeChanges,
+    );
+    const watchTurn = vi
+      .spyOn(SessionService, 'watchTurn')
+      .mockImplementationOnce(
+        async (
+          _projectId,
+          _sessionId,
+          _turnId,
+          handlers,
+        ) => {
+          firstHandlers = handlers;
+          handlers.onSnapshot('Partial');
+          throw new Error('temporary disconnect');
+        },
+      )
+      .mockImplementationOnce(
+        async (
+          _projectId,
+          _sessionId,
+          _turnId,
+          handlers,
+        ) => {
+          secondHandlers = handlers;
+          await new Promise<void>((resolve) => {
+            resolveSecondWatch = () => {
+              secondWatchCompleted = true;
+              resolve();
+            };
+          });
+        },
+      );
+
+    render(
+      <SessionWorkspace
+        projectId="project-1"
+        sessionId="session-1"
+      />,
+    );
+
+    expect(await screen.findByText('Partial')).toBeTruthy();
+    expect(firstHandlers).toBeTruthy();
+
+    await waitFor(() => {
+      expect(watchTurn).toHaveBeenCalledTimes(2);
+    }, { timeout: 2500 });
+
+    expect(screen.getByText('Partial')).toBeTruthy();
+    expect(watchTurn.mock.calls[0][2]).toBe('turn-2');
+    expect(watchTurn.mock.calls[1][2]).toBe('turn-2');
+
+    await act(async () => {
+      secondHandlers?.onSnapshot('Partial');
+      secondHandlers?.onDelta(' answer');
+    });
+
+    expect(await screen.findByText('Partial answer')).toBeTruthy();
+
+    await act(async () => {
+      resolveSecondWatch();
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText('Partial answer')).toBeNull();
+    });
+  });
+
+  it('does not rewatch an active Turn after fallback changes confirm a terminal state', async () => {
+    const recoveringSnapshot: SessionSnapshot = {
+      ...runningSnapshot,
+      messages: [
+        {
+          ...started.userMessage,
+          content: 'Continue',
+        },
+      ],
+    };
+
+    vi.spyOn(SessionService, 'querySession').mockResolvedValue(
+      recoveringSnapshot,
+    );
+    vi.spyOn(SessionService, 'queryChanges').mockResolvedValue(
+      stoppedChanges,
+    );
+    const watchTurn = vi
+      .spyOn(SessionService, 'watchTurn')
+      .mockImplementation(
+        async (
+          _projectId,
+          _sessionId,
+          _turnId,
+          handlers,
+        ) => {
+          handlers.onSnapshot('Partial');
+          throw new Error('temporary disconnect');
+        },
+      );
+
+    render(
+      <SessionWorkspace
+        projectId="project-1"
+        sessionId="session-1"
+      />,
+    );
+
+    expect(await screen.findByText('Partial')).toBeTruthy();
+
+    await waitFor(() => {
+      expect(screen.getByText('Partial answer')).toBeTruthy();
+    });
+
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, 1200);
+    });
+
+    expect(watchTurn).toHaveBeenCalledTimes(1);
+  });
+
   it('stops an active turn and keeps the partial answer visible', async () => {
     const user = userEvent.setup();
     const stopTurn = vi

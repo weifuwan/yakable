@@ -25,6 +25,7 @@ import {
 import { MessageItem } from './MessageItem';
 
 const SESSION_POLL_INTERVAL_MS = 1000;
+const ACTIVE_TURN_REWATCH_DELAY_MS = 1000;
 const SCROLL_BOTTOM_THRESHOLD_PX = 120;
 const HISTORY_LOAD_THRESHOLD_PX = 80;
 const MESSAGE_PAGE_SIZE = 50;
@@ -129,6 +130,7 @@ export function SessionWorkspace({
   const [sendError, setSendError] = useState<string | null>(null);
   const [streamingTurnId, setStreamingTurnId] = useState<string | null>(null);
   const [watchedTurnId, setWatchedTurnId] = useState<string | null>(null);
+  const [watchRetryVersion, setWatchRetryVersion] = useState(0);
   const [streamingContent, setStreamingContent] = useState('');
   const [optimisticMessage, setOptimisticMessage] =
     useState<SessionMessage | null>(null);
@@ -146,6 +148,7 @@ export function SessionWorkspace({
   const stopRequestedRef = useRef(false);
   const followOutputRef = useRef(true);
   const initialScrollDoneRef = useRef(false);
+  const latestSequenceRef = useRef(0);
   const pendingRequestRef = useRef<{
     fingerprint: string;
     requestId: string;
@@ -263,6 +266,7 @@ export function SessionWorkspace({
     setOptimisticMessage(null);
     setStreamingTurnId(null);
     setWatchedTurnId(null);
+    setWatchRetryVersion(0);
     watchedTurnIdsRef.current.clear();
     setStreamingContent('');
     setIsGenerating(false);
@@ -318,6 +322,7 @@ export function SessionWorkspace({
   const activeTurnId = latestActiveTurnId(snapshot);
   const generating = isGenerating || activeTurn;
   const latestSequence = snapshot?.messages.at(-1)?.sequence ?? 0;
+  latestSequenceRef.current = latestSequence;
   const visibleStreamingTurnId = streamingTurnId ?? watchedTurnId;
 
   useEffect(() => {
@@ -332,10 +337,21 @@ export function SessionWorkspace({
     watchedTurnIdsRef.current.add(activeTurnId);
     const controller = new AbortController();
     let disposed = false;
-    const afterSequence = latestSequence;
+    let retryTimer: number | null = null;
+    const afterSequence = latestSequenceRef.current;
+
+    const scheduleRewatch = () => {
+      if (disposed || retryTimer !== null) return;
+
+      retryTimer = window.setTimeout(() => {
+        if (disposed) return;
+        retryTimer = null;
+        watchedTurnIdsRef.current.delete(activeTurnId);
+        setWatchRetryVersion((current) => current + 1);
+      }, ACTIVE_TURN_REWATCH_DELAY_MS);
+    };
 
     setWatchedTurnId(activeTurnId);
-    setStreamingContent('');
 
     void SessionService.watchTurn(
       projectId,
@@ -355,19 +371,6 @@ export function SessionWorkspace({
     )
       .then(async () => {
         if (disposed) return;
-        const changes = await SessionService.queryChanges(
-          projectId,
-          sessionId,
-          afterSequence,
-        );
-        if (disposed) return;
-        setSnapshot((current) =>
-          current ? mergeChanges(current, changes) : current,
-        );
-        setLoadError(null);
-      })
-      .catch(async () => {
-        if (disposed || controller.signal.aborted) return;
         try {
           const changes = await SessionService.queryChanges(
             projectId,
@@ -378,21 +381,56 @@ export function SessionWorkspace({
           setSnapshot((current) =>
             current ? mergeChanges(current, changes) : current,
           );
+          setStreamingContent('');
+          setLoadError(null);
         } catch {
-          // watch 断开后由 polling 继续恢复同一个 Turn。
+          // terminal watcher 已结束；持久化状态暂不可读时由 polling 继续收敛。
+        }
+      })
+      .catch(async () => {
+        if (disposed || controller.signal.aborted) return;
+
+        let shouldRewatch = true;
+        try {
+          const changes = await SessionService.queryChanges(
+            projectId,
+            sessionId,
+            afterSequence,
+          );
+          if (disposed) return;
+
+          setSnapshot((current) =>
+            current ? mergeChanges(current, changes) : current,
+          );
+          setLoadError(null);
+
+          shouldRewatch =
+            changes.latestTurn.status === 'PENDING' ||
+            changes.latestTurn.status === 'RUNNING';
+          if (!shouldRewatch) {
+            setStreamingContent('');
+          }
+        } catch {
+          // 数据库状态也暂时不可读时保留现有 partial，并继续尝试同一 Turn。
+        }
+
+        if (shouldRewatch) {
+          scheduleRewatch();
         }
       })
       .finally(() => {
         if (disposed) return;
         setWatchedTurnId(null);
-        setStreamingContent('');
       });
 
     return () => {
       disposed = true;
       controller.abort();
+      if (retryTimer !== null) {
+        window.clearTimeout(retryTimer);
+      }
     };
-  }, [activeTurnId, latestSequence, projectId, sessionId]);
+  }, [activeTurnId, projectId, sessionId, watchRetryVersion]);
 
   useEffect(() => {
     if (!activeTurn || streamingTurnId || watchedTurnId) return;

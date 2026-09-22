@@ -48,16 +48,16 @@ Tests:
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
 
-Known Gaps:
-- GAP-07 — `SessionWorkspace` 在第一次 watch 当前 active turnId 时会把它永久加入 `watchedTurnIdsRef`。watcher 因临时网络错误结束后，finally 会清空 `streamingContent`，但 turnId 不会从该集合移除，因此当前页面生命周期内不会再次建立 SSE watcher，只剩数据库 polling。RUNNING partial 尚未持久化时，用户会丢失已经看到的 partial，并失去后续实时 delta，直到终态持久化结果出现；不满足 CONV-022 / CONV-S04。
-
 Review Notes:
-- GAP-04 已实现：Reconnect 继续复用 Streaming 的 WatcherSubscription，不新增私有排序或调度机制。
-- 新 watcher 仍按 snapshot → future delta → terminal 入队，但实际 SSE callback 在独立 delivery 线程执行，不持有 Turn eventLock。
-- 一个慢 Reconnect 连接不会阻塞同 Turn 的其他 watcher 或 Turn Runtime。
-- unsubscribe 只关闭当前 watcher mailbox，不改变 Turn Execution。
-- Reconnect API、changes fallback、SSE event schema 和前端均未修改。
-- 当前执行环境无法解析 github.com，目标 Maven 测试尚未实际执行；测试通过前保持 Review。
+- GAP-07 已实现：active Turn watcher 临时失败后保留当前 streamingContent，不再立即清空用户已经看到的 partial。
+- watcher failure 先通过 queryChanges 收敛持久化状态；只有 Turn 仍是 PENDING / RUNNING，或 changes 暂时不可用时，才在固定 1s 延迟后 rewatch 原 turnId。
+- queryChanges 已确认 SUCCEEDED / FAILED / STOPPED 时停止 rewatch，并由持久化结果替换 streaming partial。
+- rewatch 始终调用 watchTurn(originalTurnId)，不重新提交 Prompt，不创建新 Turn / USER Message。
+- retry 等待期间 polling 仍可继续工作；watch effect 不再依赖 latestSequence，因此 polling 的 sequence 更新不会取消 retry timer。
+- Session / Project 切换会通过 effect cleanup 取消旧 watcher 和 retry timer。
+- 已新增“临时断网后保留 partial 并 rewatch 同一 Turn”以及“终态后不继续 rewatch”两条前端回归测试。
+- SessionService SSE 协议、后端、数据库、Stop 和 GAP-08 均未修改。
+- 当前执行环境无法解析 github.com，目标 Vitest 尚未实际执行；测试通过前保持 Review。
 
 ## Purpose
 
@@ -86,8 +86,11 @@ Session open / reconnect
 → terminal
 
 watch failure
+→ preserve visible partial
 → queryChanges
-→ converge persisted state
+→ terminal? converge persisted state
+→ still active / changes unavailable? wait 1s
+→ rewatch same turnId
 ```
 
 ## Boundary
