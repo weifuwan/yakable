@@ -1321,7 +1321,12 @@ class SessionServiceImplTest {
         when(turnService.queryTurnExecution(turnId))
                 .thenReturn(Optional.of(execution));
         when(turnService.queryTurn(turnId))
-                .thenReturn(running, running, running, running, stopped);
+                .thenReturn(
+                        Optional.of(running),
+                        Optional.of(running),
+                        Optional.of(running),
+                        Optional.of(running),
+                        Optional.of(stopped));
         when(turnService.updateTurnStopped(eq(turnId), eq("session-1"), any(LocalDateTime.class)))
                 .thenReturn(1);
 
