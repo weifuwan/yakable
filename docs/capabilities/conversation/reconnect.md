@@ -1,6 +1,6 @@
 # Reconnect
 
-Status: Review
+Status: Implementing
 Domain: Conversation
 
 Depends On:
@@ -48,16 +48,20 @@ Tests:
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
 
-Known Gaps:
-- GAP-07 — `SessionWorkspace` 在第一次 watch 当前 active turnId 时会把它永久加入 `watchedTurnIdsRef`。watcher 因临时网络错误结束后，finally 会清空 `streamingContent`，但 turnId 不会从该集合移除，因此当前页面生命周期内不会再次建立 SSE watcher，只剩数据库 polling。RUNNING partial 尚未持久化时，用户会丢失已经看到的 partial，并失去后续实时 delta，直到终态持久化结果出现；不满足 CONV-022 / CONV-S04。
+Implementation Design:
+- Active Turn watcher 失败后保留当前 streamingContent，不立即清空用户已经看到的 partial。
+- watch failure 先调用 queryChanges 作为持久化状态兜底。
+- 如果 queryChanges 确认 Turn 已进入 SUCCEEDED / FAILED / STOPPED，则合并终态并停止 rewatch。
+- 如果 Turn 仍是 PENDING / RUNNING，或 queryChanges 本身也失败，则保持原 turnId，并在固定 1s 延迟后允许重新建立 watcher。
+- rewatch 只调用 watchTurn(originalTurnId)，不重新提交 Prompt，不创建新 Turn / USER Message。
+- 新 watcher 的 snapshot 替换旧 partial，后续 delta 继续追加。
+- rewatch 等待期间允许现有 polling 继续收敛数据库状态。
+- watch 生命周期不再依赖 latestSequence 触发重建，避免 polling 更新 sequence 时取消待执行的 rewatch。
+- Session / Project 切换会取消当前 watcher 与待执行 retry，不把旧 Turn 的 retry 带到新 Session。
+- 本次不修改 SessionService SSE 协议、后端、数据库、Stop 或 GAP-08。
 
 Review Notes:
-- GAP-04 已实现：Reconnect 继续复用 Streaming 的 WatcherSubscription，不新增私有排序或调度机制。
-- 新 watcher 仍按 snapshot → future delta → terminal 入队，但实际 SSE callback 在独立 delivery 线程执行，不持有 Turn eventLock。
-- 一个慢 Reconnect 连接不会阻塞同 Turn 的其他 watcher 或 Turn Runtime。
-- unsubscribe 只关闭当前 watcher mailbox，不改变 Turn Execution。
-- Reconnect API、changes fallback、SSE event schema 和前端均未修改。
-- 当前执行环境无法解析 github.com，目标 Maven 测试尚未实际执行；测试通过前保持 Review。
+- GAP-02 snapshot ordering、GAP-03 multi-tab、GAP-04 watcher isolation 均保持不变。
 
 ## Purpose
 
@@ -86,8 +90,11 @@ Session open / reconnect
 → terminal
 
 watch failure
+→ preserve visible partial
 → queryChanges
-→ converge persisted state
+→ terminal? converge persisted state
+→ still active / changes unavailable? wait 1s
+→ rewatch same turnId
 ```
 
 ## Boundary
