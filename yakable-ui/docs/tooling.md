@@ -22,7 +22,7 @@ format:check
 test
 ```
 
-A change is not considered locally clean until all three pass.
+A change is not considered locally clean until all four pass.
 
 ## Commands
 
@@ -83,4 +83,4 @@ Do not add another linter or formatter without a concrete gap in the current too
 
 Vitest owns frontend unit and component tests. The default DOM environment is happy-dom and React components use React Testing Library.
 
-See [testing.md](./testing.md) for test boundaries and conventions.
+See [TEST_RULES.md](../TEST_RULES.md) for test boundaries and conventions.
