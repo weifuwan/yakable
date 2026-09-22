@@ -40,6 +40,6 @@ public class ProjectController {
             @Valid @RequestBody AddProjectDTO dto,
             @AuthenticationPrincipal CurrentUserVO currentUser) {
         return Result.success(
-                projectService.addProject(new AddProjectDTO(currentUser.getId(), dto.prompt(), dto.model())));
+                projectService.addProject(new AddProjectDTO(currentUser.getId(), dto.prompt(), dto.model(), dto.requestId())));
     }
 }
