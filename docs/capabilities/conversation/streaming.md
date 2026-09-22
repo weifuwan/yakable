@@ -1,6 +1,6 @@
 # Streaming
 
-Status: Implementing
+Status: Review
 Domain: Conversation
 
 Depends On:
@@ -62,17 +62,15 @@ Tests:
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
 
-Implementation Design:
-- TurnStreamState 增加 Stop cutover 状态，并与 delta() 共用同一个 eventLock。
-- stopTurn 不再只读取 snapshot，而是调用 beginStopCutover()：在 eventLock 内一次性“禁止后续 delta + 返回当前 partial snapshot”。
-- Provider delta 即使已经通过外层 stoppingTurns 检查，进入 state.delta() 后仍必须再次在 eventLock 内检查 cutover；cutover 后的 delta 直接丢弃，不进入 content，也不进入 watcher mailbox。
-- 如果 delta 先获得 eventLock，它必须先进入 content / watcher mailbox；随后 Stop 获取到的 snapshot 必须包含该 delta。
-- 如果 Stop 先获得 eventLock，后续 delta 必须被拒绝，因此 watcher 不会看到无法持久化的 post-cutover 内容。
-- Stop 持久化失败或未完成终态更新时，调用 cancelStopCutover() 恢复 delta 接收；如果 Stream 已 terminal，则不重新开放。
-- 本次不修改 Provider 协议、SSE schema、数据库、前端或 GAP-07 / GAP-08。
-
 Review Notes:
-- GAP-02 snapshot ordering、GAP-03 multi-watcher、GAP-04 watcher isolation 都必须继续成立。
+- GAP-06 已实现：TurnStreamState 增加 Stop cutover，并与 delta() 共用同一个 eventLock。
+- beginStopCutover() 在 eventLock 内一次性冻结后续 delta 并返回 cutover snapshot；cutover 后的 delta 不进入 content，也不进入 watcher mailbox。
+- 如果 delta 先获得 eventLock，它会先进入 content，随后 Stop snapshot 必然包含该 delta；如果 Stop 先获得 eventLock，后续 delta 必然被拒绝。
+- Stop transaction 失败或未更新终态时会 cancelStopCutover()，恢复 delta 接收。
+- 并发 Stop 使用 cutover 计数，单个失败 Stop 不会误释放另一个仍有效的 cutover。
+- 已新增竞态回归测试与 rollback 回归测试。
+- GAP-02 / GAP-03 / GAP-04 的顺序、multi-watcher 和 watcher isolation 实现未修改。
+- 当前执行环境无法解析 github.com，目标 Maven 测试尚未实际执行；测试通过前保持 Review。
 
 ## Purpose
 
