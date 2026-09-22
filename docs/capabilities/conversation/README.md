@@ -193,6 +193,29 @@ Watcher delivery 是传输职责，不能让单个慢连接反向控制 Turn Run
 - 一个慢 watcher 不应阻塞 explicit Stop、terminal publication 或后续 Turn Stream 状态推进。
 - watcher 失败只能影响自己的连接资源，不应拖慢或改变 Turn Execution。
 
+### CONV-021 — Stop Cutover
+
+Explicit Stop 必须定义一个清晰的 Streaming cutover。
+
+一旦 Stop 已经开始截取并持久化 partial Assistant：
+
+- 不能再接受新的 Assistant delta 进入本轮可见 Stream。
+- STOPPED Turn 持久化的 partial Assistant 必须与 cutover 前已经接受的 Stream 内容一致。
+- Watcher 不能看到一段发生在 cutover 之后、但刷新后无法从数据库恢复的 delta。
+- Stop 与 Provider delta 的竞争必须由同一个 Turn Runtime 原子边界决定，不能依赖两个彼此独立的状态检查。
+
+### CONV-022 — Active Rewatch Continuity
+
+活动 Turn 的 watcher 因临时网络 / transport 错误断开后，不能永久失去实时观察能力。
+
+具体要求：
+
+- 只要原 Turn 仍是 PENDING / RUNNING，客户端仍然只观察同一个 turnId。
+- polling 可以作为临时状态收敛 fallback，但不能永久替代活动 Turn 的实时 watcher。
+- 网络恢复后应允许重新建立 watcher，并恢复当前 snapshot + future delta。
+- 已经展示的 partial Assistant 不应仅因为 watcher 临时断开而立即消失；只能被新的 snapshot、终态持久化结果或 Session 切换替换。
+- 重连失败不能创建新 Turn 或重新提交 Prompt。
+
 ## Cross-Capability Scenarios
 
 ### CONV-S01 — Send → Stream → Complete
@@ -218,7 +241,9 @@ Involves:
 
 Guarantees:
 - Stop 只作用于明确 turnId。
-- 非空 partial Assistant 保留。
+- Stop cutover 后不再接受新的可见 Assistant delta。
+- 非空 partial Assistant 保留，并与 cutover 前已经接受的 Stream 内容一致。
+- Watcher 不会看到无法从 STOPPED 持久化结果恢复的 post-cutover delta。
 - Turn 进入 STOPPED。
 - 下一轮可以继续创建。
 - STOPPED partial 可按 CONV-010 进入后续 Context。
@@ -246,7 +271,9 @@ Involves:
 Guarantees:
 - Watcher 断开释放连接资源。
 - Turn Execution 继续。
-- 网络恢复后重新观察原 Turn。
+- 临时断网期间可以通过 polling 收敛持久化状态。
+- 只要原 Turn 仍然活动，网络恢复后允许重新建立 watcher，继续观察原 turnId 的 snapshot + future delta。
+- watcher 断开不能立即清除用户已经看到的 partial Assistant。
 - 多次 reconnect 不创建重复 Turn。
 
 ### CONV-S05 — Service Restart → Recovery
