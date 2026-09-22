@@ -24,16 +24,22 @@ public class TurnServiceImpl implements TurnService {
     private TurnRepository turnRepository;
 
     @Override
-    public TurnVO addTurn(String sessionId, String provider, String model) {
+    public TurnVO addTurn(String sessionId, String provider, String model, String requestId) {
         TurnEntity entity = new TurnEntity();
         entity.initCreate();
         entity.setSessionId(sessionId);
+        entity.setRequestId(requestId);
         entity.setProvider(provider);
         entity.setModel(model);
         entity.setStatus(TurnStatusEnum.PENDING);
         entity.setAttemptCount(0);
         turnRepository.add(entity);
         return toTurnVO(entity);
+    }
+
+    @Override
+    public Optional<TurnVO> queryTurnByRequestId(String sessionId, String requestId) {
+        return turnRepository.queryByRequestId(sessionId, requestId).map(TurnServiceImpl::toTurnVO);
     }
 
     @Override
