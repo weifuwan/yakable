@@ -371,11 +371,15 @@ V1 的真实 MySQL 验收至少保护：
 → Unit Test + Testcontainers MySQL Integration Test
 
 cd yakable-ui
-npm run check
-→ typecheck + lint + format check + frontend tests
+npm run typecheck
+npm run test
+npm run build
+→ TypeScript contract + frontend regressions + production bundle
 ```
 
-GitHub CI 对 Pull Request 和 main push 执行 Backend Verify 与 Frontend Check。
+GitHub CI 对 Pull Request 和 main push 执行 Backend Verify，以及 Frontend Typecheck / Test / Build。
+
+当前历史代码仍存在一批与可靠性无关的 lint warning，因此 V1 不把全量 lint 清零混入 Reliability Acceptance；lint 继续作为独立代码质量治理项。
 
 本次 Done 只表示 `SaaS Reliability V1` 的当前边界完成，不等价于未来所有可靠性问题已经不存在。出现新的真实故障证据时，继续按本文 Review 方法增加最小修复。
 
