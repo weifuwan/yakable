@@ -1,6 +1,6 @@
 # Stop
 
-Status: Implementing
+Status: Review
 Domain: Conversation
 
 Depends On:
@@ -51,18 +51,17 @@ Tests:
 Known Gaps:
 - GAP-08 — 对已有 StreamState 的 PENDING Turn 执行 Stop 时会加入 `stoppingTurns`。若 Turn 尚未成功 claim 为 RUNNING，后续 `executeTurnStreaming()` 会在进入 cleanup finally 前直接 return，导致该 turnId 永久留在 `stoppingTurns`，形成进程级集合泄漏。本 PR 不处理。
 
-Implementation Design:
-- stopTurn 对已有 TurnStreamState 使用 beginStopCutover()，不再通过普通 snapshot() 建立 Stop partial 边界。
-- beginStopCutover() 在 Turn eventLock 内同时冻结后续 delta 并返回 cutover snapshot。
-- STOPPED partial 只持久化该 cutover snapshot。
-- cutover 后的 delta 即使 Provider callback 已经开始执行，也必须在 state.delta() 内被拒绝。
-- Stop transaction 抛错或 updateTurnStopped 返回 0 时，调用 cancelStopCutover()；只有 Stream 尚未 terminal 时才重新允许 delta。
-- Stop 成功后保持 cutover，随后 state.stopped() 发布 terminal；不等待 watcher 网络发送完成。
-- 本次不处理 stoppingTurns 的 PENDING cleanup（GAP-08）。
+Known Gaps:
+- GAP-08 — 对已有 StreamState 的 PENDING Turn 执行 Stop 时会加入 `stoppingTurns`。若 Turn 尚未成功 claim 为 RUNNING，后续 `executeTurnStreaming()` 会在进入 cleanup finally 前直接 return，导致该 turnId 永久留在 `stoppingTurns`，形成进程级集合泄漏。本 PR 不处理。
 
 Review Notes:
-- GAP-04 watcher isolation 已实现，Stop 仍不能等待 watcher callback。
-- CONV-S02 / CONV-S08 既有语义必须保持不变。
+- GAP-06 已实现：stopTurn 对已有 TurnStreamState 使用 beginStopCutover()，以同一个 eventLock 原子完成“冻结 delta + 截取 partial snapshot”。
+- STOPPED partial 只持久化 cutover snapshot；post-cutover delta 会在 state.delta() 内被拒绝。
+- Stop transaction 抛错或 updateTurnStopped 未成功时会 rollback 当前 cutover，允许原 Turn 继续接收 delta。
+- 已新增并发 Stop / Delta 竞态测试，以及 Stop 持久化失败后的 rollback 测试。
+- Stop API、partial persistence schema、Turn terminal 状态机和 watcher delivery 均未修改。
+- GAP-08 保持独立，未顺手处理。
+- 当前执行环境无法解析 github.com，目标 Maven 测试尚未实际执行；测试通过前保持 Review。
 
 ## Purpose
 
