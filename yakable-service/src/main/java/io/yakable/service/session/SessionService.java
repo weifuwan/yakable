@@ -6,17 +6,22 @@ import io.yakable.common.bean.dto.session.StopTurnDTO;
 import io.yakable.common.bean.dto.session.QuerySessionChangesDTO;
 import io.yakable.common.bean.dto.session.QuerySessionDTO;
 import io.yakable.common.bean.dto.session.QuerySessionMessagesDTO;
+import io.yakable.common.bean.dto.session.QuerySessionMessageWindowDTO;
+import io.yakable.common.bean.dto.session.QuerySessionTurnNavigationDTO;
 import io.yakable.common.bean.dto.session.WatchTurnDTO;
 import io.yakable.common.bean.vo.session.SessionChangesVO;
 import io.yakable.common.bean.vo.session.SessionDetailVO;
 import io.yakable.common.bean.vo.session.SessionInitVO;
 import io.yakable.common.bean.vo.session.SessionMessagePageVO;
+import io.yakable.common.bean.vo.session.SessionMessageWindowVO;
 import io.yakable.common.bean.vo.session.SessionVO;
+import io.yakable.common.bean.vo.session.TurnNavigationItemVO;
 import io.yakable.common.bean.vo.session.TurnStartVO;
 import io.yakable.common.bean.vo.session.TurnVO;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -75,4 +80,14 @@ public interface SessionService {
      * 查询 Session 消息。
      */
     SessionMessagePageVO querySessionMessage(@NotNull @Valid QuerySessionMessagesDTO dto);
+
+    /**
+     * 查询 Session 的 Turn 导航索引。
+     */
+    List<TurnNavigationItemVO> queryTurnNavigation(@NotNull @Valid QuerySessionTurnNavigationDTO dto);
+
+    /**
+     * 查询指定 Message 序号附近的消息窗口。
+     */
+    SessionMessageWindowVO queryMessageWindow(@NotNull @Valid QuerySessionMessageWindowDTO dto);
 }
