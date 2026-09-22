@@ -1,6 +1,6 @@
 # Streaming
 
-Status: Done
+Status: Review
 Domain: Conversation
 
 Depends On:
@@ -39,6 +39,9 @@ Shared Rules:
 - CONV-012
 - CONV-013
 - CONV-015
+- CONV-016
+- CONV-018
+- CONV-019
 
 Scenarios:
 - CONV-S01
@@ -48,12 +51,16 @@ Scenarios:
 - CONV-S05
 - CONV-S06
 - CONV-S07
+- CONV-S08
 
 Tests:
 - `yakable-ui/src/features/session/components/__tests__/SessionWorkspace.test.tsx`
 - `yakable-ui/src/service/session/__tests__/SessionService.test.ts`
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
+
+Known Gaps:
+- 当前 TurnStreamState 订阅顺序是先注册 listener 再读取 snapshot；并发 delta 可能在 snapshot 之前到达，并被 snapshot 再次包含，存在重复 / 乱序竞态。当前测试未覆盖该并发窗口。
 
 ## Purpose
 
