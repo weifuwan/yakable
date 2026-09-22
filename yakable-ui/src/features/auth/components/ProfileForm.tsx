@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 
 import { UserService } from '@/service/user';
 import { Button, Input } from '@/shared/ui';
@@ -14,12 +14,6 @@ export function ProfileForm() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setName(user?.name ?? '');
-    setEmail(user?.email ?? '');
-    setAvatar(user?.avatar ?? '');
-  }, [user]);
-
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (saving) return;
@@ -34,6 +28,9 @@ export function ProfileForm() {
         avatar: avatar || null,
       });
       syncUser(updated);
+      setName(updated.name);
+      setEmail(updated.email ?? '');
+      setAvatar(updated.avatar ?? '');
       setMessage('Profile updated.');
     } catch (requestError) {
       setError(
@@ -96,9 +93,9 @@ export function ProfileForm() {
         </p>
       ) : null}
       {message ? (
-        <p role="status" className="m-0 text-sm text-success">
+        <output className="block text-sm text-success">
           {message}
-        </p>
+        </output>
       ) : null}
 
       <Button type="submit" variant="primary" disabled={saving || !name}>
