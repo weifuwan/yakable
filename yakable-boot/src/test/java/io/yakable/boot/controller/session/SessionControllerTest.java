@@ -204,6 +204,7 @@ class SessionControllerTest {
 
         ArgumentCaptor<AddTurnDTO> captor = ArgumentCaptor.forClass(AddTurnDTO.class);
         verify(sessionService).addStreamingTurn(captor.capture());
+        assertThat(captor.getValue().requestId()).isEqualTo("turn-request-4");
         assertThat(captor.getValue().userId()).isEqualTo("user-1");
         verify(sessionService).executeTurnAsync("turn-1");
 
