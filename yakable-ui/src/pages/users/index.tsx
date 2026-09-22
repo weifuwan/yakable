@@ -40,8 +40,6 @@ export function UsersPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
-    setError(null);
 
     void UserService.queryUser(
       {
@@ -71,10 +69,16 @@ export function UsersPage() {
 
   if (!currentUser) return null;
 
+  function updateQuery(updater: (current: UserQuery) => UserQuery) {
+    setLoading(true);
+    setError(null);
+    setQuery(updater);
+  }
+
   function search(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const normalized = keyword.trim();
-    setQuery((current) => ({
+    updateQuery((current) => ({
       ...current,
       current: 1,
       keyword: normalized || undefined,
@@ -82,6 +86,9 @@ export function UsersPage() {
   }
 
   function refresh(firstPage = false) {
+    setLoading(true);
+    setError(null);
+
     if (firstPage && query.current !== 1) {
       setQuery((current) => ({ ...current, current: 1 }));
       return;
@@ -147,7 +154,7 @@ export function UsersPage() {
           aria-label="Filter by role"
           value={query.role ?? ''}
           onChange={(event) =>
-            setQuery((current) => ({
+            updateQuery((current) => ({
               ...current,
               current: 1,
               role: (event.target.value || undefined) as UserRole | undefined,
@@ -164,7 +171,7 @@ export function UsersPage() {
           aria-label="Filter by status"
           value={query.status ?? ''}
           onChange={(event) =>
-            setQuery((current) => ({
+            updateQuery((current) => ({
               ...current,
               current: 1,
               status: (event.target.value || undefined) as
@@ -190,12 +197,9 @@ export function UsersPage() {
       ) : null}
 
       {loading && !page ? (
-        <div
-          className="flex min-h-52 items-center justify-center rounded-xl border border-border-quiet text-sm text-foreground-subtle"
-          role="status"
-        >
+        <output className="flex min-h-52 items-center justify-center rounded-xl border border-border-quiet text-sm text-foreground-subtle">
           Loading users…
-        </div>
+        </output>
       ) : (
         <UsersTable
           users={page?.records ?? []}
@@ -217,7 +221,7 @@ export function UsersPage() {
               size="sm"
               disabled={page.current <= 1 || loading}
               onClick={() =>
-                setQuery((current) => ({
+                updateQuery((current) => ({
                   ...current,
                   current: Math.max(1, current.current - 1),
                 }))
@@ -232,7 +236,7 @@ export function UsersPage() {
               size="sm"
               disabled={page.current >= page.pages || loading}
               onClick={() =>
-                setQuery((current) => ({
+                updateQuery((current) => ({
                   ...current,
                   current: current.current + 1,
                 }))
