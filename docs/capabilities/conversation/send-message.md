@@ -1,6 +1,6 @@
 # Send Message
 
-Status: Implementing
+Status: Review
 Domain: Conversation
 
 Depends On:
@@ -49,14 +49,6 @@ Tests:
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
 
-Implementation Design:
-- requestId replay 继续以 `sessionId + requestId` 定位原 Turn。
-- 找到原 Turn 后，读取原 USER Message 与 Turn invocation。
-- 仅当 `content + provider + model` 与原提交完全一致时返回原 Turn / USER Message。
-- 任一字段不一致时抛出明确的 Session request conflict，不创建 Turn，不创建 Message，不更新 Session activity。
-- 冲突检查复用现有 Turn / Message 数据，不新增表、不新增字段、不修改 Flyway。
-- 冲突日志只记录 requestId / userId / projectId / sessionId / turnId，不记录 Prompt 内容。
-
 ## Purpose
 
 在当前 Session 中提交一条 Prompt，建立一个新的 Turn 和 USER Message。
@@ -83,7 +75,15 @@ SessionWorkspace.handleSubmit
 → POST /turns/stream
 → SessionController
 → SessionService.addStreamingTurn
-→ Turn + USER Message transaction
+→ lock Session
+→ find by sessionId + requestId
+   ├─ no existing Turn
+   │  → create Turn + USER Message
+   ├─ same content + provider + model
+   │  → replay original Turn / USER Message
+   └─ different semantics
+      → HTTP 409 request conflict
+→ new Turn commit
 → SSE started
 → clear composer
 → executeTurnAsync
