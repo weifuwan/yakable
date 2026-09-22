@@ -1,6 +1,6 @@
 # Streaming
 
-Status: Review
+Status: Implementing
 Domain: Conversation
 
 Depends On:
@@ -62,17 +62,17 @@ Tests:
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
 
-Known Gaps:
-- GAP-06 — Stop 与 in-flight Provider delta 的 cutover 不是同一个原子边界。Provider callback 先通过 `stoppingTurns.contains(turnId)` 后，Stop 可能先截取 / 持久化 snapshot，随后该 callback 仍能进入 `state.delta()`。Watcher 可能看到一段没有写入 STOPPED partial Message 的 post-cutover delta，违反 CONV-021。
+Implementation Design:
+- TurnStreamState 增加 Stop cutover 状态，并与 delta() 共用同一个 eventLock。
+- stopTurn 不再只读取 snapshot，而是调用 beginStopCutover()：在 eventLock 内一次性“禁止后续 delta + 返回当前 partial snapshot”。
+- Provider delta 即使已经通过外层 stoppingTurns 检查，进入 state.delta() 后仍必须再次在 eventLock 内检查 cutover；cutover 后的 delta 直接丢弃，不进入 content，也不进入 watcher mailbox。
+- 如果 delta 先获得 eventLock，它必须先进入 content / watcher mailbox；随后 Stop 获取到的 snapshot 必须包含该 delta。
+- 如果 Stop 先获得 eventLock，后续 delta 必须被拒绝，因此 watcher 不会看到无法持久化的 post-cutover 内容。
+- Stop 持久化失败或未完成终态更新时，调用 cancelStopCutover() 恢复 delta 接收；如果 Stream 已 terminal，则不重新开放。
+- 本次不修改 Provider 协议、SSE schema、数据库、前端或 GAP-07 / GAP-08。
 
 Review Notes:
-- GAP-04 已实现：TurnStreamState 的 eventLock 只保护 content / terminal / watcher membership 与事件入队，不再执行外部 TurnStreamListener callback。
-- 每个 watcher 使用独立 WatcherSubscription 串行 mailbox，通过 ThreadUtils 虚拟线程异步 delivery。
-- snapshot / future delta / terminal 仍按 eventLock 中的入队顺序进入同一个 watcher mailbox，继续满足 GAP-02 的顺序契约。
-- 慢 watcher 的相邻 pending delta 会合并为一个 chunk；mailbox 不按 token 数无限增长，文本总量继续受 MessageConstant.MAX_CONTENT_LENGTH 约束。
-- 已新增慢 watcher 回归测试，保护“慢 watcher 不阻塞其他 watcher，也不阻塞 explicit Stop”。
-- 既有 GAP-02 snapshot ordering 与 GAP-03 multi-watcher STOPPED 测试已调整为等待异步 delivery。
-- 当前执行环境无法解析 github.com，目标 Maven 测试尚未实际执行；测试通过前保持 Review。
+- GAP-02 snapshot ordering、GAP-03 multi-watcher、GAP-04 watcher isolation 都必须继续成立。
 
 ## Purpose
 
