@@ -120,7 +120,7 @@ LLM 输入历史            → Context
 - Long Session Performance：Session 首屏、增量查询与 Context 历史读取保持有界。
 - SaaS Runtime Boundary：当前明确单实例运行，支持 graceful shutdown 和同 Turn Recovery。
 - Observability Baseline：HTTP trace、Conversation 生命周期日志、Actuator 与低基数 Metrics 已建立。
-- Reliability Acceptance：真实 MySQL Integration Test 与 GitHub CI Gate 保护关键持久化行为和前后端回归。
+- Reliability Acceptance：真实 MySQL Integration Test 与本地验证命令保护关键持久化行为和前后端回归。
 
 真实 MySQL 验收至少保护：
 
@@ -130,7 +130,7 @@ LLM 输入历史            → Context
 - Turn 成功后，迟到 Failure / Stop 不能覆盖终态。
 - RUNNING Turn 可以原地恢复为 PENDING，并保留原 Turn、requestId、provider 和 model identity。
 
-自动化执行：
+验证命令：
 
 ```text
 ./mvnw test
@@ -146,7 +146,7 @@ npm run build
 → TypeScript contract + frontend regressions + production bundle
 ```
 
-GitHub CI 对 Pull Request 和 main push 执行 Backend Verify，以及 Frontend Typecheck / Test / Build。
+当前不使用 GitHub CI。需要在功能开发与 Review 阶段按改动范围执行对应的本地验证命令。
 
 当前历史代码仍存在与可靠性无关的 lint warning，因此 Reliability Acceptance 不要求全量 lint 清零；lint 继续作为独立代码质量治理项。
 
