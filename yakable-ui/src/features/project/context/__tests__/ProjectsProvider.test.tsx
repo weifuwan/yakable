@@ -4,10 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ProjectService } from '@/service/project';
 
-import {
-  ProjectsProvider,
-  useProjectsContext,
-} from '../ProjectsProvider';
+import { ProjectsProvider, useProjectsContext } from '../ProjectsProvider';
 
 const page = {
   records: [
@@ -31,37 +28,19 @@ const page = {
 };
 
 function Consumer() {
-  const {
-    projects,
-    error,
-    retryInitial,
-    markProjectActive,
-  } = useProjectsContext();
+  const { projects, error, retryInitial, markProjectActive } = useProjectsContext();
 
   return (
     <div>
       <div data-testid="projects">
         {projects
-          .map(
-            (project) =>
-              project.id +
-              ':' +
-              project.latestSessionId +
-              ':' +
-              project.updatedAt,
-          )
+          .map((project) => project.id + ':' + project.latestSessionId + ':' + project.updatedAt)
           .join('|')}
       </div>
       {error ? <div role="alert">{error}</div> : null}
       <button
         type="button"
-        onClick={() =>
-          markProjectActive(
-            'project-2',
-            'session-2-new',
-            '2026-09-21T09:00:00Z',
-          )
-        }
+        onClick={() => markProjectActive('project-2', 'session-2-new', '2026-09-21T09:00:00Z')}
       >
         Mark active
       </button>
@@ -92,8 +71,7 @@ describe('ProjectsProvider', () => {
     await user.click(screen.getByRole('button', { name: 'Mark active' }));
 
     expect(screen.getByTestId('projects').textContent).toBe(
-      'project-2:session-2-new:2026-09-21T09:00:00Z|' +
-        'project-1:session-1:2026-09-21T08:00:00Z',
+      'project-2:session-2-new:2026-09-21T09:00:00Z|' + 'project-1:session-1:2026-09-21T08:00:00Z',
     );
   });
 
@@ -109,13 +87,9 @@ describe('ProjectsProvider', () => {
       </ProjectsProvider>,
     );
 
-    expect(
-      (await screen.findByRole('alert')).textContent,
-    ).toContain('Unable to load projects.');
+    expect((await screen.findByRole('alert')).textContent).toContain('Unable to load projects.');
 
-    await user.click(
-      screen.getByRole('button', { name: 'Retry initial' }),
-    );
+    await user.click(screen.getByRole('button', { name: 'Retry initial' }));
 
     expect(await screen.findByText(/project-1:session-1/)).toBeTruthy();
     expect(screen.queryByRole('alert')).toBeNull();

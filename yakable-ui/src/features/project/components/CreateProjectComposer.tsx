@@ -1,11 +1,7 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import {
-  DEFAULT_MODEL_SELECTION,
-  ModelSelector,
-  type ModelSelection,
-} from '@/features/model';
+import { DEFAULT_MODEL_SELECTION, ModelSelector, type ModelSelection } from '@/features/model';
 import { ProjectService } from '@/service/project';
 import { PromptComposer, PromptComposerSkeleton } from '@/shared/ui';
 
@@ -30,9 +26,7 @@ function projectSessionPath(projectId: string, sessionId: string) {
 export function CreateProjectComposer() {
   const navigate = useNavigate();
   const { isLoading, upsertProject } = useProjects();
-  const [selectedModel, setSelectedModel] = useState<ModelSelection>(
-    DEFAULT_MODEL_SELECTION,
-  );
+  const [selectedModel, setSelectedModel] = useState<ModelSelection>(DEFAULT_MODEL_SELECTION);
   const [error, setError] = useState<string | null>(null);
   const pendingRequestRef = useRef<{
     fingerprint: string;
@@ -41,18 +35,15 @@ export function CreateProjectComposer() {
 
   const handleSubmit = async (prompt: string) => {
     setError(null);
-    const fingerprint = [
-      selectedModel.provider,
-      selectedModel.model,
-      prompt,
-    ].join('\n');
+    const fingerprint = [selectedModel.provider, selectedModel.model, prompt].join('\n');
     const currentRequest = pendingRequestRef.current;
-    const pendingRequest = currentRequest?.fingerprint === fingerprint
-      ? currentRequest
-      : {
-          fingerprint,
-          requestId: globalThis.crypto.randomUUID(),
-        };
+    const pendingRequest =
+      currentRequest?.fingerprint === fingerprint
+        ? currentRequest
+        : {
+            fingerprint,
+            requestId: globalThis.crypto.randomUUID(),
+          };
     pendingRequestRef.current = pendingRequest;
     const requestId = pendingRequest.requestId;
 
@@ -68,11 +59,7 @@ export function CreateProjectComposer() {
       navigate(projectSessionPath(project.id, project.latestSessionId));
       return true;
     } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : 'Unable to create project.',
-      );
+      setError(requestError instanceof Error ? requestError.message : 'Unable to create project.');
       return false;
     }
   };

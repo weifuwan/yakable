@@ -16,10 +16,7 @@ export class ApiError extends Error {
       cause?: unknown;
     },
   ) {
-    super(
-      message,
-      options.cause === undefined ? undefined : { cause: options.cause },
-    );
+    super(message, options.cause === undefined ? undefined : { cause: options.cause });
     this.name = 'ApiError';
     this.kind = options.kind;
     this.status = options.status;
@@ -125,9 +122,7 @@ async function readText(response: Response) {
 
 async function toHttpError(response: Response) {
   const text = await readText(response);
-  const payload = text.trim()
-    ? parseJson(text, 'HTTP error returned invalid JSON.')
-    : undefined;
+  const payload = text.trim() ? parseJson(text, 'HTTP error returned invalid JSON.') : undefined;
 
   if (isApiResult(payload)) {
     return new ApiError(payload.message || 'Request failed.', {
@@ -138,10 +133,11 @@ async function toHttpError(response: Response) {
     });
   }
 
-  return new ApiError(
-    response.statusText || 'Request failed with HTTP ' + response.status + '.',
-    { kind: 'http', status: response.status, data: payload },
-  );
+  return new ApiError(response.statusText || 'Request failed with HTTP ' + response.status + '.', {
+    kind: 'http',
+    status: response.status,
+    data: payload,
+  });
 }
 
 async function parseResult<T>(response: Response): Promise<T> {
@@ -245,9 +241,7 @@ export class HttpUtils {
 
     while (true) {
       const { done, value } = await reader.read();
-      buffer += decoder
-        .decode(value, { stream: !done })
-        .replace(/\r\n/g, '\n');
+      buffer += decoder.decode(value, { stream: !done }).replace(/\r\n/g, '\n');
 
       let boundary = buffer.indexOf('\n\n');
       while (boundary >= 0) {
@@ -263,10 +257,7 @@ export class HttpUtils {
     }
   }
 
-  private static async request<T>(
-    url: string,
-    init: RequestInit,
-  ): Promise<T> {
+  private static async request<T>(url: string, init: RequestInit): Promise<T> {
     let response: Response;
     try {
       response = await fetch(url, {

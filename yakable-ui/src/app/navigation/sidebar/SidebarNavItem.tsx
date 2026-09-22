@@ -17,13 +17,7 @@ function SidebarRouteIconView({ icon }: { icon: SidebarRouteIcon }) {
   return null;
 }
 
-export function SidebarNavItem({
-  pathname,
-  route,
-}: {
-  pathname: string;
-  route: SidebarRoute;
-}) {
+export function SidebarNavItem({ pathname, route }: { pathname: string; route: SidebarRoute }) {
   const active = route.active(pathname);
 
   return (

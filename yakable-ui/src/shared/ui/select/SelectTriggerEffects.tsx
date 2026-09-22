@@ -1,54 +1,19 @@
 export function SelectTriggerEffects() {
   return (
-    <span
-      aria-hidden="true"
-      className="yak-select-fx-root"
-    >
-      <span
-        data-allow-shadow="true"
-        data-fx-layer="drop-shadow"
-        className="yak-select-fx-layer"
-      />
+    <span aria-hidden="true" className="yak-select-fx-root">
+      <span data-allow-shadow="true" data-fx-layer="drop-shadow" className="yak-select-fx-layer" />
       <span
         data-allow-shadow="true"
         data-fx-layer="engaged-drop-shadow"
         className="yak-select-fx-layer"
       />
-      <span
-        data-allow-shadow="true"
-        data-fx-layer="base-fill"
-        className="yak-select-fx-layer"
-      />
-      <span
-        data-allow-shadow="true"
-        data-fx-layer="interaction"
-        className="yak-select-fx-layer"
-      />
-      <span
-        data-allow-shadow="true"
-        data-fx-layer="engaged-fill"
-        className="yak-select-fx-layer"
-      />
-      <span
-        data-allow-shadow="true"
-        data-fx-layer="spotlights"
-        className="yak-select-fx-layer"
-      />
-      <span
-        data-allow-shadow="true"
-        data-fx-layer="dome-overlay"
-        className="yak-select-fx-layer"
-      />
-      <span
-        data-allow-shadow="true"
-        data-fx-layer="engaged-dome"
-        className="yak-select-fx-layer"
-      />
-      <span
-        data-allow-shadow="true"
-        data-fx-layer="rim"
-        className="yak-select-fx-layer"
-      />
+      <span data-allow-shadow="true" data-fx-layer="base-fill" className="yak-select-fx-layer" />
+      <span data-allow-shadow="true" data-fx-layer="interaction" className="yak-select-fx-layer" />
+      <span data-allow-shadow="true" data-fx-layer="engaged-fill" className="yak-select-fx-layer" />
+      <span data-allow-shadow="true" data-fx-layer="spotlights" className="yak-select-fx-layer" />
+      <span data-allow-shadow="true" data-fx-layer="dome-overlay" className="yak-select-fx-layer" />
+      <span data-allow-shadow="true" data-fx-layer="engaged-dome" className="yak-select-fx-layer" />
+      <span data-allow-shadow="true" data-fx-layer="rim" className="yak-select-fx-layer" />
       <span
         data-allow-shadow="true"
         data-fx-layer="engaged-highlights"
@@ -59,11 +24,7 @@ export function SelectTriggerEffects() {
         data-fx-layer="secondary-spotlights"
         className="yak-select-fx-layer"
       />
-      <span
-        data-allow-shadow="true"
-        data-fx-layer="engaged-glow"
-        className="yak-select-fx-layer"
-      />
+      <span data-allow-shadow="true" data-fx-layer="engaged-glow" className="yak-select-fx-layer" />
     </span>
   );
 }

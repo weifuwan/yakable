@@ -50,7 +50,8 @@ const selectTriggerVariants = cva(
 );
 
 export interface SelectProps
-  extends Omit<
+  extends
+    Omit<
       ButtonHTMLAttributes<HTMLButtonElement>,
       'defaultValue' | 'onChange' | 'onClick' | 'onKeyDown' | 'type' | 'value'
     >,
@@ -79,12 +80,7 @@ const MIN_CONTENT_HEIGHT = 48;
 
 function CheckIcon() {
   return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="size-4 shrink-0"
-      fill="currentColor"
-    >
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4 shrink-0" fill="currentColor">
       <path d="M18.369 4.595a.75.75 0 0 1 1.262.81l-9 14a.75.75 0 0 1-1.217.064l-5-6.25a.75.75 0 1 1 1.172-.938l4.347 5.435z" />
     </svg>
   );
@@ -95,10 +91,7 @@ function ChevronIcon({ open }: { open: boolean }) {
     <svg
       aria-hidden="true"
       viewBox="0 0 24 24"
-      className={cx(
-        'size-4 shrink-0 transition-transform duration-150',
-        open && 'rotate-180',
-      )}
+      className={cx('size-4 shrink-0 transition-transform duration-150', open && 'rotate-180')}
       fill="currentColor"
     >
       <path d="M11.526 15.582a.75.75 0 0 0 1.004-.052l5-5a.75.75 0 0 0-1.06-1.06L12 13.94 7.53 9.47a.75.75 0 0 0-1.06 1.06l5 5z" />
@@ -133,9 +126,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
   const contentRef = useRef<HTMLDivElement | null>(null);
   const initialFocusRef = useRef<'selected' | 'first' | 'last'>('selected');
   const [open, setOpen] = useState(false);
-  const [uncontrolledValue, setUncontrolledValue] = useState(
-    defaultValue ?? '',
-  );
+  const [uncontrolledValue, setUncontrolledValue] = useState(defaultValue ?? '');
   const [position, setPosition] = useState<SelectPosition | null>(null);
 
   const currentValue = value ?? uncontrolledValue;
@@ -180,9 +171,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
       if (!content) return;
 
       const items = Array.from(
-        content.querySelectorAll<HTMLElement>(
-          '[data-select-option]:not([aria-disabled="true"])',
-        ),
+        content.querySelectorAll<HTMLElement>('[data-select-option]:not([aria-disabled="true"])'),
       );
 
       if (items.length === 0) return;
@@ -193,9 +182,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
       }
 
       if (mode === 'selected' && currentValue) {
-        const selected = items.find(
-          (item) => item.dataset.value === currentValue,
-        );
+        const selected = items.find((item) => item.dataset.value === currentValue);
         if (selected) {
           selected.focus();
           return;
@@ -215,29 +202,22 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
     const triggerRect = trigger.getBoundingClientRect();
     const contentRect = content.getBoundingClientRect();
     const availableTop = triggerRect.top - VIEWPORT_PADDING;
-    const availableBottom =
-      window.innerHeight - triggerRect.bottom - VIEWPORT_PADDING;
+    const availableBottom = window.innerHeight - triggerRect.bottom - VIEWPORT_PADDING;
 
     const resolvedSide =
       side === 'auto'
-        ? availableBottom >= Math.min(contentRect.height, 240) ||
-          availableBottom >= availableTop
+        ? availableBottom >= Math.min(contentRect.height, 240) || availableBottom >= availableTop
           ? 'bottom'
           : 'top'
         : side;
 
-    const availableHeight =
-      resolvedSide === 'bottom' ? availableBottom : availableTop;
-    const maxHeight = Math.max(
-      MIN_CONTENT_HEIGHT,
-      availableHeight - CONTENT_GAP,
-    );
+    const availableHeight = resolvedSide === 'bottom' ? availableBottom : availableTop;
+    const maxHeight = Math.max(MIN_CONTENT_HEIGHT, availableHeight - CONTENT_GAP);
     const renderedHeight = Math.min(contentRect.height, maxHeight);
 
     let left = triggerRect.left;
     if (align === 'center') {
-      left =
-        triggerRect.left + triggerRect.width / 2 - contentRect.width / 2;
+      left = triggerRect.left + triggerRect.width / 2 - contentRect.width / 2;
     } else if (align === 'end') {
       left = triggerRect.right - contentRect.width;
     }
@@ -272,10 +252,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
       const target = event.target;
       if (!(target instanceof Node)) return;
 
-      if (
-        triggerRef.current?.contains(target) ||
-        contentRef.current?.contains(target)
-      ) {
+      if (triggerRef.current?.contains(target) || contentRef.current?.contains(target)) {
         return;
       }
 
@@ -357,9 +334,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
       nextIndex = activeIndex < 0 ? 0 : (activeIndex + 1) % items.length;
     } else if (event.key === 'ArrowUp') {
       nextIndex =
-        activeIndex < 0
-          ? items.length - 1
-          : (activeIndex - 1 + items.length) % items.length;
+        activeIndex < 0 ? items.length - 1 : (activeIndex - 1 + items.length) % items.length;
     } else if (event.key === 'Home') {
       nextIndex = 0;
     } else if (event.key === 'End') {
@@ -431,9 +406,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
                     onClick={() => selectValue(option.value)}
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-foreground">
-                        {option.label}
-                      </span>
+                      <span className="block truncate text-foreground">{option.label}</span>
                       {option.description && (
                         <span className="mt-0.5 block text-xs leading-4 text-foreground-muted">
                           {option.description}
@@ -454,9 +427,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
             {footer && (
               <>
                 <hr className="-mx-1 my-1 border-0 border-t border-border" />
-                <div className="px-2 py-1 text-xs text-foreground-muted">
-                  {footer}
-                </div>
+                <div className="px-2 py-1 text-xs text-foreground-muted">{footer}</div>
               </>
             )}
           </div>,
@@ -477,10 +448,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
         disabled={disabled}
         data-open={open ? '' : undefined}
         data-surface={surface}
-        className={cx(
-          selectTriggerVariants({ size, surface }),
-          className,
-        )}
+        className={cx(selectTriggerVariants({ size, surface }), className)}
         onClick={() => {
           if (open) {
             closeAndRestoreFocus();
@@ -495,9 +463,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
           data-button-content=""
           className="relative z-20 flex min-w-0 items-center justify-center gap-1"
         >
-          <span className="truncate px-0.5">
-            {selectedOption?.label ?? placeholder}
-          </span>
+          <span className="truncate px-0.5">{selectedOption?.label ?? placeholder}</span>
           <ChevronIcon open={open} />
         </span>
       </button>

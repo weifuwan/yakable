@@ -13,9 +13,7 @@ vi.mock('@/features/auth/context/AuthProvider', () => ({
 }));
 
 vi.mock('@/service/user', async () => {
-  const actual = await vi.importActual<typeof import('@/service/user')>(
-    '@/service/user',
-  );
+  const actual = await vi.importActual<typeof import('@/service/user')>('@/service/user');
   return {
     ...actual,
     UserService: {
@@ -36,22 +34,12 @@ describe('PasswordForm', () => {
 
     render(<PasswordForm onChanged={vi.fn()} />);
 
-    await user.type(
-      screen.getByLabelText('Current password'),
-      'password123',
-    );
+    await user.type(screen.getByLabelText('Current password'), 'password123');
     await user.type(screen.getByLabelText('New password'), 'new-password');
-    await user.type(
-      screen.getByLabelText('Confirm new password'),
-      'different-password',
-    );
-    await user.click(
-      screen.getByRole('button', { name: 'Change password' }),
-    );
+    await user.type(screen.getByLabelText('Confirm new password'), 'different-password');
+    await user.click(screen.getByRole('button', { name: 'Change password' }));
 
-    expect(
-      screen.getByRole('alert').textContent,
-    ).toContain('Password confirmation does not match');
+    expect(screen.getByRole('alert').textContent).toContain('Password confirmation does not match');
     expect(UserService.updateCurrentUserPassword).not.toHaveBeenCalled();
   });
 
@@ -62,18 +50,10 @@ describe('PasswordForm', () => {
 
     render(<PasswordForm onChanged={onChanged} />);
 
-    await user.type(
-      screen.getByLabelText('Current password'),
-      'password123',
-    );
+    await user.type(screen.getByLabelText('Current password'), 'password123');
     await user.type(screen.getByLabelText('New password'), 'new-password');
-    await user.type(
-      screen.getByLabelText('Confirm new password'),
-      'new-password',
-    );
-    await user.click(
-      screen.getByRole('button', { name: 'Change password' }),
-    );
+    await user.type(screen.getByLabelText('Confirm new password'), 'new-password');
+    await user.click(screen.getByRole('button', { name: 'Change password' }));
 
     expect(UserService.updateCurrentUserPassword).toHaveBeenCalledWith({
       currentPassword: 'password123',

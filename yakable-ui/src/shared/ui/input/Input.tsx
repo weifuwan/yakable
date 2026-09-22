@@ -1,14 +1,10 @@
-import {
-  forwardRef,
-  type InputHTMLAttributes,
-} from 'react';
+import { forwardRef, type InputHTMLAttributes } from 'react';
 
 import { cx } from '../cx';
 
 export type InputSize = 'sm' | 'md';
 
-export interface InputProps
-  extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
+export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
   size?: InputSize;
   htmlSize?: number;
 }
@@ -19,12 +15,7 @@ const sizes: Record<InputSize, string> = {
 };
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
-  {
-    className,
-    size = 'md',
-    htmlSize,
-    ...props
-  },
+  { className, size = 'md', htmlSize, ...props },
   ref,
 ) {
   return (

@@ -25,9 +25,7 @@ describe('ModelSelector', () => {
     await user.click(trigger);
 
     expect(
-      screen
-        .getByRole('menuitemradio', { name: 'DeepSeek' })
-        .getAttribute('aria-checked'),
+      screen.getByRole('menuitemradio', { name: 'DeepSeek' }).getAttribute('aria-checked'),
     ).toBe('true');
   });
 
@@ -43,11 +41,9 @@ describe('ModelSelector', () => {
       />,
     );
 
-    expect(
-      screen
-        .getByRole('button', { name: 'Select model' })
-        .getAttribute('data-surface'),
-    ).toBe('borderless');
+    expect(screen.getByRole('button', { name: 'Select model' }).getAttribute('data-surface')).toBe(
+      'borderless',
+    );
   });
 
   it('maps custom Select values back to ModelSelection', async () => {
@@ -76,12 +72,8 @@ describe('ModelSelector', () => {
       />,
     );
 
-    await user.click(
-      screen.getByRole('button', { name: 'Select model' }),
-    );
-    await user.click(
-      screen.getByRole('menuitemradio', { name: 'Test Model' }),
-    );
+    await user.click(screen.getByRole('button', { name: 'Select model' }));
+    await user.click(screen.getByRole('menuitemradio', { name: 'Test Model' }));
 
     expect(onValueChange).toHaveBeenCalledWith({
       provider: 'test-provider',

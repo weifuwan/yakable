@@ -55,9 +55,7 @@ function isSessionTurn(value: unknown): value is SessionTurn {
   return (
     isRecord(value) &&
     typeof value.id === 'string' &&
-    ['PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'STOPPED'].includes(
-      String(value.status),
-    ) &&
+    ['PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'STOPPED'].includes(String(value.status)) &&
     typeof value.attemptCount === 'number' &&
     isNullableString(value.errorMessage) &&
     isTurnInvocation(value.invocation) &&
@@ -86,8 +84,7 @@ function isSessionSnapshot(value: unknown): value is SessionSnapshot {
     value.turns.every(isSessionTurn) &&
     Array.isArray(value.messages) &&
     value.messages.every(isSessionMessage) &&
-    (value.nextBeforeSequence === null ||
-      typeof value.nextBeforeSequence === 'number') &&
+    (value.nextBeforeSequence === null || typeof value.nextBeforeSequence === 'number') &&
     typeof value.hasMoreMessages === 'boolean'
   );
 }
@@ -107,8 +104,7 @@ function isSessionMessagePage(value: unknown): value is SessionMessagePage {
     isRecord(value) &&
     Array.isArray(value.messages) &&
     value.messages.every(isSessionMessage) &&
-    (value.nextBeforeSequence === null ||
-      typeof value.nextBeforeSequence === 'number') &&
+    (value.nextBeforeSequence === null || typeof value.nextBeforeSequence === 'number') &&
     typeof value.hasMore === 'boolean'
   );
 }
@@ -128,22 +124,12 @@ function invalidResponse(message: string, data: unknown): never {
 
 function sessionPath(projectId: string, sessionId: string) {
   return (
-    '/api/projects/' +
-    encodeURIComponent(projectId) +
-    '/sessions/' +
-    encodeURIComponent(sessionId)
+    '/api/projects/' + encodeURIComponent(projectId) + '/sessions/' + encodeURIComponent(sessionId)
   );
 }
 
-async function querySession(
-  projectId: string,
-  sessionId: string,
-  signal?: AbortSignal,
-) {
-  const data = await HttpUtils.get<unknown>(
-    sessionPath(projectId, sessionId),
-    { signal },
-  );
+async function querySession(projectId: string, sessionId: string, signal?: AbortSignal) {
+  const data = await HttpUtils.get<unknown>(sessionPath(projectId, sessionId), { signal });
   return isSessionSnapshot(data)
     ? data
     : invalidResponse('Session API returned an invalid response.', data);
@@ -218,10 +204,7 @@ async function stopTurn(
   signal?: AbortSignal,
 ) {
   const data = await HttpUtils.post<unknown>(
-    sessionPath(projectId, sessionId) +
-      '/turns/' +
-      encodeURIComponent(turnId) +
-      '/stop',
+    sessionPath(projectId, sessionId) + '/turns/' + encodeURIComponent(turnId) + '/stop',
     {},
     { signal },
   );
@@ -304,7 +287,6 @@ async function streamingTurn(
   }
 }
 
-
 async function watchTurn(
   projectId: string,
   sessionId: string,
@@ -319,10 +301,7 @@ async function watchTurn(
   let terminal = false;
 
   await HttpUtils.postSse(
-    sessionPath(projectId, sessionId) +
-      '/turns/' +
-      encodeURIComponent(turnId) +
-      '/stream',
+    sessionPath(projectId, sessionId) + '/turns/' + encodeURIComponent(turnId) + '/stream',
     {},
     ({ event, data }) => {
       if (event === 'snapshot') {

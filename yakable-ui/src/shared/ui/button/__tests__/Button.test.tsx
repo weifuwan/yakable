@@ -57,9 +57,7 @@ describe('Button', () => {
   it('keeps caller classes as an escape hatch', () => {
     render(<Button className="w-full">Continue</Button>);
 
-    expect(
-      screen.getByRole('button', { name: 'Continue' }).className,
-    ).toContain('w-full');
+    expect(screen.getByRole('button', { name: 'Continue' }).className).toContain('w-full');
   });
 
   it('renders through Slot when asChild is enabled', () => {

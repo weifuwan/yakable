@@ -1,10 +1,6 @@
 import { useState, type FormEvent } from 'react';
 
-import {
-  UserService,
-  type UserRecord,
-  type UserRole,
-} from '@/service/user';
+import { UserService, type UserRecord, type UserRole } from '@/service/user';
 import { Button, Input } from '@/shared/ui';
 
 interface UserFormDialogProps {
@@ -14,12 +10,7 @@ interface UserFormDialogProps {
   onSaved: () => void;
 }
 
-export function UserFormDialog({
-  user,
-  currentUserId,
-  onClose,
-  onSaved,
-}: UserFormDialogProps) {
+export function UserFormDialog({ user, currentUserId, onClose, onSaved }: UserFormDialogProps) {
   const editing = user !== null;
   const self = user?.id === currentUserId;
   const [username, setUsername] = useState(user?.username ?? '');
@@ -62,11 +53,7 @@ export function UserFormDialog({
       }
       onSaved();
     } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : 'Unable to save user.',
-      );
+      setError(requestError instanceof Error ? requestError.message : 'Unable to save user.');
     } finally {
       setSaving(false);
     }
@@ -80,10 +67,7 @@ export function UserFormDialog({
     >
       <div className="w-full max-w-lg rounded-2xl border border-border bg-surface p-6">
         <div className="mb-6">
-          <h2
-            id="user-dialog-title"
-            className="m-0 text-lg font-semibold tracking-[-0.02em]"
-          >
+          <h2 id="user-dialog-title" className="m-0 text-lg font-semibold tracking-[-0.02em]">
             {editing ? 'Edit user' : 'Add user'}
           </h2>
           <p className="mb-0 mt-1 text-sm text-foreground-subtle">
@@ -186,9 +170,7 @@ export function UserFormDialog({
                 disabled={saving}
                 required
               />
-              <p className="m-0 text-xs text-foreground-subtle">
-                Use 8–64 characters.
-              </p>
+              <p className="m-0 text-xs text-foreground-subtle">Use 8–64 characters.</p>
             </div>
           ) : null}
 
@@ -199,11 +181,7 @@ export function UserFormDialog({
           ) : null}
 
           <div className="flex justify-end gap-2 pt-2">
-            <Button
-              type="button"
-              onClick={onClose}
-              disabled={saving}
-            >
+            <Button type="button" onClick={onClose} disabled={saving}>
               Cancel
             </Button>
             <Button

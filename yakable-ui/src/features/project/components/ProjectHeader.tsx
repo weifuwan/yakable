@@ -1,7 +1,4 @@
-import {
-  Icon,
-  IconButton,
-} from '@/shared/ui';
+import { Icon, IconButton } from '@/shared/ui';
 
 export interface ProjectHeaderProps {
   title: string;
@@ -19,18 +16,9 @@ export function ProjectHeader({
   return (
     <header className="flex h-14 shrink-0 items-center justify-between bg-workspace px-4">
       {loading ? (
-        <output
-          className="flex min-w-0 items-center gap-1.5"
-          aria-label="Loading session header"
-        >
-          <span
-            aria-hidden="true"
-            className="h-4 w-24 animate-pulse rounded-full bg-skeleton"
-          />
-          <span
-            aria-hidden="true"
-            className="size-3 animate-pulse rounded-full bg-skeleton"
-          />
+        <output className="flex min-w-0 items-center gap-1.5" aria-label="Loading session header">
+          <span aria-hidden="true" className="h-4 w-24 animate-pulse rounded-full bg-skeleton" />
+          <span aria-hidden="true" className="size-3 animate-pulse rounded-full bg-skeleton" />
         </output>
       ) : (
         <div className="flex min-w-0 items-center gap-1.5">

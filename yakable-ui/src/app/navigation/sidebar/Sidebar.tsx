@@ -20,9 +20,7 @@ export function Sidebar() {
           aria-hidden="true"
           className="size-6 shrink-0 rounded-md object-contain"
         />
-        <span className="truncate text-sm font-semibold tracking-[-0.01em]">
-          Yakable
-        </span>
+        <span className="truncate text-sm font-semibold tracking-[-0.01em]">Yakable</span>
       </div>
 
       <nav aria-label="Primary navigation" className="px-2">

@@ -1,7 +1,4 @@
-import {
-  type ProjectsState,
-  useProjectsContext,
-} from '../context/ProjectsProvider';
+import { type ProjectsState, useProjectsContext } from '../context/ProjectsProvider';
 
 export type { ProjectsState };
 

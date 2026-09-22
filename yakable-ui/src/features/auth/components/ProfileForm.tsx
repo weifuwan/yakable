@@ -33,11 +33,7 @@ export function ProfileForm() {
       setAvatar(updated.avatar ?? '');
       setMessage('Profile updated.');
     } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : 'Unable to update profile.',
-      );
+      setError(requestError instanceof Error ? requestError.message : 'Unable to update profile.');
     } finally {
       setSaving(false);
     }
@@ -92,11 +88,7 @@ export function ProfileForm() {
           {error}
         </p>
       ) : null}
-      {message ? (
-        <output className="block text-sm text-success">
-          {message}
-        </output>
-      ) : null}
+      {message ? <output className="block text-sm text-success">{message}</output> : null}
 
       <Button type="submit" variant="primary" disabled={saving || !name}>
         {saving ? 'Saving…' : 'Save profile'}

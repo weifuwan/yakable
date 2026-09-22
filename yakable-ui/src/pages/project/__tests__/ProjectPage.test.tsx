@@ -25,12 +25,7 @@ vi.mock('@/features/session', () => ({
     sessionId: string;
     onActivity?: (sessionId: string, updatedAt: string) => void;
   }) => (
-    <button
-      type="button"
-      onClick={() =>
-        onActivity?.('session-2', '2026-09-21T09:00:00Z')
-      }
-    >
+    <button type="button" onClick={() => onActivity?.('session-2', '2026-09-21T09:00:00Z')}>
       {projectId}:{sessionId}
     </button>
   ),
@@ -42,11 +37,7 @@ describe('ProjectPage', () => {
     projectState.markProjectActive.mockReset();
 
     render(
-      <MemoryRouter
-        initialEntries={[
-          '/dashboard/project/project-1/session/session-1',
-        ]}
-      >
+      <MemoryRouter initialEntries={['/dashboard/project/project-1/session/session-1']}>
         <Routes>
           <Route
             path="/dashboard/project/:projectId/session/:sessionId"

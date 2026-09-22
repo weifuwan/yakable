@@ -66,8 +66,12 @@ describe('AuthService', () => {
 
     await AuthService.logout();
 
-    expect(post).toHaveBeenCalledWith('/api/auth/logout', {}, {
-      signal: undefined,
-    });
+    expect(post).toHaveBeenCalledWith(
+      '/api/auth/logout',
+      {},
+      {
+        signal: undefined,
+      },
+    );
   });
 });

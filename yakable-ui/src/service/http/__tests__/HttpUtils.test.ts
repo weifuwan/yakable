@@ -1,10 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  HttpUtils,
-  setUnauthorizedHandler,
-  type SseEvent,
-} from '../HttpUtils';
+import { HttpUtils, setUnauthorizedHandler, type SseEvent } from '../HttpUtils';
 
 function apiResponse(
   data: unknown,
@@ -39,14 +35,12 @@ afterEach(() => {
 
 describe('HttpUtils', () => {
   it('returns API data for a successful request', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      apiResponse({ id: 'project-1' }),
-    );
+    const fetchMock = vi.fn().mockResolvedValue(apiResponse({ id: 'project-1' }));
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(
-      HttpUtils.get<{ id: string }>('/api/projects/project-1'),
-    ).resolves.toEqual({ id: 'project-1' });
+    await expect(HttpUtils.get<{ id: string }>('/api/projects/project-1')).resolves.toEqual({
+      id: 'project-1',
+    });
 
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/projects/project-1',
@@ -169,10 +163,7 @@ describe('HttpUtils', () => {
   });
 
   it('reports a network error when fetch fails', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockRejectedValue(new Error('offline')),
-    );
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
 
     await expect(HttpUtils.get('/api/projects')).rejects.toEqual(
       expect.objectContaining({

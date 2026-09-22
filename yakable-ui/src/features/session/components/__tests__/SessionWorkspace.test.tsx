@@ -1,19 +1,6 @@
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   SessionService,
@@ -194,9 +181,7 @@ const stoppedChanges: SessionChanges = {
 };
 
 beforeEach(() => {
-  vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue(
-    '00000000-0000-4000-8000-000000000002',
-  );
+  vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue('00000000-0000-4000-8000-000000000002');
 });
 
 afterEach(() => {
@@ -210,20 +195,11 @@ describe('SessionWorkspace', () => {
       resolveSession = resolve;
     });
 
-    vi.spyOn(SessionService, 'querySession').mockReturnValue(
-      pendingSession,
-    );
+    vi.spyOn(SessionService, 'querySession').mockReturnValue(pendingSession);
 
-    render(
-      <SessionWorkspace
-        projectId="project-1"
-        sessionId="session-1"
-      />,
-    );
+    render(<SessionWorkspace projectId="project-1" sessionId="session-1" />);
 
-    expect(
-      screen.getByRole('status', { name: 'Loading session' }),
-    ).toBeTruthy();
+    expect(screen.getByRole('status', { name: 'Loading session' })).toBeTruthy();
 
     await act(async () => {
       resolveSession(createSnapshot());
@@ -236,17 +212,11 @@ describe('SessionWorkspace', () => {
     });
     expect(modelTrigger.textContent).toContain('DeepSeek');
     expect(modelTrigger.getAttribute('data-surface')).toBe('chassis');
+    expect(screen.queryByTestId('prompt-composer-animated-placeholder')).toBeNull();
     expect(
-      screen.queryByTestId('prompt-composer-animated-placeholder'),
-    ).toBeNull();
-    expect(
-      screen.getByRole('textbox', { name: 'Send a message' }).getAttribute(
-        'placeholder',
-      ),
+      screen.getByRole('textbox', { name: 'Send a message' }).getAttribute('placeholder'),
     ).toBe('Ask Yakable...');
-    expect(
-      screen.queryByRole('status', { name: 'Loading session' }),
-    ).toBeNull();
+    expect(screen.queryByRole('status', { name: 'Loading session' })).toBeNull();
   });
 
   it('hides stale content while switching to another session', async () => {
@@ -259,67 +229,34 @@ describe('SessionWorkspace', () => {
       .mockResolvedValueOnce(createSnapshot())
       .mockReturnValueOnce(pendingSecond);
 
-    const { rerender } = render(
-      <SessionWorkspace
-        projectId="project-1"
-        sessionId="session-1"
-      />,
-    );
+    const { rerender } = render(<SessionWorkspace projectId="project-1" sessionId="session-1" />);
 
     expect(await screen.findByText('I am Yakable.')).toBeTruthy();
 
-    rerender(
-      <SessionWorkspace
-        projectId="project-1"
-        sessionId="session-2"
-      />,
-    );
+    rerender(<SessionWorkspace projectId="project-1" sessionId="session-2" />);
 
-    expect(
-      screen.getByRole('status', { name: 'Loading session' }),
-    ).toBeTruthy();
+    expect(screen.getByRole('status', { name: 'Loading session' })).toBeTruthy();
     expect(screen.queryByText('I am Yakable.')).toBeNull();
 
     await act(async () => {
-      resolveSecond(
-        createSnapshot(
-          'session-2',
-          'Analytics',
-          'Second session answer',
-        ),
-      );
+      resolveSecond(createSnapshot('session-2', 'Analytics', 'Second session answer'));
     });
 
-    expect(
-      await screen.findByText('Second session answer'),
-    ).toBeTruthy();
+    expect(await screen.findByText('Second session answer')).toBeTruthy();
     expect(screen.queryByText('I am Yakable.')).toBeNull();
   });
 
   it('shows the user message immediately and streams the assistant reply', async () => {
     const user = userEvent.setup();
 
-    vi.spyOn(SessionService, 'querySession').mockResolvedValue(
-      createSnapshot(),
-    );
-    vi.spyOn(SessionService, 'queryChanges').mockResolvedValue(
-      completedChanges,
-    );
+    vi.spyOn(SessionService, 'querySession').mockResolvedValue(createSnapshot());
+    vi.spyOn(SessionService, 'queryChanges').mockResolvedValue(completedChanges);
 
-    let handlers:
-      | Parameters<typeof SessionService.streamingTurn>[5]
-      | undefined;
+    let handlers: Parameters<typeof SessionService.streamingTurn>[5] | undefined;
     let resolveStream!: () => void;
 
     vi.spyOn(SessionService, 'streamingTurn').mockImplementation(
-      async (
-        _projectId,
-        _sessionId,
-        _content,
-        _model,
-        _requestId,
-        nextHandlers,
-      ) => {
+      async (_projectId, _sessionId, _content, _model, _requestId, nextHandlers) => {
         handlers = nextHandlers;
         await new Promise<void>((resolve) => {
           resolveStream = resolve;
@@ -327,20 +264,13 @@ describe('SessionWorkspace', () => {
       },
     );
 
-    render(
-      <SessionWorkspace
-        projectId="project-1"
-        sessionId="session-1"
-      />,
-    );
+    render(<SessionWorkspace projectId="project-1" sessionId="session-1" />);
 
     const input = await screen.findByRole('textbox', {
       name: 'Send a message',
     });
 
-    expect(
-      screen.getByRole('button', { name: 'Select model' }).textContent,
-    ).toContain('DeepSeek');
+    expect(screen.getByRole('button', { name: 'Select model' }).textContent).toContain('DeepSeek');
 
     await user.type(input, 'Tell me more');
     await user.keyboard('{Enter}');
@@ -366,9 +296,7 @@ describe('SessionWorkspace', () => {
       expect.anything(),
     );
     expect(screen.getByText('Thinking...')).toBeTruthy();
-    expect(
-      screen.getByRole('button', { name: 'Stop generating' }),
-    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Stop generating' })).toBeTruthy();
 
     await act(async () => {
       handlers?.onStarted(started);
@@ -378,9 +306,7 @@ describe('SessionWorkspace', () => {
     await waitFor(() => {
       expect((input as HTMLTextAreaElement).value).toBe('');
     });
-    expect(
-      await screen.findByText('Streaming reply.'),
-    ).toBeTruthy();
+    expect(await screen.findByText('Streaming reply.')).toBeTruthy();
 
     await act(async () => {
       resolveStream();
@@ -398,27 +324,14 @@ describe('SessionWorkspace', () => {
   it('keeps the reading position during Streaming and resumes follow output after returning to latest', async () => {
     const user = userEvent.setup();
 
-    vi.spyOn(SessionService, 'querySession').mockResolvedValue(
-      createSnapshot(),
-    );
-    vi.spyOn(SessionService, 'queryChanges').mockResolvedValue(
-      completedChanges,
-    );
+    vi.spyOn(SessionService, 'querySession').mockResolvedValue(createSnapshot());
+    vi.spyOn(SessionService, 'queryChanges').mockResolvedValue(completedChanges);
 
-    let handlers:
-      | Parameters<typeof SessionService.streamingTurn>[5]
-      | undefined;
+    let handlers: Parameters<typeof SessionService.streamingTurn>[5] | undefined;
     let resolveStream!: () => void;
 
     vi.spyOn(SessionService, 'streamingTurn').mockImplementation(
-      async (
-        _projectId,
-        _sessionId,
-        _content,
-        _model,
-        _requestId,
-        nextHandlers,
-      ) => {
+      async (_projectId, _sessionId, _content, _model, _requestId, nextHandlers) => {
         handlers = nextHandlers;
         await new Promise<void>((resolve) => {
           resolveStream = resolve;
@@ -426,18 +339,11 @@ describe('SessionWorkspace', () => {
       },
     );
 
-    render(
-      <SessionWorkspace
-        projectId="project-1"
-        sessionId="session-1"
-      />,
-    );
+    render(<SessionWorkspace projectId="project-1" sessionId="session-1" />);
 
     expect(await screen.findByText('I am Yakable.')).toBeTruthy();
 
-    const scroll = screen.getByTestId(
-      'session-message-scroll',
-    ) as HTMLDivElement;
+    const scroll = screen.getByTestId('session-message-scroll') as HTMLDivElement;
 
     let scrollHeight = 1000;
     Object.defineProperties(scroll, {
@@ -506,9 +412,7 @@ describe('SessionWorkspace', () => {
     await waitFor(() => {
       expect(scroll.scrollTop).toBe(1200);
     });
-    expect(
-      await screen.findByText('First chunk second chunk'),
-    ).toBeTruthy();
+    expect(await screen.findByText('First chunk second chunk')).toBeTruthy();
 
     await act(async () => {
       resolveStream();
@@ -534,40 +438,31 @@ describe('SessionWorkspace', () => {
     historySnapshot.nextBeforeSequence = 51;
     historySnapshot.hasMoreMessages = true;
 
-    vi.spyOn(SessionService, 'querySession').mockResolvedValue(
-      historySnapshot,
-    );
-    const queryMessages = vi
-      .spyOn(SessionService, 'queryMessages')
-      .mockResolvedValue({
-        messages: [
-          {
-            id: 'message-1',
-            turnId: 'turn-old',
-            role: 'USER',
-            content: 'Older user message',
-            sequence: 1,
-            createdAt: '2026-09-20T00:00:00Z',
-          },
-          {
-            id: 'message-2',
-            turnId: 'turn-old',
-            role: 'ASSISTANT',
-            content: 'Older assistant message',
-            sequence: 2,
-            createdAt: '2026-09-20T00:00:01Z',
-          },
-        ],
-        nextBeforeSequence: null,
-        hasMore: false,
-      });
+    vi.spyOn(SessionService, 'querySession').mockResolvedValue(historySnapshot);
+    const queryMessages = vi.spyOn(SessionService, 'queryMessages').mockResolvedValue({
+      messages: [
+        {
+          id: 'message-1',
+          turnId: 'turn-old',
+          role: 'USER',
+          content: 'Older user message',
+          sequence: 1,
+          createdAt: '2026-09-20T00:00:00Z',
+        },
+        {
+          id: 'message-2',
+          turnId: 'turn-old',
+          role: 'ASSISTANT',
+          content: 'Older assistant message',
+          sequence: 2,
+          createdAt: '2026-09-20T00:00:01Z',
+        },
+      ],
+      nextBeforeSequence: null,
+      hasMore: false,
+    });
 
-    render(
-      <SessionWorkspace
-        projectId="project-1"
-        sessionId="session-1"
-      />,
-    );
+    render(<SessionWorkspace projectId="project-1" sessionId="session-1" />);
 
     expect(await screen.findByText('Recent user message')).toBeTruthy();
 
@@ -575,12 +470,7 @@ describe('SessionWorkspace', () => {
     fireEvent.scroll(scroll, { target: { scrollTop: 0 } });
 
     await waitFor(() => {
-      expect(queryMessages).toHaveBeenCalledWith(
-        'project-1',
-        'session-1',
-        51,
-        50,
-      );
+      expect(queryMessages).toHaveBeenCalledWith('project-1', 'session-1', 51, 50);
     });
     expect(await screen.findByText('Older user message')).toBeTruthy();
     expect(screen.getByText('Older assistant message')).toBeTruthy();
@@ -589,22 +479,13 @@ describe('SessionWorkspace', () => {
   it('keeps the Prompt when streaming fails before started', async () => {
     const user = userEvent.setup();
 
-    vi.spyOn(SessionService, 'querySession').mockResolvedValue(
-      createSnapshot(),
-    );
-    const streamingTurn = vi.spyOn(SessionService, 'streamingTurn').mockRejectedValue(
-      new Error('Unable to create turn.'),
-    );
-    vi.spyOn(SessionService, 'queryChanges').mockRejectedValue(
-      new Error('No turn created.'),
-    );
+    vi.spyOn(SessionService, 'querySession').mockResolvedValue(createSnapshot());
+    const streamingTurn = vi
+      .spyOn(SessionService, 'streamingTurn')
+      .mockRejectedValue(new Error('Unable to create turn.'));
+    vi.spyOn(SessionService, 'queryChanges').mockRejectedValue(new Error('No turn created.'));
 
-    render(
-      <SessionWorkspace
-        projectId="project-1"
-        sessionId="session-1"
-      />,
-    );
+    render(<SessionWorkspace projectId="project-1" sessionId="session-1" />);
 
     const input = await screen.findByRole('textbox', {
       name: 'Send a message',
@@ -612,69 +493,39 @@ describe('SessionWorkspace', () => {
     await user.type(input, 'Keep this prompt');
     await user.keyboard('{Enter}');
 
-    expect(
-      (await screen.findByRole('alert')).textContent,
-    ).toContain('Unable to create turn.');
-    expect((input as HTMLTextAreaElement).value).toBe(
-      'Keep this prompt',
-    );
+    expect((await screen.findByRole('alert')).textContent).toContain('Unable to create turn.');
+    expect((input as HTMLTextAreaElement).value).toBe('Keep this prompt');
 
     await user.keyboard('{Enter}');
     await waitFor(() => {
       expect(streamingTurn).toHaveBeenCalledTimes(2);
     });
-    expect(streamingTurn.mock.calls[0][4]).toBe(
-      streamingTurn.mock.calls[1][4],
-    );
+    expect(streamingTurn.mock.calls[0][4]).toBe(streamingTurn.mock.calls[1][4]);
   });
 
   it('does not expose Edit or Regenerate actions for historical messages', async () => {
-    vi.spyOn(SessionService, 'querySession').mockResolvedValue(
-      createSnapshot(),
-    );
+    vi.spyOn(SessionService, 'querySession').mockResolvedValue(createSnapshot());
 
-    render(
-      <SessionWorkspace
-        projectId="project-1"
-        sessionId="session-1"
-      />,
-    );
+    render(<SessionWorkspace projectId="project-1" sessionId="session-1" />);
 
     expect(await screen.findByText('Who are you?')).toBeTruthy();
-    expect(
-      screen.queryByRole('button', { name: 'Edit message' }),
-    ).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Edit message' })).toBeNull();
   });
 
   it('reports Project activity when the user Turn is persisted', async () => {
     const user = userEvent.setup();
     const onActivity = vi.fn();
 
-    vi.spyOn(SessionService, 'querySession').mockResolvedValue(
-      createSnapshot(),
-    );
-    vi.spyOn(SessionService, 'queryChanges').mockResolvedValue(
-      completedChanges,
-    );
+    vi.spyOn(SessionService, 'querySession').mockResolvedValue(createSnapshot());
+    vi.spyOn(SessionService, 'queryChanges').mockResolvedValue(completedChanges);
     vi.spyOn(SessionService, 'streamingTurn').mockImplementation(
-      async (
-        _projectId,
-        _sessionId,
-        _content,
-        _model,
-        _requestId,
-        handlers,
-      ) => {
+      async (_projectId, _sessionId, _content, _model, _requestId, handlers) => {
         handlers.onStarted(started);
       },
     );
 
     render(
-      <SessionWorkspace
-        projectId="project-1"
-        sessionId="session-1"
-        onActivity={onActivity}
-      />,
+      <SessionWorkspace projectId="project-1" sessionId="session-1" onActivity={onActivity} />,
     );
 
     const input = await screen.findByRole('textbox', {
@@ -684,17 +535,12 @@ describe('SessionWorkspace', () => {
     await user.keyboard('{Enter}');
 
     await waitFor(() => {
-      expect(onActivity).toHaveBeenCalledWith(
-        'session-1',
-        started.userMessage.createdAt,
-      );
+      expect(onActivity).toHaveBeenCalledWith('session-1', started.userMessage.createdAt);
     });
   });
 
   it('reconnects to the same active Turn after restoring a Session', async () => {
-    let handlers:
-      | Parameters<typeof SessionService.watchTurn>[3]
-      | undefined;
+    let handlers: Parameters<typeof SessionService.watchTurn>[3] | undefined;
     let resolveWatch!: () => void;
 
     const recoveringSnapshot: SessionSnapshot = {
@@ -707,34 +553,18 @@ describe('SessionWorkspace', () => {
       ],
     };
 
-    vi.spyOn(SessionService, 'querySession').mockResolvedValue(
-      recoveringSnapshot,
-    );
-    vi.spyOn(SessionService, 'queryChanges').mockResolvedValue(
-      completedChanges,
-    );
+    vi.spyOn(SessionService, 'querySession').mockResolvedValue(recoveringSnapshot);
+    vi.spyOn(SessionService, 'queryChanges').mockResolvedValue(completedChanges);
     const watchTurn = vi
       .spyOn(SessionService, 'watchTurn')
-      .mockImplementation(
-        async (
-          _projectId,
-          _sessionId,
-          _turnId,
-          nextHandlers,
-        ) => {
-          handlers = nextHandlers;
-          await new Promise<void>((resolve) => {
-            resolveWatch = resolve;
-          });
-        },
-      );
+      .mockImplementation(async (_projectId, _sessionId, _turnId, nextHandlers) => {
+        handlers = nextHandlers;
+        await new Promise<void>((resolve) => {
+          resolveWatch = resolve;
+        });
+      });
 
-    render(
-      <SessionWorkspace
-        projectId="project-1"
-        sessionId="session-1"
-      />,
-    );
+    render(<SessionWorkspace projectId="project-1" sessionId="session-1" />);
 
     await waitFor(() => {
       expect(watchTurn).toHaveBeenCalledWith(
@@ -759,12 +589,8 @@ describe('SessionWorkspace', () => {
   });
 
   it('rewatches the same active Turn after a transient disconnect without clearing partial content', async () => {
-    let firstHandlers:
-      | Parameters<typeof SessionService.watchTurn>[3]
-      | undefined;
-    let secondHandlers:
-      | Parameters<typeof SessionService.watchTurn>[3]
-      | undefined;
+    let firstHandlers: Parameters<typeof SessionService.watchTurn>[3] | undefined;
+    let secondHandlers: Parameters<typeof SessionService.watchTurn>[3] | undefined;
     let resolveSecondWatch!: () => void;
     let secondWatchCompleted = false;
 
@@ -783,56 +609,38 @@ describe('SessionWorkspace', () => {
       latestSequence: 3,
     };
 
-    vi.spyOn(SessionService, 'querySession').mockResolvedValue(
-      recoveringSnapshot,
-    );
-    vi.spyOn(SessionService, 'queryChanges').mockImplementation(
-      async () => secondWatchCompleted ? completedChanges : activeChanges,
+    vi.spyOn(SessionService, 'querySession').mockResolvedValue(recoveringSnapshot);
+    vi.spyOn(SessionService, 'queryChanges').mockImplementation(async () =>
+      secondWatchCompleted ? completedChanges : activeChanges,
     );
     const watchTurn = vi
       .spyOn(SessionService, 'watchTurn')
-      .mockImplementationOnce(
-        async (
-          _projectId,
-          _sessionId,
-          _turnId,
-          handlers,
-        ) => {
-          firstHandlers = handlers;
-          handlers.onSnapshot('Partial');
-          throw new Error('temporary disconnect');
-        },
-      )
-      .mockImplementationOnce(
-        async (
-          _projectId,
-          _sessionId,
-          _turnId,
-          handlers,
-        ) => {
-          secondHandlers = handlers;
-          await new Promise<void>((resolve) => {
-            resolveSecondWatch = () => {
-              secondWatchCompleted = true;
-              resolve();
-            };
-          });
-        },
-      );
+      .mockImplementationOnce(async (_projectId, _sessionId, _turnId, handlers) => {
+        firstHandlers = handlers;
+        handlers.onSnapshot('Partial');
+        throw new Error('temporary disconnect');
+      })
+      .mockImplementationOnce(async (_projectId, _sessionId, _turnId, handlers) => {
+        secondHandlers = handlers;
+        await new Promise<void>((resolve) => {
+          resolveSecondWatch = () => {
+            secondWatchCompleted = true;
+            resolve();
+          };
+        });
+      });
 
-    render(
-      <SessionWorkspace
-        projectId="project-1"
-        sessionId="session-1"
-      />,
-    );
+    render(<SessionWorkspace projectId="project-1" sessionId="session-1" />);
 
     expect(await screen.findByText('Partial')).toBeTruthy();
     expect(firstHandlers).toBeTruthy();
 
-    await waitFor(() => {
-      expect(watchTurn).toHaveBeenCalledTimes(2);
-    }, { timeout: 2500 });
+    await waitFor(
+      () => {
+        expect(watchTurn).toHaveBeenCalledTimes(2);
+      },
+      { timeout: 2500 },
+    );
 
     expect(screen.getByText('Partial')).toBeTruthy();
     expect(watchTurn.mock.calls[0][2]).toBe('turn-2');
@@ -865,32 +673,16 @@ describe('SessionWorkspace', () => {
       ],
     };
 
-    vi.spyOn(SessionService, 'querySession').mockResolvedValue(
-      recoveringSnapshot,
-    );
-    vi.spyOn(SessionService, 'queryChanges').mockResolvedValue(
-      stoppedChanges,
-    );
+    vi.spyOn(SessionService, 'querySession').mockResolvedValue(recoveringSnapshot);
+    vi.spyOn(SessionService, 'queryChanges').mockResolvedValue(stoppedChanges);
     const watchTurn = vi
       .spyOn(SessionService, 'watchTurn')
-      .mockImplementation(
-        async (
-          _projectId,
-          _sessionId,
-          _turnId,
-          handlers,
-        ) => {
-          handlers.onSnapshot('Partial');
-          throw new Error('temporary disconnect');
-        },
-      );
+      .mockImplementation(async (_projectId, _sessionId, _turnId, handlers) => {
+        handlers.onSnapshot('Partial');
+        throw new Error('temporary disconnect');
+      });
 
-    render(
-      <SessionWorkspace
-        projectId="project-1"
-        sessionId="session-1"
-      />,
-    );
+    render(<SessionWorkspace projectId="project-1" sessionId="session-1" />);
 
     expect(await screen.findByText('Partial')).toBeTruthy();
 
@@ -907,39 +699,22 @@ describe('SessionWorkspace', () => {
 
   it('stops an active turn and keeps the partial answer visible', async () => {
     const user = userEvent.setup();
-    const stopTurn = vi
-      .spyOn(SessionService, 'stopTurn')
-      .mockResolvedValue(stoppedTurn);
+    const stopTurn = vi.spyOn(SessionService, 'stopTurn').mockResolvedValue(stoppedTurn);
 
-    vi.spyOn(SessionService, 'querySession').mockResolvedValue(
-      runningSnapshot,
-    );
-    vi.spyOn(SessionService, 'queryChanges').mockResolvedValue(
-      stoppedChanges,
-    );
+    vi.spyOn(SessionService, 'querySession').mockResolvedValue(runningSnapshot);
+    vi.spyOn(SessionService, 'queryChanges').mockResolvedValue(stoppedChanges);
     vi.spyOn(SessionService, 'watchTurn').mockImplementation(
       async () => new Promise<void>(() => {}),
     );
 
-    render(
-      <SessionWorkspace
-        projectId="project-1"
-        sessionId="session-1"
-      />,
-    );
+    render(<SessionWorkspace projectId="project-1" sessionId="session-1" />);
 
     expect(await screen.findByText('Partial answer')).toBeTruthy();
 
-    await user.click(
-      screen.getByRole('button', { name: 'Stop generating' }),
-    );
+    await user.click(screen.getByRole('button', { name: 'Stop generating' }));
 
     await waitFor(() => {
-      expect(stopTurn).toHaveBeenCalledWith(
-        'project-1',
-        'session-1',
-        'turn-2',
-      );
+      expect(stopTurn).toHaveBeenCalledWith('project-1', 'session-1', 'turn-2');
     });
     expect(screen.getByText('Partial answer')).toBeTruthy();
 

@@ -1,10 +1,4 @@
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -45,9 +39,7 @@ describe('PromptComposer', () => {
     );
 
     const input = screen.getByRole('textbox', { name: 'Prompt' });
-    const animated = screen.getByTestId(
-      'prompt-composer-animated-placeholder',
-    );
+    const animated = screen.getByTestId('prompt-composer-animated-placeholder');
 
     expect((input as HTMLTextAreaElement).value).toBe('');
     expect(input.getAttribute('placeholder')).toBeNull();
@@ -72,15 +64,11 @@ describe('PromptComposer', () => {
 
     const input = screen.getByRole('textbox', { name: 'Prompt' });
 
-    expect(
-      screen.getByTestId('prompt-composer-animated-placeholder'),
-    ).toBeTruthy();
+    expect(screen.getByTestId('prompt-composer-animated-placeholder')).toBeTruthy();
 
     fireEvent.change(input, { target: { value: 'Hello' } });
 
-    expect(
-      screen.queryByTestId('prompt-composer-animated-placeholder'),
-    ).toBeNull();
+    expect(screen.queryByTestId('prompt-composer-animated-placeholder')).toBeNull();
     expect((input as HTMLTextAreaElement).value).toBe('Hello');
   });
 
@@ -94,12 +82,8 @@ describe('PromptComposer', () => {
     expect(surface.className).toContain('yak-composer-surface');
     expect(halo.className).toContain('yak-composer-halo');
     expect(layers).toHaveLength(5);
-    expect(
-      surface.querySelector('[data-composer-fx="drop-shadow"]'),
-    ).toBeTruthy();
-    expect(
-      surface.querySelector('[data-composer-fx="focus-glow"]'),
-    ).toBeTruthy();
+    expect(surface.querySelector('[data-composer-fx="drop-shadow"]')).toBeTruthy();
+    expect(surface.querySelector('[data-composer-fx="focus-glow"]')).toBeTruthy();
   });
 
   it('renders submit through the shared compact circular Button contract', async () => {
@@ -155,9 +139,7 @@ describe('PromptComposer', () => {
 
     const input = screen.getByRole('textbox', { name: 'Prompt' });
     await user.type(input, 'Keep this prompt');
-    await user.click(
-      screen.getByRole('button', { name: 'Submit prompt' }),
-    );
+    await user.click(screen.getByRole('button', { name: 'Submit prompt' }));
 
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith('Keep this prompt');
@@ -169,13 +151,7 @@ describe('PromptComposer', () => {
     const user = userEvent.setup();
     const onStop = vi.fn();
 
-    render(
-      <PromptComposer
-        running
-        onStop={onStop}
-        onSubmit={() => true}
-      />,
-    );
+    render(<PromptComposer running onStop={onStop} onSubmit={() => true} />);
 
     const stopButton = screen.getByRole('button', {
       name: 'Stop generating',
@@ -188,8 +164,6 @@ describe('PromptComposer', () => {
     await user.click(stopButton);
 
     expect(onStop).toHaveBeenCalledOnce();
-    expect(
-      screen.queryByRole('button', { name: 'Submit prompt' }),
-    ).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Submit prompt' })).toBeNull();
   });
 });

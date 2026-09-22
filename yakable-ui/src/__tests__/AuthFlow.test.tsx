@@ -1,11 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import {
-  MemoryRouter,
-  Navigate,
-  Route,
-  Routes,
-} from 'react-router-dom';
+import { MemoryRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AnonymousOnly, RequireAuth } from '@/app/router/AuthRoutes';
@@ -40,10 +35,7 @@ function TestRoutes() {
             <Route path="/login" element={<LoginPage />} />
           </Route>
           <Route element={<RequireAuth />}>
-            <Route
-              path="/dashboard"
-              element={<div>Authenticated dashboard</div>}
-            />
+            <Route path="/dashboard" element={<div>Authenticated dashboard</div>} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
@@ -61,16 +53,12 @@ beforeEach(() => {
 describe('authentication flow', () => {
   it('redirects an anonymous user to login and returns after sign in', async () => {
     const user = userEvent.setup();
-    vi.mocked(AuthService.queryCurrentUser).mockRejectedValue(
-      new Error('Authentication required'),
-    );
+    vi.mocked(AuthService.queryCurrentUser).mockRejectedValue(new Error('Authentication required'));
     vi.mocked(AuthService.login).mockResolvedValue(currentUser);
 
     render(<TestRoutes />);
 
-    expect(
-      await screen.findByRole('heading', { name: 'Sign in' }),
-    ).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeTruthy();
 
     await user.type(screen.getByLabelText('Username'), 'alice');
     await user.type(screen.getByLabelText('Password'), 'password123');
@@ -80,9 +68,7 @@ describe('authentication flow', () => {
       username: 'alice',
       password: 'password123',
     });
-    expect(
-      await screen.findByText('Authenticated dashboard'),
-    ).toBeTruthy();
+    expect(await screen.findByText('Authenticated dashboard')).toBeTruthy();
   });
 
   it('renders protected content when the session is already valid', async () => {
@@ -90,11 +76,7 @@ describe('authentication flow', () => {
 
     render(<TestRoutes />);
 
-    expect(
-      await screen.findByText('Authenticated dashboard'),
-    ).toBeTruthy();
-    expect(
-      screen.queryByRole('heading', { name: 'Sign in' }),
-    ).toBeNull();
+    expect(await screen.findByText('Authenticated dashboard')).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Sign in' })).toBeNull();
   });
 });

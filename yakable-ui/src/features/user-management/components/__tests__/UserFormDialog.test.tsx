@@ -7,9 +7,7 @@ import { UserService } from '@/service/user';
 import { UserFormDialog } from '../UserFormDialog';
 
 vi.mock('@/service/user', async () => {
-  const actual = await vi.importActual<typeof import('@/service/user')>(
-    '@/service/user',
-  );
+  const actual = await vi.importActual<typeof import('@/service/user')>('@/service/user');
   return {
     ...actual,
     UserService: {
@@ -43,20 +41,12 @@ describe('UserFormDialog', () => {
     });
 
     render(
-      <UserFormDialog
-        user={null}
-        currentUserId="admin-1"
-        onClose={vi.fn()}
-        onSaved={onSaved}
-      />,
+      <UserFormDialog user={null} currentUserId="admin-1" onClose={vi.fn()} onSaved={onSaved} />,
     );
 
     await actor.type(screen.getByLabelText('Username'), 'alice');
     await actor.type(screen.getByLabelText('Name'), 'Alice');
-    await actor.type(
-      screen.getByLabelText('Initial password'),
-      'password123',
-    );
+    await actor.type(screen.getByLabelText('Initial password'), 'password123');
     await actor.click(screen.getByRole('button', { name: 'Add user' }));
 
     expect(UserService.addUser).toHaveBeenCalledWith({
@@ -91,8 +81,6 @@ describe('UserFormDialog', () => {
       />,
     );
 
-    expect(
-      (screen.getByLabelText('Role') as HTMLSelectElement).disabled,
-    ).toBe(true);
+    expect((screen.getByLabelText('Role') as HTMLSelectElement).disabled).toBe(true);
   });
 });

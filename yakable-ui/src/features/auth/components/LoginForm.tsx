@@ -25,11 +25,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
       await login({ username, password });
       onSuccess();
     } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : 'Unable to sign in.',
-      );
+      setError(requestError instanceof Error ? requestError.message : 'Unable to sign in.');
     } finally {
       setSubmitting(false);
     }

@@ -10,11 +10,7 @@ interface LoginLocationState {
 }
 
 function safeDestination(value: unknown) {
-  if (
-    typeof value !== 'string' ||
-    !value.startsWith('/') ||
-    value.startsWith('//')
-  ) {
+  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')) {
     return '/dashboard';
   }
   return value;
@@ -36,17 +32,11 @@ export function LoginPage() {
             aria-hidden="true"
             className="size-8 rounded-lg object-contain"
           />
-          <span className="text-base font-semibold tracking-[-0.02em]">
-            Yakable
-          </span>
+          <span className="text-base font-semibold tracking-[-0.02em]">Yakable</span>
         </div>
 
-        <h1 className="m-0 text-2xl font-semibold tracking-[-0.03em]">
-          Sign in
-        </h1>
-        <p className="mb-6 mt-2 text-sm leading-6 text-foreground-subtle">
-          Continue to Yakable.
-        </p>
+        <h1 className="m-0 text-2xl font-semibold tracking-[-0.03em]">Sign in</h1>
+        <p className="mb-6 mt-2 text-sm leading-6 text-foreground-subtle">Continue to Yakable.</p>
 
         {message ? (
           <output className="mb-4 block rounded-lg border border-border-quiet bg-surface-hover-subtle px-3 py-2 text-sm text-foreground-secondary">
@@ -54,11 +44,7 @@ export function LoginPage() {
           </output>
         ) : null}
 
-        <LoginForm
-          onSuccess={() =>
-            navigate(safeDestination(state.from), { replace: true })
-          }
-        />
+        <LoginForm onSuccess={() => navigate(safeDestination(state.from), { replace: true })} />
       </section>
     </main>
   );

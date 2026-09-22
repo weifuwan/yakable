@@ -89,16 +89,10 @@ async function addUser(input: AddUserInput, signal?: AbortSignal) {
   return isUserRecord(data) ? data : invalidUser(data);
 }
 
-async function updateUser(
-  userId: string,
-  input: UpdateUserInput,
-  signal?: AbortSignal,
-) {
-  const data = await HttpUtils.put<unknown>(
-    '/api/users/' + encodeURIComponent(userId),
-    input,
-    { signal },
-  );
+async function updateUser(userId: string, input: UpdateUserInput, signal?: AbortSignal) {
+  const data = await HttpUtils.put<unknown>('/api/users/' + encodeURIComponent(userId), input, {
+    signal,
+  });
   return isUserRecord(data) ? data : invalidUser(data);
 }
 
@@ -107,11 +101,9 @@ async function updateUserStatus(
   input: UpdateUserStatusInput,
   signal?: AbortSignal,
 ) {
-  await HttpUtils.put<null>(
-    '/api/users/' + encodeURIComponent(userId) + '/status',
-    input,
-    { signal },
-  );
+  await HttpUtils.put<null>('/api/users/' + encodeURIComponent(userId) + '/status', input, {
+    signal,
+  });
 }
 
 async function resetUserPassword(
@@ -119,17 +111,12 @@ async function resetUserPassword(
   input: ResetUserPasswordInput,
   signal?: AbortSignal,
 ) {
-  await HttpUtils.put<null>(
-    '/api/users/' + encodeURIComponent(userId) + '/password',
-    input,
-    { signal },
-  );
+  await HttpUtils.put<null>('/api/users/' + encodeURIComponent(userId) + '/password', input, {
+    signal,
+  });
 }
 
-async function updateCurrentUser(
-  input: UpdateCurrentUserInput,
-  signal?: AbortSignal,
-) {
+async function updateCurrentUser(input: UpdateCurrentUserInput, signal?: AbortSignal) {
   const data = await HttpUtils.put<unknown>('/api/users/me', input, {
     signal,
   });
