@@ -58,6 +58,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -70,9 +72,13 @@ public class SessionServiceImpl implements SessionService {
     private static final String TURN_TASK_PREFIX = "turn-";
     private static final int RECOVERY_BATCH_SIZE = 100;
     private static final int INITIAL_MESSAGE_PAGE_SIZE = 50;
+    private static final int DEFAULT_MAX_CONCURRENT_EXECUTIONS = 16;
+    private static final int DEFAULT_MAX_CONCURRENT_EXECUTIONS_PER_USER = 2;
 
     private final Map<String, TurnStreamState> streamStates = new ConcurrentHashMap<>();
     private final Set<String> stoppingTurns = ConcurrentHashMap.newKeySet();
+    private final AtomicInteger activeExecutions = new AtomicInteger();
+    private final Map<String, Integer> activeExecutionsByUser = new ConcurrentHashMap<>();
 
     @Resource
     private SessionRepository sessionRepository;
@@ -95,8 +101,15 @@ public class SessionServiceImpl implements SessionService {
     @Value("${yakable.turn-execution.running-timeout:10m}")
     private Duration runningTimeout;
 
+    @Value("${yakable.turn-execution.max-concurrent:16}")
+    private int maxConcurrentExecutions = DEFAULT_MAX_CONCURRENT_EXECUTIONS;
+
+    @Value("${yakable.turn-execution.max-concurrent-per-user:2}")
+    private int maxConcurrentExecutionsPerUser = DEFAULT_MAX_CONCURRENT_EXECUTIONS_PER_USER;
+
     @PostConstruct
     void startTurnRecovery() {
+        validateExecutionLimits();
         ThreadUtils.scheduleWithFixedDelay(TURN_RECOVERY_TASK, this::recoverTurns, recoveryInterval);
     }
 
@@ -176,7 +189,26 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     public void executeTurnAsync(String turnId) {
-        ThreadUtils.execute(TURN_TASK_PREFIX + turnId, () -> executeTurnStreaming(turnId));
+        TurnExecutionVO execution = turnService.queryTurnExecution(turnId).orElse(null);
+        if (execution == null) {
+            return;
+        }
+
+        SessionEntity session = sessionRepository.queryById(execution.getSessionId()).orElse(null);
+        if (session == null || !tryAcquireExecutionSlot(session.getCreateBy())) {
+            return;
+        }
+
+        boolean submitted = ThreadUtils.execute(TURN_TASK_PREFIX + turnId, () -> {
+            try {
+                executeTurnStreaming(turnId, session);
+            } finally {
+                releaseExecutionSlot(session.getCreateBy());
+            }
+        });
+        if (!submitted) {
+            releaseExecutionSlot(session.getCreateBy());
+        }
     }
 
     @Override
@@ -312,14 +344,7 @@ public class SessionServiceImpl implements SessionService {
         return result;
     }
 
-    private void executeTurnStreaming(String turnId) {
-        TurnExecutionVO snapshot = turnService.queryTurnExecution(turnId).orElse(null);
-        if (snapshot == null) {
-            return;
-        }
-
-        SessionEntity session = sessionRepository.queryById(snapshot.getSessionId())
-                .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
+    private void executeTurnStreaming(String turnId, SessionEntity session) {
         TurnVO running = turnService.updatePendingTurn(turnId, DateUtils.now()).orElse(null);
         if (running == null) {
             TurnVO current = turnService.queryTurn(turnId).orElse(null);
@@ -494,7 +519,52 @@ public class SessionServiceImpl implements SessionService {
 
     private void recoverTurns() {
         turnService.updateStaleTurnPending(DateUtils.now().minus(runningTimeout));
-        turnService.queryPendingTurnIdList(RECOVERY_BATCH_SIZE).forEach(this::executeTurnAsync);
+        int available = Math.max(0, maxConcurrentExecutions - activeExecutions.get());
+        if (available == 0) {
+            return;
+        }
+        turnService.queryPendingTurnIdList(Math.min(RECOVERY_BATCH_SIZE, available))
+                .forEach(this::executeTurnAsync);
+    }
+
+    private boolean tryAcquireExecutionSlot(String userId) {
+        while (true) {
+            int current = activeExecutions.get();
+            if (current >= maxConcurrentExecutions) {
+                return false;
+            }
+            if (activeExecutions.compareAndSet(current, current + 1)) {
+                break;
+            }
+        }
+
+        AtomicBoolean acquired = new AtomicBoolean();
+        activeExecutionsByUser.compute(userId, (ignored, current) -> {
+            int count = current == null ? 0 : current;
+            if (count >= maxConcurrentExecutionsPerUser) {
+                return current;
+            }
+            acquired.set(true);
+            return count + 1;
+        });
+        if (acquired.get()) {
+            return true;
+        }
+
+        activeExecutions.decrementAndGet();
+        return false;
+    }
+
+    private void releaseExecutionSlot(String userId) {
+        activeExecutionsByUser.computeIfPresent(
+                userId, (ignored, current) -> current <= 1 ? null : current - 1);
+        activeExecutions.decrementAndGet();
+    }
+
+    private void validateExecutionLimits() {
+        if (maxConcurrentExecutions <= 0 || maxConcurrentExecutionsPerUser <= 0) {
+            throw new IllegalStateException("Turn execution concurrency limits must be greater than zero");
+        }
     }
 
 
