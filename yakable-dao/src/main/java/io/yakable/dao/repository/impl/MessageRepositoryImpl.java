@@ -63,7 +63,7 @@ public class MessageRepositoryImpl extends BaseRepositoryImpl<MessageMapper, Mes
     }
 
     @Override
-    public List<MessageEntity> queryUserMessageList(String sessionId) {
+    public List<MessageEntity> queryUserNavigationMessageList(String sessionId) {
         return messageMapper.selectUserNavigationMessageList(sessionId);
     }
 
