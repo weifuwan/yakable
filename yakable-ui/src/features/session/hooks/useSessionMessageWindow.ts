@@ -129,13 +129,7 @@ export function useSessionMessageWindow(projectId: string, sessionId: string) {
       loadingNewerRef.current = false;
       setIsLoadingNewer(false);
     }
-  }, [
-    projectId,
-    sessionId,
-    windowState.hasNewer,
-    windowState.messages,
-    windowState.newerCursor,
-  ]);
+  }, [projectId, sessionId, windowState.hasNewer, windowState.messages, windowState.newerCursor]);
 
   return {
     ...windowState,
