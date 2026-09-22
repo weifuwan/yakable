@@ -25,6 +25,32 @@ Code / Test / Acceptance
 - [implementation/](./implementation/)：单个功能的详细实现方案。
 - [decisions/](./decisions/)：重要技术决策记录。
 
+## MVP 流程示例
+
+用 Session 的“回到最新位置”验证整套文档流：
+
+```text
+Session PRD
+  ↓
+Scroll to Latest UX
+  ↓
+Scroll to Latest Technical Design
+  ↓
+Scroll to Latest Implementation Plan
+  ↓
+Scroll to Latest Feature Implementation Spec
+  ↓
+Regression Test / Acceptance
+```
+
+- PRD：[`prd/session/session-v1.md`](./prd/session/session-v1.md)
+- UX：[`ux/session/scroll-to-latest-v1.md`](./ux/session/scroll-to-latest-v1.md)
+- Design：[`design/session/scroll-to-latest-v1.md`](./design/session/scroll-to-latest-v1.md)
+- Plan：[`plans/session/scroll-to-latest-v1.md`](./plans/session/scroll-to-latest-v1.md)
+- Implementation：[`implementation/session/scroll-to-latest-v1.md`](./implementation/session/scroll-to-latest-v1.md)
+
+这个例子故意保持很小：已有 PRD 就复用，已有正确实现就不重写，只补缺失的设计层和回归保护。
+
 ## 工程规范
 
 代码规范仍放在最接近代码的位置，由这里统一进入：
