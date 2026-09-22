@@ -52,5 +52,11 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Frontend check
-        run: npm run check
+      - name: Frontend typecheck
+        run: npm run typecheck
+
+      - name: Frontend tests
+        run: npm run test
+
+      - name: Frontend build
+        run: npm run build
