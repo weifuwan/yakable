@@ -3,7 +3,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HttpUtils } from '@/service/http';
 
 import { SessionService } from '../SessionService';
-import type { SessionSnapshot, SessionTurn, TurnStartResult } from '../types';
+import type {
+  SessionMessageWindow,
+  SessionSnapshot,
+  SessionTurn,
+  SessionTurnNavigationItem,
+  TurnStartResult,
+} from '../types';
 
 const succeededTurn: SessionTurn = {
   id: 'turn-1',
@@ -123,6 +129,60 @@ describe('SessionService', () => {
         kind: 'parse',
       }),
     );
+  });
+
+  it('loads the Turn navigation index from the encoded Session path', async () => {
+    const navigation: SessionTurnNavigationItem[] = [
+      {
+        turnId: 'turn-1',
+        userMessageId: 'message-1',
+        userMessageSequence: 1,
+        preview: 'Build a CRM',
+      },
+    ];
+    const get = vi.spyOn(HttpUtils, 'get').mockResolvedValue(navigation);
+
+    await expect(
+      SessionService.queryTurnNavigation('project 1', 'session/1'),
+    ).resolves.toEqual(navigation);
+
+    expect(get).toHaveBeenCalledWith(
+      '/api/projects/project%201/sessions/session%2F1/turns/navigation',
+      { signal: undefined },
+    );
+  });
+
+  it('loads a target Message Window by anchor sequence', async () => {
+    const window: SessionMessageWindow = {
+      messages: snapshot.messages,
+      hasOlder: true,
+      hasNewer: true,
+      olderCursor: 1,
+      newerCursor: 2,
+    };
+    const get = vi.spyOn(HttpUtils, 'get').mockResolvedValue(window);
+
+    await expect(
+      SessionService.queryMessageWindow('project-1', 'session-1', 2),
+    ).resolves.toEqual(window);
+
+    expect(get).toHaveBeenCalledWith(
+      '/api/projects/project-1/sessions/session-1/messages/window?anchorSequence=2',
+      { signal: undefined },
+    );
+  });
+
+  it('rejects an invalid Turn navigation response as a parse error', async () => {
+    vi.spyOn(HttpUtils, 'get').mockResolvedValue([
+      { turnId: 'turn-1', userMessageId: 'message-1', preview: 'Missing sequence' },
+    ]);
+
+    await expect(
+      SessionService.queryTurnNavigation('project-1', 'session-1'),
+    ).rejects.toMatchObject({
+      name: 'ApiError',
+      kind: 'parse',
+    });
   });
 
   it('delivers started and delta events and completes the stream', async () => {
