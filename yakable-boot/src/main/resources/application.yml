@@ -1,6 +1,11 @@
+server:
+  shutdown: graceful
+
 spring:
   application:
     name: yakable
+  lifecycle:
+    timeout-per-shutdown-phase: ${YAKABLE_SHUTDOWN_TIMEOUT:30s}
   datasource:
     url: ${YAKABLE_DB_URL:jdbc:mysql://127.0.0.1:3306/yakable?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC}
     username: ${YAKABLE_DB_USERNAME:root}
@@ -11,6 +16,9 @@ spring:
       request-timeout: ${YAKABLE_SSE_TIMEOUT:10m}
 
 yakable:
+  runtime:
+    mode: ${YAKABLE_RUNTIME_MODE:single-instance}
+    shutdown-timeout: ${YAKABLE_SHUTDOWN_TIMEOUT:30s}
   sse:
     timeout: ${YAKABLE_SSE_TIMEOUT:10m}
   turn-execution:
@@ -18,9 +26,6 @@ yakable:
     running-timeout: 10m
     max-concurrent: ${YAKABLE_TURN_MAX_CONCURRENT:16}
     max-concurrent-per-user: ${YAKABLE_TURN_MAX_CONCURRENT_PER_USER:2}
-  session:
-    context:
-      max-history-turns: ${YAKABLE_CONTEXT_MAX_HISTORY_TURNS:20}
   auth:
     session-ttl-seconds: ${YAKABLE_AUTH_SESSION_TTL_SECONDS:604800}
     initial-admin:
