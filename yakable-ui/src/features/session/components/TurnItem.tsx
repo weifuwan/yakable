@@ -28,10 +28,7 @@ interface BuildTurnRenderModelsInput {
   showThinking: boolean;
 }
 
-function createPersistedModel(
-  turnId: string,
-  turnById: Map<string, SessionTurn>,
-): TurnRenderModel {
+function createPersistedModel(turnId: string, turnById: Map<string, SessionTurn>): TurnRenderModel {
   return {
     key: 'turn:' + turnId,
     turnId,
