@@ -78,7 +78,8 @@ class ProjectControllerTest {
                                   "model": {
                                     "provider": "deepseek",
                                     "model": "deepseek-flash"
-                                  }
+                                  },
+                                  "requestId": "project-request-1"
                                 }
                                 """))
                 .andExpect(status().isCreated())
@@ -93,6 +94,7 @@ class ProjectControllerTest {
         verify(projectService).addProject(captor.capture());
         assertThat(captor.getValue().userId()).isEqualTo("user-1");
         assertThat(captor.getValue().prompt()).isEqualTo("Build a CRM");
+        assertThat(captor.getValue().requestId()).isEqualTo("project-request-1");
     }
 
     @Test
@@ -123,7 +125,8 @@ class ProjectControllerTest {
                                   "model": {
                                     "provider": "deepseek",
                                     "model": "deepseek-flash"
-                                  }
+                                  },
+                                  "requestId": "project-request-2"
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
