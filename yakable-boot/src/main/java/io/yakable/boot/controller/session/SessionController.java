@@ -10,9 +10,13 @@ import io.yakable.common.bean.dto.session.WatchTurnDTO;
 import io.yakable.common.bean.dto.session.QuerySessionChangesDTO;
 import io.yakable.common.bean.dto.session.QuerySessionDTO;
 import io.yakable.common.bean.dto.session.QuerySessionMessagesDTO;
+import io.yakable.common.bean.dto.session.QuerySessionMessageWindowDTO;
+import io.yakable.common.bean.dto.session.QuerySessionTurnNavigationDTO;
 import io.yakable.common.bean.vo.session.SessionChangesVO;
 import io.yakable.common.bean.vo.session.SessionDetailVO;
 import io.yakable.common.bean.vo.session.SessionMessagePageVO;
+import io.yakable.common.bean.vo.session.SessionMessageWindowVO;
+import io.yakable.common.bean.vo.session.TurnNavigationItemVO;
 import io.yakable.common.bean.vo.session.TurnStartVO;
 import io.yakable.common.bean.vo.session.TurnVO;
 import io.yakable.common.bean.vo.user.CurrentUserVO;
@@ -32,6 +36,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -81,6 +86,30 @@ public class SessionController {
                 sessionService.querySessionMessage(
                         new QuerySessionMessagesDTO(
                                 projectId, sessionId, beforeSequence, limit, currentUser.getId())));
+    }
+
+    @Operation(summary = "查询 Turn 导航索引")
+    @GetMapping("/{sessionId}/turns/navigation")
+    public Result<List<TurnNavigationItemVO>> queryTurnNavigation(
+            @PathVariable String projectId,
+            @PathVariable String sessionId,
+            @AuthenticationPrincipal CurrentUserVO currentUser) {
+        return Result.success(
+                sessionService.queryTurnNavigation(
+                        new QuerySessionTurnNavigationDTO(projectId, sessionId, currentUser.getId())));
+    }
+
+    @Operation(summary = "查询目标消息窗口")
+    @GetMapping("/{sessionId}/messages/window")
+    public Result<SessionMessageWindowVO> queryMessageWindow(
+            @PathVariable String projectId,
+            @PathVariable String sessionId,
+            @RequestParam long anchorSequence,
+            @AuthenticationPrincipal CurrentUserVO currentUser) {
+        return Result.success(
+                sessionService.queryMessageWindow(
+                        new QuerySessionMessageWindowDTO(
+                                projectId, sessionId, anchorSequence, currentUser.getId())));
     }
 
     @Operation(summary = "新增 Turn")
