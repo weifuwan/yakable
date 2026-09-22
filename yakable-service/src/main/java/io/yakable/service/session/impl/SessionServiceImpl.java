@@ -825,41 +825,49 @@ public class SessionServiceImpl implements SessionService {
 
     private static final class TurnStreamState {
 
+        private final Object eventLock = new Object();
         private final StringBuffer content = new StringBuffer();
         private final List<TurnStreamListener> listeners = new CopyOnWriteArrayList<>();
         private final AtomicReference<TerminalEvent> terminal = new AtomicReference<>();
 
         void add(TurnStreamListener listener) {
-            listeners.add(listener);
-            String snapshot = snapshot();
-            if (!snapshot.isBlank()) {
-                safeNotify(listener, item -> item.onSnapshot(snapshot));
-            }
-            TerminalEvent current = terminal.get();
-            if (current != null) {
-                notifyTerminal(listener, current);
+            synchronized (eventLock) {
+                String snapshot = content.toString();
+                TerminalEvent current = terminal.get();
+
+                if (current == null) {
+                    listeners.add(listener);
+                }
+                if (!snapshot.isBlank()) {
+                    safeNotify(listener, item -> item.onSnapshot(snapshot));
+                }
+                if (current != null) {
+                    notifyTerminal(listener, current);
+                }
             }
         }
 
         void remove(TurnStreamListener listener) {
-            listeners.remove(listener);
+            synchronized (eventLock) {
+                listeners.remove(listener);
+            }
         }
 
         void delta(String value) {
-            if (terminal.get() != null) {
-                return;
-            }
-            synchronized (content) {
+            synchronized (eventLock) {
+                if (terminal.get() != null) {
+                    return;
+                }
                 if ((long) content.length() + value.length() > MessageConstant.MAX_CONTENT_LENGTH) {
                     throw new SessionException(SessionErrorCode.MESSAGE_TOO_LARGE);
                 }
                 content.append(value);
+                listeners.forEach(listener -> safeNotify(listener, item -> item.onDelta(value)));
             }
-            listeners.forEach(listener -> safeNotify(listener, item -> item.onDelta(value)));
         }
 
         String snapshot() {
-            synchronized (content) {
+            synchronized (eventLock) {
                 return content.toString();
             }
         }
@@ -877,18 +885,24 @@ public class SessionServiceImpl implements SessionService {
         }
 
         boolean isTerminal() {
-            return terminal.get() != null;
+            synchronized (eventLock) {
+                return terminal.get() != null;
+            }
         }
 
         boolean isEmpty() {
-            return listeners.isEmpty();
+            synchronized (eventLock) {
+                return listeners.isEmpty();
+            }
         }
 
         private void publishTerminal(TerminalEvent event) {
-            if (!terminal.compareAndSet(null, event)) {
-                return;
+            synchronized (eventLock) {
+                if (!terminal.compareAndSet(null, event)) {
+                    return;
+                }
+                listeners.forEach(listener -> notifyTerminal(listener, event));
             }
-            listeners.forEach(listener -> notifyTerminal(listener, event));
         }
 
         private static void notifyTerminal(TurnStreamListener listener, TerminalEvent event) {

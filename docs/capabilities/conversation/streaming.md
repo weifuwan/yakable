@@ -59,8 +59,11 @@ Tests:
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
 
-Known Gaps:
-- 当前 TurnStreamState 订阅顺序是先注册 listener 再读取 snapshot；并发 delta 可能在 snapshot 之前到达，并被 snapshot 再次包含，存在重复 / 乱序竞态。当前测试未覆盖该并发窗口。
+Review Notes:
+- GAP-02 实现已完成：TurnStreamState 现在使用同一个 event lock 串行化 subscribe / unsubscribe / delta / terminal。
+- 新 watcher 的交接语义现在是 snapshot → future delta → terminal。
+- 已新增并发回归测试，专门阻塞 snapshot callback 并并发产生 future delta / terminal，保护事件不能越过 snapshot。
+- 当前执行环境无法解析 github.com，目标 Maven 测试尚未实际执行；测试通过前保持 Review。
 
 ## Purpose
 

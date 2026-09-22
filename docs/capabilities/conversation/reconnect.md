@@ -46,8 +46,12 @@ Tests:
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
 
 Known Gaps:
-- Snapshot → future delta 的交接依赖 Streaming 的 TurnStreamState；当前存在并发 delta 先于 snapshot 到达的竞态。
-- 当前没有覆盖“两个 Tab 同时 watch 同一 Turn、其中一个 Tab Stop、两个 Tab 收敛到 STOPPED”的完整回归测试。
+- 当前没有覆盖“两个 Tab 同时 watch 同一 Turn、其中一个 Tab Stop、两个 Tab 收敛到 STOPPED”的完整回归测试（GAP-03，本 PR 不处理）。
+
+Review Notes:
+- GAP-02 的 snapshot / future delta ordering 已在 Streaming 的 TurnStreamState 中实现，不新增 Reconnect 私有排序机制。
+- Reconnect API、changes fallback 和 multi-tab 语义未改变。
+- GAP-02 目标 Maven 测试尚未实际执行；同时 GAP-03 仍存在，因此 Reconnect 保持 Review。
 
 ## Purpose
 
