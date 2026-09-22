@@ -1,6 +1,6 @@
 # History
 
-Status: Implementing
+Status: Review
 Domain: Conversation
 
 Depends On:
@@ -47,13 +47,13 @@ Tests:
 - `yakable-service/src/test/java/io/yakable/service/message/impl/MessageServiceImplTest.java`
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 
-Implementation Design:
-- GAP-05 不修改生产交互，只补 CONV-S06 的完整前端回归测试。
-- 测试显式构造可滚动容器的 scrollTop / scrollHeight / clientHeight。
-- 用户离开 latest 后触发 Streaming delta，断言 scrollTop 不变化，并显示 Scroll to bottom。
-- 点击 Scroll to bottom 后，断言滚动到当前 scrollHeight，并恢复 follow output。
-- 后续再增加 scrollHeight 并触发新的 Streaming delta，断言组件自动继续滚动到底部。
-- 本次不修改 SessionWorkspace、SessionService、后端、API 或滚动算法。
+Review Notes:
+- GAP-05 已完成代码侧补强：生产行为未修改，只新增 CONV-S06 的前端回归测试。
+- 测试显式构造 scrollTop / scrollHeight / clientHeight，保护离开 latest 后 Streaming delta 不改变阅读位置。
+- 测试保护 Scroll to bottom 出现，点击后回到最新位置并恢复 follow output。
+- 测试再次增加 scrollHeight 并发送新的 Streaming delta，保护恢复 follow 后会继续自动滚到底部。
+- SessionWorkspace、SessionService、后端、API 和滚动算法均未修改。
+- 当前执行环境无法解析 github.com，目标 Vitest 尚未实际执行；测试通过前保持 Review。
 
 ## Purpose
 
