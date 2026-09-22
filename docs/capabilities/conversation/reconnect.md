@@ -45,13 +45,13 @@ Tests:
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
 
-Known Gaps:
-- 当前没有覆盖“两个 Tab 同时 watch 同一 Turn、其中一个 Tab Stop、两个 Tab 收敛到 STOPPED”的完整回归测试（GAP-03，本 PR 不处理）。
-
 Review Notes:
 - GAP-02 的 snapshot / future delta ordering 已在 Streaming 的 TurnStreamState 中实现，不新增 Reconnect 私有排序机制。
-- Reconnect API、changes fallback 和 multi-tab 语义未改变。
-- GAP-02 目标 Maven 测试尚未实际执行；同时 GAP-03 仍存在，因此 Reconnect 保持 Review。
+- GAP-03 不需要生产代码改动；当前 TurnStreamState 已支持多个 watcher，watchTurn 不启动新的 Execution。
+- 已新增 CONV-S08 回归测试：两个 watcher 订阅同一 running Turn，单次 Stop 后两个 watcher 都收到 STOPPED，且 watcher 可独立 unsubscribe。
+- 测试同时验证 watch / stop 路径不会调用 LLM Provider，因此不会因为多 Tab 创建额外 Execution。
+- Reconnect API、changes fallback、SSE contract 和前端均未修改。
+- 当前执行环境无法访问 github.com，目标 Maven 测试尚未实际执行；测试通过前保持 Review。
 
 ## Purpose
 
