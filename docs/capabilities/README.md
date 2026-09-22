@@ -48,6 +48,9 @@ Scenarios:
 
 Tests:
 - ...
+
+Known Gaps:
+- ...
 ```
 
 字段含义：
@@ -59,6 +62,7 @@ Tests:
 - `Shared Rules`：必须遵守的 Domain Rule ID。
 - `Scenarios`：修改本能力时必须一起 Review 的组合场景。
 - `Tests`：最小回归入口。
+- `Known Gaps`：仅在 `Review` / `Implementing` 等未完成状态下使用，明确当前文档与真实代码之间尚未闭合的 Gap。
 
 ## Body
 

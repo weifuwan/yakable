@@ -118,9 +118,11 @@ RUNNING
 
 ### CONV-012 — Bounded Resources
 
-Message Size、Streaming Buffer、Execution Concurrency、Watcher、Recovery Batch、History Page 和 Context Token Budget 都必须有明确边界或释放条件。
+所有可增长资源都必须有明确上限或释放条件，包括 Message Size、Streaming Buffer、Execution Concurrency、Watcher、Recovery Batch、History Page、Context Token Budget、后台线程、HTTP / SSE / 数据库连接和任务队列。
 
 PENDING 是持久等待状态，不是无限 JVM 内存队列。
+
+业务代码不得创建无管理的无限线程池或无限队列；后台任务统一使用项目受管理的线程能力。
 
 ### CONV-013 — Runtime Boundary
 
@@ -138,7 +140,45 @@ History 分页不能决定模型 Context，Context 构建也不能要求前端�
 
 Conversation 状态问题必须能够通过 requestId / userId / projectId / sessionId / turnId 关联定位。
 
+关键运行指标至少覆盖：
+
+- PENDING / RUNNING Turn。
+- SUCCEEDED / FAILED / STOPPED。
+- stale / shutdown Recovery。
+- Execution concurrency / rejection。
+- Provider latency / error。
+- active watcher。
+- idempotency replay。
+- Message Size reject。
+- Context Too Large。
+
 日志不记录完整 Prompt、完整 Assistant、API Key、Cookie 或 Token。
+
+
+
+### CONV-016 — Ownership
+
+Project Ownership 是 Session / Turn / Message 的根访问边界。
+
+所有用户可触发的 Conversation 读写都必须验证当前用户拥有对应 Project；知道 projectId / sessionId / turnId / messageId 不能绕过 ownership。
+
+### CONV-017 — Request Identity
+
+同一个逻辑提交使用同一个 requestId 重试时，必须返回原 Turn / USER Message，不能产生第二份业务数据，也不能再次更新 activity。
+
+同一个 requestId 如果被用于不同 Prompt、不同 Session 或不同 provider / model 语义，必须明确拒绝冲突，不能静默当作幂等成功。
+
+### CONV-018 — Establishment Error Boundary
+
+USER Message 成立前发生错误时，本轮不成立，前端保留 Prompt 供修正或安全重试。
+
+USER Message 一旦成立，后续 Provider / Context / Streaming / Recovery 错误都必须作用于原 Turn；不能通过删除 USER Message、重新创建 Turn 或重新提交 Prompt 来“恢复”。
+
+### CONV-019 — External Execution Boundary
+
+建立 Turn / USER Message 的数据库事务必须先完成，再启动外部 LLM 执行。
+
+外部 Provider 调用不能放在建立本轮业务事实的数据库事务中。
 
 ## Cross-Capability Scenarios
 
@@ -207,6 +247,8 @@ Guarantees:
 - 原 Turn 回到 PENDING。
 - 原 provider / model identity 保留。
 - 不创建替代 Turn 或第二条 USER Message。
+- V1 不保证从 Provider 崩溃前的某个 token 位置继续原网络流。
+- 未持久化的实时 Delta 可能丢失；Recovery 可以在同一个 Turn 上重新执行 Provider 调用。
 
 ### CONV-S06 — Read History → New Streaming Delta
 
@@ -217,9 +259,10 @@ Involves:
 Guarantees:
 - 用户主动阅读历史时，新 Delta 不强制修改阅读位置。
 - Streaming 继续执行。
-- 用户回到 latest 后可以恢复 follow output。
+- 离开 latest 后提供明确的回到最新位置入口。
+- 用户回到 latest 后恢复 follow output。
 
-### CONV-S07 — Provider Failure After Partial
+### CONV-S07 — Provider Failure After Establishment
 
 Involves:
 - Streaming
@@ -229,8 +272,22 @@ Involves:
 Guarantees:
 - USER Message 保留。
 - 非空 partial Assistant 保留。
+- 没有 Assistant 内容时不创建空 Assistant Message。
 - Turn 进入 FAILED。
 - partial 可展示，但不进入后续 Context。
+
+### CONV-S08 — Multiple Tabs Observe Same Turn
+
+Involves:
+- Streaming
+- Reconnect
+- Stop
+
+Guarantees:
+- 多个 Tab 可以有多个 Watcher，但只有一个真实 Turn Execution。
+- 所有 Watcher 最终观察到同一个 Turn 内容和终态。
+- 任一 Tab 的显式 Stop 是对该 Turn 的业务 Stop，其他 Tab 最终也看到 STOPPED。
+- 多 Tab reconnect 不能创建新 Turn。
 
 ## Code Roots
 
@@ -264,6 +321,7 @@ yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerT
 yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java
 yakable-service/src/test/java/io/yakable/service/turn/impl/TurnServiceImplTest.java
 yakable-service/src/test/java/io/yakable/service/message/impl/MessageServiceImplTest.java
+yakable-service/src/test/java/io/yakable/service/observability/ConversationMetricsTest.java
 yakable-boot/src/test/java/io/yakable/boot/integration/ConversationPersistenceIT.java
 yakable-ui/src/features/session/components/__tests__/SessionWorkspace.test.tsx
 yakable-ui/src/service/session/__tests__/SessionService.test.ts

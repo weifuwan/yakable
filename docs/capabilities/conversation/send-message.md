@@ -1,6 +1,6 @@
 # Send Message
 
-Status: Done
+Status: Review
 Domain: Conversation
 
 Depends On:
@@ -35,6 +35,10 @@ Shared Rules:
 - CONV-011
 - CONV-012
 - CONV-015
+- CONV-016
+- CONV-017
+- CONV-018
+- CONV-019
 
 Scenarios:
 - CONV-S01
@@ -45,13 +49,19 @@ Tests:
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
 
+Known Gaps:
+- 当前后端发现已有 requestId 时直接返回原 Turn，没有校验 Prompt / provider / model 是否与原提交一致；不满足 CONV-017 的冲突拒绝语义。
+
 ## Purpose
 
 在当前 Session 中提交一条 Prompt，建立一个新的 Turn 和 USER Message。
 
 ## Contract
 
+- Prompt 必须非空且满足 Message Size 边界。
 - 客户端为一次逻辑提交生成稳定 requestId。
+- 相同 requestId + 相同业务语义重试时返回原 Turn / USER Message。
+- 相同 requestId 被用于不同 Prompt / provider / model 时必须拒绝冲突。
 - USER Message 持久化后本轮才成立。
 - Turn 成立时固定 provider / model。
 - 同一 Session 不能并发建立第二个 active Turn。

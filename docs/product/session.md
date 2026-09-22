@@ -12,6 +12,8 @@ Session 是 Project 中持续进行的一段对话。
 V1 中：
 
 - 每个 Project 只有一个 Session。
+- Session 访问继承所属 Project 的 ownership；知道 Session / Turn / Message ID 不能绕过 Project 归属。
+- 初始 Session title 使用 Project name；V1 不自动改名，也不提供手动 rename。
 - Session 本身没有 ACTIVE / CLOSED / ARCHIVED 生命周期状态。
 - 单轮执行状态属于 Turn。
 - Turn 表示一次用户提交形成的一轮执行。

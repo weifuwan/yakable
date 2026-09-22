@@ -1,6 +1,6 @@
 # Reconnect
 
-Status: Done
+Status: Review
 Domain: Conversation
 
 Depends On:
@@ -32,16 +32,22 @@ Shared Rules:
 - CONV-006
 - CONV-007
 - CONV-013
+- CONV-016
 
 Scenarios:
 - CONV-S03
 - CONV-S04
+- CONV-S08
 
 Tests:
 - `yakable-ui/src/features/session/components/__tests__/SessionWorkspace.test.tsx`
 - `yakable-ui/src/service/session/__tests__/SessionService.test.ts`
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
+
+Known Gaps:
+- Snapshot → future delta 的交接依赖 Streaming 的 TurnStreamState；当前存在并发 delta 先于 snapshot 到达的竞态。
+- 当前没有覆盖“两个 Tab 同时 watch 同一 Turn、其中一个 Tab Stop、两个 Tab 收敛到 STOPPED”的完整回归测试。
 
 ## Purpose
 

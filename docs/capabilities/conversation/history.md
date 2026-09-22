@@ -32,6 +32,7 @@ Shared Rules:
 - CONV-001
 - CONV-009
 - CONV-014
+- CONV-016
 
 Scenarios:
 - CONV-S01
@@ -54,8 +55,11 @@ Tests:
 
 - 初始 Session 只加载最近一页 Message。
 - 当前页面大小默认 50。
+- Session 增量 changes 单次返回保持有界，当前上限为 100 条 Message。
 - 更早历史通过 beforeSequence 向上分页。
 - prepend 更早历史后保持当前阅读位置。
+- 初始进入 Session 默认定位最新内容。
+- 用户离开 latest 阅读历史时，Streaming 不强制拉回底部；界面提供明确的回到最新位置入口。
 - Message 按稳定 sequence 排序。
 - Streaming / Stop / Failure 最终通过持久化 Message 收敛到 History。
 - Session 切换时不能短暂显示上一 Session 历史。
