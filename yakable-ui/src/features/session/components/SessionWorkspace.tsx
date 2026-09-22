@@ -86,9 +86,8 @@ function mergeChanges(
 
 function SessionLoadingIndicator() {
   return (
-    <div
+    <output
       className="flex h-full items-center justify-center"
-      role="status"
       aria-label="Loading session"
     >
       <svg
@@ -112,19 +111,30 @@ function SessionLoadingIndicator() {
           <path d="m5.64 5.64 2.12 2.12" />
         </g>
       </svg>
-    </div>
+    </output>
   );
 }
 
-export function SessionWorkspace({
-  projectId,
-  sessionId,
-  onActivity,
-}: {
+interface SessionWorkspaceProps {
   projectId: string;
   sessionId: string;
   onActivity?: (sessionId: string, updatedAt: string) => void;
-}) {
+}
+
+export function SessionWorkspace(props: SessionWorkspaceProps) {
+  return (
+    <SessionWorkspaceContent
+      key={props.projectId + ':' + props.sessionId}
+      {...props}
+    />
+  );
+}
+
+function SessionWorkspaceContent({
+  projectId,
+  sessionId,
+  onActivity,
+}: SessionWorkspaceProps) {
   const [snapshot, setSnapshot] = useState<SessionSnapshot | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -257,25 +267,6 @@ export function SessionWorkspace({
   useEffect(() => {
     const controller = new AbortController();
 
-    initialScrollDoneRef.current = false;
-    followOutputRef.current = true;
-    setShowScrollBottom(false);
-    setSnapshot(null);
-    setLoadError(null);
-    setSendError(null);
-    setOptimisticMessage(null);
-    setStreamingTurnId(null);
-    setWatchedTurnId(null);
-    setWatchRetryVersion(0);
-    watchedTurnIdsRef.current.clear();
-    setStreamingContent('');
-    setIsGenerating(false);
-    loadingOlderRef.current = false;
-    setIsLoadingOlder(false);
-    setSelectedModel(null);
-    pendingRequestRef.current = null;
-    setIsSessionLoading(true);
-
     void SessionService.querySession(projectId, sessionId, controller.signal)
       .then((result) => {
         if (controller.signal.aborted) return;
@@ -299,7 +290,7 @@ export function SessionWorkspace({
   }, [projectId, sessionId]);
 
   useEffect(() => {
-    if (!snapshot) return;
+    if (!loadedSessionId) return;
 
     if (!initialScrollDoneRef.current) {
       initialScrollDoneRef.current = true;
@@ -322,8 +313,11 @@ export function SessionWorkspace({
   const activeTurnId = latestActiveTurnId(snapshot);
   const generating = isGenerating || activeTurn;
   const latestSequence = snapshot?.messages.at(-1)?.sequence ?? 0;
-  latestSequenceRef.current = latestSequence;
   const visibleStreamingTurnId = streamingTurnId ?? watchedTurnId;
+
+  useEffect(() => {
+    latestSequenceRef.current = latestSequence;
+  }, [latestSequence]);
 
   useEffect(() => {
     if (
@@ -741,12 +735,9 @@ export function SessionWorkspace({
               )}
 
               {isLoadingOlder && (
-                <p
-                  className="m-0 text-center text-xs text-foreground-subtle"
-                  role="status"
-                >
+                <output className="block text-center text-xs text-foreground-subtle">
                   Loading earlier messages...
-                </p>
+                </output>
               )}
 
               {snapshot?.messages.map((message) => (
@@ -768,9 +759,9 @@ export function SessionWorkspace({
               )}
 
               {generating && !streamingContent && (
-                <p className="m-0 px-1 text-sm text-foreground-subtle" role="status">
+                <output className="block px-1 text-sm text-foreground-subtle">
                   Thinking...
-                </p>
+                </output>
               )}
 
               {latestTurn?.status === 'FAILED' && (
