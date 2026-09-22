@@ -4,9 +4,8 @@ import './prompt-composer.css';
 export function PromptComposerSkeleton() {
   return (
     <div className="yak-composer-root">
-      <div
-        className="yak-composer-surface p-3"
-        role="status"
+      <output
+        className="yak-composer-surface block p-3"
         aria-label="Loading prompt composer"
         data-testid="prompt-composer-skeleton"
       >
@@ -27,7 +26,7 @@ export function PromptComposerSkeleton() {
             <div className="size-8 animate-pulse rounded-full bg-skeleton" />
           </div>
         </div>
-      </div>
+      </output>
     </div>
   );
 }
