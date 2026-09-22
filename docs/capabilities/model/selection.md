@@ -4,7 +4,7 @@ Status: Done
 Domain: Model
 
 Depends On:
-- Supported model catalog
+- [Provider Runtime](./provider-runtime.md)
 
 Related:
 - [Provider Runtime](./provider-runtime.md)
