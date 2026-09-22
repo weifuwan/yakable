@@ -39,3 +39,21 @@ Capability 是 Yakable 的实际施工单元。
 - [Conversation](./conversation/)
 - [User](./user/)
 - [Model](./model/)
+
+
+## 新增能力规则
+
+开始新增 Capability 前，必须先遵守 [Yakable 新增功能规范](../README.md#新增功能规范)。
+
+核心要求：
+
+```text
+一次一个功能
+→ 先读当前代码
+→ 先设计 README
+→ 再开发
+→ 再 Review
+→ 完成后才能进入下一个功能
+```
+
+Capability README 是这一块开发与 Review 的唯一入口。
