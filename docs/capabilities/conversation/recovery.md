@@ -50,6 +50,7 @@ Tests:
 - Recovery 单批处理数量受限。
 - 执行容量不足时 Turn 继续保持 PENDING。
 - graceful shutdown 未完成 Turn 交回 Recovery。
+- 服务进程崩溃后不承诺从 Provider 某个 token 位置继续原网络流；未持久化的实时 Delta 可能丢失，Recovery 可以在同一个 Turn 上重新执行 Provider 调用。
 
 ## Flow
 
