@@ -12,6 +12,7 @@ import io.yakable.common.constant.MessageConstant;
 import io.yakable.common.enums.session.MessageRoleEnum;
 import io.yakable.common.enums.session.SessionErrorCode;
 import io.yakable.common.exception.SessionException;
+import io.yakable.service.auth.AuthService;
 import io.yakable.service.session.SessionService;
 import io.yakable.service.session.TurnStreamListener;
 import org.junit.jupiter.api.AfterEach;
@@ -59,6 +60,9 @@ class SessionControllerTest {
 
     @MockBean
     private SessionService sessionService;
+
+    @MockBean
+    private AuthService authService;
 
     @BeforeEach
     void setCurrentUser() {
