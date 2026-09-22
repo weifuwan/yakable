@@ -271,6 +271,48 @@ class SessionServiceImplTest {
     }
 
     @Test
+    void shouldCleanStoppingMarkerWhenPendingTurnIsStoppedBeforeExecution() {
+        stubExecuteInline();
+
+        String turnId = "turn-pending-stop";
+        SessionEntity session = session("project-1", "session-1");
+        TurnExecutionVO execution = execution(turnId, "session-1");
+        TurnVO pending = turn(turnId, TurnStatusEnum.PENDING);
+        TurnVO stopped = turn(turnId, TurnStatusEnum.STOPPED);
+
+        when(sessionRepository.querySession("project-1", "session-1", "user-1"))
+                .thenReturn(Optional.of(session));
+        when(turnService.queryTurnExecution(turnId))
+                .thenReturn(Optional.of(execution));
+        when(turnService.queryTurn(turnId))
+                .thenReturn(Optional.of(pending), Optional.of(pending), Optional.of(stopped));
+        when(turnService.updateTurnStopped(
+                eq(turnId), eq("session-1"), any(LocalDateTime.class)))
+                .thenReturn(1);
+
+        TurnStreamListener listener = mock(TurnStreamListener.class);
+        Runnable unsubscribe = sessionService.watchTurn(
+                new WatchTurnDTO("project-1", "session-1", turnId, "user-1"),
+                listener);
+
+        sessionService.stopTurn(
+                new StopTurnDTO("project-1", "session-1", turnId, "user-1"));
+
+        @SuppressWarnings("unchecked")
+        Set<String> stoppingTurns =
+                (Set<String>) ReflectionTestUtils.getField(sessionService, "stoppingTurns");
+        assertThat(stoppingTurns).isNotNull();
+        assertThat(stoppingTurns).doesNotContain(turnId);
+
+        verify(turnService).updateTurnStopped(
+                eq(turnId), eq("session-1"), any(LocalDateTime.class));
+        verify(conversationMetrics).turnTerminal("stopped");
+        verifyNoInteractions(llmClient);
+
+        unsubscribe.run();
+    }
+
+    @Test
     void shouldLoadOnlyLatestFiftyMessagesWhenQueryingSession() {
         SessionEntity session = session("project-1", "session-1");
         when(sessionRepository.querySession("project-1", "session-1", "user-1"))

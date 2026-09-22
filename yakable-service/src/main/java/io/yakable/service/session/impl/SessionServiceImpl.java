@@ -221,6 +221,7 @@ public class SessionServiceImpl implements SessionService {
             if (streamState != null) {
                 streamState.stopped();
             }
+            stoppingTurns.remove(dto.turnId());
             ThreadUtils.cancel(TURN_TASK_PREFIX + dto.turnId());
         } else {
             stoppingTurns.remove(dto.turnId());

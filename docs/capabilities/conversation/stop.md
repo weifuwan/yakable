@@ -49,14 +49,15 @@ Tests:
 - `yakable-service/src/test/java/io/yakable/service/turn/impl/TurnServiceImplTest.java`
 
 Known Gaps:
-- GAP-06 — stopTurn 先设置 `stoppingTurns` 再读取 `TurnStreamState.snapshot()`，但 Provider delta 对 `stoppingTurns` 的检查发生在 `state.delta()` 之前且不与 snapshot 共用原子边界；存在 post-cutover delta 可见但未持久化的竞态。
-- GAP-08 — 对已有 StreamState 的 PENDING Turn 执行 Stop 时会加入 `stoppingTurns`。若 Turn 尚未成功 claim 为 RUNNING，后续 `executeTurnStreaming()` 会在进入 cleanup finally 前直接 return，导致该 turnId 永久留在 `stoppingTurns`，形成进程级集合泄漏。
+- GAP-06 — stopTurn 先设置 `stoppingTurns` 再读取 `TurnStreamState.snapshot()`，但 Provider delta 对 `stoppingTurns` 的检查发生在 `state.delta()` 之前且不与 snapshot 共用原子边界；存在 post-cutover delta 可见但未持久化的竞态。GAP-06 runtime fix 当前尚未进入 main，本 PR 不处理。
 
 Review Notes:
-- GAP-04 已实现：stopTurn 读取 partial snapshot 时只竞争短生命周期 Turn eventLock；watcher callback 已移出该锁。
-- STOPPED terminal 只在 eventLock 内按顺序写入各 watcher mailbox，stopTurn 不等待实际网络发送完成。
-- 已新增慢 watcher 回归测试，保护 slow callback 未释放时 explicit Stop 仍可完成，fast watcher 仍可收到 STOPPED。
-- Stop API、partial persistence 和 Turn terminal 语义未修改。
+- GAP-08 已实现：成功 Stop 在 `streamState.stopped()` 发布 terminal 后立即 `stoppingTurns.remove(turnId)`，不再依赖 execution thread finally 做正常成功路径清理。
+- terminal 发布后，late delta 会被 TurnStreamState 拒绝；late complete 无法把数据库中已 STOPPED 的 Turn 更新为 SUCCEEDED，因此立即清理 marker 不会重新开放业务状态。
+- Stop transaction 抛错和终态更新失败路径仍会立即清理 marker。
+- execution thread finally 中的 remove 保留为幂等兜底。
+- 已新增 PENDING Turn + existing StreamState + Stop before execution 的回归测试，直接保护旧泄漏路径。
+- Stop API、TurnExecutionVO、数据库、Provider 流程、GAP-06 和 GAP-07 均未修改。
 - 当前执行环境无法解析 github.com，目标 Maven 测试尚未实际执行；测试通过前保持 Review。
 
 ## Purpose
