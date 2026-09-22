@@ -3,6 +3,7 @@ package io.yakable.dao.repository;
 import io.yakable.dao.entity.MessageEntity;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Message 数据访问入口。
@@ -18,6 +19,11 @@ public interface MessageRepository extends BaseRepository<MessageEntity> {
      * 查询最新 Message 序号。
      */
     long queryLatestMessageSequence(String sessionId);
+
+    /**
+     * 查询 Turn 的 USER Message。
+     */
+    Optional<MessageEntity> queryUserMessage(String turnId);
 
     /**
      * 查询 Session 下的 Message 列表。
