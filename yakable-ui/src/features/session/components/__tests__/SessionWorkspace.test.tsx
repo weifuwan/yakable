@@ -389,6 +389,136 @@ describe('SessionWorkspace', () => {
     });
   });
 
+  it('shows the scroll-to-latest control when reading history and returns to latest', async () => {
+    const user = userEvent.setup();
+
+    vi.spyOn(SessionService, 'querySession').mockResolvedValue(
+      createSnapshot(),
+    );
+
+    render(
+      <SessionWorkspace
+        projectId="project-1"
+        sessionId="session-1"
+      />,
+    );
+
+    expect(await screen.findByText('I am Yakable.')).toBeTruthy();
+
+    const scroll = screen.getByTestId('session-message-scroll');
+    Object.defineProperties(scroll, {
+      scrollHeight: {
+        configurable: true,
+        value: 1000,
+      },
+      clientHeight: {
+        configurable: true,
+        value: 400,
+      },
+      scrollTop: {
+        configurable: true,
+        value: 0,
+        writable: true,
+      },
+    });
+
+    fireEvent.scroll(scroll);
+
+    const scrollButton = await screen.findByRole('button', {
+      name: 'Scroll to bottom',
+    });
+    expect(scrollButton).toBeTruthy();
+
+    await user.click(scrollButton);
+
+    expect(scroll.scrollTop).toBe(1000);
+    expect(
+      screen.queryByRole('button', { name: 'Scroll to bottom' }),
+    ).toBeNull();
+  });
+
+  it('does not force the user back to latest while streaming in history', async () => {
+    const user = userEvent.setup();
+
+    vi.spyOn(SessionService, 'querySession').mockResolvedValue(
+      createSnapshot(),
+    );
+    vi.spyOn(SessionService, 'queryChanges').mockResolvedValue(
+      completedChanges,
+    );
+
+    let handlers:
+      | Parameters<typeof SessionService.streamingTurn>[5]
+      | undefined;
+    let resolveStream!: () => void;
+
+    vi.spyOn(SessionService, 'streamingTurn').mockImplementation(
+      async (
+        _projectId,
+        _sessionId,
+        _content,
+        _model,
+        _requestId,
+        nextHandlers,
+      ) => {
+        handlers = nextHandlers;
+        await new Promise<void>((resolve) => {
+          resolveStream = resolve;
+        });
+      },
+    );
+
+    render(
+      <SessionWorkspace
+        projectId="project-1"
+        sessionId="session-1"
+      />,
+    );
+
+    const input = await screen.findByRole('textbox', {
+      name: 'Send a message',
+    });
+    const scroll = screen.getByTestId('session-message-scroll');
+
+    Object.defineProperties(scroll, {
+      scrollHeight: {
+        configurable: true,
+        value: 1000,
+      },
+      clientHeight: {
+        configurable: true,
+        value: 400,
+      },
+      scrollTop: {
+        configurable: true,
+        value: 0,
+        writable: true,
+      },
+    });
+
+    fireEvent.scroll(scroll);
+    expect(
+      await screen.findByRole('button', { name: 'Scroll to bottom' }),
+    ).toBeTruthy();
+
+    await user.type(input, 'Tell me more');
+    await user.keyboard('{Enter}');
+
+    expect(scroll.scrollTop).toBe(0);
+
+    await act(async () => {
+      handlers?.onStarted(started);
+      handlers?.onDelta('Streaming reply.');
+    });
+
+    expect(await screen.findByText('Streaming reply.')).toBeTruthy();
+    expect(scroll.scrollTop).toBe(0);
+
+    await act(async () => {
+      resolveStream();
+    });
+  });
+
   it('loads older messages when the user scrolls to the top', async () => {
     const historySnapshot = createSnapshot();
     historySnapshot.messages = [
