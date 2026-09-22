@@ -4,6 +4,7 @@ import io.yakable.common.bean.dto.session.AddSessionDTO;
 import io.yakable.common.bean.dto.session.AddTurnDTO;
 import io.yakable.common.bean.dto.session.StopTurnDTO;
 import io.yakable.common.bean.dto.session.WatchTurnDTO;
+import io.yakable.common.bean.dto.session.QuerySessionChangesDTO;
 import io.yakable.common.bean.dto.session.QuerySessionDTO;
 import io.yakable.common.bean.dto.session.QuerySessionMessagesDTO;
 import io.yakable.common.bean.vo.session.MessageVO;
@@ -263,6 +264,33 @@ class SessionServiceImplTest {
     }
 
     @Test
+    void shouldLimitSessionChangesToOneHundredMessages() {
+        SessionEntity session = session("project-1", "session-1");
+        TurnVO latest = turn("turn-latest", TurnStatusEnum.SUCCEEDED);
+        List<MessageVO> changes = java.util.stream.LongStream.rangeClosed(1, 100)
+                .mapToObj(sequence -> message(
+                        "message-" + sequence,
+                        "turn-" + sequence,
+                        MessageRoleEnum.USER,
+                        "message-" + sequence,
+                        sequence))
+                .toList();
+
+        when(sessionRepository.querySession("project-1", "session-1", "user-1"))
+                .thenReturn(Optional.of(session));
+        when(turnService.queryLatestTurn("session-1")).thenReturn(Optional.of(latest));
+        when(messageService.queryMessageAfter("session-1", 0L, 100)).thenReturn(changes);
+        when(messageService.queryLatestMessageSequence("session-1")).thenReturn(150L);
+
+        var result = sessionService.querySessionChanges(
+                new QuerySessionChangesDTO("project-1", "session-1", 0L, "user-1"));
+
+        assertThat(result.getMessages()).hasSize(100);
+        assertThat(result.getLatestSequence()).isEqualTo(150L);
+        verify(messageService).queryMessageAfter("session-1", 0L, 100);
+    }
+
+    @Test
     void shouldExecuteTurnWithItsOwnModelInsteadOfSessionDefault() throws Exception {
         stubExecuteWithoutResultInline();
 
@@ -429,6 +457,71 @@ class SessionServiceImplTest {
         assertThat(capturedRequest.get().messages())
                 .extracting(LlmMessage::content)
                 .containsExactly("recent user", "recent assistant", "current user");
+        verify(messageService, never()).queryMessageList("session-1");
+        verify(turnService, never()).queryTurnList("session-1");
+    }
+
+    @Test
+    void shouldBuildContextFromMultipleBoundedHistoryBatches() throws Exception {
+        stubExecuteWithoutResultInline();
+
+        String currentTurnId = "turn-current";
+        SessionEntity session = session("project-1", "session-1");
+        TurnVO current = turn(currentTurnId, TurnStatusEnum.RUNNING);
+        List<MessageVO> messages = new java.util.ArrayList<>();
+        List<TurnVO> turns = new java.util.ArrayList<>();
+
+        long sequence = 1L;
+        for (int index = 1; index <= 26; index++) {
+            String turnId = "turn-" + index;
+            turns.add(turn(turnId, TurnStatusEnum.SUCCEEDED));
+            messages.add(message(
+                    "m" + sequence, turnId, MessageRoleEnum.USER, "user-" + index, sequence++));
+            messages.add(message(
+                    "m" + sequence, turnId, MessageRoleEnum.ASSISTANT, "assistant-" + index, sequence++));
+        }
+        messages.add(message(
+                "m" + sequence, currentTurnId, MessageRoleEnum.USER, "current user", sequence));
+        turns.add(current);
+
+        when(turnService.queryTurnExecution(currentTurnId))
+                .thenReturn(Optional.of(execution(currentTurnId, "session-1")));
+        when(sessionRepository.queryById("session-1")).thenReturn(Optional.of(session));
+        when(turnService.updatePendingTurn(eq(currentTurnId), any(LocalDateTime.class)))
+                .thenReturn(Optional.of(current));
+        stubContext("session-1", currentTurnId, messages, turns);
+        when(llmClient.modelMetadata("deepseek", "deepseek-flash"))
+                .thenReturn(new LlmModelMetadata(1_000L, 100L));
+        when(llmClient.estimateTokens(any(LlmRequest.class)))
+                .thenAnswer(invocation -> (long) ((LlmRequest) invocation.getArgument(0)).messages().size());
+        when(turnService.updateTurnSucceeded(
+                eq(currentTurnId),
+                eq("session-1"),
+                any(), any(), any(), any(), any(), any(LocalDateTime.class)))
+                .thenReturn(1);
+
+        AtomicReference<LlmRequest> capturedRequest = new AtomicReference<>();
+        CountDownLatch done = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            capturedRequest.set(invocation.getArgument(0));
+            @SuppressWarnings("unchecked")
+            Consumer<LlmStreamEvent> consumer = invocation.getArgument(1);
+            consumer.accept(LlmStreamEvent.complete(
+                    response("deepseek", "deepseek-flash", "Done")));
+            done.countDown();
+            return null;
+        }).when(llmClient).streamingChat(any(LlmRequest.class), any());
+
+        sessionService.executeTurnAsync(currentTurnId);
+
+        assertThat(done.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(capturedRequest.get().messages()).hasSize(53);
+        assertThat(capturedRequest.get().messages().getFirst().content()).isEqualTo("user-1");
+        assertThat(capturedRequest.get().messages().getLast().content()).isEqualTo("current user");
+        verify(messageService).queryMessageBefore("session-1", 53L, 50);
+        verify(messageService).queryMessageBefore("session-1", 3L, 50);
+        verify(messageService, never()).queryMessageList("session-1");
+        verify(turnService, never()).queryTurnList("session-1");
     }
 
     @Test
