@@ -53,10 +53,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const loadingMoreRef = useRef(false);
 
-  const loadInitial = useCallback(async (signal?: AbortSignal) => {
-    setIsLoading(true);
-    setError(null);
-
+  const fetchInitial = useCallback(async (signal?: AbortSignal) => {
     try {
       const page = await ProjectService.queryProject(
         {
@@ -82,19 +79,22 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const loadInitial = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    await fetchInitial();
+  }, [fetchInitial]);
+
   useEffect(() => {
     const controller = new AbortController();
-    void loadInitial(controller.signal);
+    void fetchInitial(controller.signal);
 
     return () => {
       controller.abort();
     };
-  }, [loadInitial]);
+  }, [fetchInitial]);
 
-  const retryInitial = useCallback(
-    () => loadInitial(),
-    [loadInitial],
-  );
+  const retryInitial = useCallback(() => loadInitial(), [loadInitial]);
 
   const upsertProject = useCallback((project: ProjectSummary) => {
     setProjects((current) => [
