@@ -16,6 +16,7 @@ Related:
 Frontend:
 - `yakable-ui/src/features/session/components/SessionWorkspace.tsx`
 - `yakable-ui/src/features/session/components/MessageItem.tsx`
+- `yakable-ui/src/features/session/hooks/useSessionMessageWindow.ts`
 - `yakable-ui/src/service/session/SessionService.ts`
 
 Backend:
