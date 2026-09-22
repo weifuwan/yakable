@@ -198,11 +198,7 @@ async function queryMessages(
     : invalidResponse('Session messages API returned an invalid response.', data);
 }
 
-async function queryTurnNavigation(
-  projectId: string,
-  sessionId: string,
-  signal?: AbortSignal,
-) {
+async function queryTurnNavigation(projectId: string, sessionId: string, signal?: AbortSignal) {
   const data = await HttpUtils.get<unknown>(
     sessionPath(projectId, sessionId) + '/turns/navigation',
     { signal },
