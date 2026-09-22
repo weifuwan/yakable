@@ -93,7 +93,10 @@ class OpenAiCompatibleClientTest {
 
     @Test
     void shouldRejectNonSuccessfulChatStatus() throws Exception {
-        stubResponse(stringResponse(401, "{}"));
+        @SuppressWarnings("unchecked")
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(401);
+        stubResponse(response);
 
         assertThatThrownBy(() -> client.chat(
                 "deepseek",
