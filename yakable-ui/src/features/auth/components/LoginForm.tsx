@@ -45,7 +45,6 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
           id="username"
           name="username"
           autoComplete="username"
-          autoFocus
           value={username}
           onChange={(event) => setUsername(event.target.value)}
           disabled={submitting}
