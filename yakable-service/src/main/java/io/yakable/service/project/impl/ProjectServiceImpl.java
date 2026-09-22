@@ -6,6 +6,7 @@ import io.yakable.common.bean.dto.project.QueryProjectPageDTO;
 import io.yakable.common.bean.dto.session.AddSessionDTO;
 import io.yakable.common.bean.vo.project.ProjectListVO;
 import io.yakable.common.bean.vo.session.SessionInitVO;
+import io.yakable.common.bean.vo.session.SessionVO;
 import io.yakable.common.enums.common.CommonErrorCode;
 import io.yakable.common.exception.ProjectException;
 import io.yakable.common.utils.ConverUtils;
@@ -15,6 +16,7 @@ import io.yakable.service.project.ProjectService;
 import io.yakable.service.session.SessionService;
 import jakarta.annotation.Resource;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.validation.annotation.Validated;
@@ -37,30 +39,45 @@ public class ProjectServiceImpl implements ProjectService {
     @Override
     public ProjectListVO addProject(AddProjectDTO dto) {
         requireUserId(dto.userId());
-        String prompt = dto.prompt();
-        CreatedProject created = transactionTemplate.execute(status -> {
-            ProjectEntity project = new ProjectEntity();
-            project.initCreate(dto.userId());
-            project.setName(projectName(prompt));
-            projectRepository.add(project);
+        ProjectEntity existing = projectRepository.queryByRequestId(dto.userId(), dto.requestId()).orElse(null);
+        if (existing != null) {
+            return existingProject(existing);
+        }
 
-            SessionInitVO session = sessionService.addSession(
-                    new AddSessionDTO(
-                            project.getId(),
-                            project.getName(),
-                            dto.model().provider(),
-                            dto.model().model(),
-                            prompt,
-                            dto.userId()));
-            return new CreatedProject(project, session);
-        });
+        String prompt = dto.prompt();
+        CreatedProject created;
+        try {
+            created = transactionTemplate.execute(status -> {
+                ProjectEntity project = new ProjectEntity();
+                project.initCreate(dto.userId());
+                project.setName(projectName(prompt));
+                project.setRequestId(dto.requestId());
+                projectRepository.add(project);
+
+                SessionInitVO session = sessionService.addSession(
+                        new AddSessionDTO(
+                                project.getId(),
+                                project.getName(),
+                                dto.model().provider(),
+                                dto.model().model(),
+                                prompt,
+                                dto.requestId(),
+                                dto.userId()));
+                return new CreatedProject(project, session);
+            });
+        } catch (DuplicateKeyException exception) {
+            ProjectEntity duplicate = projectRepository.queryByRequestId(dto.userId(), dto.requestId()).orElse(null);
+            if (duplicate == null) {
+                throw exception;
+            }
+            return existingProject(duplicate);
+        }
 
         sessionService.executeTurnAsync(created.session().getTurnId());
-
-        ProjectListVO result = ConverUtils.convert(created.project(), ProjectListVO.class);
-        result.setLatestSessionId(created.session().getSessionId());
-        result.setUpdatedAt(created.session().getUpdatedAt());
-        return result;
+        return projectSummary(
+                created.project(),
+                created.session().getSessionId(),
+                created.session().getUpdatedAt());
     }
 
     @Override
@@ -68,11 +85,23 @@ public class ProjectServiceImpl implements ProjectService {
         return projectRepository.queryProject(dto).map(ProjectServiceImpl::toListVO);
     }
 
-    private static ProjectListVO toListVO(ProjectEntity entity) {
-        ProjectListVO result = ConverUtils.convert(entity, ProjectListVO.class);
-        result.setLatestSessionId(entity.getLatestSessionId());
-        result.setUpdatedAt(entity.getActivityTime());
+    private ProjectListVO existingProject(ProjectEntity project) {
+        SessionVO session = sessionService.queryLatestSession(project.getId())
+                .orElseThrow(() -> new IllegalStateException(
+                        "Initial Session not found for Project: " + project.getId()));
+        return projectSummary(project, session.getId(), session.getUpdatedAt());
+    }
+
+    private static ProjectListVO projectSummary(
+            ProjectEntity project, String sessionId, LocalDateTime updatedAt) {
+        ProjectListVO result = ConverUtils.convert(project, ProjectListVO.class);
+        result.setLatestSessionId(sessionId);
+        result.setUpdatedAt(updatedAt);
         return result;
+    }
+
+    private static ProjectListVO toListVO(ProjectEntity entity) {
+        return projectSummary(entity, entity.getLatestSessionId(), entity.getActivityTime());
     }
 
     private static String projectName(String prompt) {
