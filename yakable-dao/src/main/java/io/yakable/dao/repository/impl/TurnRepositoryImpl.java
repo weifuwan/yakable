@@ -44,6 +44,13 @@ public class TurnRepositoryImpl extends BaseRepositoryImpl<TurnMapper, TurnEntit
     }
 
     @Override
+    public long queryTurnCount(TurnStatusEnum status) {
+        return turnMapper.selectCount(
+                Wrappers.<TurnEntity>lambdaQuery()
+                        .eq(TurnEntity::getStatus, status));
+    }
+
+    @Override
     public List<TurnEntity> queryTurnList(String sessionId) {
         return turnMapper.selectList(
                 Wrappers.<TurnEntity>lambdaQuery()

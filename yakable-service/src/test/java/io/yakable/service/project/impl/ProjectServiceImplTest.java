@@ -9,6 +9,7 @@ import io.yakable.common.bean.vo.session.SessionInitVO;
 import io.yakable.common.bean.vo.session.SessionVO;
 import io.yakable.dao.entity.ProjectEntity;
 import io.yakable.dao.repository.ProjectRepository;
+import io.yakable.service.observability.ConversationMetrics;
 import io.yakable.service.session.SessionService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,6 +45,9 @@ class ProjectServiceImplTest {
 
     @Mock
     private TransactionTemplate transactionTemplate;
+
+    @Mock
+    private ConversationMetrics conversationMetrics;
 
     @InjectMocks
     private ProjectServiceImpl projectService;
@@ -161,6 +165,7 @@ class ProjectServiceImplTest {
 
         assertThat(result.getId()).isEqualTo("project-existing");
         assertThat(result.getLatestSessionId()).isEqualTo("session-existing");
+        verify(conversationMetrics).idempotencyReplay("project");
         verify(projectRepository, never()).add(any());
         verify(sessionService, never()).addSession(any());
         verify(sessionService, never()).executeTurnAsync(any());
@@ -188,6 +193,7 @@ class ProjectServiceImplTest {
 
         assertThat(result.getId()).isEqualTo("project-existing");
         assertThat(result.getLatestSessionId()).isEqualTo("session-existing");
+        verify(conversationMetrics).idempotencyReplay("project");
         verify(sessionService, never()).executeTurnAsync(any());
     }
 

@@ -37,11 +37,13 @@ import io.yakable.core.llm.LlmUsage;
 import io.yakable.dao.entity.SessionEntity;
 import io.yakable.dao.repository.SessionRepository;
 import io.yakable.service.message.MessageService;
+import io.yakable.service.observability.ConversationMetrics;
 import io.yakable.service.session.SessionService;
 import io.yakable.service.session.TurnStreamListener;
 import io.yakable.service.turn.TurnService;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import io.micrometer.core.instrument.Timer;
 import jakarta.annotation.Resource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -69,6 +71,7 @@ import java.util.stream.Collectors;
 @Validated
 public class SessionServiceImpl implements SessionService {
 
+    private static final System.Logger log = System.getLogger(SessionServiceImpl.class.getName());
     private static final String SYSTEM_PROMPT = "You are Yakable, a concise and accurate assistant.";
     private static final String TURN_RECOVERY_TASK = "turn-recovery";
     private static final String TURN_TASK_PREFIX = "turn-";
@@ -102,6 +105,9 @@ public class SessionServiceImpl implements SessionService {
     @Resource
     private TransactionTemplate transactionTemplate;
 
+    @Resource
+    private ConversationMetrics conversationMetrics;
+
     @Value("${yakable.turn-execution.recovery-interval:5s}")
     private Duration recoveryInterval;
 
@@ -132,7 +138,13 @@ public class SessionServiceImpl implements SessionService {
         ThreadUtils.shutdown(shutdownTimeout);
         turnsToRecover.addAll(runningTurnIds);
         turnsToRecover.addAll(shutdownRecoveryTurnIds);
-        turnsToRecover.forEach(turnService::updateRunningTurnPending);
+        long recovered = turnsToRecover.stream()
+                .mapToLong(turnService::updateRunningTurnPending)
+                .sum();
+        conversationMetrics.recovered("shutdown", recovered);
+        if (recovered > 0) {
+            log.log(System.Logger.Level.INFO, "Recovered shutdown Turns to PENDING count=" + recovered);
+        }
     }
 
     @Override
@@ -193,6 +205,14 @@ public class SessionServiceImpl implements SessionService {
         }
 
         if (updated == 1) {
+            conversationMetrics.turnTerminal("stopped");
+            log.log(
+                    System.Logger.Level.INFO,
+                    "Turn stopped userId=" + dto.userId()
+                            + " projectId=" + dto.projectId()
+                            + " sessionId=" + dto.sessionId()
+                            + " turnId=" + dto.turnId()
+                            + " requestId=" + execution.getRequestId());
             if (streamState != null) {
                 streamState.stopped();
             }
@@ -206,7 +226,12 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     public void executeTurnAsync(String turnId) {
-        if (shuttingDown.get() || activeExecutions.get() >= maxConcurrentExecutions) {
+        if (shuttingDown.get()) {
+            conversationMetrics.executionDeferred("shutdown");
+            return;
+        }
+        if (activeExecutions.get() >= maxConcurrentExecutions) {
+            conversationMetrics.executionDeferred("global_limit");
             return;
         }
 
@@ -216,18 +241,39 @@ public class SessionServiceImpl implements SessionService {
         }
 
         SessionEntity session = sessionRepository.queryById(execution.getSessionId()).orElse(null);
-        if (session == null || !tryAcquireExecutionSlot(session.getCreateBy())) {
+        if (session == null) {
+            log.log(
+                    System.Logger.Level.WARNING,
+                    "Turn execution session missing sessionId=" + execution.getSessionId()
+                            + " turnId=" + turnId
+                            + " requestId=" + execution.getRequestId());
+            return;
+        }
+        if (!tryAcquireExecutionSlot(session.getCreateBy())) {
+            conversationMetrics.executionDeferred("capacity");
             return;
         }
 
         boolean submitted = ThreadUtils.execute(TURN_TASK_PREFIX + turnId, () -> {
+            conversationMetrics.executionStarted();
+            log.log(
+                    System.Logger.Level.INFO,
+                    "Turn execution started requestId=" + execution.getRequestId()
+                            + " userId=" + session.getCreateBy()
+                            + " projectId=" + session.getProjectId()
+                            + " sessionId=" + session.getId()
+                            + " turnId=" + turnId
+                            + " provider=" + execution.getProvider()
+                            + " model=" + execution.getModel());
             try {
-                executeTurnStreaming(turnId, session);
+                executeTurnStreaming(turnId, session, execution.getRequestId());
             } finally {
+                conversationMetrics.executionFinished();
                 releaseExecutionSlot(session.getCreateBy());
             }
         });
         if (!submitted) {
+            conversationMetrics.executionDeferred("executor");
             releaseExecutionSlot(session.getCreateBy());
         }
     }
@@ -248,6 +294,8 @@ public class SessionServiceImpl implements SessionService {
 
         TurnStreamState state = streamStates.computeIfAbsent(dto.turnId(), ignored -> new TurnStreamState());
         state.add(listener);
+        conversationMetrics.watcherConnected();
+        AtomicBoolean watcherClosed = new AtomicBoolean();
 
         TurnVO latest = turnService.queryTurn(dto.turnId())
                 .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
@@ -256,7 +304,11 @@ public class SessionServiceImpl implements SessionService {
         }
 
         return () -> {
+            if (!watcherClosed.compareAndSet(false, true)) {
+                return;
+            }
             state.remove(listener);
+            conversationMetrics.watcherDisconnected();
             removeStreamStateIfFinished(dto.turnId(), state);
         };
     }
@@ -335,6 +387,14 @@ public class SessionServiceImpl implements SessionService {
 
         TurnVO existing = turnService.queryTurnByRequestId(session.getId(), requestId).orElse(null);
         if (existing != null) {
+            conversationMetrics.idempotencyReplay("turn");
+            log.log(
+                    System.Logger.Level.INFO,
+                    "Turn idempotency replay requestId=" + requestId
+                            + " userId=" + session.getCreateBy()
+                            + " projectId=" + session.getProjectId()
+                            + " sessionId=" + session.getId()
+                            + " turnId=" + existing.getId());
             return existingTurnStart(existing);
         }
         if (turnService.queryActiveTurnCount(session.getId()) > 0) {
@@ -366,7 +426,7 @@ public class SessionServiceImpl implements SessionService {
         return result;
     }
 
-    private void executeTurnStreaming(String turnId, SessionEntity session) {
+    private void executeTurnStreaming(String turnId, SessionEntity session, String requestId) {
         TurnVO running = turnService.updatePendingTurn(turnId, DateUtils.now()).orElse(null);
         if (running == null) {
             TurnVO current = turnService.queryTurn(turnId).orElse(null);
@@ -381,9 +441,13 @@ public class SessionServiceImpl implements SessionService {
         runningTurnIds.add(turnId);
         TurnStreamState state = streamStates.computeIfAbsent(turnId, ignored -> new TurnStreamState());
         boolean[] completed = {false};
+        Timer.Sample llmSample = null;
+        AtomicReference<String> llmOutcome = new AtomicReference<>("failure");
 
         try {
-            llmClient.streamingChat(request(session, running), event -> {
+            LlmRequest llmRequest = request(session, running);
+            llmSample = conversationMetrics.startLlmCall();
+            llmClient.streamingChat(llmRequest, event -> {
                 if (stoppingTurns.contains(turnId)) {
                     return;
                 }
@@ -394,27 +458,70 @@ public class SessionServiceImpl implements SessionService {
                 if (event.type() == LlmStreamEvent.Type.COMPLETE) {
                     persistSuccess(session.getId(), running, event.response());
                     completed[0] = true;
+                    llmOutcome.set("success");
+                    conversationMetrics.turnTerminal("succeeded");
+                    log.log(
+                            System.Logger.Level.INFO,
+                            "Turn succeeded userId=" + session.getCreateBy()
+                                    + " projectId=" + session.getProjectId()
+                                    + " sessionId=" + session.getId()
+                                    + " turnId=" + running.getId()
+                                    + " requestId=" + requestId
+                                    + " provider=" + running.getInvocation().getProvider()
+                                    + " model=" + running.getInvocation().getModel()
+                                    + " attemptCount=" + running.getAttemptCount());
                     state.complete();
                 }
             });
 
-            if (!completed[0] && !isStopped(turnId)) {
-                throw new IllegalStateException("Streaming turn ended before completion");
+            if (!completed[0]) {
+                if (isStopped(turnId)) {
+                    llmOutcome.set("stopped");
+                } else {
+                    throw new IllegalStateException("Streaming turn ended before completion");
+                }
             }
         } catch (RuntimeException exception) {
+            if (exception instanceof SessionException sessionException) {
+                if (sessionException.getErrorCode() == SessionErrorCode.CONTEXT_TOO_LARGE) {
+                    conversationMetrics.contextTooLarge();
+                } else if (sessionException.getErrorCode() == SessionErrorCode.MESSAGE_TOO_LARGE) {
+                    conversationMetrics.messageTooLarge();
+                }
+            }
             if (shuttingDown.get()) {
+                llmOutcome.set("shutdown");
                 shutdownRecoveryTurnIds.add(turnId);
                 return;
             }
             if (isStopped(turnId)) {
+                llmOutcome.set("stopped");
                 state.stopped();
                 return;
             }
             String partialContent = state.snapshot();
-            persistFailure(session.getId(), running, partialContent, exception);
+            boolean failed = persistFailure(session.getId(), running, partialContent, exception);
+            if (failed) {
+                conversationMetrics.turnTerminal("failed");
+                log.log(
+                        System.Logger.Level.WARNING,
+                        "Turn failed userId=" + session.getCreateBy()
+                                + " projectId=" + session.getProjectId()
+                                + " sessionId=" + session.getId()
+                                + " turnId=" + running.getId()
+                                + " requestId=" + requestId
+                                + " provider=" + running.getInvocation().getProvider()
+                                + " model=" + running.getInvocation().getModel()
+                                + " attemptCount=" + running.getAttemptCount()
+                                + " error=" + failureMessage(exception));
+            }
             state.failed(failureMessage(exception));
             throw exception;
         } finally {
+            if (llmSample != null) {
+                conversationMetrics.finishLlmCall(
+                        llmSample, running.getInvocation().getProvider(), llmOutcome.get());
+            }
             runningTurnIds.remove(turnId);
             stoppingTurns.remove(turnId);
             removeStreamStateIfFinished(turnId, state);
@@ -577,22 +684,28 @@ public class SessionServiceImpl implements SessionService {
         });
     }
 
-    private void persistFailure(
+    private boolean persistFailure(
             String sessionId, TurnVO running, String partialContent, RuntimeException originalFailure) {
         LocalDateTime failedAt = DateUtils.now();
+        AtomicBoolean transitioned = new AtomicBoolean();
 
         try {
             transactionTemplate.executeWithoutResult(status -> {
                 int failed = turnService.updateTurnFailed(
                         running.getId(), sessionId, failureMessage(originalFailure), failedAt);
-                if (failed == 1 && !StringUtils.isBlank(partialContent)) {
-                    messageService.addMessage(
-                            sessionId, running.getId(), MessageRoleEnum.ASSISTANT, partialContent);
+                if (failed == 1) {
+                    if (!StringUtils.isBlank(partialContent)) {
+                        messageService.addMessage(
+                                sessionId, running.getId(), MessageRoleEnum.ASSISTANT, partialContent);
+                    }
+                    transitioned.set(true);
                 }
             });
         } catch (RuntimeException persistenceFailure) {
             originalFailure.addSuppressed(persistenceFailure);
+            return false;
         }
+        return transitioned.get();
     }
 
     private boolean isStopped(String turnId) {
@@ -602,7 +715,11 @@ public class SessionServiceImpl implements SessionService {
     }
 
     private void recoverTurns() {
-        turnService.updateStaleTurnPending(DateUtils.now().minus(runningTimeout));
+        int recovered = turnService.updateStaleTurnPending(DateUtils.now().minus(runningTimeout));
+        conversationMetrics.recovered("stale", recovered);
+        if (recovered > 0) {
+            log.log(System.Logger.Level.INFO, "Recovered stale RUNNING Turns to PENDING count=" + recovered);
+        }
         turnService.queryPendingTurnIdList(RECOVERY_BATCH_SIZE).forEach(this::executeTurnAsync);
     }
 

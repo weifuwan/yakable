@@ -28,6 +28,7 @@ import io.yakable.core.llm.LlmUsage;
 import io.yakable.dao.entity.SessionEntity;
 import io.yakable.dao.repository.SessionRepository;
 import io.yakable.service.message.MessageService;
+import io.yakable.service.observability.ConversationMetrics;
 import io.yakable.service.session.TurnStreamListener;
 import io.yakable.service.turn.TurnService;
 import org.junit.jupiter.api.Test;
@@ -83,6 +84,9 @@ class SessionServiceImplTest {
 
     @Mock
     private TransactionTemplate transactionTemplate;
+
+    @Mock
+    private ConversationMetrics conversationMetrics;
 
     @InjectMocks
     private SessionServiceImpl sessionService;
@@ -183,6 +187,7 @@ class SessionServiceImplTest {
 
         assertThat(result.getTurn()).isSameAs(existing);
         assertThat(result.getUserMessage()).isSameAs(userMessage);
+        verify(conversationMetrics).idempotencyReplay("turn");
         verify(turnService, never()).addTurn(any(), any(), any(), any());
         verify(messageService, never()).addMessage(any(), any(), any(), any());
         verify(sessionRepository, never()).update(any());
@@ -225,6 +230,7 @@ class SessionServiceImplTest {
         sessionService.stopTurn(
                 new StopTurnDTO("project-1", "session-1", "turn-1", "user-1"));
 
+        verify(conversationMetrics).turnTerminal("stopped");
         verify(sessionRepository, never()).update(any());
     }
 
@@ -762,7 +768,7 @@ class SessionServiceImplTest {
         shuttingDown.set(true);
 
         ReflectionTestUtils.invokeMethod(
-                sessionService, "executeTurnStreaming", currentTurnId, session);
+                sessionService, "executeTurnStreaming", currentTurnId, session, "turn-request-shutdown");
 
         verify(turnService, never()).updateTurnFailed(
                 eq(currentTurnId), eq("session-1"), any(), any(LocalDateTime.class));
@@ -966,6 +972,7 @@ class SessionServiceImplTest {
                 new WatchTurnDTO("project-1", "session-1", turnId, "user-1"),
                 listener);
 
+        verify(conversationMetrics).watcherConnected();
         assertThat(snapshot.get()).isEqualTo("Partial");
 
         finish.countDown();
@@ -976,6 +983,8 @@ class SessionServiceImplTest {
         assertThat(delta.get()).isEqualTo(" answer");
 
         unsubscribe.run();
+        unsubscribe.run();
+        verify(conversationMetrics).watcherDisconnected();
     }
 
     private void stubContext(

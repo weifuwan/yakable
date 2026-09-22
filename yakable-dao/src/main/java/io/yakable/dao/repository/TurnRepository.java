@@ -1,5 +1,6 @@
 package io.yakable.dao.repository;
 
+import io.yakable.common.enums.session.TurnStatusEnum;
 import io.yakable.dao.entity.TurnEntity;
 
 import java.time.LocalDateTime;
@@ -20,6 +21,11 @@ public interface TurnRepository extends BaseRepository<TurnEntity> {
      * 查询 Session 当前活跃 Turn 数量。
      */
     long queryActiveTurnCount(String sessionId);
+
+    /**
+     * 查询指定状态的 Turn 数量。
+     */
+    long queryTurnCount(TurnStatusEnum status);
 
     /**
      * 查询 Session 下的 Turn 列表。
