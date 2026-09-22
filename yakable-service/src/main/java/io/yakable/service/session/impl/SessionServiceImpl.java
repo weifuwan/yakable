@@ -18,6 +18,7 @@ import io.yakable.common.bean.vo.session.TurnExecutionVO;
 import io.yakable.common.bean.vo.session.TurnInvocationVO;
 import io.yakable.common.bean.vo.session.TurnStartVO;
 import io.yakable.common.bean.vo.session.TurnVO;
+import io.yakable.common.constant.MessageConstant;
 import io.yakable.common.enums.session.MessageRoleEnum;
 import io.yakable.common.enums.session.SessionErrorCode;
 import io.yakable.common.enums.session.TurnStatusEnum;
@@ -632,6 +633,9 @@ public class SessionServiceImpl implements SessionService {
                 return;
             }
             synchronized (content) {
+                if ((long) content.length() + value.length() > MessageConstant.MAX_CONTENT_LENGTH) {
+                    throw new SessionException(SessionErrorCode.MESSAGE_TOO_LARGE);
+                }
                 content.append(value);
             }
             listeners.forEach(listener -> safeNotify(listener, item -> item.onDelta(value)));

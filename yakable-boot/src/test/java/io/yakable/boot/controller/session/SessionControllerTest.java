@@ -8,6 +8,7 @@ import io.yakable.common.bean.vo.session.TurnInvocationVO;
 import io.yakable.common.bean.vo.session.TurnStartVO;
 import io.yakable.common.bean.vo.session.TurnVO;
 import io.yakable.common.bean.vo.user.CurrentUserVO;
+import io.yakable.common.constant.MessageConstant;
 import io.yakable.common.enums.session.MessageRoleEnum;
 import io.yakable.common.enums.session.SessionErrorCode;
 import io.yakable.common.exception.SessionException;
@@ -104,6 +105,26 @@ class SessionControllerTest {
         assertThat(captor.getValue().content()).isEqualTo("Tell me more");
         assertThat(captor.getValue().requestId()).isEqualTo("turn-request-1");
         assertThat(captor.getValue().userId()).isEqualTo("user-1");
+    }
+
+    @Test
+    void shouldRejectOversizedTurnContent() throws Exception {
+        String oversized = "x".repeat(MessageConstant.MAX_CONTENT_LENGTH + 1);
+
+        mockMvc.perform(post("/api/projects/project-1/sessions/session-1/turns")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "content": "%s",
+                                  "provider": "deepseek",
+                                  "model": "deepseek-flash",
+                                  "requestId": "turn-request-oversized"
+                                }
+                                """.formatted(oversized)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40000));
+
+        verify(sessionService, never()).addTurn(any());
     }
 
     @Test

@@ -1,7 +1,10 @@
 package io.yakable.service.message.impl;
 
 import io.yakable.common.bean.vo.session.MessageVO;
+import io.yakable.common.constant.MessageConstant;
 import io.yakable.common.enums.session.MessageRoleEnum;
+import io.yakable.common.enums.session.SessionErrorCode;
+import io.yakable.common.exception.SessionException;
 import io.yakable.common.utils.ConverUtils;
 import io.yakable.dao.entity.MessageEntity;
 import io.yakable.dao.repository.MessageRepository;
@@ -20,6 +23,10 @@ public class MessageServiceImpl implements MessageService {
 
     @Override
     public MessageVO addMessage(String sessionId, String turnId, MessageRoleEnum role, String content) {
+        if (content != null && content.length() > MessageConstant.MAX_CONTENT_LENGTH) {
+            throw new SessionException(SessionErrorCode.MESSAGE_TOO_LARGE);
+        }
+
         MessageEntity entity = new MessageEntity();
         entity.initCreate();
         entity.setSessionId(sessionId);

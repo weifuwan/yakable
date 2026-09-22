@@ -1,6 +1,7 @@
 package io.yakable.common.bean.dto.project;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.yakable.common.constant.MessageConstant;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -17,7 +18,7 @@ import jakarta.validation.constraints.Size;
 @Schema(description = "新增 Project 参数")
 public record AddProjectDTO(
         @Schema(hidden = true) String userId,
-        @Schema(description = "用户输入内容") @NotBlank String prompt,
+        @Schema(description = "用户输入内容") @NotBlank @Size(max = MessageConstant.MAX_CONTENT_LENGTH) String prompt,
         @Schema(description = "模型配置") @NotNull @Valid ModelDTO model,
         @Schema(description = "客户端请求ID") @NotBlank @Size(max = 64) String requestId) {
 
