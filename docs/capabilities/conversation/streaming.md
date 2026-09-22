@@ -1,6 +1,6 @@
 # Streaming
 
-Status: Implementing
+Status: Review
 Domain: Conversation
 
 Depends On:
@@ -59,14 +59,11 @@ Tests:
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
 
-Implementation Design:
-- TurnStreamState 使用同一个 event lock 串行化 subscribe / unsubscribe / delta / terminal。
-- 新 watcher 加入时，在 event lock 内读取当前 snapshot、注册 listener 并发送 snapshot。
-- delta 在同一 event lock 内追加 buffer 并通知当前 listeners。
-- 如果 delta 先获得锁，新 watcher 不在该次 listener 集合中，后续 snapshot 会包含这段 delta。
-- 如果 subscribe 先获得锁，snapshot 先发送；后续 delta 等待锁并在 snapshot 之后发送。
-- terminal 与 subscribe / delta 使用相同 event lock，保证 terminal 不越过 snapshot / delta。
-- 不新增事件序号、持久化 delta、消息队列或分布式 Stream Log。
+Review Notes:
+- GAP-02 实现已完成：TurnStreamState 现在使用同一个 event lock 串行化 subscribe / unsubscribe / delta / terminal。
+- 新 watcher 的交接语义现在是 snapshot → future delta → terminal。
+- 已新增并发回归测试，专门阻塞 snapshot callback 并并发产生 future delta / terminal，保护事件不能越过 snapshot。
+- 当前执行环境无法解析 github.com，目标 Maven 测试尚未实际执行；测试通过前保持 Review。
 
 ## Purpose
 
