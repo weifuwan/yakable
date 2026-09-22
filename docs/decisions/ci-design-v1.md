@@ -4,29 +4,27 @@ Status: Designing
 
 ## Purpose
 
-Yakable CI 只解决一个问题：
+Yakable CI 不是流程装饰。
 
-> 为代码进入 main，以及 Capability 从 Review 进入 Done，提供可重复、可绑定 Commit SHA 的 Verification Evidence。
+它只负责为两件事提供可重复、可绑定 Commit SHA 的 Verification Evidence：
 
-CI 不代替 Code Review，不自动决定 Capability 是否 Done。
+- 代码是否允许进入 main。
+- Capability 是否具备从 Review 进入 Done 的客观执行证据。
 
-## Verification Flow
+CI 不代替 Code Review，不自动修改 Capability Status。
+
+## Flow
 
 ```text
 Pull Request
-      │
-      ├───────────────┐
-      ↓               ↓
-Backend           Frontend
-Verification      Verification
-      │               │
-      └───────┬───────┘
-              ↓
-      Yakable / Quality Gate
-              ↓
-            Merge
-              ↓
-     Main Health Verification
+  ├─ Backend Verification
+  └─ Frontend Verification
+          ↓
+  Yakable / Quality Gate
+          ↓
+        Merge
+          ↓
+ Main Health Verification
 ```
 
 V1 Trigger：
@@ -53,7 +51,7 @@ Docker available
 ./mvnw -B -ntp verify
 ```
 
-必须覆盖：
+保护当前后端真实边界：
 
 ```text
 Compile
@@ -79,13 +77,7 @@ ubuntu-24.04
 Node 22
 ```
 
-工作目录：
-
-```text
-yakable-ui
-```
-
-执行：
+在 `yakable-ui` 执行：
 
 ```bash
 npm ci
@@ -93,20 +85,13 @@ npm run check
 npm run build
 ```
 
-`npm run check` 当前包含：
+`npm run check` 已包含 typecheck、lint、format:check、Vitest。
 
-```text
-typecheck
-lint
-format:check
-vitest
-```
-
-额外执行 `build`，保护 production bundle。
+`build` 单独保护 production bundle。
 
 ## Quality Gate
 
-main 的 Required Check 只依赖：
+main Ruleset 只依赖一个稳定 Required Check：
 
 ```text
 Yakable / Quality Gate
@@ -120,21 +105,15 @@ AND
 Frontend Verification = success
 ```
 
-其他任何状态都必须失败。
-
 ### Fail Closed
 
-Quality Gate 必须始终执行，即使上游 failed / cancelled / skipped。
+Quality Gate 即使上游 failed / cancelled / skipped 也必须执行。
 
-实现时使用等价于：
+实现时使用等价于 `if: always()` 的语义，并显式检查所有 `needs.*.result`。
 
-```text
-if: always()
-```
+除全部 success 外，其他状态统一视为 failure。
 
-的语义，并显式检查 `needs.*.result`。
-
-禁止 Backend / Frontend 失败时让 Required Quality Gate 自己变成 skipped。
+禁止 Required Quality Gate 因上游失败而自身变成 skipped。
 
 ## Concurrency
 
@@ -142,28 +121,17 @@ PR 与 main 使用不同策略。
 
 ### Pull Request
 
-同一个 PR 只验证最新提交：
+同一个 PR 只验证最新 Head。
 
-```text
-new PR commit
-→ cancel previous PR CI
-→ verify latest
-```
-
-允许 `cancel-in-progress: true`。
+新 commit 到来时可以取消旧 PR run。
 
 ### Main
 
-每一个进入 main 的 commit 都必须保留完整 Verification Evidence。
+每一个 main commit 都必须完整执行 Main Health Verification。
 
-```text
-main A
-main B
-main C
-→ A / B / C 都完整执行
-```
+后续 main commit 不得取消前一个 main run。
 
-main CI 不得因为后续 commit 到来而取消前一个 run。
+这样每个 main Commit SHA 都保留自己的 Verification Evidence。
 
 ## Timeout
 
@@ -179,14 +147,10 @@ Quality Gate            5 min
 
 ## Review → Done
 
-状态流：
+Capability 状态流保持：
 
 ```text
-Planned
-→ Designing
-→ Implementing
-→ Review
-→ Done
+Planned → Designing → Implementing → Review → Done
 ```
 
 进入 Review：
@@ -210,7 +174,19 @@ Final commit Quality Gate passed
 
 标记 `Status: Done` 的最终 commit 本身必须通过 Quality Gate。
 
-不能使用旧 commit 的 CI 结果证明新的 Done commit。
+不能拿旧 commit 的 CI 结果证明新的 Done commit。
+
+正确证据链：
+
+```text
+Capability: Done
+→ Final Commit SHA
+→ Tests
+→ Quality Gate ✅
+→ main
+```
+
+因此通常流程是：
 
 ```text
 implementation + tests
@@ -221,16 +197,6 @@ implementation + tests
 → final commit
 → CI pass
 → Merge
-```
-
-证据链必须是：
-
-```text
-Capability: Done
-→ Final Commit SHA
-→ Tests
-→ Quality Gate ✅
-→ main
 ```
 
 CI 只提供 Evidence，不自动修改 Capability Status。
@@ -264,7 +230,7 @@ PR Quality Gate 回答：
 
 > 当前 PR 是否允许进入 main？
 
-main verification 回答：
+Main Health Verification 回答：
 
 > 最终 main commit 是否仍然健康？
 
@@ -279,29 +245,24 @@ permissions:
   contents: read
 ```
 
-不需要：
-
-```text
-repository write
-PR write
-package publish
-release
-push commit
-```
+不需要 repository write、PR write、package publish、release 或 push commit 权限。
 
 V1 禁止使用 `pull_request_target`。
 
 ## Full Run First
 
-V1 所有 PR 默认完整执行：
+V1 所有 PR 默认完整执行 Backend + Frontend Verification。
+
+暂不做：
 
 ```text
-Backend Verification
-+
-Frontend Verification
+changed-files filter
+path filter
+selective test
+module dependency calculation
 ```
 
-暂不做 changed-files / path filter / selective test。
+当前测试规模较小，优先保证简单、稳定、可信。
 
 只有 CI 执行时间成为真实问题后，再设计 Incremental CI。
 
@@ -319,8 +280,6 @@ Mutation Test
 Multi-JDK Matrix
 Multi-Node Matrix
 AI Review Gate
-Complex Path Filter
-Changed-file Test Selection
 Automatic Capability Status Update
 ```
 
