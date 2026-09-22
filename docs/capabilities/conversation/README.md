@@ -1,8 +1,9 @@
-# Conversation
+# Conversation Domain
 
-> 产品定义：[Session](../../product/session.md)
+Product:
+- [Session](../../product/session.md)
 
-Conversation 是 Yakable 当前最核心的运行链路。
+## Graph
 
 ```text
 Send Message
@@ -14,140 +15,256 @@ Streaming
     └────┬───────┘
          ↓
       Recovery
-         ↓
-History + Context
+
+History ───── Context
 
 Turn Navigator
-→ 只负责长 Session 定位
+→ long-session navigation only
 ```
 
-能力块：
+Capabilities:
 
-- [Send Message](./send-message/)
-- [Streaming](./streaming/)
-- [Stop](./stop/)
-- [Reconnect](./reconnect/)
-- [Recovery](./recovery/)
-- [History](./history/)
-- [Context](./context/)
-- [Turn Navigator](./turn-navigator/)
+- [Send Message](./send-message.md)
+- [Streaming](./streaming.md)
+- [Stop](./stop.md)
+- [Reconnect](./reconnect.md)
+- [Recovery](./recovery.md)
+- [History](./history.md)
+- [Context](./context.md)
+- [Turn Navigator](./turn-navigator.md)
 
-## 共享不变量
+## Shared Rules
 
-这些规则属于整个 Conversation，不放进某一个局部能力重复维护：
+### CONV-001 — Persistent Facts
 
-- 数据库是 Session / Turn / Message 的最终事实来源。
-- USER Message 持久化后，本轮才正式成立。
-- 同一 Session 同一时间最多一个 PENDING / RUNNING Turn。
-- SUCCEEDED / FAILED / STOPPED 是互斥终态，迟到事件不能覆盖终态。
-- Turn Execution 生命周期不属于 SSE Connection。
-- refresh / disconnect 不能自动 Stop。
-- Recovery 继续原 Turn，不能创建替代 Turn 或第二条 USER Message。
-- Message、Streaming Buffer、Context、Execution、Recovery 都必须有资源边界。
-- SaaS V1 的 Stream State / Stop 协作是 JVM 本地状态，因此当前运行边界是单实例。
+Session / Turn / Message 的最终事实来源是数据库。
 
-## 核心模型
+浏览器状态、SSE Connection 和 JVM Runtime State 都不能成为核心业务事实的唯一来源。
+
+### CONV-002 — Turn Establishment
+
+USER Message 成功持久化后，本轮才正式成立。
+
+本轮成立时必须能够确定 Session、Turn、USER Message、requestId 和 provider / model。
+
+### CONV-003 — Single Active Turn
+
+同一 Session 同一时间最多存在一个 PENDING / RUNNING Turn。
+
+该规则由服务端与数据库边界保护，不能只依赖前端按钮禁用。
+
+### CONV-004 — Terminal State
+
+SUCCEEDED / FAILED / STOPPED 是互斥终态。
+
+迟到的 Complete / Failure / Stop / Recovery 不能覆盖已经确定的终态。
+
+### CONV-005 — Execution Is Not Connection
+
+Turn Execution 生命周期与 SSE Connection 生命周期分离。
+
+Watcher 只观察执行，不拥有执行。
+
+### CONV-006 — Disconnect Is Not Stop
+
+Refresh、页面切换、Tab 后台、SSE Timeout、网络断开都不能自动触发 STOPPED。
+
+只有显式 Stop 请求拥有 Stop 语义。
+
+### CONV-007 — Reconnect Same Turn
+
+Reconnect 必须继续原 turnId。
+
+不能通过重新提交 Prompt、创建新 Turn 或创建第二条 USER Message 恢复生成。
+
+### CONV-008 — Recovery Same Turn
+
+Recovery 必须继续原 Turn、原 USER Message 和原 provider / model identity。
+
+stale RUNNING 可以原地恢复为 PENDING，再重新 claim。
+
+### CONV-009 — Partial Assistant
+
+Stop / Failure 时已经产生的非空 Assistant 内容必须保留。
+
+FAILED partial 只用于历史展示，不进入后续 Context。
+
+STOPPED + 非空 Assistant 可以进入后续 Context。
+
+### CONV-010 — Context Boundary
+
+Context 只来自当前 Session。
+
+可进入：
 
 ```text
-Project
-  └── Session
-       └── Turn
-            └── Message
+SUCCEEDED + complete USER / ASSISTANT
+STOPPED + non-empty ASSISTANT
 ```
 
-Turn 状态：
+排除：
 
 ```text
-PENDING -> RUNNING -> SUCCEEDED
-                    -> FAILED
-
-PENDING / RUNNING -> STOPPED
-RUNNING --recovery--> PENDING
+FAILED
+PENDING
+RUNNING
 ```
 
-## 代码总入口
+### CONV-011 — Prompt Integrity
 
-Frontend：
+当前 Prompt 不能为了容纳历史 Context 被静默截断。
+
+移除历史后 Prompt 仍超过模型输入边界时，本轮明确失败。
+
+### CONV-012 — Bounded Resources
+
+Message Size、Streaming Buffer、Execution Concurrency、Watcher、Recovery Batch、History Page 和 Context Token Budget 都必须有明确边界或释放条件。
+
+PENDING 是持久等待状态，不是无限 JVM 内存队列。
+
+### CONV-013 — Runtime Boundary
+
+当前 SaaS V1 的 Stream State / Stop 协作是 JVM 本地状态，因此后端运行边界是单实例。
+
+正常停机采用 graceful shutdown；未完成 RUNNING Turn 回到 PENDING，再由 Recovery 继续原 Turn。
+
+### CONV-014 — History Is Not Context
+
+UI Message History 与 LLM Context 是两个独立的数据选择机制。
+
+History 分页不能决定模型 Context，Context 构建也不能要求前端一次加载全部历史。
+
+### CONV-015 — Observability
+
+Conversation 状态问题必须能够通过 requestId / userId / projectId / sessionId / turnId 关联定位。
+
+日志不记录完整 Prompt、完整 Assistant、API Key、Cookie 或 Token。
+
+## Cross-Capability Scenarios
+
+### CONV-S01 — Send → Stream → Complete
+
+Involves:
+- Send Message
+- Streaming
+- History
+
+Guarantees:
+- USER Message 先成立。
+- 同一个 Turn 进入执行。
+- Streaming 完成后 Assistant 持久化。
+- History 最终收敛到持久化结果。
+
+### CONV-S02 — Streaming → Stop → Next Turn
+
+Involves:
+- Streaming
+- Stop
+- History
+- Context
+
+Guarantees:
+- Stop 只作用于明确 turnId。
+- 非空 partial Assistant 保留。
+- Turn 进入 STOPPED。
+- 下一轮可以继续创建。
+- STOPPED partial 可按 CONV-010 进入后续 Context。
+
+### CONV-S03 — Streaming → Refresh → Reconnect
+
+Involves:
+- Streaming
+- Reconnect
+- History
+
+Guarantees:
+- 使用同一个 turnId。
+- 不重新提交 Prompt。
+- 新 Watcher 先恢复 Snapshot，再接收后续 Delta。
+- Refresh 不触发 Stop。
+- 最终 History 与持久化结果一致。
+
+### CONV-S04 — Streaming → Network Disconnect → Reconnect
+
+Involves:
+- Streaming
+- Reconnect
+
+Guarantees:
+- Watcher 断开释放连接资源。
+- Turn Execution 继续。
+- 网络恢复后重新观察原 Turn。
+- 多次 reconnect 不创建重复 Turn。
+
+### CONV-S05 — Service Restart → Recovery
+
+Involves:
+- Streaming
+- Recovery
+
+Guarantees:
+- 未完成 RUNNING Turn 不永久卡死。
+- 原 Turn 回到 PENDING。
+- 原 provider / model identity 保留。
+- 不创建替代 Turn 或第二条 USER Message。
+
+### CONV-S06 — Read History → New Streaming Delta
+
+Involves:
+- History
+- Streaming
+
+Guarantees:
+- 用户主动阅读历史时，新 Delta 不强制修改阅读位置。
+- Streaming 继续执行。
+- 用户回到 latest 后可以恢复 follow output。
+
+### CONV-S07 — Provider Failure After Partial
+
+Involves:
+- Streaming
+- History
+- Context
+
+Guarantees:
+- USER Message 保留。
+- 非空 partial Assistant 保留。
+- Turn 进入 FAILED。
+- partial 可展示，但不进入后续 Context。
+
+## Code Roots
+
+Frontend:
 
 ```text
-yakable-ui/src/features/session/components/SessionWorkspace.tsx
+yakable-ui/src/features/session/
 yakable-ui/src/service/session/
 ```
 
-Backend：
+Backend:
 
 ```text
-yakable-boot/.../controller/session/SessionController.java
-yakable-service/.../session/SessionService.java
-yakable-service/.../session/impl/SessionServiceImpl.java
-yakable-service/.../turn/TurnService.java
-yakable-service/.../message/MessageService.java
+yakable-boot/src/main/java/io/yakable/boot/controller/session/
+yakable-service/src/main/java/io/yakable/service/session/
+yakable-service/src/main/java/io/yakable/service/turn/
+yakable-service/src/main/java/io/yakable/service/message/
 ```
 
-DAO：
+DAO:
 
 ```text
-SessionRepository
-TurnRepository
-MessageRepository
+yakable-dao/src/main/java/io/yakable/dao/repository/
+yakable-dao/src/main/java/io/yakable/dao/entity/
 ```
 
-## 运行问题从哪里开始看
+Domain Tests:
 
 ```text
-Prompt 创建 / 幂等      → Send Message
-实时输出                → Streaming
-用户主动终止            → Stop
-刷新 / SSE 断开         → Reconnect
-服务重启 / stale RUNNING → Recovery
-历史分页                → History
-LLM 输入历史            → Context
-长 Session 定位         → Turn Navigator
+yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java
+yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java
+yakable-service/src/test/java/io/yakable/service/turn/impl/TurnServiceImplTest.java
+yakable-service/src/test/java/io/yakable/service/message/impl/MessageServiceImplTest.java
+yakable-boot/src/test/java/io/yakable/boot/integration/ConversationPersistenceIT.java
+yakable-ui/src/features/session/components/__tests__/SessionWorkspace.test.tsx
+yakable-ui/src/service/session/__tests__/SessionService.test.ts
 ```
-
-原则：**Conversation README 只负责组装与共享不变量；具体实现进入对应能力块。**
-
-
-## Reliability Acceptance
-
-当前 Conversation / SaaS Reliability V1 已完成基础可靠性收口。
-
-已落地的边界包括：
-
-- Request Idempotency：Project / Turn 重试不重复建立业务数据，数据库唯一约束处理并发重复请求。
-- Execution Resource Boundary：全局与单用户 Execution 有并发上限，PENDING 作为持久等待状态，不创建无限内存队列。
-- Message Size Boundary：用户输入、Streaming Buffer、Message 持久化和数据库容量保持一致边界。
-- Long Session Performance：Session 首屏、增量查询与 Context 历史读取保持有界。
-- SaaS Runtime Boundary：当前明确单实例运行，支持 graceful shutdown 和同 Turn Recovery。
-- Observability Baseline：HTTP trace、Conversation 生命周期日志、Actuator 与低基数 Metrics 已建立。
-- Reliability Acceptance：真实 MySQL Integration Test 与本地验证命令保护关键持久化行为和前后端回归。
-
-真实 MySQL 验收至少保护：
-
-- Flyway 能在空 MySQL 8 实例迁移到当前 Schema。
-- Message 内容字段使用与应用边界匹配的 `MEDIUMTEXT`。
-- Project requestId、Turn requestId、Project 单 Session 等数据库唯一边界真实生效。
-- Turn 成功后，迟到 Failure / Stop 不能覆盖终态。
-- RUNNING Turn 可以原地恢复为 PENDING，并保留原 Turn、requestId、provider 和 model identity。
-
-验证命令：
-
-```text
-./mvnw test
-→ Unit Test
-
-./mvnw verify
-→ Unit Test + Testcontainers MySQL Integration Test
-
-cd yakable-ui
-npm run typecheck
-npm run test
-npm run build
-→ TypeScript contract + frontend regressions + production bundle
-```
-
-当前不使用 GitHub CI。需要在功能开发与 Review 阶段按改动范围执行对应的本地验证命令。
-
-当前历史代码仍存在与可靠性无关的 lint warning，因此 Reliability Acceptance 不要求全量 lint 清零；lint 继续作为独立代码质量治理项。
-
-这里的 Done 只表示当前 V1 可靠性边界已经验收，不代表未来不会继续出现新的可靠性问题。
