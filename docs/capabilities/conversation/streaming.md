@@ -42,6 +42,7 @@ Shared Rules:
 - CONV-016
 - CONV-018
 - CONV-019
+- CONV-020
 
 Scenarios:
 - CONV-S01
@@ -52,12 +53,16 @@ Scenarios:
 - CONV-S06
 - CONV-S07
 - CONV-S08
+- CONV-S09
 
 Tests:
 - `yakable-ui/src/features/session/components/__tests__/SessionWorkspace.test.tsx`
 - `yakable-ui/src/service/session/__tests__/SessionService.test.ts`
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
+
+Known Gaps:
+- GAP-04 — TurnStreamState 在 eventLock 内直接执行 watcher callback。Controller listener 会同步调用 SseEmitter.send，因此慢 watcher 可能持有 eventLock，阻塞 future delta / terminal，并间接拖慢 Turn Execution；不满足 CONV-020。
 
 Review Notes:
 - GAP-02 实现已完成：TurnStreamState 现在使用同一个 event lock 串行化 subscribe / unsubscribe / delta / terminal。
