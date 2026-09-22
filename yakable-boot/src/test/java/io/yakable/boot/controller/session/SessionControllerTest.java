@@ -168,6 +168,26 @@ class SessionControllerTest {
     }
 
     @Test
+    void shouldMapRequestIdConflictToConflict() throws Exception {
+        when(sessionService.addTurn(any(AddTurnDTO.class)))
+                .thenThrow(new SessionException(SessionErrorCode.REQUEST_CONFLICT));
+
+        mockMvc.perform(post("/api/projects/project-1/sessions/session-1/turns")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "content": "Different prompt",
+                                  "provider": "deepseek",
+                                  "model": "deepseek-flash",
+                                  "requestId": "turn-request-existing"
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(10003))
+                .andExpect(jsonPath("$.message").value("Request id conflicts with an existing turn"));
+    }
+
+    @Test
     void shouldStopTurnForCurrentUser() throws Exception {
         TurnVO stopped = new TurnVO();
         stopped.setId("turn-1");
