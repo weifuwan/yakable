@@ -16,6 +16,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -162,6 +163,31 @@ class ProjectServiceImplTest {
         assertThat(result.getLatestSessionId()).isEqualTo("session-existing");
         verify(projectRepository, never()).add(any());
         verify(sessionService, never()).addSession(any());
+        verify(sessionService, never()).executeTurnAsync(any());
+    }
+
+    @Test
+    void shouldResolveConcurrentDuplicateProjectByRequestIdentity() {
+        ProjectEntity existing = project("project-existing", "Existing");
+        SessionVO session = new SessionVO();
+        session.setId("session-existing");
+        session.setUpdatedAt(LocalDateTime.of(2026, 9, 21, 11, 0));
+
+        when(projectRepository.queryByRequestId("user-1", "project-request-race"))
+                .thenReturn(Optional.empty(), Optional.of(existing));
+        when(transactionTemplate.execute(any(TransactionCallback.class)))
+                .thenThrow(new DuplicateKeyException("duplicate request"));
+        when(sessionService.queryLatestSession("project-existing"))
+                .thenReturn(Optional.of(session));
+
+        ProjectListVO result = projectService.addProject(new AddProjectDTO(
+                "user-1",
+                "Build a CRM dashboard",
+                new AddProjectDTO.ModelDTO("deepseek", "deepseek-flash"),
+                "project-request-race"));
+
+        assertThat(result.getId()).isEqualTo("project-existing");
+        assertThat(result.getLatestSessionId()).isEqualTo("session-existing");
         verify(sessionService, never()).executeTurnAsync(any());
     }
 
