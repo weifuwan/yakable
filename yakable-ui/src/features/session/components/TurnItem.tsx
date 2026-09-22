@@ -83,8 +83,7 @@ export function buildTurnRenderModels({
 
   if (streamingMessage) {
     const key = 'turn:' + streamingMessage.turnId;
-    const model =
-      models.get(key) ?? createPersistedModel(streamingMessage.turnId, turnById);
+    const model = models.get(key) ?? createPersistedModel(streamingMessage.turnId, turnById);
     model.streamingMessage = streamingMessage;
     models.set(key, model);
   }
