@@ -1,22 +1,14 @@
 # Product
 
-Product 文档只定义 Yakable 中稳定的产品概念和边界。
+Product 只记录 Yakable 中长期稳定的产品事实。
 
-这里回答：
+这里不写技术实现，不承担施工计划，也不重复 Capability 细节。
 
-- 这个东西是什么。
-- 用户为什么需要它。
-- 用户最终能做什么。
-- 哪些语义必须长期保持稳定。
-- 当前明确不做什么。
-
-这里不负责类、接口、目录、SQL、Hook 或具体施工步骤。
-
-当前：
+当前 Product Contract：
 
 - [Project](./project.md)
 - [Session](./session.md)
 - [User](./user.md)
 - [Frontend Domain Harness](./frontend-domain-harness.md)
 
-具体怎么实现，请进入 [Capabilities](../capabilities/)。
+具体实现从 [Capabilities](../capabilities/) 进入。
