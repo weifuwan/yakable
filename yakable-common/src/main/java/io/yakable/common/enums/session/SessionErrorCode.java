@@ -13,7 +13,8 @@ public enum SessionErrorCode implements ErrorCode {
 
     NOT_FOUND(10001, "Session not found"),
     BUSY(10002, "Session already has an active turn"),
-    CONTEXT_TOO_LARGE(10004, "Current message exceeds model context window");
+    CONTEXT_TOO_LARGE(10004, "Current message exceeds model context window"),
+    MESSAGE_TOO_LARGE(10005, "Message exceeds storage limit");
 
     private final Integer code;
     private final String message;
