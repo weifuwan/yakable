@@ -82,6 +82,7 @@ public class SessionServiceImpl implements SessionService {
     private final Map<String, TurnStreamState> streamStates = new ConcurrentHashMap<>();
     private final Set<String> stoppingTurns = ConcurrentHashMap.newKeySet();
     private final Set<String> runningTurnIds = ConcurrentHashMap.newKeySet();
+    private final Set<String> shutdownRecoveryTurnIds = ConcurrentHashMap.newKeySet();
     private final AtomicBoolean shuttingDown = new AtomicBoolean();
     private final AtomicInteger activeExecutions = new AtomicInteger();
     private final Map<String, Integer> activeExecutionsByUser = new ConcurrentHashMap<>();
@@ -130,6 +131,7 @@ public class SessionServiceImpl implements SessionService {
         Set<String> turnsToRecover = new HashSet<>(runningTurnIds);
         ThreadUtils.shutdown(shutdownTimeout);
         turnsToRecover.addAll(runningTurnIds);
+        turnsToRecover.addAll(shutdownRecoveryTurnIds);
         turnsToRecover.forEach(turnService::updateRunningTurnPending);
     }
 
@@ -401,6 +403,7 @@ public class SessionServiceImpl implements SessionService {
             }
         } catch (RuntimeException exception) {
             if (shuttingDown.get()) {
+                shutdownRecoveryTurnIds.add(turnId);
                 return;
             }
             if (isStopped(turnId)) {
