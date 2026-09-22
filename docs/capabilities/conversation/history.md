@@ -1,6 +1,6 @@
 # History
 
-Status: Done
+Status: Review
 Domain: Conversation
 
 Depends On:
@@ -46,6 +46,9 @@ Tests:
 - `yakable-ui/src/service/session/__tests__/SessionService.test.ts`
 - `yakable-service/src/test/java/io/yakable/service/message/impl/MessageServiceImplTest.java`
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
+
+Known Gaps:
+- GAP-05 — CONV-S06 已有生产实现，但当前 SessionWorkspace 回归测试只覆盖历史分页，没有保护“离开 latest 后 Streaming 不抢阅读位置、Scroll to bottom 出现、返回 latest 后恢复 follow output”的完整交互。
 
 ## Purpose
 
