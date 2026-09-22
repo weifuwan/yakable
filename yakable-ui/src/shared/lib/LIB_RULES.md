@@ -1,13 +1,16 @@
 # Shared Lib Rules
 
 Scope:
+
 - `yakable-ui/src/shared/lib/**`
 
 Depends On:
+
 - `../../../FRONTEND_RULES.md`
 - 行为需要回归时加载 `../../../TEST_RULES.md`
 
 Owns:
+
 - 与产品 Feature 无关的纯工具
 - 浏览器通用 helper
 - 框架无关 helper

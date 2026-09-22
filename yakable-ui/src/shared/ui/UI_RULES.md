@@ -1,18 +1,22 @@
 # Shared UI Rules
 
 Scope:
+
 - `yakable-ui/src/shared/ui/**`
 
 Depends On:
+
 - `../../../FRONTEND_RULES.md`
 - `../../../TEST_RULES.md`
 
 Owns:
+
 - Yakable 产品可复用 UI Primitive
 - Primitive keyboard / focus behavior
 - Primitive visual contract
 
 Public Import:
+
 - `@/shared/ui`
 
 ## Must

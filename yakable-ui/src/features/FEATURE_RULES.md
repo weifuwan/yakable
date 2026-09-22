@@ -1,15 +1,18 @@
 # Feature Rules
 
 Scope:
+
 - `yakable-ui/src/features/**`
 
 Depends On:
+
 - `../../FRONTEND_RULES.md`
 - `../../TEST_RULES.md`
 - 涉及 API 时加载 `../../SERVICE_RULES.md`
 - 对应 `docs/capabilities/<domain>/...` Capability Contract
 
 Owns:
+
 - 产品能力 UI
 - Feature state
 - Feature hooks
