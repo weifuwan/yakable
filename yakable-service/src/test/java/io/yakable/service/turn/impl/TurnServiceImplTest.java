@@ -50,12 +50,14 @@ class TurnServiceImplTest {
         TurnEntity entity = new TurnEntity();
         entity.setId("turn-1");
         entity.setSessionId("session-1");
+        entity.setRequestId("request-1");
         entity.setProvider("deepseek");
         entity.setModel("deepseek-flash");
         when(turnRepository.queryById("turn-1")).thenReturn(Optional.of(entity));
 
         TurnExecutionVO result = turnService.queryTurnExecution("turn-1").orElseThrow();
 
+        assertThat(result.getRequestId()).isEqualTo("request-1");
         assertThat(result.getProvider()).isEqualTo("deepseek");
         assertThat(result.getModel()).isEqualTo("deepseek-flash");
     }

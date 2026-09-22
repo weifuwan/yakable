@@ -42,4 +42,11 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,metrics
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+logging:
+  pattern:
+    level: "%5p [traceId:%X{traceId:-}]"

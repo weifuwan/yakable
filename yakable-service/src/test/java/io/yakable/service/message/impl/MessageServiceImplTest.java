@@ -6,6 +6,7 @@ import io.yakable.common.enums.session.SessionErrorCode;
 import io.yakable.common.exception.SessionException;
 import io.yakable.dao.entity.MessageEntity;
 import io.yakable.dao.repository.MessageRepository;
+import io.yakable.service.observability.ConversationMetrics;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -24,6 +25,9 @@ class MessageServiceImplTest {
 
     @Mock
     private MessageRepository messageRepository;
+
+    @Mock
+    private ConversationMetrics conversationMetrics;
 
     @InjectMocks
     private MessageServiceImpl messageService;
@@ -51,6 +55,7 @@ class MessageServiceImplTest {
                         assertThat(((SessionException) exception).getErrorCode())
                                 .isEqualTo(SessionErrorCode.MESSAGE_TOO_LARGE));
 
+        verify(conversationMetrics).messageTooLarge();
         verify(messageRepository, never()).queryNextMessageSequence("session-1");
         verify(messageRepository, never()).add(org.mockito.ArgumentMatchers.any());
     }

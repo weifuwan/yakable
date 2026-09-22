@@ -9,6 +9,7 @@ import io.yakable.common.utils.ConverUtils;
 import io.yakable.dao.entity.MessageEntity;
 import io.yakable.dao.repository.MessageRepository;
 import io.yakable.service.message.MessageService;
+import io.yakable.service.observability.ConversationMetrics;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
@@ -21,9 +22,13 @@ public class MessageServiceImpl implements MessageService {
     @Resource
     private MessageRepository messageRepository;
 
+    @Resource
+    private ConversationMetrics conversationMetrics;
+
     @Override
     public MessageVO addMessage(String sessionId, String turnId, MessageRoleEnum role, String content) {
         if (content != null && content.length() > MessageConstant.MAX_CONTENT_LENGTH) {
+            conversationMetrics.messageTooLarge();
             throw new SessionException(SessionErrorCode.MESSAGE_TOO_LARGE);
         }
 

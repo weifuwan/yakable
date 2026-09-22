@@ -18,6 +18,9 @@ public class TurnExecutionVO {
     @Schema(description = "Session ID")
     private String sessionId;
 
+    @Schema(description = "客户端请求ID")
+    private String requestId;
+
     @Schema(description = "模型提供商")
     private String provider;
 

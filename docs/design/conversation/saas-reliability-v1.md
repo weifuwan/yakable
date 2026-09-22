@@ -190,6 +190,15 @@ Prompt 和模型回答默认不作为普通运行日志输出。
 
 指标用于定位问题，不为了“指标完整”增加无价值埋点。
 
+SaaS V1 的可观测性基线：
+
+- 每个 HTTP 请求返回 `X-Request-Id`，日志 MDC 使用 `traceId`，避免与 Conversation 的业务 `requestId` 混淆。
+- Conversation 状态日志只记录 requestId、userId、projectId、sessionId、turnId、provider、model、attemptCount 和失败摘要，不记录完整 Prompt / Assistant 内容。
+- Spring Boot Actuator 提供 `http.server.requests`、Hikari、JVM、GC 等标准指标。
+- 自定义指标包括 `yakable.turn.persisted`、`yakable.turn.execution.active`、`yakable.turn.execution.deferred`、`yakable.turn.terminal`、`yakable.turn.recovery`、`yakable.sse.watchers.active`、`yakable.sse.watcher.connections`、`yakable.llm.duration`、`yakable.idempotency.replay`、`yakable.context.too_large` 和 `yakable.message.size.rejected`。
+- Metrics 标签只使用低基数维度。用户、Project、Session、Turn、requestId 不进入 Metrics 标签，只进入日志。
+- `/actuator/health` 继续公开；`/actuator/metrics` 需要正常认证，避免把运行细节直接暴露给匿名访问。
+
 ## 10. 性能原则
 
 性能优化必须先有数据。

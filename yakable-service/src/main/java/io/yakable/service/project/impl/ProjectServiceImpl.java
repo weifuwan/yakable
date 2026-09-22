@@ -12,6 +12,7 @@ import io.yakable.common.exception.ProjectException;
 import io.yakable.common.utils.ConverUtils;
 import io.yakable.dao.entity.ProjectEntity;
 import io.yakable.dao.repository.ProjectRepository;
+import io.yakable.service.observability.ConversationMetrics;
 import io.yakable.service.project.ProjectService;
 import io.yakable.service.session.SessionService;
 import jakarta.annotation.Resource;
@@ -27,6 +28,7 @@ import java.time.LocalDateTime;
 @Validated
 public class ProjectServiceImpl implements ProjectService {
 
+    private static final System.Logger log = System.getLogger(ProjectServiceImpl.class.getName());
     private static final int MAX_PROJECT_NAME_LENGTH = 48;
 
     @Resource
@@ -38,11 +40,20 @@ public class ProjectServiceImpl implements ProjectService {
     @Resource
     private TransactionTemplate transactionTemplate;
 
+    @Resource
+    private ConversationMetrics conversationMetrics;
+
     @Override
     public ProjectListVO addProject(AddProjectDTO dto) {
         requireUserId(dto.userId());
         ProjectEntity existing = projectRepository.queryByRequestId(dto.userId(), dto.requestId()).orElse(null);
         if (existing != null) {
+            conversationMetrics.idempotencyReplay("project");
+            log.log(
+                    System.Logger.Level.INFO,
+                    "Project idempotency replay requestId=" + dto.requestId()
+                            + " userId=" + dto.userId()
+                            + " projectId=" + existing.getId());
             return existingProject(existing);
         }
 
@@ -72,6 +83,12 @@ public class ProjectServiceImpl implements ProjectService {
             if (duplicate == null) {
                 throw exception;
             }
+            conversationMetrics.idempotencyReplay("project");
+            log.log(
+                    System.Logger.Level.INFO,
+                    "Project idempotency replay after duplicate key requestId=" + dto.requestId()
+                            + " userId=" + dto.userId()
+                            + " projectId=" + duplicate.getId());
             return existingProject(duplicate);
         }
 
