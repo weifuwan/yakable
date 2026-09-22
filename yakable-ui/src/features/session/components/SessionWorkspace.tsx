@@ -89,8 +89,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
   const [watchedTurnId, setWatchedTurnId] = useState<string | null>(null);
   const [watchRetryVersion, setWatchRetryVersion] = useState(0);
   const [streamingContent, setStreamingContent] = useState('');
-  const [optimisticTurn, setOptimisticTurn] =
-    useState<OptimisticTurnRenderInput | null>(null);
+  const [optimisticTurn, setOptimisticTurn] = useState<OptimisticTurnRenderInput | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSessionLoading, setIsSessionLoading] = useState(true);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
