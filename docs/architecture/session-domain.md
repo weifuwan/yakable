@@ -48,6 +48,8 @@ RUNNING --recovery--> PENDING
 
 Message 是 Session 内的消息记录，通过 `message_sequence` 保证稳定顺序。
 
+单条 Message 的应用层上限为 2,000,000 个 Java 字符，数据库使用 MySQL `MEDIUMTEXT` 保存内容。这个上限同时约束用户输入和 Assistant 持久化内容，避免模型 Context 能力大于数据库字段容量时产生写入失败。
+
 一轮交互只有在 USER Message 成功持久化后才正式成立。USER Message 建立后，即使模型失败或用户停止生成，也不能回滚或删除该消息。
 
 Session 首次进入只加载最近 50 条 Message；更早历史通过 `beforeSequence` 向上分页加载。展示分页与 LLM Context 选择是两套独立规则。
@@ -93,6 +95,8 @@ watch existing Turn
 ```
 
 浏览器刷新、页面切换、SSE timeout 或网络断开只会取消当前 watcher，不会把 Turn 标记为 STOPPED。用户显式点击 Stop 才会进入停止流程。
+
+Streaming Assistant 内容同样受 Message 大小边界约束。流式缓冲达到上限后，本轮进入 FAILED，而不是继续增长内存或等到数据库写入时才失败；已经在边界内产生的部分内容仍按失败规则处理。
 
 线程提交、异常兜底和调度线程池统一由 `ThreadUtils` 管理，业务 Service 不持有线程池。模型调用不放在数据库事务中。
 
