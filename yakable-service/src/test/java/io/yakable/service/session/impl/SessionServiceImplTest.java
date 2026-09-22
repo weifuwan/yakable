@@ -41,6 +41,7 @@ import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
@@ -52,6 +53,7 @@ import java.util.function.Consumer;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -216,7 +218,7 @@ class SessionServiceImplTest {
         SessionEntity session = session("project-1", "session-1");
         when(sessionRepository.querySession("project-1", "session-1", "user-1"))
                 .thenReturn(Optional.of(session));
-        when(turnService.queryTurnList("session-1")).thenReturn(List.of());
+        when(turnService.queryTurnListByIds(any())).thenReturn(List.of());
 
         List<MessageVO> rows = java.util.stream.LongStream.rangeClosed(1, 51)
                 .mapToObj(sequence -> message(
@@ -238,6 +240,7 @@ class SessionServiceImplTest {
         assertThat(result.isHasMoreMessages()).isTrue();
         assertThat(result.getNextBeforeSequence()).isEqualTo(2L);
         verify(messageService, never()).queryMessageList("session-1");
+        verify(turnService, never()).queryTurnList("session-1");
     }
 
     @Test
@@ -274,9 +277,11 @@ class SessionServiceImplTest {
         when(sessionRepository.queryById("session-1")).thenReturn(Optional.of(session));
         when(turnService.updatePendingTurn(eq(currentTurnId), any(LocalDateTime.class)))
                 .thenReturn(Optional.of(current));
-        when(messageService.queryMessageList("session-1")).thenReturn(List.of(
-                message("m1", currentTurnId, MessageRoleEnum.USER, "Hello", 1L)));
-        when(turnService.queryTurnList("session-1")).thenReturn(List.of(current));
+        stubContext(
+                "session-1",
+                currentTurnId,
+                List.of(message("m1", currentTurnId, MessageRoleEnum.USER, "Hello", 1L)),
+                List.of(current));
         when(llmClient.modelMetadata("kimi", "kimi-k3")).thenReturn(new LlmModelMetadata(100_000L, 10_000L));
         when(turnService.updateTurnSucceeded(
                 eq(currentTurnId),
@@ -319,16 +324,18 @@ class SessionServiceImplTest {
         when(sessionRepository.queryById("session-1")).thenReturn(Optional.of(session));
         when(turnService.updatePendingTurn(eq(currentTurnId), any(LocalDateTime.class)))
                 .thenReturn(Optional.of(current));
-        when(messageService.queryMessageList("session-1")).thenReturn(List.of(
-                message("m1", "turn-succeeded", MessageRoleEnum.USER, "success user", 1L),
-                message("m2", "turn-succeeded", MessageRoleEnum.ASSISTANT, "success assistant", 2L),
-                message("m3", "turn-failed", MessageRoleEnum.USER, "failed user", 3L),
-                message("m4", "turn-failed", MessageRoleEnum.ASSISTANT, "failed partial", 4L),
-                message("m5", "turn-stopped", MessageRoleEnum.USER, "stopped user", 5L),
-                message("m6", "turn-stopped", MessageRoleEnum.ASSISTANT, "stopped partial", 6L),
-                message("m7", currentTurnId, MessageRoleEnum.USER, "current user", 7L)));
-        when(turnService.queryTurnList("session-1"))
-                .thenReturn(List.of(succeeded, failed, stopped, current));
+        stubContext(
+                "session-1",
+                currentTurnId,
+                List.of(
+                        message("m1", "turn-succeeded", MessageRoleEnum.USER, "success user", 1L),
+                        message("m2", "turn-succeeded", MessageRoleEnum.ASSISTANT, "success assistant", 2L),
+                        message("m3", "turn-failed", MessageRoleEnum.USER, "failed user", 3L),
+                        message("m4", "turn-failed", MessageRoleEnum.ASSISTANT, "failed partial", 4L),
+                        message("m5", "turn-stopped", MessageRoleEnum.USER, "stopped user", 5L),
+                        message("m6", "turn-stopped", MessageRoleEnum.ASSISTANT, "stopped partial", 6L),
+                        message("m7", currentTurnId, MessageRoleEnum.USER, "current user", 7L)),
+                List.of(succeeded, failed, stopped, current));
         when(llmClient.modelMetadata("deepseek", "deepseek-flash"))
                 .thenReturn(new LlmModelMetadata(1_000L, 100L));
         when(llmClient.estimateTokens(any(LlmRequest.class))).thenReturn(100L);
@@ -377,13 +384,16 @@ class SessionServiceImplTest {
         when(sessionRepository.queryById("session-1")).thenReturn(Optional.of(session));
         when(turnService.updatePendingTurn(eq(currentTurnId), any(LocalDateTime.class)))
                 .thenReturn(Optional.of(current));
-        when(messageService.queryMessageList("session-1")).thenReturn(List.of(
-                message("m1", "turn-oldest", MessageRoleEnum.USER, "old user", 1L),
-                message("m2", "turn-oldest", MessageRoleEnum.ASSISTANT, "old assistant", 2L),
-                message("m3", "turn-recent", MessageRoleEnum.USER, "recent user", 3L),
-                message("m4", "turn-recent", MessageRoleEnum.ASSISTANT, "recent assistant", 4L),
-                message("m5", currentTurnId, MessageRoleEnum.USER, "current user", 5L)));
-        when(turnService.queryTurnList("session-1")).thenReturn(List.of(oldest, recent, current));
+        stubContext(
+                "session-1",
+                currentTurnId,
+                List.of(
+                        message("m1", "turn-oldest", MessageRoleEnum.USER, "old user", 1L),
+                        message("m2", "turn-oldest", MessageRoleEnum.ASSISTANT, "old assistant", 2L),
+                        message("m3", "turn-recent", MessageRoleEnum.USER, "recent user", 3L),
+                        message("m4", "turn-recent", MessageRoleEnum.ASSISTANT, "recent assistant", 4L),
+                        message("m5", currentTurnId, MessageRoleEnum.USER, "current user", 5L)),
+                List.of(oldest, recent, current));
         when(llmClient.modelMetadata("deepseek", "deepseek-flash"))
                 .thenReturn(new LlmModelMetadata(100L, 20L));
         when(llmClient.estimateTokens(any(LlmRequest.class))).thenAnswer(invocation -> {
@@ -434,9 +444,11 @@ class SessionServiceImplTest {
         when(sessionRepository.queryById("session-1")).thenReturn(Optional.of(session));
         when(turnService.updatePendingTurn(eq(currentTurnId), any(LocalDateTime.class)))
                 .thenReturn(Optional.of(current));
-        when(messageService.queryMessageList("session-1")).thenReturn(List.of(
-                message("m1", currentTurnId, MessageRoleEnum.USER, "Hello", 1L)));
-        when(turnService.queryTurnList("session-1")).thenReturn(List.of(current));
+        stubContext(
+                "session-1",
+                currentTurnId,
+                List.of(message("m1", currentTurnId, MessageRoleEnum.USER, "Hello", 1L)),
+                List.of(current));
         when(llmClient.modelMetadata("deepseek", "unknown-model"))
                 .thenThrow(new IllegalArgumentException("Model context metadata not found"));
         current.getInvocation().setModel("unknown-model");
@@ -473,9 +485,12 @@ class SessionServiceImplTest {
         when(sessionRepository.queryById("session-1")).thenReturn(Optional.of(session));
         when(turnService.updatePendingTurn(eq(currentTurnId), any(LocalDateTime.class)))
                 .thenReturn(Optional.of(current));
-        when(messageService.queryMessageList("session-1")).thenReturn(List.of(
-                message("m1", currentTurnId, MessageRoleEnum.USER, "oversized current message", 1L)));
-        when(turnService.queryTurnList("session-1")).thenReturn(List.of(current));
+        stubContext(
+                "session-1",
+                currentTurnId,
+                List.of(message(
+                        "m1", currentTurnId, MessageRoleEnum.USER, "oversized current message", 1L)),
+                List.of(current));
         when(llmClient.modelMetadata("deepseek", "deepseek-flash"))
                 .thenReturn(new LlmModelMetadata(100L, 20L));
         when(llmClient.estimateTokens(any(LlmRequest.class))).thenReturn(81L);
@@ -511,9 +526,11 @@ class SessionServiceImplTest {
         when(sessionRepository.queryById("session-1")).thenReturn(Optional.of(session));
         when(turnService.updatePendingTurn(eq(currentTurnId), any(LocalDateTime.class)))
                 .thenReturn(Optional.of(current));
-        when(messageService.queryMessageList("session-1")).thenReturn(List.of(
-                message("m1", currentTurnId, MessageRoleEnum.USER, "Hello", 1L)));
-        when(turnService.queryTurnList("session-1")).thenReturn(List.of(current));
+        stubContext(
+                "session-1",
+                currentTurnId,
+                List.of(message("m1", currentTurnId, MessageRoleEnum.USER, "Hello", 1L)),
+                List.of(current));
         when(llmClient.modelMetadata("deepseek", "deepseek-flash")).thenReturn(new LlmModelMetadata(100_000L, 10_000L));
         when(turnService.queryTurn(currentTurnId)).thenReturn(Optional.of(current));
         when(turnService.updateTurnFailed(
@@ -570,9 +587,11 @@ class SessionServiceImplTest {
         when(sessionRepository.queryById("session-1")).thenReturn(Optional.of(session));
         when(turnService.updatePendingTurn(eq(currentTurnId), any(LocalDateTime.class)))
                 .thenReturn(Optional.of(current));
-        when(messageService.queryMessageList("session-1")).thenReturn(List.of(
-                message("m1", currentTurnId, MessageRoleEnum.USER, "Hello", 1L)));
-        when(turnService.queryTurnList("session-1")).thenReturn(List.of(current));
+        stubContext(
+                "session-1",
+                currentTurnId,
+                List.of(message("m1", currentTurnId, MessageRoleEnum.USER, "Hello", 1L)),
+                List.of(current));
         when(llmClient.modelMetadata("deepseek", "deepseek-flash"))
                 .thenReturn(new LlmModelMetadata(100_000L, 10_000L));
         when(turnService.queryTurn(currentTurnId)).thenReturn(Optional.of(current));
@@ -627,9 +646,11 @@ class SessionServiceImplTest {
         when(sessionRepository.queryById("session-1")).thenReturn(Optional.of(firstSession));
         when(turnService.updatePendingTurn(eq("turn-1"), any(LocalDateTime.class)))
                 .thenReturn(Optional.of(first));
-        when(messageService.queryMessageList("session-1")).thenReturn(List.of(
-                message("m1", "turn-1", MessageRoleEnum.USER, "Hello", 1L)));
-        when(turnService.queryTurnList("session-1")).thenReturn(List.of(first));
+        stubContext(
+                "session-1",
+                "turn-1",
+                List.of(message("m1", "turn-1", MessageRoleEnum.USER, "Hello", 1L)),
+                List.of(first));
         when(llmClient.modelMetadata("deepseek", "deepseek-flash"))
                 .thenReturn(new LlmModelMetadata(100_000L, 10_000L));
         when(turnService.updateTurnSucceeded(
@@ -683,9 +704,11 @@ class SessionServiceImplTest {
         when(sessionRepository.queryById("session-1")).thenReturn(Optional.of(firstSession));
         when(turnService.updatePendingTurn(eq("turn-1"), any(LocalDateTime.class)))
                 .thenReturn(Optional.of(first));
-        when(messageService.queryMessageList("session-1")).thenReturn(List.of(
-                message("m1", "turn-1", MessageRoleEnum.USER, "Hello", 1L)));
-        when(turnService.queryTurnList("session-1")).thenReturn(List.of(first));
+        stubContext(
+                "session-1",
+                "turn-1",
+                List.of(message("m1", "turn-1", MessageRoleEnum.USER, "Hello", 1L)),
+                List.of(first));
         when(llmClient.modelMetadata("deepseek", "deepseek-flash"))
                 .thenReturn(new LlmModelMetadata(100_000L, 10_000L));
         when(turnService.updateTurnSucceeded(
@@ -737,9 +760,11 @@ class SessionServiceImplTest {
         when(sessionRepository.queryById("session-1")).thenReturn(Optional.of(session));
         when(turnService.updatePendingTurn(eq(turnId), any(LocalDateTime.class)))
                 .thenReturn(Optional.of(running));
-        when(messageService.queryMessageList("session-1")).thenReturn(List.of(
-                message("m1", turnId, MessageRoleEnum.USER, "Hello", 1L)));
-        when(turnService.queryTurnList("session-1")).thenReturn(List.of(running));
+        stubContext(
+                "session-1",
+                turnId,
+                List.of(message("m1", turnId, MessageRoleEnum.USER, "Hello", 1L)),
+                List.of(running));
         when(llmClient.modelMetadata("deepseek", "deepseek-flash")).thenReturn(new LlmModelMetadata(100_000L, 10_000L));
         when(turnService.updateTurnSucceeded(
                 eq(turnId),
@@ -808,6 +833,38 @@ class SessionServiceImplTest {
         assertThat(delta.get()).isEqualTo(" answer");
 
         unsubscribe.run();
+    }
+
+    private void stubContext(
+            String sessionId, String currentTurnId, List<MessageVO> messages, List<TurnVO> turns) {
+        MessageVO currentUser = messages.stream()
+                .filter(message -> currentTurnId.equals(message.getTurnId()))
+                .filter(message -> MessageRoleEnum.USER.name().equals(message.getRole()))
+                .findFirst()
+                .orElseThrow();
+        when(messageService.queryUserMessage(currentTurnId)).thenReturn(Optional.of(currentUser));
+        when(messageService.queryMessageBefore(eq(sessionId), anyLong(), eq(50)))
+                .thenAnswer(invocation -> {
+                    long beforeSequence = invocation.getArgument(1);
+                    return messages.stream()
+                            .filter(message -> message.getSequence() < beforeSequence)
+                            .sorted(Comparator.comparing(MessageVO::getSequence).reversed())
+                            .limit(50)
+                            .toList();
+                });
+        when(messageService.queryMessageListByTurnIds(any())).thenAnswer(invocation -> {
+            List<String> turnIds = invocation.getArgument(0);
+            return messages.stream()
+                    .filter(message -> turnIds.contains(message.getTurnId()))
+                    .sorted(Comparator.comparing(MessageVO::getSequence))
+                    .toList();
+        });
+        when(turnService.queryTurnListByIds(any())).thenAnswer(invocation -> {
+            List<String> turnIds = invocation.getArgument(0);
+            return turns.stream()
+                    .filter(turn -> turnIds.contains(turn.getId()))
+                    .toList();
+        });
     }
 
     private void awaitActiveExecutions(int expected) {
