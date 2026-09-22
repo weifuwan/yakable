@@ -22,6 +22,16 @@ public interface MessageService {
     Optional<MessageVO> queryUserMessage(String turnId);
 
     /**
+     * 查询 Session 指定序号的 Message。
+     */
+    Optional<MessageVO> queryMessage(String sessionId, long sequence);
+
+    /**
+     * 查询 Session 下的 USER Message。
+     */
+    List<MessageVO> queryUserNavigationMessageList(String sessionId);
+
+    /**
      * 查询 Session 下的 Message。
      */
     List<MessageVO> queryMessageList(String sessionId);

@@ -1,6 +1,6 @@
 # Turn Navigator
 
-Status: Designing
+Status: Implementing
 Domain: Conversation
 
 Depends On:
@@ -13,6 +13,8 @@ Related:
 - [Stop](./stop.md)
 
 Frontend:
+- Contract: `yakable-ui/src/service/session/SessionService.ts`
+- Contract Types: `yakable-ui/src/service/session/types.ts`
 - Planned: `yakable-ui/src/features/session/components/TurnItem.tsx`
 - Planned: `yakable-ui/src/features/session/components/turn-navigator/TurnNavigator.tsx`
 - Planned: `yakable-ui/src/features/session/components/turn-navigator/useTurnNavigator.ts`
@@ -20,10 +22,10 @@ Frontend:
 - Existing host: `yakable-ui/src/features/session/components/SessionWorkspace.tsx`
 
 Backend:
-- Planned: lightweight Turn Navigation Index in Session API
-- Planned: target Message Window by anchor sequence
-- Existing host: `yakable-boot/src/main/java/io/yakable/boot/controller/session/SessionController.java`
-- Existing host: `yakable-service/src/main/java/io/yakable/service/session/SessionService.java`
+- API: `GET /api/projects/{projectId}/sessions/{sessionId}/turns/navigation`
+- API: `GET /api/projects/{projectId}/sessions/{sessionId}/messages/window?anchorSequence={sequence}`
+- Host: `yakable-boot/src/main/java/io/yakable/boot/controller/session/SessionController.java`
+- Host: `yakable-service/src/main/java/io/yakable/service/session/SessionService.java`
 
 Data:
 - Turn
@@ -65,6 +67,8 @@ Tests:
 - 500 Turn 下允许轻量导航项存在，但复杂 Markdown 不能全部长期常驻 DOM。
 - 键盘使用 roving tabindex，支持 Arrow / Home / End / Enter / Space。
 - 窄屏 V1 隐藏 Navigator。
+- Navigation Index 只返回正式 USER Message 对应的 Turn 节点，按 Message Sequence 升序；Preview 服务端收敛空白并限制为最多 160 个 Unicode code point。
+- Target Message Window 固定最多 50 条 Message，目标 anchor 必须存在且包含在窗口内；返回 hasOlder / hasNewer 与对应边界 cursor。
 
 ## Frontend Design Invariants
 

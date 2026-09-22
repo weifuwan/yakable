@@ -6,16 +6,20 @@ import io.yakable.common.bean.dto.session.StopTurnDTO;
 import io.yakable.common.bean.dto.session.QuerySessionChangesDTO;
 import io.yakable.common.bean.dto.session.QuerySessionDTO;
 import io.yakable.common.bean.dto.session.QuerySessionMessagesDTO;
+import io.yakable.common.bean.dto.session.QuerySessionMessageWindowDTO;
+import io.yakable.common.bean.dto.session.QuerySessionTurnNavigationDTO;
 import io.yakable.common.bean.dto.session.WatchTurnDTO;
 import io.yakable.common.bean.vo.session.MessageVO;
 import io.yakable.common.bean.vo.session.SessionChangesVO;
 import io.yakable.common.bean.vo.session.SessionDetailVO;
 import io.yakable.common.bean.vo.session.SessionInitVO;
 import io.yakable.common.bean.vo.session.SessionMessagePageVO;
+import io.yakable.common.bean.vo.session.SessionMessageWindowVO;
 import io.yakable.common.bean.vo.session.SessionModelVO;
 import io.yakable.common.bean.vo.session.SessionVO;
 import io.yakable.common.bean.vo.session.TurnExecutionVO;
 import io.yakable.common.bean.vo.session.TurnInvocationVO;
+import io.yakable.common.bean.vo.session.TurnNavigationItemVO;
 import io.yakable.common.bean.vo.session.TurnStartVO;
 import io.yakable.common.bean.vo.session.TurnVO;
 import io.yakable.common.constant.MessageConstant;
@@ -83,6 +87,11 @@ public class SessionServiceImpl implements SessionService {
     private static final int RECOVERY_BATCH_SIZE = 100;
     private static final int INITIAL_MESSAGE_PAGE_SIZE = 50;
     private static final int SESSION_CHANGE_MESSAGE_LIMIT = 100;
+    private static final int TURN_NAVIGATION_PREVIEW_MAX_CODE_POINTS = 160;
+    private static final int TARGET_MESSAGE_WINDOW_SIZE = 50;
+    private static final int TARGET_MESSAGE_WINDOW_BEFORE_SIZE = TARGET_MESSAGE_WINDOW_SIZE / 2;
+    private static final int TARGET_MESSAGE_WINDOW_AFTER_SIZE =
+            TARGET_MESSAGE_WINDOW_SIZE - TARGET_MESSAGE_WINDOW_BEFORE_SIZE - 1;
     private static final int CONTEXT_HISTORY_BATCH_SIZE = 50;
     private static final int DEFAULT_MAX_CONCURRENT_EXECUTIONS = 16;
     private static final int DEFAULT_MAX_CONCURRENT_EXECUTIONS_PER_USER = 2;
@@ -380,6 +389,49 @@ public class SessionServiceImpl implements SessionService {
         result.setMessages(messages);
         result.setNextBeforeSequence(hasMore && !messages.isEmpty() ? messages.get(0).getSequence() : null);
         result.setHasMore(hasMore);
+        return result;
+    }
+
+    @Override
+    public List<TurnNavigationItemVO> queryTurnNavigation(QuerySessionTurnNavigationDTO dto) {
+        queryOwnedSession(dto.projectId(), dto.sessionId(), dto.userId());
+
+        return messageService.queryUserNavigationMessageList(dto.sessionId()).stream()
+                .map(SessionServiceImpl::toTurnNavigationItemVO)
+                .toList();
+    }
+
+    @Override
+    public SessionMessageWindowVO queryMessageWindow(QuerySessionMessageWindowDTO dto) {
+        queryOwnedSession(dto.projectId(), dto.sessionId(), dto.userId());
+
+        MessageVO anchor = messageService.queryMessage(dto.sessionId(), dto.anchorSequence())
+                .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
+
+        List<MessageVO> olderRows = messageService.queryMessageBefore(
+                dto.sessionId(), dto.anchorSequence(), TARGET_MESSAGE_WINDOW_BEFORE_SIZE + 1);
+        boolean hasOlder = olderRows.size() > TARGET_MESSAGE_WINDOW_BEFORE_SIZE;
+        List<MessageVO> older = new ArrayList<>(
+                olderRows.subList(0, Math.min(olderRows.size(), TARGET_MESSAGE_WINDOW_BEFORE_SIZE)));
+        Collections.reverse(older);
+
+        List<MessageVO> newerRows = messageService.queryMessageAfter(
+                dto.sessionId(), dto.anchorSequence(), TARGET_MESSAGE_WINDOW_AFTER_SIZE + 1);
+        boolean hasNewer = newerRows.size() > TARGET_MESSAGE_WINDOW_AFTER_SIZE;
+        List<MessageVO> newer = newerRows.subList(
+                0, Math.min(newerRows.size(), TARGET_MESSAGE_WINDOW_AFTER_SIZE));
+
+        List<MessageVO> messages = new ArrayList<>(TARGET_MESSAGE_WINDOW_SIZE);
+        messages.addAll(older);
+        messages.add(anchor);
+        messages.addAll(newer);
+
+        SessionMessageWindowVO result = new SessionMessageWindowVO();
+        result.setMessages(messages);
+        result.setHasOlder(hasOlder);
+        result.setHasNewer(hasNewer);
+        result.setOlderCursor(hasOlder ? messages.getFirst().getSequence() : null);
+        result.setNewerCursor(hasNewer ? messages.getLast().getSequence() : null);
         return result;
     }
 
@@ -1160,6 +1212,28 @@ public class SessionServiceImpl implements SessionService {
     private SessionEntity queryOwnedSession(String projectId, String sessionId, String userId) {
         return sessionRepository.querySession(projectId, sessionId, userId)
                 .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
+    }
+
+    private static TurnNavigationItemVO toTurnNavigationItemVO(MessageVO message) {
+        TurnNavigationItemVO result = new TurnNavigationItemVO();
+        result.setTurnId(message.getTurnId());
+        result.setUserMessageId(message.getId());
+        result.setUserMessageSequence(message.getSequence());
+        result.setPreview(navigationPreview(message.getContent()));
+        return result;
+    }
+
+    private static String navigationPreview(String content) {
+        if (content == null) {
+            return "";
+        }
+        String normalized = content.replaceAll("\\s+", " ").strip();
+        int codePoints = normalized.codePointCount(0, normalized.length());
+        if (codePoints <= TURN_NAVIGATION_PREVIEW_MAX_CODE_POINTS) {
+            return normalized;
+        }
+        int end = normalized.offsetByCodePoints(0, TURN_NAVIGATION_PREVIEW_MAX_CODE_POINTS);
+        return normalized.substring(0, end);
     }
 
     private static SessionVO toSessionVO(SessionEntity entity) {

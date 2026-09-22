@@ -7,10 +7,14 @@ import io.yakable.common.bean.dto.session.WatchTurnDTO;
 import io.yakable.common.bean.dto.session.QuerySessionChangesDTO;
 import io.yakable.common.bean.dto.session.QuerySessionDTO;
 import io.yakable.common.bean.dto.session.QuerySessionMessagesDTO;
+import io.yakable.common.bean.dto.session.QuerySessionMessageWindowDTO;
+import io.yakable.common.bean.dto.session.QuerySessionTurnNavigationDTO;
 import io.yakable.common.bean.vo.session.MessageVO;
 import io.yakable.common.bean.vo.session.SessionMessagePageVO;
+import io.yakable.common.bean.vo.session.SessionMessageWindowVO;
 import io.yakable.common.bean.vo.session.TurnExecutionVO;
 import io.yakable.common.bean.vo.session.TurnInvocationVO;
+import io.yakable.common.bean.vo.session.TurnNavigationItemVO;
 import io.yakable.common.bean.vo.session.TurnStartVO;
 import io.yakable.common.bean.vo.session.TurnVO;
 import io.yakable.common.constant.MessageConstant;
@@ -310,6 +314,95 @@ class SessionServiceImplTest {
         verifyNoInteractions(llmClient);
 
         unsubscribe.run();
+    }
+
+    @Test
+    void shouldBuildLightweightTurnNavigationFromUserMessages() {
+        SessionEntity session = session("project-1", "session-1");
+        String longPrompt = "  Build\n\t" + "界".repeat(170) + "  ";
+
+        when(sessionRepository.querySession("project-1", "session-1", "user-1"))
+                .thenReturn(Optional.of(session));
+        when(messageService.queryUserNavigationMessageList("session-1")).thenReturn(List.of(
+                message("message-1", "turn-1", MessageRoleEnum.USER, "First prompt", 1L),
+                message("message-2", "turn-2", MessageRoleEnum.USER, longPrompt, 3L)));
+
+        List<TurnNavigationItemVO> result = sessionService.queryTurnNavigation(
+                new QuerySessionTurnNavigationDTO("project-1", "session-1", "user-1"));
+
+        assertThat(result)
+                .extracting(
+                        TurnNavigationItemVO::getTurnId,
+                        TurnNavigationItemVO::getUserMessageId,
+                        TurnNavigationItemVO::getUserMessageSequence)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("turn-1", "message-1", 1L),
+                        org.assertj.core.groups.Tuple.tuple("turn-2", "message-2", 3L));
+        assertThat(result.get(1).getPreview()).doesNotContain("\n", "\t");
+        assertThat(result.get(1).getPreview().codePointCount(0, result.get(1).getPreview().length()))
+                .isEqualTo(160);
+        verifyNoInteractions(turnService);
+    }
+
+    @Test
+    void shouldBuildBoundedMessageWindowAroundAnchor() {
+        SessionEntity session = session("project-1", "session-1");
+        when(sessionRepository.querySession("project-1", "session-1", "user-1"))
+                .thenReturn(Optional.of(session));
+
+        MessageVO anchor = message(
+                "message-101", "turn-51", MessageRoleEnum.USER, "anchor", 101L);
+        when(messageService.queryMessage("session-1", 101L)).thenReturn(Optional.of(anchor));
+
+        List<MessageVO> olderRows = java.util.stream.LongStream.rangeClosed(75, 100)
+                .mapToObj(sequence -> message(
+                        "message-" + sequence,
+                        "turn-" + sequence,
+                        MessageRoleEnum.USER,
+                        "message-" + sequence,
+                        sequence))
+                .sorted((left, right) -> Long.compare(right.getSequence(), left.getSequence()))
+                .toList();
+        when(messageService.queryMessageBefore("session-1", 101L, 26)).thenReturn(olderRows);
+
+        List<MessageVO> newerRows = java.util.stream.LongStream.rangeClosed(102, 126)
+                .mapToObj(sequence -> message(
+                        "message-" + sequence,
+                        "turn-" + sequence,
+                        MessageRoleEnum.ASSISTANT,
+                        "message-" + sequence,
+                        sequence))
+                .toList();
+        when(messageService.queryMessageAfter("session-1", 101L, 25)).thenReturn(newerRows);
+
+        SessionMessageWindowVO result = sessionService.queryMessageWindow(
+                new QuerySessionMessageWindowDTO("project-1", "session-1", 101L, "user-1"));
+
+        assertThat(result.getMessages()).hasSize(50);
+        assertThat(result.getMessages().getFirst().getSequence()).isEqualTo(76L);
+        assertThat(result.getMessages().get(25).getSequence()).isEqualTo(101L);
+        assertThat(result.getMessages().getLast().getSequence()).isEqualTo(125L);
+        assertThat(result.isHasOlder()).isTrue();
+        assertThat(result.isHasNewer()).isTrue();
+        assertThat(result.getOlderCursor()).isEqualTo(76L);
+        assertThat(result.getNewerCursor()).isEqualTo(125L);
+    }
+
+    @Test
+    void shouldRejectMessageWindowWhenAnchorDoesNotExist() {
+        SessionEntity session = session("project-1", "session-1");
+        when(sessionRepository.querySession("project-1", "session-1", "user-1"))
+                .thenReturn(Optional.of(session));
+        when(messageService.queryMessage("session-1", 999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() ->
+                sessionService.queryMessageWindow(
+                        new QuerySessionMessageWindowDTO(
+                                "project-1", "session-1", 999L, "user-1")))
+                .isInstanceOf(SessionException.class)
+                .satisfies(exception ->
+                        assertThat(((SessionException) exception).getErrorCode())
+                                .isEqualTo(SessionErrorCode.NOT_FOUND));
     }
 
     @Test

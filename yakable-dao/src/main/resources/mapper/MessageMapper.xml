@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.yakable.dao.mapper.MessageMapper">
+
+    <resultMap id="navigationMessageEntity" type="io.yakable.dao.entity.MessageEntity">
+        <id property="id" column="id"/>
+        <result property="turnId" column="turn_id"/>
+        <result property="role" column="role"/>
+        <result property="content" column="content"/>
+        <result property="messageSequence" column="message_sequence"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <select id="selectUserNavigationMessageList" resultMap="navigationMessageEntity">
+        SELECT
+            id,
+            turn_id,
+            role,
+            LEFT(
+                REGEXP_REPLACE(TRIM(content), '[[:space:]]+', ' '),
+                160
+            ) AS content,
+            message_sequence,
+            create_time
+        FROM yak_message
+        WHERE session_id = #{sessionId}
+          AND role = 0
+        ORDER BY message_sequence ASC
+    </select>
+
+</mapper>
