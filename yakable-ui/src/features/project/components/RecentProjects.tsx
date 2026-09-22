@@ -99,13 +99,13 @@ export function RecentProjects() {
       </h2>
 
       {projects.length === 0 && isLoading && (
-        <div role="status">
+        <output className="block">
           <span className="sr-only">Loading recent projects</span>
           <ProjectSkeletonRows
             count={PROJECT_PAGE_SIZE}
             testId="recent-projects-skeleton"
           />
-        </div>
+        </output>
       )}
 
       {projects.length === 0 && !isLoading && error && (
@@ -156,13 +156,13 @@ export function RecentProjects() {
           </nav>
 
           {isLoadingMore && (
-            <div className="mt-0.5" role="status">
+            <output className="mt-0.5 block">
               <span className="sr-only">Loading more recent projects</span>
               <ProjectSkeletonRows
                 count={PROJECT_LOAD_MORE_SKELETON_ROWS}
                 testId="recent-projects-loading-more"
               />
-            </div>
+            </output>
           )}
 
           {error && hasMore && !isLoadingMore && (
