@@ -48,9 +48,7 @@ describe('useSessionMessageWindow', () => {
       hasMore: false,
     });
 
-    const { result } = renderHook(() =>
-      useSessionMessageWindow('project-1', 'session-1'),
-    );
+    const { result } = renderHook(() => useSessionMessageWindow('project-1', 'session-1'));
 
     act(() => {
       result.current.initialize(snapshot());
@@ -78,9 +76,7 @@ describe('useSessionMessageWindow', () => {
       newerCursor: null,
     });
 
-    const { result } = renderHook(() =>
-      useSessionMessageWindow('project-1', 'session-1'),
-    );
+    const { result } = renderHook(() => useSessionMessageWindow('project-1', 'session-1'));
 
     act(() => {
       result.current.replaceWindow({
@@ -103,9 +99,7 @@ describe('useSessionMessageWindow', () => {
   });
 
   it('merges persisted changes by Message sequence without duplicates', () => {
-    const { result } = renderHook(() =>
-      useSessionMessageWindow('project-1', 'session-1'),
-    );
+    const { result } = renderHook(() => useSessionMessageWindow('project-1', 'session-1'));
 
     act(() => {
       result.current.initialize(snapshot());
