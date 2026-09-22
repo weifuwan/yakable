@@ -1,6 +1,6 @@
 # Reconnect
 
-Status: Implementing
+Status: Review
 Domain: Conversation
 
 Depends On:
@@ -48,20 +48,16 @@ Tests:
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
 
-Implementation Design:
-- Active Turn watcher 失败后保留当前 streamingContent，不立即清空用户已经看到的 partial。
-- watch failure 先调用 queryChanges 作为持久化状态兜底。
-- 如果 queryChanges 确认 Turn 已进入 SUCCEEDED / FAILED / STOPPED，则合并终态并停止 rewatch。
-- 如果 Turn 仍是 PENDING / RUNNING，或 queryChanges 本身也失败，则保持原 turnId，并在固定 1s 延迟后允许重新建立 watcher。
-- rewatch 只调用 watchTurn(originalTurnId)，不重新提交 Prompt，不创建新 Turn / USER Message。
-- 新 watcher 的 snapshot 替换旧 partial，后续 delta 继续追加。
-- rewatch 等待期间允许现有 polling 继续收敛数据库状态。
-- watch 生命周期不再依赖 latestSequence 触发重建，避免 polling 更新 sequence 时取消待执行的 rewatch。
-- Session / Project 切换会取消当前 watcher 与待执行 retry，不把旧 Turn 的 retry 带到新 Session。
-- 本次不修改 SessionService SSE 协议、后端、数据库、Stop 或 GAP-08。
-
 Review Notes:
-- GAP-02 snapshot ordering、GAP-03 multi-tab、GAP-04 watcher isolation 均保持不变。
+- GAP-07 已实现：active Turn watcher 临时失败后保留当前 streamingContent，不再立即清空用户已经看到的 partial。
+- watcher failure 先通过 queryChanges 收敛持久化状态；只有 Turn 仍是 PENDING / RUNNING，或 changes 暂时不可用时，才在固定 1s 延迟后 rewatch 原 turnId。
+- queryChanges 已确认 SUCCEEDED / FAILED / STOPPED 时停止 rewatch，并由持久化结果替换 streaming partial。
+- rewatch 始终调用 watchTurn(originalTurnId)，不重新提交 Prompt，不创建新 Turn / USER Message。
+- retry 等待期间 polling 仍可继续工作；watch effect 不再依赖 latestSequence，因此 polling 的 sequence 更新不会取消 retry timer。
+- Session / Project 切换会通过 effect cleanup 取消旧 watcher 和 retry timer。
+- 已新增“临时断网后保留 partial 并 rewatch 同一 Turn”以及“终态后不继续 rewatch”两条前端回归测试。
+- SessionService SSE 协议、后端、数据库、Stop 和 GAP-08 均未修改。
+- 当前执行环境无法解析 github.com，目标 Vitest 尚未实际执行；测试通过前保持 Review。
 
 ## Purpose
 
