@@ -193,6 +193,7 @@ async function addTurn(
   sessionId: string,
   content: string,
   model: SessionModel,
+  requestId: string,
   signal?: AbortSignal,
 ) {
   const data = await HttpUtils.post<unknown>(
@@ -201,6 +202,7 @@ async function addTurn(
       content,
       provider: model.provider,
       model: model.model,
+      requestId,
     },
     { signal },
   );
@@ -233,6 +235,7 @@ async function streamingTurn(
   sessionId: string,
   content: string,
   model: SessionModel,
+  requestId: string,
   handlers: {
     onStarted: (result: TurnStartResult) => void;
     onSnapshot?: (content: string) => void;
@@ -249,6 +252,7 @@ async function streamingTurn(
       content,
       provider: model.provider,
       model: model.model,
+      requestId,
     },
     ({ event, data }) => {
       if (event === 'started') {
