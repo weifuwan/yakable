@@ -69,13 +69,16 @@ SSE configuration:
 YAKABLE_SSE_TIMEOUT   # default: 10m
 ```
 
-Session context configuration:
+Runtime configuration:
 
 ```text
-YAKABLE_CONTEXT_MAX_HISTORY_TURNS   # default: 20, fallback when model context metadata is unavailable
+YAKABLE_RUNTIME_MODE      # SaaS V1 only supports: single-instance
+YAKABLE_SHUTDOWN_TIMEOUT  # default: 30s
 ```
 
-When the active Model Plugin exposes context metadata, Yakable uses the model context window and Provider token estimator to trim complete historical turns automatically. The current user turn is never silently truncated.
+Yakable SaaS V1 must run as a single backend instance. Current Streaming Snapshot, watcher state and Stop coordination are process-local; multi-instance deployment is intentionally not supported yet.
+
+Session Context uses the active Model Plugin context window and Provider token estimator to select complete historical turns. History is read backward in bounded batches, and the current user turn is never silently truncated.
 
 ## Backend structure
 

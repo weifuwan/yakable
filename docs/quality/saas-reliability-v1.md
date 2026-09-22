@@ -103,6 +103,10 @@ SSE 只负责观察执行结果，不拥有 Turn 生命周期。
 
 Streaming 已经产生的非空 Assistant 内容，在 Stop 或 Failure 时应按产品规则持久化。
 
+SaaS V1 后端运行边界明确为单实例。依赖 JVM 本地 Stream State 的能力不能在未设计分布式运行语义前直接水平扩容。
+
+服务正常退出时必须停止接收新的后台执行，等待正在执行的 Turn 在有限时间内完成；超过等待时间仍未完成的 RUNNING Turn 应恢复为 PENDING，交给下一次启动后的 Recovery 继续同一个 Turn。
+
 ## 6. 外部依赖
 
 数据库、LLM Provider 和外部 HTTP 调用都必须设置明确超时。
@@ -118,6 +122,8 @@ Streaming 已经产生的非空 Assistant 内容，在 Stop 或 Failure 时应�
 外部 Provider 失败必须转换成明确的系统错误，不能让异常直接破坏核心业务状态。
 
 Provider 不可用时，只影响对应 Turn，不应影响已有 Project、Session 和历史 Message。
+
+产品界面只能暴露当前运行时真实可用的 Provider / Model。未接入的模型不能以可选项形式出现在用户界面中。
 
 ## 7. 资源边界
 
@@ -275,6 +281,8 @@ Model Plugin 不调用真实第三方服务。
 - 额外 Manager / Handler / Coordinator 等中间层。
 
 真正出现单机无法解决的问题后，再基于证据升级架构。
+
+SaaS V1 明确只支持单实例后端部署；这不是未来多实例方案，而是当前可靠性边界。
 
 ## 14. Review 方法
 

@@ -45,8 +45,10 @@ import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -84,6 +86,18 @@ class SessionServiceImplTest {
 
     @InjectMocks
     private SessionServiceImpl sessionService;
+
+    @Test
+    void shouldNotDispatchNewTurnWhileRuntimeIsShuttingDown() {
+        AtomicBoolean shuttingDown =
+                (AtomicBoolean) ReflectionTestUtils.getField(sessionService, "shuttingDown");
+        assertThat(shuttingDown).isNotNull();
+        shuttingDown.set(true);
+
+        sessionService.executeTurnAsync("turn-1");
+
+        verifyNoInteractions(turnService, sessionRepository);
+    }
 
     @Test
     void shouldCreateInitialSessionForProjectOwner() {
@@ -721,6 +735,42 @@ class SessionServiceImplTest {
                 eq(currentTurnId),
                 eq(MessageRoleEnum.ASSISTANT),
                 any());
+    }
+
+    @Test
+    void shouldLeaveInterruptedRuntimeTurnForShutdownRecovery() {
+        String currentTurnId = "turn-shutdown";
+        SessionEntity session = session("project-1", "session-1");
+        TurnVO current = turn(currentTurnId, TurnStatusEnum.RUNNING);
+
+        when(turnService.updatePendingTurn(eq(currentTurnId), any(LocalDateTime.class)))
+                .thenReturn(Optional.of(current));
+        stubContext(
+                "session-1",
+                currentTurnId,
+                List.of(message("m1", currentTurnId, MessageRoleEnum.USER, "Hello", 1L)),
+                List.of(current));
+        when(llmClient.modelMetadata("deepseek", "deepseek-flash"))
+                .thenReturn(new LlmModelMetadata(100_000L, 10_000L));
+        doAnswer(invocation -> {
+            throw new RuntimeException("shutdown interrupt");
+        }).when(llmClient).streamingChat(any(LlmRequest.class), any());
+
+        AtomicBoolean shuttingDown =
+                (AtomicBoolean) ReflectionTestUtils.getField(sessionService, "shuttingDown");
+        assertThat(shuttingDown).isNotNull();
+        shuttingDown.set(true);
+
+        ReflectionTestUtils.invokeMethod(
+                sessionService, "executeTurnStreaming", currentTurnId, session);
+
+        verify(turnService, never()).updateTurnFailed(
+                eq(currentTurnId), eq("session-1"), any(), any(LocalDateTime.class));
+
+        @SuppressWarnings("unchecked")
+        Set<String> shutdownRecoveryTurnIds =
+                (Set<String>) ReflectionTestUtils.getField(sessionService, "shutdownRecoveryTurnIds");
+        assertThat(shutdownRecoveryTurnIds).contains(currentTurnId);
     }
 
     @Test

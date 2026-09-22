@@ -61,6 +61,15 @@ class TurnServiceImplTest {
     }
 
     @Test
+    void shouldRecoverSpecificRunningTurnToPending() {
+        when(turnRepository.updateRunningTurnPending("turn-1")).thenReturn(1);
+
+        assertThat(turnService.updateRunningTurnPending("turn-1")).isEqualTo(1);
+
+        verify(turnRepository).updateRunningTurnPending("turn-1");
+    }
+
+    @Test
     void shouldClaimPendingTurnWithoutChangingModelIdentity() {
         LocalDateTime claimedAt = LocalDateTime.of(2026, 9, 22, 9, 0);
         TurnEntity entity = new TurnEntity();

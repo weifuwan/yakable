@@ -60,6 +60,11 @@ public interface TurnRepository extends BaseRepository<TurnEntity> {
     int updateTurnStopped(String turnId, String sessionId, LocalDateTime stoppedAt);
 
     /**
+     * 将指定运行中的 Turn 恢复为待执行状态。
+     */
+    int updateRunningTurnPending(String turnId);
+
+    /**
      * 将超时运行中的 Turn 恢复为待执行状态。
      */
     int updateStaleTurnPending(LocalDateTime staleBefore);

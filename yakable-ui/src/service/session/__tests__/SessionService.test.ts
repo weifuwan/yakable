@@ -74,8 +74,8 @@ const started: TurnStartResult = {
     attemptCount: 0,
     errorMessage: null,
     invocation: {
-      provider: 'kimi',
-      model: 'kimi-k3',
+      provider: 'deepseek',
+      model: 'deepseek-flash',
       usage: null,
       providerRequestId: null,
       finishReason: null,
@@ -97,8 +97,8 @@ const started: TurnStartResult = {
 };
 
 const selectedModel = {
-  provider: 'kimi',
-  model: 'kimi-k3',
+  provider: 'deepseek',
+  model: 'deepseek-flash',
 };
 
 afterEach(() => {
@@ -166,8 +166,8 @@ describe('SessionService', () => {
       '/api/projects/project-1/sessions/session-1/turns/stream',
       {
         content: 'Tell me more',
-        provider: 'kimi',
-        model: 'kimi-k3',
+        provider: 'deepseek',
+        model: 'deepseek-flash',
         requestId: 'turn-request-1',
       },
       expect.any(Function),

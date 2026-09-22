@@ -6,11 +6,6 @@ export const MODEL_CATALOG = [
     model: 'deepseek-flash',
     label: 'DeepSeek',
   },
-  {
-    provider: 'kimi',
-    model: 'kimi-k3',
-    label: 'Kimi',
-  },
 ] as const satisfies readonly ModelOption[];
 
 export const DEFAULT_MODEL_SELECTION: ModelSelection = {
