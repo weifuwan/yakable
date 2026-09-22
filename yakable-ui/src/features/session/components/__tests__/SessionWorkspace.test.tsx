@@ -8,6 +8,7 @@ import {
 import userEvent from '@testing-library/user-event';
 import {
   afterEach,
+  beforeEach,
   describe,
   expect,
   it,
@@ -192,6 +193,12 @@ const stoppedChanges: SessionChanges = {
   latestSequence: 4,
 };
 
+beforeEach(() => {
+  vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue(
+    '00000000-0000-4000-8000-000000000002',
+  );
+});
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -300,7 +307,7 @@ describe('SessionWorkspace', () => {
     );
 
     let handlers:
-      | Parameters<typeof SessionService.streamingTurn>[4]
+      | Parameters<typeof SessionService.streamingTurn>[5]
       | undefined;
     let resolveStream!: () => void;
 
@@ -310,6 +317,7 @@ describe('SessionWorkspace', () => {
         _sessionId,
         _content,
         _model,
+        _requestId,
         nextHandlers,
       ) => {
         handlers = nextHandlers;
@@ -350,6 +358,7 @@ describe('SessionWorkspace', () => {
         provider: 'kimi',
         model: 'kimi-k3',
       },
+      '00000000-0000-4000-8000-000000000002',
       expect.any(Object),
       expect.anything(),
     );
@@ -460,7 +469,7 @@ describe('SessionWorkspace', () => {
     vi.spyOn(SessionService, 'querySession').mockResolvedValue(
       createSnapshot(),
     );
-    vi.spyOn(SessionService, 'streamingTurn').mockRejectedValue(
+    const streamingTurn = vi.spyOn(SessionService, 'streamingTurn').mockRejectedValue(
       new Error('Unable to create turn.'),
     );
     vi.spyOn(SessionService, 'queryChanges').mockRejectedValue(
@@ -485,6 +494,14 @@ describe('SessionWorkspace', () => {
     ).toContain('Unable to create turn.');
     expect((input as HTMLTextAreaElement).value).toBe(
       'Keep this prompt',
+    );
+
+    await user.keyboard('{Enter}');
+    await waitFor(() => {
+      expect(streamingTurn).toHaveBeenCalledTimes(2);
+    });
+    expect(streamingTurn.mock.calls[0][4]).toBe(
+      streamingTurn.mock.calls[1][4],
     );
   });
 
@@ -522,6 +539,7 @@ describe('SessionWorkspace', () => {
         _sessionId,
         _content,
         _model,
+        _requestId,
         handlers,
       ) => {
         handlers.onStarted(started);
