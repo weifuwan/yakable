@@ -2,6 +2,7 @@ package io.yakable.service.session.impl;
 
 import io.yakable.common.bean.dto.session.AddSessionDTO;
 import io.yakable.common.bean.dto.session.AddTurnDTO;
+import io.yakable.common.bean.dto.session.CancelTurnDTO;
 import io.yakable.common.bean.dto.session.QuerySessionDTO;
 import io.yakable.common.bean.dto.session.QuerySessionMessagesDTO;
 import io.yakable.common.bean.vo.session.MessageVO;
@@ -11,7 +12,6 @@ import io.yakable.common.bean.vo.session.TurnStartVO;
 import io.yakable.common.bean.vo.session.TurnVO;
 import io.yakable.common.enums.session.MessageRoleEnum;
 import io.yakable.common.enums.session.SessionErrorCode;
-import io.yakable.common.enums.session.SessionStatusEnum;
 import io.yakable.common.enums.session.TurnStatusEnum;
 import io.yakable.common.exception.SessionException;
 import io.yakable.core.llm.LlmClient;
@@ -76,7 +76,7 @@ class SessionServiceImplTest {
 
     @Test
     void shouldCreateInitialSessionForProjectOwner() {
-        SessionEntity session = session("project-1", "session-1", SessionStatusEnum.ACTIVE);
+        SessionEntity session = session("project-1", "session-1");
         TurnVO turn = turn("turn-1", TurnStatusEnum.PENDING);
         MessageVO message = message("message-1", "turn-1", MessageRoleEnum.USER, "Hello", 1L);
 
@@ -114,7 +114,7 @@ class SessionServiceImplTest {
     void shouldCreatePendingTurnForActiveSession() {
         stubExecuteInline();
 
-        SessionEntity session = session("project-1", "session-1", SessionStatusEnum.ACTIVE);
+        SessionEntity session = session("project-1", "session-1");
         TurnVO turn = turn("turn-1", TurnStatusEnum.PENDING);
         MessageVO message = message("message-1", "turn-1", MessageRoleEnum.USER, "Hello", 1L);
 
@@ -130,30 +130,15 @@ class SessionServiceImplTest {
         assertThat(result.getUserMessage()).isSameAs(message);
         assertThat(session.getProvider()).isEqualTo("kimi");
         assertThat(session.getModel()).isEqualTo("kimi-k3");
+        assertThat(session.getActivityTime()).isEqualTo(message.getCreatedAt());
         verify(sessionRepository).update(session);
-    }
-
-    @Test
-    void shouldRejectTurnWhenSessionIsInactive() {
-        stubExecuteInline();
-
-        SessionEntity session = session("project-1", "session-1", SessionStatusEnum.ARCHIVED);
-        when(sessionRepository.querySession("project-1", "session-1", "user-1")).thenReturn(Optional.of(session));
-
-        assertThatThrownBy(() ->
-                sessionService.addStreamingTurn(new AddTurnDTO("project-1", "session-1", "kimi", "kimi-k3", "Hello", "user-1")))
-                .isInstanceOf(SessionException.class)
-                .satisfies(exception ->
-                        assertThat(((SessionException) exception).getErrorCode()).isEqualTo(SessionErrorCode.INACTIVE));
-
-        verifyNoInteractions(turnService, messageService);
     }
 
     @Test
     void shouldRejectTurnWhenSessionAlreadyHasActiveTurn() {
         stubExecuteInline();
 
-        SessionEntity session = session("project-1", "session-1", SessionStatusEnum.ACTIVE);
+        SessionEntity session = session("project-1", "session-1");
         when(sessionRepository.querySession("project-1", "session-1", "user-1")).thenReturn(Optional.of(session));
         when(sessionRepository.querySessionForUpdate("session-1")).thenReturn(true);
         when(turnService.queryActiveTurnCount("session-1")).thenReturn(1L);
@@ -169,8 +154,29 @@ class SessionServiceImplTest {
     }
 
     @Test
+    void shouldNotChangeSessionActivityWhenTurnIsCancelled() {
+        stubExecuteInline();
+
+        SessionEntity session = session("project-1", "session-1");
+        TurnExecutionVO execution = execution("turn-1", "session-1");
+        TurnVO cancelled = turn("turn-1", TurnStatusEnum.CANCELLED);
+
+        when(sessionRepository.querySession("project-1", "session-1", "user-1"))
+                .thenReturn(Optional.of(session));
+        when(turnService.queryTurnExecution("turn-1")).thenReturn(Optional.of(execution));
+        when(turnService.updateTurnCancelled(eq("turn-1"), eq("session-1"), any(LocalDateTime.class)))
+                .thenReturn(1);
+        when(turnService.queryTurn("turn-1")).thenReturn(Optional.of(cancelled));
+
+        sessionService.cancelTurn(
+                new CancelTurnDTO("project-1", "session-1", "turn-1", "user-1"));
+
+        verify(sessionRepository, never()).update(any());
+    }
+
+    @Test
     void shouldPageMessagesInDisplayOrderAndExposeNextCursor() {
-        SessionEntity session = session("project-1", "session-1", SessionStatusEnum.ACTIVE);
+        SessionEntity session = session("project-1", "session-1");
         when(sessionRepository.querySession("project-1", "session-1", "user-1")).thenReturn(Optional.of(session));
         when(messageService.queryMessageBefore("session-1", 10L, 3)).thenReturn(List.of(
                 message("message-9", "turn-3", MessageRoleEnum.ASSISTANT, "nine", 9L),
@@ -192,7 +198,7 @@ class SessionServiceImplTest {
         ReflectionTestUtils.setField(sessionService, "maxHistoryTurns", 20);
 
         String currentTurnId = "turn-current";
-        SessionEntity session = session("project-1", "session-1", SessionStatusEnum.ACTIVE);
+        SessionEntity session = session("project-1", "session-1");
         TurnVO current = turn(currentTurnId, TurnStatusEnum.RUNNING);
         TurnVO recent = turn("turn-recent", TurnStatusEnum.SUCCEEDED);
         TurnVO oldest = turn("turn-oldest", TurnStatusEnum.SUCCEEDED);
@@ -250,7 +256,7 @@ class SessionServiceImplTest {
         stubExecuteWithoutResultInline();
 
         String currentTurnId = "turn-too-large";
-        SessionEntity session = session("project-1", "session-1", SessionStatusEnum.ACTIVE);
+        SessionEntity session = session("project-1", "session-1");
         TurnVO current = turn(currentTurnId, TurnStatusEnum.RUNNING);
 
         when(turnService.queryTurnExecution(currentTurnId)).thenReturn(Optional.of(execution(currentTurnId, "session-1")));
@@ -289,7 +295,7 @@ class SessionServiceImplTest {
         ReflectionTestUtils.setField(sessionService, "maxHistoryTurns", 0);
 
         String currentTurnId = "turn-failed";
-        SessionEntity session = session("project-1", "session-1", SessionStatusEnum.ACTIVE);
+        SessionEntity session = session("project-1", "session-1");
         TurnVO current = turn(currentTurnId, TurnStatusEnum.RUNNING);
         RuntimeException providerFailure = new RuntimeException("provider down");
 
@@ -323,6 +329,7 @@ class SessionServiceImplTest {
                 eq("session-1"),
                 eq("provider down"),
                 any(LocalDateTime.class));
+        verify(sessionRepository, never()).update(any());
     }
 
     private void stubExecuteInline() {
@@ -340,18 +347,18 @@ class SessionServiceImplTest {
         }).when(transactionTemplate).executeWithoutResult(any());
     }
 
-    private static SessionEntity session(String projectId, String sessionId, SessionStatusEnum status) {
+    private static SessionEntity session(String projectId, String sessionId) {
         SessionEntity session = new SessionEntity();
         session.setId(sessionId);
         session.setProjectId(projectId);
         session.setTitle("CRM");
         session.setProvider("deepseek");
         session.setModel("deepseek-flash");
-        session.setStatus(status);
         session.setCreateBy("user-1");
         session.setUpdateBy("user-1");
         session.setCreateTime(LocalDateTime.of(2026, 9, 21, 9, 0));
         session.setUpdateTime(LocalDateTime.of(2026, 9, 21, 9, 0));
+        session.setActivityTime(LocalDateTime.of(2026, 9, 21, 9, 0));
         return session;
     }
 

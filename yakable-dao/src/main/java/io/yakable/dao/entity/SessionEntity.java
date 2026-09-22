@@ -1,9 +1,10 @@
 package io.yakable.dao.entity;
 
 import com.baomidou.mybatisplus.annotation.TableName;
-import io.yakable.common.enums.session.SessionStatusEnum;
 import lombok.Getter;
 import lombok.Setter;
+
+import java.time.LocalDateTime;
 
 /**
  * 会话表
@@ -34,7 +35,7 @@ public class SessionEntity extends BaseEntity {
     private String model;
 
     /**
-     * 会话状态：0-活跃，1-已关闭
+     * 最近用户交互时间
      */
-    private SessionStatusEnum status;
+    private LocalDateTime activityTime;
 }

@@ -26,12 +26,9 @@ public class SessionVO {
     @Schema(description = "模型信息")
     private SessionModelVO model;
 
-    @Schema(description = "Session 状态")
-    private String status;
-
     @Schema(description = "创建时间")
     private LocalDateTime createdAt;
 
-    @Schema(description = "最后更新时间")
+    @Schema(description = "最近活动时间")
     private LocalDateTime updatedAt;
 }

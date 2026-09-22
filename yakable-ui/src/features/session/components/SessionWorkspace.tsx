@@ -588,15 +588,13 @@ export function SessionWorkspace({
               placeholder="Ask Yakable..."
               submitLabel="Send message"
               submitTooltip="Send prompt"
-              disabled={!snapshot || snapshot.session.status !== 'ACTIVE'}
+              disabled={!snapshot}
               running={generating}
               trailingActions={
                 selectedModel ? (
                   <ModelSelector
                     surface="chassis"
-                    disabled={
-                      !snapshot || snapshot.session.status !== 'ACTIVE'
-                    }
+                    disabled={!snapshot}
                     value={selectedModel}
                     onValueChange={setSelectedModel}
                   />

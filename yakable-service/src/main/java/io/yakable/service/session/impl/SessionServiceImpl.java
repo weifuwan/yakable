@@ -18,7 +18,6 @@ import io.yakable.common.bean.vo.session.TurnStartVO;
 import io.yakable.common.bean.vo.session.TurnVO;
 import io.yakable.common.enums.session.MessageRoleEnum;
 import io.yakable.common.enums.session.SessionErrorCode;
-import io.yakable.common.enums.session.SessionStatusEnum;
 import io.yakable.common.enums.session.TurnStatusEnum;
 import io.yakable.common.exception.SessionException;
 import io.yakable.common.utils.ConverUtils;
@@ -109,14 +108,14 @@ public class SessionServiceImpl implements SessionService {
     public SessionInitVO addSession(AddSessionDTO dto) {
         SessionEntity session = ConverUtils.convert(dto, SessionEntity.class);
         session.initCreate(dto.userId());
-        session.setStatus(SessionStatusEnum.ACTIVE);
+        session.setActivityTime(session.getCreateTime());
         sessionRepository.add(session);
 
         TurnStartVO turn = addPendingTurn(session, dto.provider(), dto.model(), dto.content());
 
         SessionInitVO result = new SessionInitVO();
         result.setSessionId(session.getId());
-        result.setUpdatedAt(session.getUpdateTime());
+        result.setUpdatedAt(session.getActivityTime());
         result.setTurnId(turn.getTurn().getId());
         return result;
     }
@@ -155,7 +154,6 @@ public class SessionServiceImpl implements SessionService {
                         messageService.addMessage(
                                 dto.sessionId(), dto.turnId(), MessageRoleEnum.ASSISTANT, partialContent);
                     }
-                    updateSession(dto.sessionId());
                 }
                 return cancelled;
             });
@@ -242,9 +240,6 @@ public class SessionServiceImpl implements SessionService {
     private TurnStartVO createTurn(AddTurnDTO dto) {
         return transactionTemplate.execute(status -> {
             SessionEntity session = queryOwnedSession(dto.projectId(), dto.sessionId(), dto.userId());
-            if (session.getStatus() != SessionStatusEnum.ACTIVE) {
-                throw new SessionException(SessionErrorCode.INACTIVE);
-            }
             return addPendingTurn(session, dto.provider(), dto.model(), dto.content());
         });
     }
@@ -263,6 +258,7 @@ public class SessionServiceImpl implements SessionService {
 
         session.setProvider(provider);
         session.setModel(model);
+        session.setActivityTime(message.getCreatedAt());
         session.initUpdate();
         sessionRepository.update(session);
 
@@ -447,7 +443,6 @@ public class SessionServiceImpl implements SessionService {
             }
 
             messageService.addMessage(sessionId, running.getId(), MessageRoleEnum.ASSISTANT, response.content());
-            updateSession(sessionId);
         });
     }
 
@@ -457,7 +452,6 @@ public class SessionServiceImpl implements SessionService {
         try {
             transactionTemplate.executeWithoutResult(status -> {
                 turnService.updateTurnFailed(running.getId(), sessionId, failureMessage(originalFailure), failedAt);
-                updateSession(sessionId);
             });
         } catch (RuntimeException persistenceFailure) {
             originalFailure.addSuppressed(persistenceFailure);
@@ -484,13 +478,6 @@ public class SessionServiceImpl implements SessionService {
         turnService.queryPendingTurnIdList(RECOVERY_BATCH_SIZE).forEach(this::executeTurnAsync);
     }
 
-    private void updateSession(String sessionId) {
-        SessionEntity session = sessionRepository.queryById(sessionId)
-                .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
-        session.initUpdate();
-        sessionRepository.update(session);
-    }
-
     private SessionEntity queryOwnedSession(String projectId, String sessionId, String userId) {
         return sessionRepository.querySession(projectId, sessionId, userId)
                 .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
@@ -499,9 +486,8 @@ public class SessionServiceImpl implements SessionService {
     private static SessionVO toSessionVO(SessionEntity entity) {
         SessionVO result = ConverUtils.convert(entity, SessionVO.class);
         result.setModel(ConverUtils.convert(entity, SessionModelVO.class));
-        result.setStatus(entity.getStatus().name());
         result.setCreatedAt(entity.getCreateTime());
-        result.setUpdatedAt(entity.getUpdateTime());
+        result.setUpdatedAt(entity.getActivityTime());
         return result;
     }
 

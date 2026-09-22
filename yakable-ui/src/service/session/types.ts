@@ -1,5 +1,4 @@
 export type SessionRole = 'USER' | 'ASSISTANT';
-export type SessionStatus = 'ACTIVE' | 'ARCHIVED';
 export type TurnStatus =
   | 'PENDING'
   | 'RUNNING'
@@ -17,7 +16,6 @@ export interface SessionInfo {
   projectId: string;
   title: string;
   model: SessionModel;
-  status: SessionStatus;
   createdAt: string;
   updatedAt: string;
 }
