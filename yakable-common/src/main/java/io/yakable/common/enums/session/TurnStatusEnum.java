@@ -15,7 +15,7 @@ public enum TurnStatusEnum {
     RUNNING(1),
     SUCCEEDED(2),
     FAILED(3),
-    CANCELLED(4);
+    STOPPED(4);
 
     @EnumValue
     private final Integer value;

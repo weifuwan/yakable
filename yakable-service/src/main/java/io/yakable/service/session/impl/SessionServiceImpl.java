@@ -2,7 +2,7 @@ package io.yakable.service.session.impl;
 
 import io.yakable.common.bean.dto.session.AddSessionDTO;
 import io.yakable.common.bean.dto.session.AddTurnDTO;
-import io.yakable.common.bean.dto.session.CancelTurnDTO;
+import io.yakable.common.bean.dto.session.StopTurnDTO;
 import io.yakable.common.bean.dto.session.QuerySessionChangesDTO;
 import io.yakable.common.bean.dto.session.QuerySessionDTO;
 import io.yakable.common.bean.dto.session.QuerySessionMessagesDTO;
@@ -14,6 +14,7 @@ import io.yakable.common.bean.vo.session.SessionMessagePageVO;
 import io.yakable.common.bean.vo.session.SessionModelVO;
 import io.yakable.common.bean.vo.session.SessionVO;
 import io.yakable.common.bean.vo.session.TurnExecutionVO;
+import io.yakable.common.bean.vo.session.TurnInvocationVO;
 import io.yakable.common.bean.vo.session.TurnStartVO;
 import io.yakable.common.bean.vo.session.TurnVO;
 import io.yakable.common.enums.session.MessageRoleEnum;
@@ -68,7 +69,7 @@ public class SessionServiceImpl implements SessionService {
     private static final int RECOVERY_BATCH_SIZE = 100;
 
     private final Map<String, StringBuffer> streamingContents = new ConcurrentHashMap<>();
-    private final Set<String> cancellingTurns = ConcurrentHashMap.newKeySet();
+    private final Set<String> stoppingTurns = ConcurrentHashMap.newKeySet();
 
     @Resource
     private SessionRepository sessionRepository;
@@ -133,7 +134,7 @@ public class SessionServiceImpl implements SessionService {
     }
 
     @Override
-    public TurnVO cancelTurn(CancelTurnDTO dto) {
+    public TurnVO stopTurn(StopTurnDTO dto) {
         queryOwnedSession(dto.projectId(), dto.sessionId(), dto.userId());
         TurnExecutionVO execution = turnService.queryTurnExecution(dto.turnId())
                 .filter(turn -> dto.sessionId().equals(turn.getSessionId()))
@@ -141,24 +142,24 @@ public class SessionServiceImpl implements SessionService {
 
         StringBuffer streamingContent = streamingContents.get(dto.turnId());
         if (streamingContent != null) {
-            cancellingTurns.add(dto.turnId());
+            stoppingTurns.add(dto.turnId());
         }
 
         int updated;
         try {
             String partialContent = snapshotStreamingContent(streamingContent);
             updated = transactionTemplate.execute(status -> {
-                int cancelled = turnService.updateTurnCancelled(execution.getId(), dto.sessionId(), DateUtils.now());
-                if (cancelled == 1) {
+                int stopped = turnService.updateTurnStopped(execution.getId(), dto.sessionId(), DateUtils.now());
+                if (stopped == 1) {
                     if (!StringUtils.isBlank(partialContent)) {
                         messageService.addMessage(
                                 dto.sessionId(), dto.turnId(), MessageRoleEnum.ASSISTANT, partialContent);
                     }
                 }
-                return cancelled;
+                return stopped;
             });
         } catch (RuntimeException exception) {
-            cancellingTurns.remove(dto.turnId());
+            stoppingTurns.remove(dto.turnId());
             throw exception;
         }
 
@@ -166,7 +167,7 @@ public class SessionServiceImpl implements SessionService {
             ThreadUtils.cancel(TURN_TASK_PREFIX + dto.turnId());
             ThreadUtils.cancel(TURN_STREAM_TASK_PREFIX + dto.turnId());
         } else {
-            cancellingTurns.remove(dto.turnId());
+            stoppingTurns.remove(dto.turnId());
         }
         return turnService.queryTurn(dto.turnId())
                 .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
@@ -253,7 +254,7 @@ public class SessionServiceImpl implements SessionService {
             throw new SessionException(SessionErrorCode.BUSY);
         }
 
-        TurnVO turn = turnService.addTurn(session.getId());
+        TurnVO turn = turnService.addTurn(session.getId(), provider, model);
         MessageVO message = messageService.addMessage(session.getId(), turn.getId(), MessageRoleEnum.USER, content);
 
         session.setProvider(provider);
@@ -277,8 +278,7 @@ public class SessionServiceImpl implements SessionService {
         SessionEntity session = sessionRepository.queryById(snapshot.getSessionId())
                 .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
 
-        TurnVO running = turnService.updatePendingTurn(
-                turnId, DateUtils.now(), session.getProvider(), session.getModel()).orElse(null);
+        TurnVO running = turnService.updatePendingTurn(turnId, DateUtils.now()).orElse(null);
         if (running == null) {
             return;
         }
@@ -297,8 +297,7 @@ public class SessionServiceImpl implements SessionService {
                 .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
         SessionEntity session = sessionRepository.queryById(snapshot.getSessionId())
                 .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
-        TurnVO running = turnService.updatePendingTurn(
-                turnId, DateUtils.now(), session.getProvider(), session.getModel())
+        TurnVO running = turnService.updatePendingTurn(turnId, DateUtils.now())
                 .orElseThrow(() -> new SessionException(SessionErrorCode.BUSY));
         StringBuffer streamingContent = new StringBuffer();
         streamingContents.put(turnId, streamingContent);
@@ -307,13 +306,13 @@ public class SessionServiceImpl implements SessionService {
             llmClient.streamingChat(request(session, running), event -> {
                 if (event.type() == LlmStreamEvent.Type.DELTA) {
                     synchronized (streamingContent) {
-                        if (cancellingTurns.contains(turnId)) {
+                        if (stoppingTurns.contains(turnId)) {
                             return;
                         }
                         streamingContent.append(event.delta());
                     }
                 }
-                if (cancellingTurns.contains(turnId)) {
+                if (stoppingTurns.contains(turnId)) {
                     return;
                 }
                 if (event.type() == LlmStreamEvent.Type.COMPLETE) {
@@ -322,43 +321,52 @@ public class SessionServiceImpl implements SessionService {
                 consumer.accept(event);
             });
         } catch (RuntimeException exception) {
-            if (isCancelled(turnId)) {
+            if (isStopped(turnId)) {
                 return;
             }
             persistFailure(session.getId(), running, exception);
             throw exception;
         } finally {
             streamingContents.remove(turnId, streamingContent);
-            cancellingTurns.remove(turnId);
+            stoppingTurns.remove(turnId);
         }
     }
 
     private LlmRequest request(SessionEntity session, TurnVO running) {
-        return llmRequest(session, buildContext(session, running.getId()));
+        TurnInvocationVO invocation = running.getInvocation();
+        return llmRequest(
+                invocation.getProvider(),
+                invocation.getModel(),
+                buildContext(session, running));
     }
 
-    private List<LlmMessage> buildContext(SessionEntity session, String currentTurnId) {
+    private List<LlmMessage> buildContext(SessionEntity session, TurnVO running) {
+        String currentTurnId = running.getId();
         List<MessageVO> messages = messageService.queryMessageList(session.getId());
         Map<String, List<MessageVO>> messagesByTurn = messages.stream()
                 .collect(Collectors.groupingBy(MessageVO::getTurnId));
         List<TurnVO> turns = turnService.queryTurnList(session.getId());
 
-        Optional<LlmModelMetadata> metadata = llmClient.modelMetadata(session.getProvider(), session.getModel());
+        TurnInvocationVO invocation = running.getInvocation();
+        Optional<LlmModelMetadata> metadata = llmClient.modelMetadata(invocation.getProvider(), invocation.getModel());
         if (metadata.isEmpty()) {
             return buildTurnWindowContext(messages, messagesByTurn, turns, currentTurnId);
         }
-        return buildTokenBudgetContext(session, messages, messagesByTurn, turns, currentTurnId, metadata.get());
+        return buildTokenBudgetContext(
+                invocation.getProvider(), invocation.getModel(),
+                messages, messagesByTurn, turns, currentTurnId, metadata.get());
     }
 
     private List<LlmMessage> buildTokenBudgetContext(
-            SessionEntity session, List<MessageVO> messages, Map<String, List<MessageVO>> messagesByTurn,
+            String provider, String model,
+            List<MessageVO> messages, Map<String, List<MessageVO>> messagesByTurn,
             List<TurnVO> turns, String currentTurnId, LlmModelMetadata metadata) {
         Set<String> selectedTurnIds = new HashSet<>();
         selectedTurnIds.add(currentTurnId);
 
         List<LlmMessage> context = contextMessages(messages, selectedTurnIds);
         long inputBudget = metadata.inputBudgetTokens();
-        if (llmClient.estimateTokens(llmRequest(session, context)) > inputBudget) {
+        if (llmClient.estimateTokens(llmRequest(provider, model, context)) > inputBudget) {
             throw new SessionException(SessionErrorCode.CONTEXT_TOO_LARGE);
         }
 
@@ -371,7 +379,7 @@ public class SessionServiceImpl implements SessionService {
 
             selectedTurnIds.add(turn.getId());
             List<LlmMessage> candidate = contextMessages(messages, selectedTurnIds);
-            if (llmClient.estimateTokens(llmRequest(session, candidate)) > inputBudget) {
+            if (llmClient.estimateTokens(llmRequest(provider, model, candidate)) > inputBudget) {
                 selectedTurnIds.remove(turn.getId());
                 break;
             }
@@ -399,8 +407,8 @@ public class SessionServiceImpl implements SessionService {
         return contextMessages(messages, selectedTurnIds);
     }
 
-    private LlmRequest llmRequest(SessionEntity session, List<LlmMessage> messages) {
-        return new LlmRequest(session.getProvider(), session.getModel(), SYSTEM_PROMPT, messages);
+    private LlmRequest llmRequest(String provider, String model, List<LlmMessage> messages) {
+        return new LlmRequest(provider, model, SYSTEM_PROMPT, messages);
     }
 
     private static List<LlmMessage> contextMessages(List<MessageVO> messages, Set<String> selectedTurnIds) {
@@ -412,7 +420,7 @@ public class SessionServiceImpl implements SessionService {
 
     private static boolean isContextTurn(TurnVO turn) {
         return TurnStatusEnum.SUCCEEDED.name().equals(turn.getStatus())
-                || TurnStatusEnum.CANCELLED.name().equals(turn.getStatus());
+                || TurnStatusEnum.STOPPED.name().equals(turn.getStatus());
     }
 
     private static boolean hasCompleteExchange(List<MessageVO> messages) {
@@ -435,7 +443,7 @@ public class SessionServiceImpl implements SessionService {
 
         transactionTemplate.executeWithoutResult(status -> {
             int updated = turnService.updateTurnSucceeded(
-                    running.getId(), sessionId, response.provider(), response.model(),
+                    running.getId(), sessionId,
                     usage.inputTokens(), usage.outputTokens(), usage.totalTokens(),
                     response.providerRequestId(), response.finishReason(), completedAt);
             if (updated != 1) {
@@ -458,9 +466,9 @@ public class SessionServiceImpl implements SessionService {
         }
     }
 
-    private boolean isCancelled(String turnId) {
+    private boolean isStopped(String turnId) {
         return turnService.queryTurn(turnId)
-                .map(turn -> TurnStatusEnum.CANCELLED.name().equals(turn.getStatus()))
+                .map(turn -> TurnStatusEnum.STOPPED.name().equals(turn.getStatus()))
                 .orElse(false);
     }
 

@@ -57,28 +57,24 @@ public class TurnRepositoryImpl extends BaseRepositoryImpl<TurnMapper, TurnEntit
     }
 
     @Override
-    public Optional<TurnEntity> updatePendingTurn(String turnId, LocalDateTime claimedAt, String provider, String model) {
+    public Optional<TurnEntity> updatePendingTurn(String turnId, LocalDateTime claimedAt) {
         LambdaUpdateWrapper<TurnEntity> update = Wrappers.<TurnEntity>lambdaUpdate()
                 .eq(TurnEntity::getId, turnId)
                 .eq(TurnEntity::getStatus, TurnStatusEnum.PENDING)
                 .set(TurnEntity::getStatus, TurnStatusEnum.RUNNING)
                 .setIncrBy(TurnEntity::getAttemptCount, 1)
-                .set(TurnEntity::getProvider, provider)
-                .set(TurnEntity::getModel, model)
                 .set(TurnEntity::getStartedAt, claimedAt);
         return executeUpdate(update) == 0 ? Optional.empty() : queryById(turnId);
     }
 
     @Override
     public int updateTurnSucceeded(
-            String turnId, String sessionId, String provider, String model,
+            String turnId, String sessionId,
             Long inputTokens, Long outputTokens, Long totalTokens,
             String providerRequestId, String finishReason, LocalDateTime completedAt) {
         return executeUpdate(
                 runningTurn(turnId, sessionId)
                         .set(TurnEntity::getStatus, TurnStatusEnum.SUCCEEDED)
-                        .set(TurnEntity::getProvider, provider)
-                        .set(TurnEntity::getModel, model)
                         .set(TurnEntity::getInputTokens, inputTokens)
                         .set(TurnEntity::getOutputTokens, outputTokens)
                         .set(TurnEntity::getTotalTokens, totalTokens)
@@ -97,14 +93,14 @@ public class TurnRepositoryImpl extends BaseRepositoryImpl<TurnMapper, TurnEntit
     }
 
     @Override
-    public int updateTurnCancelled(String turnId, String sessionId, LocalDateTime cancelledAt) {
+    public int updateTurnStopped(String turnId, String sessionId, LocalDateTime stoppedAt) {
         return executeUpdate(
                 Wrappers.<TurnEntity>lambdaUpdate()
                         .eq(TurnEntity::getId, turnId)
                         .eq(TurnEntity::getSessionId, sessionId)
                         .in(TurnEntity::getStatus, TurnStatusEnum.PENDING, TurnStatusEnum.RUNNING)
-                        .set(TurnEntity::getStatus, TurnStatusEnum.CANCELLED)
-                        .set(TurnEntity::getFinishedAt, cancelledAt));
+                        .set(TurnEntity::getStatus, TurnStatusEnum.STOPPED)
+                        .set(TurnEntity::getFinishedAt, stoppedAt));
     }
 
     @Override
@@ -143,8 +139,6 @@ public class TurnRepositoryImpl extends BaseRepositoryImpl<TurnMapper, TurnEntit
         return update
                 .set(TurnEntity::getStatus, TurnStatusEnum.PENDING)
                 .set(TurnEntity::getErrorMessage, null)
-                .set(TurnEntity::getProvider, null)
-                .set(TurnEntity::getModel, null)
                 .set(TurnEntity::getInputTokens, null)
                 .set(TurnEntity::getOutputTokens, null)
                 .set(TurnEntity::getTotalTokens, null)

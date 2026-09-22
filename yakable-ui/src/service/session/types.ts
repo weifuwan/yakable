@@ -4,7 +4,7 @@ export type TurnStatus =
   | 'RUNNING'
   | 'SUCCEEDED'
   | 'FAILED'
-  | 'CANCELLED';
+  | 'STOPPED';
 
 export interface SessionModel {
   provider: string;
@@ -39,7 +39,7 @@ export interface SessionTurn {
   status: TurnStatus;
   attemptCount: number;
   errorMessage: string | null;
-  invocation: TurnInvocation | null;
+  invocation: TurnInvocation;
   startedAt: string | null;
   finishedAt: string | null;
   durationMs: number | null;

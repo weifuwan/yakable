@@ -5,7 +5,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import io.yakable.common.Result;
 import io.yakable.common.bean.dto.session.AddTurnDTO;
 import io.yakable.common.bean.dto.session.AddTurnRequestDTO;
-import io.yakable.common.bean.dto.session.CancelTurnDTO;
+import io.yakable.common.bean.dto.session.StopTurnDTO;
 import io.yakable.common.bean.dto.session.QuerySessionChangesDTO;
 import io.yakable.common.bean.dto.session.QuerySessionDTO;
 import io.yakable.common.bean.dto.session.QuerySessionMessagesDTO;
@@ -94,16 +94,16 @@ public class SessionController {
                         projectId, sessionId, dto.provider(), dto.model(), dto.content(), currentUser.getId())));
     }
 
-    @Operation(summary = "取消 Turn")
-    @PostMapping("/{sessionId}/turns/{turnId}/cancel")
-    public Result<TurnVO> cancelTurn(
+    @Operation(summary = "停止 Turn")
+    @PostMapping("/{sessionId}/turns/{turnId}/stop")
+    public Result<TurnVO> stopTurn(
             @PathVariable String projectId,
             @PathVariable String sessionId,
             @PathVariable String turnId,
             @AuthenticationPrincipal CurrentUserVO currentUser) {
         return Result.success(
-                sessionService.cancelTurn(
-                        new CancelTurnDTO(projectId, sessionId, turnId, currentUser.getId())));
+                sessionService.stopTurn(
+                        new StopTurnDTO(projectId, sessionId, turnId, currentUser.getId())));
     }
 
     @Operation(summary = "流式新增 Turn")
@@ -122,15 +122,15 @@ public class SessionController {
 
         response.setHeader(HttpHeaders.CACHE_CONTROL, "no-cache");
         response.setHeader("X-Accel-Buffering", "no");
-        CancelTurnDTO cancel = new CancelTurnDTO(projectId, sessionId, started.getTurn().getId(), currentUser.getId());
+        StopTurnDTO stop = new StopTurnDTO(projectId, sessionId, started.getTurn().getId(), currentUser.getId());
         emitter.onCompletion(() -> closed.set(true));
         emitter.onTimeout(() -> {
-            sessionService.cancelTurn(cancel);
+            sessionService.stopTurn(stop);
             complete(emitter, closed);
         });
         emitter.onError(error -> {
             closed.set(true);
-            sessionService.cancelTurn(cancel);
+            sessionService.stopTurn(stop);
         });
 
         send(emitter, closed, "started", started);

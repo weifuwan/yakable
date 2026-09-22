@@ -13,9 +13,9 @@ import java.util.Optional;
 public interface TurnService {
 
     /**
-     * 新增待执行 Turn。
+     * 新增待执行 Turn，并确定本轮模型。
      */
-    TurnVO addTurn(String sessionId);
+    TurnVO addTurn(String sessionId, String provider, String model);
 
     /**
      * 根据 ID 查询 Turn。
@@ -45,13 +45,13 @@ public interface TurnService {
     /**
      * 将待执行 Turn 更新为运行中状态。
      */
-    Optional<TurnVO> updatePendingTurn(String turnId, LocalDateTime claimedAt, String provider, String model);
+    Optional<TurnVO> updatePendingTurn(String turnId, LocalDateTime claimedAt);
 
     /**
      * 将运行中 Turn 更新为成功状态。
      */
     int updateTurnSucceeded(
-            String turnId, String sessionId, String provider, String model,
+            String turnId, String sessionId,
             Long inputTokens, Long outputTokens, Long totalTokens,
             String providerRequestId, String finishReason, LocalDateTime completedAt);
 
@@ -61,9 +61,9 @@ public interface TurnService {
     int updateTurnFailed(String turnId, String sessionId, String errorMessage, LocalDateTime failedAt);
 
     /**
-     * 将待执行或运行中的 Turn 更新为取消状态。
+     * 将待执行或运行中的 Turn 更新为停止状态。
      */
-    int updateTurnCancelled(String turnId, String sessionId, LocalDateTime cancelledAt);
+    int updateTurnStopped(String turnId, String sessionId, LocalDateTime stoppedAt);
 
     /**
      * 将超时运行中的 Turn 恢复为待执行状态。

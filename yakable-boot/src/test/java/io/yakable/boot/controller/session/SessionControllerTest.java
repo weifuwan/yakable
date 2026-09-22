@@ -3,6 +3,7 @@ package io.yakable.boot.controller.session;
 import io.yakable.boot.configuration.exception.GlobalExceptionHandler;
 import io.yakable.common.bean.dto.session.AddTurnDTO;
 import io.yakable.common.bean.vo.session.MessageVO;
+import io.yakable.common.bean.vo.session.TurnInvocationVO;
 import io.yakable.common.bean.vo.session.TurnStartVO;
 import io.yakable.common.bean.vo.session.TurnVO;
 import io.yakable.common.bean.vo.user.CurrentUserVO;
@@ -139,6 +140,18 @@ class SessionControllerTest {
     }
 
     @Test
+    void shouldStopTurnForCurrentUser() throws Exception {
+        TurnVO stopped = new TurnVO();
+        stopped.setId("turn-1");
+        stopped.setStatus("STOPPED");
+        when(sessionService.stopTurn(any())).thenReturn(stopped);
+
+        mockMvc.perform(post("/api/projects/project-1/sessions/session-1/turns/turn-1/stop"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("STOPPED"));
+    }
+
+    @Test
     void shouldExposeStartedDeltaAndCompleteAsSseEventsForCurrentUser() throws Exception {
         TurnStartVO started = turnStart("turn-1", "message-1");
         when(sessionService.addStreamingTurn(any(AddTurnDTO.class))).thenReturn(started);
@@ -183,10 +196,15 @@ class SessionControllerTest {
     }
 
     private static TurnStartVO turnStart(String turnId, String messageId) {
+        TurnInvocationVO invocation = new TurnInvocationVO();
+        invocation.setProvider("deepseek");
+        invocation.setModel("deepseek-flash");
+
         TurnVO turn = new TurnVO();
         turn.setId(turnId);
         turn.setStatus("PENDING");
         turn.setAttemptCount(0);
+        turn.setInvocation(invocation);
         turn.setCreatedAt(LocalDateTime.of(2026, 9, 21, 9, 0));
         turn.setUpdatedAt(LocalDateTime.of(2026, 9, 21, 9, 0));
 

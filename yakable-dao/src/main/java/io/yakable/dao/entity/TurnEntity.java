@@ -21,7 +21,7 @@ public class TurnEntity extends BaseEntity {
     private String sessionId;
 
     /**
-     * 执行轮次状态：0-待执行，1-执行中，2-成功，3-失败，4-已取消
+     * 执行轮次状态：0-待执行，1-执行中，2-成功，3-失败，4-已停止
      */
     private TurnStatusEnum status;
 
@@ -36,12 +36,12 @@ public class TurnEntity extends BaseEntity {
     private String errorMessage;
 
     /**
-     * 实际调用的模型提供商
+     * 本轮模型提供商
      */
     private String provider;
 
     /**
-     * 实际调用的模型名称
+     * 本轮模型名称
      */
     private String model;
 

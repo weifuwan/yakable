@@ -17,4 +17,10 @@ public class TurnExecutionVO {
 
     @Schema(description = "Session ID")
     private String sessionId;
+
+    @Schema(description = "模型提供商")
+    private String provider;
+
+    @Schema(description = "模型名称")
+    private String model;
 }

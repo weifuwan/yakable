@@ -2,12 +2,13 @@ package io.yakable.service.session.impl;
 
 import io.yakable.common.bean.dto.session.AddSessionDTO;
 import io.yakable.common.bean.dto.session.AddTurnDTO;
-import io.yakable.common.bean.dto.session.CancelTurnDTO;
+import io.yakable.common.bean.dto.session.StopTurnDTO;
 import io.yakable.common.bean.dto.session.QuerySessionDTO;
 import io.yakable.common.bean.dto.session.QuerySessionMessagesDTO;
 import io.yakable.common.bean.vo.session.MessageVO;
 import io.yakable.common.bean.vo.session.SessionMessagePageVO;
 import io.yakable.common.bean.vo.session.TurnExecutionVO;
+import io.yakable.common.bean.vo.session.TurnInvocationVO;
 import io.yakable.common.bean.vo.session.TurnStartVO;
 import io.yakable.common.bean.vo.session.TurnVO;
 import io.yakable.common.enums.session.MessageRoleEnum;
@@ -77,12 +78,12 @@ class SessionServiceImplTest {
     @Test
     void shouldCreateInitialSessionForProjectOwner() {
         SessionEntity session = session("project-1", "session-1");
-        TurnVO turn = turn("turn-1", TurnStatusEnum.PENDING);
+        TurnVO turn = turn("turn-1", TurnStatusEnum.PENDING, "deepseek", "deepseek-flash");
         MessageVO message = message("message-1", "turn-1", MessageRoleEnum.USER, "Hello", 1L);
 
         when(sessionRepository.querySessionForUpdate(any())).thenReturn(true);
         when(turnService.queryActiveTurnCount(any())).thenReturn(0L);
-        when(turnService.addTurn(any())).thenReturn(turn);
+        when(turnService.addTurn(any(), any(), any())).thenReturn(turn);
         when(messageService.addMessage(any(), any(), eq(MessageRoleEnum.USER), eq("Hello"))).thenReturn(message);
 
         sessionService.addSession(
@@ -115,19 +116,20 @@ class SessionServiceImplTest {
         stubExecuteInline();
 
         SessionEntity session = session("project-1", "session-1");
-        TurnVO turn = turn("turn-1", TurnStatusEnum.PENDING);
+        TurnVO turn = turn("turn-1", TurnStatusEnum.PENDING, "kimi", "kimi-k3");
         MessageVO message = message("message-1", "turn-1", MessageRoleEnum.USER, "Hello", 1L);
 
         when(sessionRepository.querySession("project-1", "session-1", "user-1")).thenReturn(Optional.of(session));
         when(sessionRepository.querySessionForUpdate("session-1")).thenReturn(true);
         when(turnService.queryActiveTurnCount("session-1")).thenReturn(0L);
-        when(turnService.addTurn("session-1")).thenReturn(turn);
+        when(turnService.addTurn("session-1", "kimi", "kimi-k3")).thenReturn(turn);
         when(messageService.addMessage("session-1", "turn-1", MessageRoleEnum.USER, "Hello")).thenReturn(message);
 
         TurnStartVO result = sessionService.addStreamingTurn(new AddTurnDTO("project-1", "session-1", "kimi", "kimi-k3", "Hello", "user-1"));
 
         assertThat(result.getTurn()).isSameAs(turn);
         assertThat(result.getUserMessage()).isSameAs(message);
+        verify(turnService).addTurn("session-1", "kimi", "kimi-k3");
         assertThat(session.getProvider()).isEqualTo("kimi");
         assertThat(session.getModel()).isEqualTo("kimi-k3");
         assertThat(session.getActivityTime()).isEqualTo(message.getCreatedAt());
@@ -149,27 +151,27 @@ class SessionServiceImplTest {
                 .satisfies(exception ->
                         assertThat(((SessionException) exception).getErrorCode()).isEqualTo(SessionErrorCode.BUSY));
 
-        verify(turnService, never()).addTurn(any());
+        verify(turnService, never()).addTurn(any(), any(), any());
         verifyNoInteractions(messageService);
     }
 
     @Test
-    void shouldNotChangeSessionActivityWhenTurnIsCancelled() {
+    void shouldNotChangeSessionActivityWhenTurnIsStopped() {
         stubExecuteInline();
 
         SessionEntity session = session("project-1", "session-1");
         TurnExecutionVO execution = execution("turn-1", "session-1");
-        TurnVO cancelled = turn("turn-1", TurnStatusEnum.CANCELLED);
+        TurnVO stopped = turn("turn-1", TurnStatusEnum.STOPPED);
 
         when(sessionRepository.querySession("project-1", "session-1", "user-1"))
                 .thenReturn(Optional.of(session));
         when(turnService.queryTurnExecution("turn-1")).thenReturn(Optional.of(execution));
-        when(turnService.updateTurnCancelled(eq("turn-1"), eq("session-1"), any(LocalDateTime.class)))
+        when(turnService.updateTurnStopped(eq("turn-1"), eq("session-1"), any(LocalDateTime.class)))
                 .thenReturn(1);
-        when(turnService.queryTurn("turn-1")).thenReturn(Optional.of(cancelled));
+        when(turnService.queryTurn("turn-1")).thenReturn(Optional.of(stopped));
 
-        sessionService.cancelTurn(
-                new CancelTurnDTO("project-1", "session-1", "turn-1", "user-1"));
+        sessionService.stopTurn(
+                new StopTurnDTO("project-1", "session-1", "turn-1", "user-1"));
 
         verify(sessionRepository, never()).update(any());
     }
@@ -194,6 +196,44 @@ class SessionServiceImplTest {
     }
 
     @Test
+    void shouldExecuteTurnWithItsOwnModelInsteadOfSessionDefault() throws Exception {
+        String currentTurnId = "turn-current";
+        SessionEntity session = session("project-1", "session-1");
+        session.setProvider("deepseek");
+        session.setModel("deepseek-flash");
+        TurnVO current = turn(currentTurnId, TurnStatusEnum.RUNNING, "kimi", "kimi-k3");
+
+        when(turnService.queryTurnExecution(currentTurnId))
+                .thenReturn(Optional.of(execution(currentTurnId, "session-1")));
+        when(sessionRepository.queryById("session-1")).thenReturn(Optional.of(session));
+        when(turnService.updatePendingTurn(eq(currentTurnId), any(LocalDateTime.class)))
+                .thenReturn(Optional.of(current));
+        when(messageService.queryMessageList("session-1")).thenReturn(List.of(
+                message("m1", currentTurnId, MessageRoleEnum.USER, "Hello", 1L)));
+        when(turnService.queryTurnList("session-1")).thenReturn(List.of(current));
+        when(llmClient.modelMetadata("kimi", "kimi-k3")).thenReturn(Optional.empty());
+
+        AtomicReference<LlmRequest> capturedRequest = new AtomicReference<>();
+        CountDownLatch done = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            capturedRequest.set(invocation.getArgument(0));
+            done.countDown();
+            return null;
+        }).when(llmClient).streamingChat(any(LlmRequest.class), any());
+
+        sessionService.executeTurnStreamingAsync(
+                currentTurnId,
+                event -> {
+                },
+                exception -> done.countDown());
+
+        assertThat(done.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(capturedRequest.get()).isNotNull();
+        assertThat(capturedRequest.get().provider()).isEqualTo("kimi");
+        assertThat(capturedRequest.get().model()).isEqualTo("kimi-k3");
+    }
+
+    @Test
     void shouldTrimOlderTurnsUsingModelTokenBudget() throws Exception {
         ReflectionTestUtils.setField(sessionService, "maxHistoryTurns", 20);
 
@@ -205,7 +245,7 @@ class SessionServiceImplTest {
 
         when(turnService.queryTurnExecution(currentTurnId)).thenReturn(Optional.of(execution(currentTurnId, "session-1")));
         when(sessionRepository.queryById("session-1")).thenReturn(Optional.of(session));
-        when(turnService.updatePendingTurn(eq(currentTurnId), any(LocalDateTime.class), eq("deepseek"), eq("deepseek-flash")))
+        when(turnService.updatePendingTurn(eq(currentTurnId), any(LocalDateTime.class)))
                 .thenReturn(Optional.of(current));
         when(messageService.queryMessageList("session-1")).thenReturn(List.of(
                 message("m1", "turn-oldest", MessageRoleEnum.USER, "old user", 1L),
@@ -261,7 +301,7 @@ class SessionServiceImplTest {
 
         when(turnService.queryTurnExecution(currentTurnId)).thenReturn(Optional.of(execution(currentTurnId, "session-1")));
         when(sessionRepository.queryById("session-1")).thenReturn(Optional.of(session));
-        when(turnService.updatePendingTurn(eq(currentTurnId), any(LocalDateTime.class), eq("deepseek"), eq("deepseek-flash")))
+        when(turnService.updatePendingTurn(eq(currentTurnId), any(LocalDateTime.class)))
                 .thenReturn(Optional.of(current));
         when(messageService.queryMessageList("session-1")).thenReturn(List.of(
                 message("m1", currentTurnId, MessageRoleEnum.USER, "oversized current message", 1L)));
@@ -301,7 +341,7 @@ class SessionServiceImplTest {
 
         when(turnService.queryTurnExecution(currentTurnId)).thenReturn(Optional.of(execution(currentTurnId, "session-1")));
         when(sessionRepository.queryById("session-1")).thenReturn(Optional.of(session));
-        when(turnService.updatePendingTurn(eq(currentTurnId), any(LocalDateTime.class), eq("deepseek"), eq("deepseek-flash")))
+        when(turnService.updatePendingTurn(eq(currentTurnId), any(LocalDateTime.class)))
                 .thenReturn(Optional.of(current));
         when(messageService.queryMessageList("session-1")).thenReturn(List.of(
                 message("m1", currentTurnId, MessageRoleEnum.USER, "Hello", 1L)));
@@ -366,14 +406,26 @@ class SessionServiceImplTest {
         TurnExecutionVO execution = new TurnExecutionVO();
         execution.setId(turnId);
         execution.setSessionId(sessionId);
+        execution.setProvider("deepseek");
+        execution.setModel("deepseek-flash");
         return execution;
     }
 
     private static TurnVO turn(String turnId, TurnStatusEnum status) {
+        return turn(turnId, status, "deepseek", "deepseek-flash");
+    }
+
+    private static TurnVO turn(
+            String turnId, TurnStatusEnum status, String provider, String model) {
+        TurnInvocationVO invocation = new TurnInvocationVO();
+        invocation.setProvider(provider);
+        invocation.setModel(model);
+
         TurnVO turn = new TurnVO();
         turn.setId(turnId);
         turn.setStatus(status.name());
         turn.setAttemptCount(1);
+        turn.setInvocation(invocation);
         return turn;
     }
 

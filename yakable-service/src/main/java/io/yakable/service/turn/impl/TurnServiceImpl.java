@@ -24,10 +24,12 @@ public class TurnServiceImpl implements TurnService {
     private TurnRepository turnRepository;
 
     @Override
-    public TurnVO addTurn(String sessionId) {
+    public TurnVO addTurn(String sessionId, String provider, String model) {
         TurnEntity entity = new TurnEntity();
         entity.initCreate();
         entity.setSessionId(sessionId);
+        entity.setProvider(provider);
+        entity.setModel(model);
         entity.setStatus(TurnStatusEnum.PENDING);
         entity.setAttemptCount(0);
         turnRepository.add(entity);
@@ -41,7 +43,8 @@ public class TurnServiceImpl implements TurnService {
 
     @Override
     public Optional<TurnExecutionVO> queryTurnExecution(String turnId) {
-        return turnRepository.queryById(turnId).map(entity -> ConverUtils.convert(entity, TurnExecutionVO.class));
+        return turnRepository.queryById(turnId)
+                .map(entity -> ConverUtils.convert(entity, TurnExecutionVO.class));
     }
 
     @Override
@@ -60,17 +63,17 @@ public class TurnServiceImpl implements TurnService {
     }
 
     @Override
-    public Optional<TurnVO> updatePendingTurn(String turnId, LocalDateTime claimedAt, String provider, String model) {
-        return turnRepository.updatePendingTurn(turnId, claimedAt, provider, model).map(TurnServiceImpl::toTurnVO);
+    public Optional<TurnVO> updatePendingTurn(String turnId, LocalDateTime claimedAt) {
+        return turnRepository.updatePendingTurn(turnId, claimedAt).map(TurnServiceImpl::toTurnVO);
     }
 
     @Override
     public int updateTurnSucceeded(
-            String turnId, String sessionId, String provider, String model,
+            String turnId, String sessionId,
             Long inputTokens, Long outputTokens, Long totalTokens,
             String providerRequestId, String finishReason, LocalDateTime completedAt) {
         return turnRepository.updateTurnSucceeded(
-                turnId, sessionId, provider, model,
+                turnId, sessionId,
                 inputTokens, outputTokens, totalTokens,
                 providerRequestId, finishReason, completedAt);
     }
@@ -81,8 +84,8 @@ public class TurnServiceImpl implements TurnService {
     }
 
     @Override
-    public int updateTurnCancelled(String turnId, String sessionId, LocalDateTime cancelledAt) {
-        return turnRepository.updateTurnCancelled(turnId, sessionId, cancelledAt);
+    public int updateTurnStopped(String turnId, String sessionId, LocalDateTime stoppedAt) {
+        return turnRepository.updateTurnStopped(turnId, sessionId, stoppedAt);
     }
 
     @Override
@@ -107,10 +110,6 @@ public class TurnServiceImpl implements TurnService {
     }
 
     private static TurnInvocationVO toInvocationVO(TurnEntity entity) {
-        if (entity.getProvider() == null && entity.getModel() == null) {
-            return null;
-        }
-
         TurnInvocationVO result = ConverUtils.convert(entity, TurnInvocationVO.class);
         if (entity.getInputTokens() != null || entity.getOutputTokens() != null || entity.getTotalTokens() != null) {
             result.setUsage(ConverUtils.convert(entity, TokenUsageVO.class));

@@ -419,14 +419,14 @@ export function SessionWorkspace({
       return;
     }
 
-    void SessionService.cancelTurn(projectId, sessionId, turnId)
-      .then(async (cancelled) => {
+    void SessionService.stopTurn(projectId, sessionId, turnId)
+      .then(async (stopped) => {
         setSnapshot((current) => {
           if (!current) return current;
           return {
             ...current,
             turns: current.turns.map((turn) =>
-              turn.id === cancelled.id ? cancelled : turn,
+              turn.id === stopped.id ? stopped : turn,
             ),
           };
         });
