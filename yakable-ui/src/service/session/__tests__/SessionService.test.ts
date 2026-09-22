@@ -142,9 +142,9 @@ describe('SessionService', () => {
     ];
     const get = vi.spyOn(HttpUtils, 'get').mockResolvedValue(navigation);
 
-    await expect(
-      SessionService.queryTurnNavigation('project 1', 'session/1'),
-    ).resolves.toEqual(navigation);
+    await expect(SessionService.queryTurnNavigation('project 1', 'session/1')).resolves.toEqual(
+      navigation,
+    );
 
     expect(get).toHaveBeenCalledWith(
       '/api/projects/project%201/sessions/session%2F1/turns/navigation',
