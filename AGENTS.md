@@ -1,58 +1,111 @@
-# Yakable Agent Guide
+# Yakable Agent Context Router
 
-本文件是 Agent 进入 Yakable 后的执行入口，只负责规范路由和任务边界，不重复定义具体编码规则。
+Scope:
+- Whole repository
 
-## 规范路由
+Purpose:
+- Route an AI task to the minimum required contracts and code rules
+- Define execution boundaries
+- Do not duplicate detailed rules here
 
-修改任何 Java 代码前，先读取：
+## Backend Context
+
+Any Java change starts with:
 
 ```text
-JAVA_GLOBAL_CODE_README.md
+JAVA_RULES.md
 ```
 
-再按修改范围读取对应规范：
+Load `BACKEND_TEST_RULES.md` when changing observable behavior, API contracts, persistence semantics, runtime behavior or regression tests.
+
+Then load only the rules touched by the task:
 
 ```text
-yakable-service/**        -> yakable-service/SERVICE_README.md
-yakable-core/**           -> yakable-core/CORE_README.md
-yakable-core/**/llm/**    -> yakable-core/src/main/java/io/yakable/core/llm/LLM_DESIGN.md
-yakable-common/**         -> yakable-common/COMMON_CODE.md
-yakable-dao/**/entity/**  -> yakable-dao/ENTITY_README.md
+yakable-boot/**/controller/**
+→ yakable-boot/CONTROLLER_RULES.md
+
+yakable-service/**
+→ yakable-service/SERVICE_RULES.md
+
+yakable-core/**
+→ yakable-core/CORE_RULES.md
+
+yakable-core/**/llm/**
+→ yakable-core/src/main/java/io/yakable/core/llm/LLM_DESIGN.md
+
+yakable-common/**
+→ yakable-common/COMMON_RULES.md
+
+yakable-dao/**/entity/**
+→ yakable-dao/ENTITY_RULES.md
+
 yakable-dao/**/repository/**
-yakable-dao/**/mapper/**  -> yakable-dao/REPOSITORY_README.md
-db/migration/**           -> yakable-dao/FLYWAY_README.md
-yakable-ui/**             -> yakable-ui/ARCHITECTURE.md
-yakable-ui/src/service/** -> yakable-ui/SERVICE_README.md
+yakable-dao/**/mapper/**
+→ yakable-dao/REPOSITORY_RULES.md
+
+yakable-dao/src/main/resources/db/migration/**
+→ yakable-dao/FLYWAY_RULES.md
+
+yakable-plugins/yakable-plugin-model/**
+→ yakable-plugins/yakable-plugin-model/PLUGIN.md
 ```
 
-一个任务涉及多个模块时，只加载实际涉及的规范，不默认读取全部文档。
+## Frontend Context
 
-## 执行规则
-
-1. 修改前先看现有代码和调用关系，优先沿用已有结构、工具和命名。
-
-2. 只解决当前任务，不主动扩大范围，不顺手重构无关代码。
-
-3. 优先修改现有实现；没有真实必要时，不新增层级、抽象、兼容代码或中间组件。
-
-4. 已有公共能力、基础类和框架能力必须优先复用，禁止重复实现。
-
-5. 新增代码必须符合全局 Java 规范和当前模块规范；冲突时以更具体的模块规范为补充，但不得违反全局硬约束。
-
-6. 修改完成后检查受影响调用链和相关规范；能执行验证时优先做最小必要验证，未验证的内容必须明确说明。
-
-## Context 原则
-
-默认上下文只加载：
+Frontend rules are still routed through the current frontend documents until the Frontend Code Rules migration is complete:
 
 ```text
-任务目标
-+ JAVA_GLOBAL_CODE_README.md
-+ 当前模块规范
-+ 目标代码
-+ 直接依赖
+yakable-ui/**
+→ yakable-ui/ARCHITECTURE.md
+
+yakable-ui/src/service/**
+→ yakable-ui/SERVICE_README.md
 ```
 
-只有问题确实向下延伸时，再继续读取 Repository、Mapper、SQL、Provider、Protocol 等实现。
+## Capability Context
 
-**先定位，再读取；先约束，再修改。**
+For product behavior, load:
+
+```text
+Task
+→ docs/README.md
+→ Domain README
+→ Target Capability
+→ Shared Rules / Scenarios
+→ Target Code / Tests
+→ Nearest Code Rules
+```
+
+Do not load every Related capability or every rule file by default.
+
+## Execution Rules
+
+Must:
+- Read current code and direct dependencies before changing structure.
+- Reuse existing utilities, base capabilities and naming.
+- Solve only the current task.
+- Prefer modifying existing code over adding layers.
+- Load more context only when the current evidence requires it.
+- Validate the smallest meaningful behavior after the change.
+- State clearly when verification was not executed.
+
+Must Not:
+- Expand scope as a side effect.
+- Add compatibility code without a real compatibility requirement.
+- Add Manager / Coordinator / Handler / Assembler layers for architectural symmetry.
+- Duplicate an existing utility or framework capability.
+- Treat future design as current implementation.
+
+## Default Context
+
+```text
+Task goal
++ Capability Contract when behavior is involved
++ JAVA_RULES.md for Java
++ Nearest module RULES
++ Target code
++ Direct dependencies
++ Relevant tests
+```
+
+**Locate first. Load only what constrains the task. Change only what the task owns.**
