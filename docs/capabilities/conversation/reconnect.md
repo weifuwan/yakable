@@ -1,6 +1,6 @@
 # Reconnect
 
-Status: Review
+Status: Implementing
 Domain: Conversation
 
 Depends On:
@@ -46,8 +46,12 @@ Tests:
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
 
 Known Gaps:
-- Snapshot → future delta 的交接依赖 Streaming 的 TurnStreamState；当前存在并发 delta 先于 snapshot 到达的竞态。
-- 当前没有覆盖“两个 Tab 同时 watch 同一 Turn、其中一个 Tab Stop、两个 Tab 收敛到 STOPPED”的完整回归测试。
+- 当前没有覆盖“两个 Tab 同时 watch 同一 Turn、其中一个 Tab Stop、两个 Tab 收敛到 STOPPED”的完整回归测试（GAP-03，本 PR 不处理）。
+
+Implementation Design:
+- Reconnect 不新增自己的排序机制，继续依赖 Streaming 的 TurnStreamState。
+- Streaming 必须保证新 watcher 的可观察顺序为 snapshot → future delta → terminal。
+- 本次只修 watcher handoff ordering，不修改 reconnect API、changes fallback 或 multi-tab 语义。
 
 ## Purpose
 
