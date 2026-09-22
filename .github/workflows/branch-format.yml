@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   format:
-    if: github.event.head_commit.message != 'style: apply oxfmt'
+    if: ${{ github.event.head_commit.message != 'style: apply oxfmt' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
 
