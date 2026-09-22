@@ -1,6 +1,6 @@
 # Stop
 
-Status: Implementing
+Status: Review
 Domain: Conversation
 
 Depends On:
@@ -51,17 +51,14 @@ Tests:
 Known Gaps:
 - GAP-06 — stopTurn 先设置 `stoppingTurns` 再读取 `TurnStreamState.snapshot()`，但 Provider delta 对 `stoppingTurns` 的检查发生在 `state.delta()` 之前且不与 snapshot 共用原子边界；存在 post-cutover delta 可见但未持久化的竞态。GAP-06 runtime fix 当前尚未进入 main，本 PR 不处理。
 
-Implementation Design:
-- `stoppingTurns` 只用于 Stop 事务提交完成前的短暂 runtime guard，不再依赖 execution thread finally 做正常成功路径清理。
-- Stop 成功后先将 StreamState 发布为 STOPPED terminal，再立即 `stoppingTurns.remove(turnId)`。
-- terminal 发布后，late delta 会被 TurnStreamState 自身拒绝；late complete 也无法把数据库中的 STOPPED Turn 更新为 SUCCEEDED。
-- Stop transaction 抛错或终态更新失败时继续立即清理 marker，保持现有失败语义。
-- execution thread finally 中的 `stoppingTurns.remove(turnId)` 保留为幂等兜底，不承担主要生命周期清理职责。
-- 本次不修改 Stop API、TurnExecutionVO、数据库、Streaming Provider 逻辑、GAP-06 或 GAP-07。
-
 Review Notes:
-- GAP-04 watcher isolation 已实现。
-- GAP-08 只处理 marker 生命周期，不改变 Stop partial / terminal 行为。
+- GAP-08 已实现：成功 Stop 在 `streamState.stopped()` 发布 terminal 后立即 `stoppingTurns.remove(turnId)`，不再依赖 execution thread finally 做正常成功路径清理。
+- terminal 发布后，late delta 会被 TurnStreamState 拒绝；late complete 无法把数据库中已 STOPPED 的 Turn 更新为 SUCCEEDED，因此立即清理 marker 不会重新开放业务状态。
+- Stop transaction 抛错和终态更新失败路径仍会立即清理 marker。
+- execution thread finally 中的 remove 保留为幂等兜底。
+- 已新增 PENDING Turn + existing StreamState + Stop before execution 的回归测试，直接保护旧泄漏路径。
+- Stop API、TurnExecutionVO、数据库、Provider 流程、GAP-06 和 GAP-07 均未修改。
+- 当前执行环境无法解析 github.com，目标 Maven 测试尚未实际执行；测试通过前保持 Review。
 
 ## Purpose
 
