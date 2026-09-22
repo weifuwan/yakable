@@ -6,6 +6,7 @@ import io.yakable.common.bean.dto.session.StopTurnDTO;
 import io.yakable.common.bean.dto.session.QuerySessionChangesDTO;
 import io.yakable.common.bean.dto.session.QuerySessionDTO;
 import io.yakable.common.bean.dto.session.QuerySessionMessagesDTO;
+import io.yakable.common.bean.dto.session.WatchTurnDTO;
 import io.yakable.common.bean.vo.session.SessionChangesVO;
 import io.yakable.common.bean.vo.session.SessionDetailVO;
 import io.yakable.common.bean.vo.session.SessionInitVO;
@@ -13,12 +14,10 @@ import io.yakable.common.bean.vo.session.SessionMessagePageVO;
 import io.yakable.common.bean.vo.session.SessionVO;
 import io.yakable.common.bean.vo.session.TurnStartVO;
 import io.yakable.common.bean.vo.session.TurnVO;
-import io.yakable.core.llm.LlmStreamEvent;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 
 import java.util.Optional;
-import java.util.function.Consumer;
 
 /**
  * Session 业务服务。
@@ -51,10 +50,11 @@ public interface SessionService {
     void executeTurnAsync(String turnId);
 
     /**
-     * 异步流式执行 Turn。
+     * 订阅已存在 Turn 的流式输出。
+     *
+     * @return 取消订阅动作
      */
-    void executeTurnStreamingAsync(
-            String turnId, Consumer<LlmStreamEvent> consumer, Consumer<RuntimeException> errorHandler);
+    Runnable watchTurn(@NotNull @Valid WatchTurnDTO dto, @NotNull TurnStreamListener listener);
 
     /**
      * 查询 Session 详情。

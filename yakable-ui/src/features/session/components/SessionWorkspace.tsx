@@ -126,6 +126,7 @@ export function SessionWorkspace({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const [streamingTurnId, setStreamingTurnId] = useState<string | null>(null);
+  const [watchedTurnId, setWatchedTurnId] = useState<string | null>(null);
   const [streamingContent, setStreamingContent] = useState('');
   const [optimisticMessage, setOptimisticMessage] =
     useState<SessionMessage | null>(null);
@@ -137,6 +138,7 @@ export function SessionWorkspace({
   const scrollRef = useRef<HTMLDivElement>(null);
   const streamAbortRef = useRef<AbortController | null>(null);
   const currentTurnIdRef = useRef<string | null>(null);
+  const watchedTurnIdsRef = useRef(new Set<string>());
   const stopRequestedRef = useRef(false);
   const followOutputRef = useRef(true);
   const initialScrollDoneRef = useRef(false);
@@ -187,6 +189,8 @@ export function SessionWorkspace({
     setSendError(null);
     setOptimisticMessage(null);
     setStreamingTurnId(null);
+    setWatchedTurnId(null);
+    watchedTurnIdsRef.current.clear();
     setStreamingContent('');
     setIsGenerating(false);
     setSelectedModel(null);
@@ -238,9 +242,84 @@ export function SessionWorkspace({
   const activeTurnId = latestActiveTurnId(snapshot);
   const generating = isGenerating || activeTurn;
   const latestSequence = snapshot?.messages.at(-1)?.sequence ?? 0;
+  const visibleStreamingTurnId = streamingTurnId ?? watchedTurnId;
 
   useEffect(() => {
-    if (!activeTurn || streamingTurnId) return;
+    if (
+      !activeTurnId ||
+      streamAbortRef.current ||
+      watchedTurnIdsRef.current.has(activeTurnId)
+    ) {
+      return;
+    }
+
+    watchedTurnIdsRef.current.add(activeTurnId);
+    const controller = new AbortController();
+    let disposed = false;
+    const afterSequence = latestSequence;
+
+    setWatchedTurnId(activeTurnId);
+    setStreamingContent('');
+
+    void SessionService.watchTurn(
+      projectId,
+      sessionId,
+      activeTurnId,
+      {
+        onSnapshot: (content) => {
+          if (!disposed) setStreamingContent(content);
+        },
+        onDelta: (delta) => {
+          if (!disposed) {
+            setStreamingContent((current) => current + delta);
+          }
+        },
+      },
+      controller.signal,
+    )
+      .then(async () => {
+        if (disposed) return;
+        const changes = await SessionService.queryChanges(
+          projectId,
+          sessionId,
+          afterSequence,
+        );
+        if (disposed) return;
+        setSnapshot((current) =>
+          current ? mergeChanges(current, changes) : current,
+        );
+        setLoadError(null);
+      })
+      .catch(async () => {
+        if (disposed || controller.signal.aborted) return;
+        try {
+          const changes = await SessionService.queryChanges(
+            projectId,
+            sessionId,
+            afterSequence,
+          );
+          if (disposed) return;
+          setSnapshot((current) =>
+            current ? mergeChanges(current, changes) : current,
+          );
+        } catch {
+          // watch 断开后由 polling 继续恢复同一个 Turn。
+        }
+      })
+      .finally(() => {
+        if (disposed) return;
+        setWatchedTurnId(null);
+        setStreamingContent('');
+      });
+
+    return () => {
+      disposed = true;
+      controller.abort();
+    };
+  }, [activeTurnId, latestSequence, projectId, sessionId]);
+
+  useEffect(() => {
+    if (!activeTurn || streamingTurnId || watchedTurnId) return;
 
     let disposed = false;
 
@@ -271,7 +350,14 @@ export function SessionWorkspace({
       disposed = true;
       window.clearInterval(timer);
     };
-  }, [activeTurn, latestSequence, projectId, sessionId, streamingTurnId]);
+  }, [
+    activeTurn,
+    latestSequence,
+    projectId,
+    sessionId,
+    streamingTurnId,
+    watchedTurnId,
+  ]);
 
   const latestTurn = useMemo(
     () => snapshot?.turns.at(-1) ?? null,
@@ -279,10 +365,10 @@ export function SessionWorkspace({
   );
 
   const streamingMessage: SessionMessage | null =
-    streamingTurnId && streamingContent
+    visibleStreamingTurnId && streamingContent
       ? {
-          id: 'stream-' + streamingTurnId,
-          turnId: streamingTurnId,
+          id: 'stream-' + visibleStreamingTurnId,
+          turnId: visibleStreamingTurnId,
           role: 'ASSISTANT',
           content: streamingContent,
           sequence: Number.MAX_SAFE_INTEGER,
@@ -322,6 +408,9 @@ export function SessionWorkspace({
                 };
               });
             },
+            onSnapshot: (content) => {
+              setStreamingContent(content);
+            },
             onDelta: (delta) => {
               setStreamingContent((current) => current + delta);
             },
@@ -338,7 +427,8 @@ export function SessionWorkspace({
           current ? mergeChanges(current, changes) : current,
         );
       } catch (requestError) {
-        if (!currentTurnIdRef.current) {
+        const established = Boolean(currentTurnIdRef.current);
+        if (!established) {
           setOptimisticMessage(null);
         }
         if (controller.signal.aborted && stopRequestedRef.current) return;
@@ -356,11 +446,13 @@ export function SessionWorkspace({
           // 保留原始流式错误。
         }
 
-        setSendError(
-          requestError instanceof Error
-            ? requestError.message
-            : 'Unable to stream turn.',
-        );
+        if (!established) {
+          setSendError(
+            requestError instanceof Error
+              ? requestError.message
+              : 'Unable to stream turn.',
+          );
+        }
       } finally {
         const stopped = controller.signal.aborted && stopRequestedRef.current;
         if (streamAbortRef.current === controller) {

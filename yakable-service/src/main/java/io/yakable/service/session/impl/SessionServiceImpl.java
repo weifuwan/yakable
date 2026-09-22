@@ -6,6 +6,7 @@ import io.yakable.common.bean.dto.session.StopTurnDTO;
 import io.yakable.common.bean.dto.session.QuerySessionChangesDTO;
 import io.yakable.common.bean.dto.session.QuerySessionDTO;
 import io.yakable.common.bean.dto.session.QuerySessionMessagesDTO;
+import io.yakable.common.bean.dto.session.WatchTurnDTO;
 import io.yakable.common.bean.vo.session.MessageVO;
 import io.yakable.common.bean.vo.session.SessionChangesVO;
 import io.yakable.common.bean.vo.session.SessionDetailVO;
@@ -36,6 +37,7 @@ import io.yakable.dao.entity.SessionEntity;
 import io.yakable.dao.repository.SessionRepository;
 import io.yakable.service.message.MessageService;
 import io.yakable.service.session.SessionService;
+import io.yakable.service.session.TurnStreamListener;
 import io.yakable.service.turn.TurnService;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -55,7 +57,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Consumer;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 @Service
@@ -65,10 +68,9 @@ public class SessionServiceImpl implements SessionService {
     private static final String SYSTEM_PROMPT = "You are Yakable, a concise and accurate assistant.";
     private static final String TURN_RECOVERY_TASK = "turn-recovery";
     private static final String TURN_TASK_PREFIX = "turn-";
-    private static final String TURN_STREAM_TASK_PREFIX = "turn-stream-";
     private static final int RECOVERY_BATCH_SIZE = 100;
 
-    private final Map<String, StringBuffer> streamingContents = new ConcurrentHashMap<>();
+    private final Map<String, TurnStreamState> streamStates = new ConcurrentHashMap<>();
     private final Set<String> stoppingTurns = ConcurrentHashMap.newKeySet();
 
     @Resource
@@ -140,21 +142,19 @@ public class SessionServiceImpl implements SessionService {
                 .filter(turn -> dto.sessionId().equals(turn.getSessionId()))
                 .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
 
-        StringBuffer streamingContent = streamingContents.get(dto.turnId());
-        if (streamingContent != null) {
+        TurnStreamState streamState = streamStates.get(dto.turnId());
+        if (streamState != null) {
             stoppingTurns.add(dto.turnId());
         }
 
         int updated;
         try {
-            String partialContent = snapshotStreamingContent(streamingContent);
+            String partialContent = streamState == null ? "" : streamState.snapshot();
             updated = transactionTemplate.execute(status -> {
                 int stopped = turnService.updateTurnStopped(execution.getId(), dto.sessionId(), DateUtils.now());
-                if (stopped == 1) {
-                    if (!StringUtils.isBlank(partialContent)) {
-                        messageService.addMessage(
-                                dto.sessionId(), dto.turnId(), MessageRoleEnum.ASSISTANT, partialContent);
-                    }
+                if (stopped == 1 && !StringUtils.isBlank(partialContent)) {
+                    messageService.addMessage(
+                            dto.sessionId(), dto.turnId(), MessageRoleEnum.ASSISTANT, partialContent);
                 }
                 return stopped;
             });
@@ -164,8 +164,10 @@ public class SessionServiceImpl implements SessionService {
         }
 
         if (updated == 1) {
+            if (streamState != null) {
+                streamState.stopped();
+            }
             ThreadUtils.cancel(TURN_TASK_PREFIX + dto.turnId());
-            ThreadUtils.cancel(TURN_STREAM_TASK_PREFIX + dto.turnId());
         } else {
             stoppingTurns.remove(dto.turnId());
         }
@@ -175,19 +177,36 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     public void executeTurnAsync(String turnId) {
-        ThreadUtils.execute(TURN_TASK_PREFIX + turnId, () -> executeTurn(turnId));
+        ThreadUtils.execute(TURN_TASK_PREFIX + turnId, () -> executeTurnStreaming(turnId));
     }
 
     @Override
-    public void executeTurnStreamingAsync(
-            String turnId, Consumer<LlmStreamEvent> consumer, Consumer<RuntimeException> errorHandler) {
-        ThreadUtils.execute(TURN_STREAM_TASK_PREFIX + turnId, () -> {
-            try {
-                executeTurnStreaming(turnId, consumer);
-            } catch (RuntimeException exception) {
-                errorHandler.accept(exception);
-            }
-        });
+    public Runnable watchTurn(WatchTurnDTO dto, TurnStreamListener listener) {
+        queryOwnedSession(dto.projectId(), dto.sessionId(), dto.userId());
+        TurnExecutionVO execution = turnService.queryTurnExecution(dto.turnId())
+                .filter(turn -> dto.sessionId().equals(turn.getSessionId()))
+                .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
+
+        TurnVO turn = turnService.queryTurn(execution.getId())
+                .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
+        if (notifyTerminalTurn(turn, listener)) {
+            return () -> {
+            };
+        }
+
+        TurnStreamState state = streamStates.computeIfAbsent(dto.turnId(), ignored -> new TurnStreamState());
+        state.add(listener);
+
+        TurnVO latest = turnService.queryTurn(dto.turnId())
+                .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
+        if (notifyTerminalTurn(latest, state)) {
+            removeStreamStateIfFinished(dto.turnId(), state);
+        }
+
+        return () -> {
+            state.remove(listener);
+            removeStreamStateIfFinished(dto.turnId(), state);
+        };
     }
 
     @Override
@@ -269,7 +288,7 @@ public class SessionServiceImpl implements SessionService {
         return result;
     }
 
-    private void executeTurn(String turnId) {
+    private void executeTurnStreaming(String turnId) {
         TurnExecutionVO snapshot = turnService.queryTurnExecution(turnId).orElse(null);
         if (snapshot == null) {
             return;
@@ -277,58 +296,51 @@ public class SessionServiceImpl implements SessionService {
 
         SessionEntity session = sessionRepository.queryById(snapshot.getSessionId())
                 .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
-
         TurnVO running = turnService.updatePendingTurn(turnId, DateUtils.now()).orElse(null);
         if (running == null) {
+            TurnVO current = turnService.queryTurn(turnId).orElse(null);
+            TurnStreamState existing = streamStates.get(turnId);
+            if (current != null && existing != null) {
+                notifyTerminalTurn(current, existing);
+                removeStreamStateIfFinished(turnId, existing);
+            }
             return;
         }
 
-        try {
-            LlmResponse response = llmClient.chat(request(session, running));
-            persistSuccess(session.getId(), running, response);
-        } catch (RuntimeException exception) {
-            persistFailure(session.getId(), running, exception);
-            throw exception;
-        }
-    }
-
-    private void executeTurnStreaming(String turnId, Consumer<LlmStreamEvent> consumer) {
-        TurnExecutionVO snapshot = turnService.queryTurnExecution(turnId)
-                .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
-        SessionEntity session = sessionRepository.queryById(snapshot.getSessionId())
-                .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
-        TurnVO running = turnService.updatePendingTurn(turnId, DateUtils.now())
-                .orElseThrow(() -> new SessionException(SessionErrorCode.BUSY));
-        StringBuffer streamingContent = new StringBuffer();
-        streamingContents.put(turnId, streamingContent);
+        TurnStreamState state = streamStates.computeIfAbsent(turnId, ignored -> new TurnStreamState());
+        boolean[] completed = {false};
 
         try {
             llmClient.streamingChat(request(session, running), event -> {
-                if (event.type() == LlmStreamEvent.Type.DELTA) {
-                    synchronized (streamingContent) {
-                        if (stoppingTurns.contains(turnId)) {
-                            return;
-                        }
-                        streamingContent.append(event.delta());
-                    }
-                }
                 if (stoppingTurns.contains(turnId)) {
+                    return;
+                }
+                if (event.type() == LlmStreamEvent.Type.DELTA) {
+                    state.delta(event.delta());
                     return;
                 }
                 if (event.type() == LlmStreamEvent.Type.COMPLETE) {
                     persistSuccess(session.getId(), running, event.response());
+                    completed[0] = true;
+                    state.complete();
                 }
-                consumer.accept(event);
             });
+
+            if (!completed[0] && !isStopped(turnId)) {
+                throw new IllegalStateException("Streaming turn ended before completion");
+            }
         } catch (RuntimeException exception) {
             if (isStopped(turnId)) {
+                state.stopped();
                 return;
             }
-            persistFailure(session.getId(), running, exception);
+            String partialContent = state.snapshot();
+            persistFailure(session.getId(), running, partialContent, exception);
+            state.failed(failureMessage(exception));
             throw exception;
         } finally {
-            streamingContents.remove(turnId, streamingContent);
             stoppingTurns.remove(turnId);
+            removeStreamStateIfFinished(turnId, state);
         }
     }
 
@@ -454,12 +466,18 @@ public class SessionServiceImpl implements SessionService {
         });
     }
 
-    private void persistFailure(String sessionId, TurnVO running, RuntimeException originalFailure) {
+    private void persistFailure(
+            String sessionId, TurnVO running, String partialContent, RuntimeException originalFailure) {
         LocalDateTime failedAt = DateUtils.now();
 
         try {
             transactionTemplate.executeWithoutResult(status -> {
-                turnService.updateTurnFailed(running.getId(), sessionId, failureMessage(originalFailure), failedAt);
+                int failed = turnService.updateTurnFailed(
+                        running.getId(), sessionId, failureMessage(originalFailure), failedAt);
+                if (failed == 1 && !StringUtils.isBlank(partialContent)) {
+                    messageService.addMessage(
+                            sessionId, running.getId(), MessageRoleEnum.ASSISTANT, partialContent);
+                }
             });
         } catch (RuntimeException persistenceFailure) {
             originalFailure.addSuppressed(persistenceFailure);
@@ -472,18 +490,140 @@ public class SessionServiceImpl implements SessionService {
                 .orElse(false);
     }
 
-    private static String snapshotStreamingContent(StringBuffer content) {
-        if (content == null) {
-            return "";
-        }
-        synchronized (content) {
-            return content.toString();
-        }
-    }
-
     private void recoverTurns() {
         turnService.updateStaleTurnPending(DateUtils.now().minus(runningTimeout));
         turnService.queryPendingTurnIdList(RECOVERY_BATCH_SIZE).forEach(this::executeTurnAsync);
+    }
+
+
+    private static boolean notifyTerminalTurn(TurnVO turn, TurnStreamListener listener) {
+        if (TurnStatusEnum.SUCCEEDED.name().equals(turn.getStatus())) {
+            listener.onComplete();
+            return true;
+        }
+        if (TurnStatusEnum.FAILED.name().equals(turn.getStatus())) {
+            listener.onError(turn.getErrorMessage() == null ? "Turn failed." : turn.getErrorMessage());
+            return true;
+        }
+        if (TurnStatusEnum.STOPPED.name().equals(turn.getStatus())) {
+            listener.onStopped();
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean notifyTerminalTurn(TurnVO turn, TurnStreamState state) {
+        if (TurnStatusEnum.SUCCEEDED.name().equals(turn.getStatus())) {
+            state.complete();
+            return true;
+        }
+        if (TurnStatusEnum.FAILED.name().equals(turn.getStatus())) {
+            state.failed(turn.getErrorMessage() == null ? "Turn failed." : turn.getErrorMessage());
+            return true;
+        }
+        if (TurnStatusEnum.STOPPED.name().equals(turn.getStatus())) {
+            state.stopped();
+            return true;
+        }
+        return false;
+    }
+
+    private void removeStreamStateIfFinished(String turnId, TurnStreamState state) {
+        if (state.isTerminal() && state.isEmpty()) {
+            streamStates.remove(turnId, state);
+        }
+    }
+
+    private static final class TurnStreamState {
+
+        private final StringBuffer content = new StringBuffer();
+        private final List<TurnStreamListener> listeners = new CopyOnWriteArrayList<>();
+        private final AtomicReference<TerminalEvent> terminal = new AtomicReference<>();
+
+        void add(TurnStreamListener listener) {
+            listeners.add(listener);
+            String snapshot = snapshot();
+            if (!snapshot.isBlank()) {
+                safeNotify(listener, item -> item.onSnapshot(snapshot));
+            }
+            TerminalEvent current = terminal.get();
+            if (current != null) {
+                notifyTerminal(listener, current);
+            }
+        }
+
+        void remove(TurnStreamListener listener) {
+            listeners.remove(listener);
+        }
+
+        void delta(String value) {
+            if (terminal.get() != null) {
+                return;
+            }
+            synchronized (content) {
+                content.append(value);
+            }
+            listeners.forEach(listener -> safeNotify(listener, item -> item.onDelta(value)));
+        }
+
+        String snapshot() {
+            synchronized (content) {
+                return content.toString();
+            }
+        }
+
+        void complete() {
+            publishTerminal(new TerminalEvent(TerminalType.COMPLETE, null));
+        }
+
+        void failed(String message) {
+            publishTerminal(new TerminalEvent(TerminalType.FAILED, message));
+        }
+
+        void stopped() {
+            publishTerminal(new TerminalEvent(TerminalType.STOPPED, null));
+        }
+
+        boolean isTerminal() {
+            return terminal.get() != null;
+        }
+
+        boolean isEmpty() {
+            return listeners.isEmpty();
+        }
+
+        private void publishTerminal(TerminalEvent event) {
+            if (!terminal.compareAndSet(null, event)) {
+                return;
+            }
+            listeners.forEach(listener -> notifyTerminal(listener, event));
+        }
+
+        private static void notifyTerminal(TurnStreamListener listener, TerminalEvent event) {
+            switch (event.type()) {
+                case COMPLETE -> safeNotify(listener, TurnStreamListener::onComplete);
+                case FAILED -> safeNotify(listener, item -> item.onError(event.message()));
+                case STOPPED -> safeNotify(listener, TurnStreamListener::onStopped);
+            }
+        }
+
+        private static void safeNotify(
+                TurnStreamListener listener, java.util.function.Consumer<TurnStreamListener> callback) {
+            try {
+                callback.accept(listener);
+            } catch (RuntimeException ignored) {
+                // 客户端连接异常不能影响 Turn 后台执行。
+            }
+        }
+    }
+
+    private record TerminalEvent(TerminalType type, String message) {
+    }
+
+    private enum TerminalType {
+        COMPLETE,
+        FAILED,
+        STOPPED
     }
 
     private SessionEntity queryOwnedSession(String projectId, String sessionId, String userId) {
