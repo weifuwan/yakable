@@ -2,6 +2,7 @@ package io.yakable.dao.repository.impl;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import io.yakable.common.enums.session.MessageRoleEnum;
 import io.yakable.dao.entity.MessageEntity;
 import io.yakable.dao.mapper.MessageMapper;
 import io.yakable.dao.repository.MessageRepository;
@@ -10,6 +11,7 @@ import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 @DependsOn("yakableFlyway")
@@ -42,6 +44,14 @@ public class MessageRepositoryImpl extends BaseRepositoryImpl<MessageMapper, Mes
     @Override
     public long queryLatestMessageSequence(String sessionId) {
         return Math.max(0L, queryNextMessageSequence(sessionId) - 1L);
+    }
+
+    @Override
+    public Optional<MessageEntity> queryUserMessage(String turnId) {
+        return Optional.ofNullable(messageMapper.selectOne(
+                Wrappers.<MessageEntity>lambdaQuery()
+                        .eq(MessageEntity::getTurnId, turnId)
+                        .eq(MessageEntity::getRole, MessageRoleEnum.USER)));
     }
 
     @Override
