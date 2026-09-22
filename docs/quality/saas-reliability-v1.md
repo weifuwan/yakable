@@ -129,7 +129,7 @@ Provider 不可用时，只影响对应 Turn，不应影响已有 Project、Sess
 
 SSE 连接结束、超时或异常后必须释放 listener 和相关资源。
 
-Streaming buffer 不能无限增长。
+Streaming buffer 不能无限增长。单条 Message 必须同时存在应用层大小边界和与之匹配的数据库字段容量，不能只依赖数据库写入失败兜底。
 
 Message 页面加载必须分页，不能默认一次加载整个 Session 历史。
 
