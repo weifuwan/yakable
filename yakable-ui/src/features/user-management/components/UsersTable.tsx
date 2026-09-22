@@ -64,7 +64,12 @@ export function UsersTable({
             const busy = busyUserId === user.id;
             return (
               <tr key={user.id} className="border-t border-border-quiet">
-                <td className="px-4 py-3">
+                <td
+                  className="px-4 py-3"
+                  aria-label={
+                    user.name + ', ' + (user.email || 'No email')
+                  }
+                >
                   <div className="min-w-36">
                     <div className="font-medium text-foreground">{user.name}</div>
                     <div className="mt-0.5 text-xs text-foreground-subtle">
@@ -100,7 +105,10 @@ export function UsersTable({
                 <td className="whitespace-nowrap px-4 py-3 text-foreground-subtle">
                   {formatDate(user.createdAt)}
                 </td>
-                <td className="px-4 py-3">
+                <td
+                  className="px-4 py-3"
+                  aria-label={'Actions for ' + user.name}
+                >
                   <div className="flex justify-end gap-1">
                     <Button size="sm" onClick={() => onEdit(user)} disabled={busy}>
                       Edit
