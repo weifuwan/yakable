@@ -33,7 +33,7 @@ public interface MessageRepository extends BaseRepository<MessageEntity> {
     /**
      * 查询 Session 下的 USER Message 列表。
      */
-    List<MessageEntity> queryUserMessageList(String sessionId);
+    List<MessageEntity> queryUserNavigationMessageList(String sessionId);
 
     /**
      * 查询 Session 下的 Message 列表。
