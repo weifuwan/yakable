@@ -64,6 +64,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -1017,6 +1018,57 @@ class SessionServiceImplTest {
     }
 
     @Test
+    void shouldConvergeMultipleWatchersToStoppedWithoutStartingAnotherExecution() {
+        stubExecuteInline();
+
+        String turnId = "turn-multi-tab";
+        SessionEntity session = session("project-1", "session-1");
+        TurnExecutionVO execution = execution(turnId, "session-1");
+        TurnVO running = turn(turnId, TurnStatusEnum.RUNNING);
+        TurnVO stopped = turn(turnId, TurnStatusEnum.STOPPED);
+
+        when(sessionRepository.querySession("project-1", "session-1", "user-1"))
+                .thenReturn(Optional.of(session));
+        when(turnService.queryTurnExecution(turnId))
+                .thenReturn(Optional.of(execution));
+        when(turnService.queryTurn(turnId))
+                .thenReturn(running, running, running, running, stopped);
+        when(turnService.updateTurnStopped(eq(turnId), eq("session-1"), any(LocalDateTime.class)))
+                .thenReturn(1);
+
+        AtomicInteger firstStopped = new AtomicInteger();
+        AtomicInteger secondStopped = new AtomicInteger();
+
+        TurnStreamListener first = stoppedListener(firstStopped);
+        TurnStreamListener second = stoppedListener(secondStopped);
+
+        Runnable unsubscribeFirst = sessionService.watchTurn(
+                new WatchTurnDTO("project-1", "session-1", turnId, "user-1"),
+                first);
+        Runnable unsubscribeSecond = sessionService.watchTurn(
+                new WatchTurnDTO("project-1", "session-1", turnId, "user-1"),
+                second);
+
+        TurnVO result = sessionService.stopTurn(
+                new StopTurnDTO("project-1", "session-1", turnId, "user-1"));
+
+        assertThat(result).isSameAs(stopped);
+        assertThat(firstStopped.get()).isEqualTo(1);
+        assertThat(secondStopped.get()).isEqualTo(1);
+
+        verify(conversationMetrics, times(2)).watcherConnected();
+        verify(conversationMetrics).turnTerminal("stopped");
+        verify(turnService).updateTurnStopped(eq(turnId), eq("session-1"), any(LocalDateTime.class));
+        verify(messageService, never()).addMessage(any(), any(), any(), any());
+        verifyNoInteractions(llmClient);
+
+        unsubscribeFirst.run();
+        unsubscribeSecond.run();
+
+        verify(conversationMetrics, times(2)).watcherDisconnected();
+    }
+
+    @Test
     void shouldDeliverSnapshotBeforeConcurrentFutureEvents() throws Exception {
         stubExecuteWithoutResultInline();
 
@@ -1135,6 +1187,31 @@ class SessionServiceImplTest {
         Runnable cleanup = unsubscribe.get();
         assertThat(cleanup).isNotNull();
         cleanup.run();
+    }
+
+    private static TurnStreamListener stoppedListener(AtomicInteger stoppedCount) {
+        return new TurnStreamListener() {
+            @Override
+            public void onSnapshot(String content) {
+            }
+
+            @Override
+            public void onDelta(String content) {
+            }
+
+            @Override
+            public void onComplete() {
+            }
+
+            @Override
+            public void onError(String message) {
+            }
+
+            @Override
+            public void onStopped() {
+                stoppedCount.incrementAndGet();
+            }
+        };
     }
 
     private void assertRequestConflict(AddTurnDTO dto) {
