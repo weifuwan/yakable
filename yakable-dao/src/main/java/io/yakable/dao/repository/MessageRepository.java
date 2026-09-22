@@ -26,6 +26,16 @@ public interface MessageRepository extends BaseRepository<MessageEntity> {
     Optional<MessageEntity> queryUserMessage(String turnId);
 
     /**
+     * 查询 Session 指定序号的 Message。
+     */
+    Optional<MessageEntity> queryMessage(String sessionId, long sequence);
+
+    /**
+     * 查询 Session 下的 USER Message 列表。
+     */
+    List<MessageEntity> queryUserMessageList(String sessionId);
+
+    /**
      * 查询 Session 下的 Message 列表。
      */
     List<MessageEntity> queryMessageList(String sessionId);
