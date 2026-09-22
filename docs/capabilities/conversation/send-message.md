@@ -49,6 +49,11 @@ Tests:
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
 
+Review Notes:
+- GAP-01 requestId semantic conflict 已在生产代码实现，并有 Service / Controller 回归测试。
+- 当前没有新的 Send Message 语义 Gap。
+- 由于当前执行环境无法运行仓库 Maven 测试，缺少实际测试执行证据，因此暂时保持 Review。
+
 ## Purpose
 
 在当前 Session 中提交一条 Prompt，建立一个新的 Turn 和 USER Message。
