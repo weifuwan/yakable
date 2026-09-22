@@ -50,12 +50,24 @@ describe('ModelSelector', () => {
     ).toBe('borderless');
   });
 
-  it('maps Select values back to ModelSelection', async () => {
+  it('maps custom Select values back to ModelSelection', async () => {
     const user = userEvent.setup();
     const onValueChange = vi.fn();
 
     render(
       <ModelSelector
+        models={[
+          {
+            provider: 'deepseek',
+            model: 'deepseek-flash',
+            label: 'DeepSeek',
+          },
+          {
+            provider: 'test-provider',
+            model: 'test-model',
+            label: 'Test Model',
+          },
+        ]}
         value={{
           provider: 'deepseek',
           model: 'deepseek-flash',
@@ -68,12 +80,12 @@ describe('ModelSelector', () => {
       screen.getByRole('button', { name: 'Select model' }),
     );
     await user.click(
-      screen.getByRole('menuitemradio', { name: 'Kimi' }),
+      screen.getByRole('menuitemradio', { name: 'Test Model' }),
     );
 
     expect(onValueChange).toHaveBeenCalledWith({
-      provider: 'kimi',
-      model: 'kimi-k3',
+      provider: 'test-provider',
+      model: 'test-model',
     });
   });
 });

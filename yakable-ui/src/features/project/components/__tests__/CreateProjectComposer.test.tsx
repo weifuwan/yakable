@@ -94,8 +94,7 @@ describe('CreateProjectComposer', () => {
     });
     expect(modelTrigger.getAttribute('data-surface')).toBe('borderless');
 
-    await user.click(modelTrigger);
-    await user.click(screen.getByRole('menuitemradio', { name: 'Kimi' }));
+    expect(modelTrigger.textContent).toContain('DeepSeek');
 
     const input = screen.getByRole('textbox', {
       name: 'Describe the project you want to build',
@@ -111,8 +110,8 @@ describe('CreateProjectComposer', () => {
     expect(addProject).toHaveBeenCalledWith({
       prompt: 'Build a CRM dashboard',
       model: {
-        provider: 'kimi',
-        model: 'kimi-k3',
+        provider: 'deepseek',
+        model: 'deepseek-flash',
       },
       requestId: '00000000-0000-4000-8000-000000000001',
     });

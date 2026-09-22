@@ -100,6 +100,11 @@ public class TurnServiceImpl implements TurnService {
     }
 
     @Override
+    public int updateRunningTurnPending(String turnId) {
+        return turnRepository.updateRunningTurnPending(turnId);
+    }
+
+    @Override
     public int updateStaleTurnPending(LocalDateTime staleBefore) {
         return turnRepository.updateStaleTurnPending(staleBefore);
     }

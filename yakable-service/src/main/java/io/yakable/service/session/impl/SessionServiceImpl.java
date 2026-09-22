@@ -81,6 +81,9 @@ public class SessionServiceImpl implements SessionService {
 
     private final Map<String, TurnStreamState> streamStates = new ConcurrentHashMap<>();
     private final Set<String> stoppingTurns = ConcurrentHashMap.newKeySet();
+    private final Set<String> runningTurnIds = ConcurrentHashMap.newKeySet();
+    private final Set<String> shutdownRecoveryTurnIds = ConcurrentHashMap.newKeySet();
+    private final AtomicBoolean shuttingDown = new AtomicBoolean();
     private final AtomicInteger activeExecutions = new AtomicInteger();
     private final Map<String, Integer> activeExecutionsByUser = new ConcurrentHashMap<>();
 
@@ -111,6 +114,9 @@ public class SessionServiceImpl implements SessionService {
     @Value("${yakable.turn-execution.max-concurrent-per-user:2}")
     private int maxConcurrentExecutionsPerUser = DEFAULT_MAX_CONCURRENT_EXECUTIONS_PER_USER;
 
+    @Value("${yakable.runtime.shutdown-timeout:30s}")
+    private Duration shutdownTimeout;
+
     @PostConstruct
     void startTurnRecovery() {
         validateExecutionLimits();
@@ -118,8 +124,15 @@ public class SessionServiceImpl implements SessionService {
     }
 
     @PreDestroy
-    void stopTurnRecovery() {
+    void shutdownRuntime() {
+        shuttingDown.set(true);
         ThreadUtils.cancelScheduled(TURN_RECOVERY_TASK);
+
+        Set<String> turnsToRecover = new HashSet<>(runningTurnIds);
+        ThreadUtils.shutdown(shutdownTimeout);
+        turnsToRecover.addAll(runningTurnIds);
+        turnsToRecover.addAll(shutdownRecoveryTurnIds);
+        turnsToRecover.forEach(turnService::updateRunningTurnPending);
     }
 
     @Override
@@ -193,7 +206,7 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     public void executeTurnAsync(String turnId) {
-        if (activeExecutions.get() >= maxConcurrentExecutions) {
+        if (shuttingDown.get() || activeExecutions.get() >= maxConcurrentExecutions) {
             return;
         }
 
@@ -365,6 +378,7 @@ public class SessionServiceImpl implements SessionService {
             return;
         }
 
+        runningTurnIds.add(turnId);
         TurnStreamState state = streamStates.computeIfAbsent(turnId, ignored -> new TurnStreamState());
         boolean[] completed = {false};
 
@@ -388,6 +402,10 @@ public class SessionServiceImpl implements SessionService {
                 throw new IllegalStateException("Streaming turn ended before completion");
             }
         } catch (RuntimeException exception) {
+            if (shuttingDown.get()) {
+                shutdownRecoveryTurnIds.add(turnId);
+                return;
+            }
             if (isStopped(turnId)) {
                 state.stopped();
                 return;
@@ -397,6 +415,7 @@ public class SessionServiceImpl implements SessionService {
             state.failed(failureMessage(exception));
             throw exception;
         } finally {
+            runningTurnIds.remove(turnId);
             stoppingTurns.remove(turnId);
             removeStreamStateIfFinished(turnId, state);
         }

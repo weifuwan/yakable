@@ -98,6 +98,8 @@ V1 必须保证的是：
 
 如果未来多实例、超长任务或 Agent Execution 对 Streaming 有更强要求，再基于真实问题升级。
 
+当前 SaaS V1 的部署契约是单实例 Yakable 后端。这个边界必须显式存在，不能在 Stream State 仍是 JVM 本地状态时把多实例部署伪装成已经支持。正常发布或停机需要 graceful shutdown；未完成的 RUNNING Turn 回到 PENDING 后仍由原 Turn 的 Recovery 语义继续。
+
 ## 5. 核心概念
 
 ### 5.1 Session
