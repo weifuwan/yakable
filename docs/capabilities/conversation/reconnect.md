@@ -33,17 +33,22 @@ Shared Rules:
 - CONV-007
 - CONV-013
 - CONV-016
+- CONV-020
 
 Scenarios:
 - CONV-S03
 - CONV-S04
 - CONV-S08
+- CONV-S09
 
 Tests:
 - `yakable-ui/src/features/session/components/__tests__/SessionWorkspace.test.tsx`
 - `yakable-ui/src/service/session/__tests__/SessionService.test.ts`
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
+
+Known Gaps:
+- GAP-04 — Reconnect 依赖 Streaming 的 watcher delivery。当前 SseEmitter callback 在 TurnStreamState eventLock 内执行，慢连接可能阻塞同 Turn 的其他 watcher 与后续事件；不满足 CONV-020。
 
 Review Notes:
 - GAP-02 的 snapshot / future delta ordering 已在 Streaming 的 TurnStreamState 中实现，不新增 Reconnect 私有排序机制。
