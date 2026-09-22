@@ -30,8 +30,10 @@ public final class ThreadUtils {
 
     /**
      * 使用统一虚拟线程执行异步任务。
+     *
+     * @return 是否成功提交任务
      */
-    public static void execute(String taskName, Runnable task) {
+    public static boolean execute(String taskName, Runnable task) {
         try {
             executor.execute(() -> {
                 Thread current = Thread.currentThread();
@@ -44,8 +46,10 @@ public final class ThreadUtils {
                     runningTasks.remove(taskName, current);
                 }
             });
+            return true;
         } catch (RuntimeException exception) {
             log.log(System.Logger.Level.WARNING, "Failed to submit task: " + taskName, exception);
+            return false;
         }
     }
 
