@@ -338,12 +338,9 @@ describe('SessionWorkspace', () => {
       name: 'Send a message',
     });
 
-    await user.click(
-      screen.getByRole('button', { name: 'Select model' }),
-    );
-    await user.click(
-      screen.getByRole('menuitemradio', { name: 'Kimi' }),
-    );
+    expect(
+      screen.getByRole('button', { name: 'Select model' }).textContent,
+    ).toContain('DeepSeek');
 
     await user.type(input, 'Tell me more');
     await user.keyboard('{Enter}');
@@ -355,8 +352,8 @@ describe('SessionWorkspace', () => {
       'session-1',
       'Tell me more',
       {
-        provider: 'kimi',
-        model: 'kimi-k3',
+        provider: 'deepseek',
+        model: 'deepseek-flash',
       },
       '00000000-0000-4000-8000-000000000002',
       expect.any(Object),
