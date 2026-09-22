@@ -19,9 +19,8 @@ export function ProjectHeader({
   return (
     <header className="flex h-14 shrink-0 items-center justify-between bg-workspace px-4">
       {loading ? (
-        <div
+        <output
           className="flex min-w-0 items-center gap-1.5"
-          role="status"
           aria-label="Loading session header"
         >
           <span
@@ -32,7 +31,7 @@ export function ProjectHeader({
             aria-hidden="true"
             className="size-3 animate-pulse rounded-full bg-skeleton"
           />
-        </div>
+        </output>
       ) : (
         <div className="flex min-w-0 items-center gap-1.5">
           <span
