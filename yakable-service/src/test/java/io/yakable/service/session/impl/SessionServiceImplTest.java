@@ -12,6 +12,7 @@ import io.yakable.common.bean.vo.session.TurnExecutionVO;
 import io.yakable.common.bean.vo.session.TurnInvocationVO;
 import io.yakable.common.bean.vo.session.TurnStartVO;
 import io.yakable.common.bean.vo.session.TurnVO;
+import io.yakable.common.constant.MessageConstant;
 import io.yakable.common.enums.session.MessageRoleEnum;
 import io.yakable.common.enums.session.SessionErrorCode;
 import io.yakable.common.enums.session.TurnStatusEnum;
@@ -554,6 +555,60 @@ class SessionServiceImplTest {
                 currentTurnId,
                 MessageRoleEnum.ASSISTANT,
                 "Partial answer");
+    }
+
+    @Test
+    void shouldFailTurnWhenStreamingResponseExceedsMessageBoundary() throws Exception {
+        stubExecuteWithoutResultInline();
+
+        String currentTurnId = "turn-too-large-response";
+        SessionEntity session = session("project-1", "session-1");
+        TurnVO current = turn(currentTurnId, TurnStatusEnum.RUNNING);
+
+        when(turnService.queryTurnExecution(currentTurnId))
+                .thenReturn(Optional.of(execution(currentTurnId, "session-1")));
+        when(sessionRepository.queryById("session-1")).thenReturn(Optional.of(session));
+        when(turnService.updatePendingTurn(eq(currentTurnId), any(LocalDateTime.class)))
+                .thenReturn(Optional.of(current));
+        when(messageService.queryMessageList("session-1")).thenReturn(List.of(
+                message("m1", currentTurnId, MessageRoleEnum.USER, "Hello", 1L)));
+        when(turnService.queryTurnList("session-1")).thenReturn(List.of(current));
+        when(llmClient.modelMetadata("deepseek", "deepseek-flash"))
+                .thenReturn(new LlmModelMetadata(100_000L, 10_000L));
+        when(turnService.queryTurn(currentTurnId)).thenReturn(Optional.of(current));
+
+        CountDownLatch failed = new CountDownLatch(1);
+        when(turnService.updateTurnFailed(
+                eq(currentTurnId),
+                eq("session-1"),
+                eq(SessionErrorCode.MESSAGE_TOO_LARGE.getMessage()),
+                any(LocalDateTime.class)))
+                .thenAnswer(invocation -> {
+                    failed.countDown();
+                    return 1;
+                });
+
+        String oversized = "x".repeat(MessageConstant.MAX_CONTENT_LENGTH + 1);
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            Consumer<LlmStreamEvent> consumer = invocation.getArgument(1);
+            consumer.accept(LlmStreamEvent.delta(oversized));
+            return null;
+        }).when(llmClient).streamingChat(any(LlmRequest.class), any());
+
+        sessionService.executeTurnAsync(currentTurnId);
+
+        assertThat(failed.await(2, TimeUnit.SECONDS)).isTrue();
+        verify(turnService).updateTurnFailed(
+                eq(currentTurnId),
+                eq("session-1"),
+                eq(SessionErrorCode.MESSAGE_TOO_LARGE.getMessage()),
+                any(LocalDateTime.class));
+        verify(messageService, never()).addMessage(
+                eq("session-1"),
+                eq(currentTurnId),
+                eq(MessageRoleEnum.ASSISTANT),
+                any());
     }
 
     @Test
