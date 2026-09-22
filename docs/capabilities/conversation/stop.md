@@ -47,8 +47,12 @@ Tests:
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
 - `yakable-service/src/test/java/io/yakable/service/turn/impl/TurnServiceImplTest.java`
 
-Known Gaps:
-- GAP-04 — stopTurn 读取 partial snapshot 时需要获得 TurnStreamState eventLock。当前 watcher callback 也在同一把锁内执行，因此慢 watcher 可能延迟 explicit Stop；不满足 CONV-020。
+Review Notes:
+- GAP-04 已实现：stopTurn 读取 partial snapshot 时只竞争短生命周期 Turn eventLock；watcher callback 已移出该锁。
+- STOPPED terminal 只在 eventLock 内按顺序写入各 watcher mailbox，stopTurn 不等待实际网络发送完成。
+- 已新增慢 watcher 回归测试，保护 slow callback 未释放时 explicit Stop 仍可完成，fast watcher 仍可收到 STOPPED。
+- Stop API、partial persistence 和 Turn terminal 语义未修改。
+- 当前执行环境无法解析 github.com，目标 Maven 测试尚未实际执行；测试通过前保持 Review。
 
 ## Purpose
 

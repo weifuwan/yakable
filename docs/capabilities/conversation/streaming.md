@@ -61,13 +61,13 @@ Tests:
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
 
-Known Gaps:
-- GAP-04 — TurnStreamState 在 eventLock 内直接执行 watcher callback。Controller listener 会同步调用 SseEmitter.send，因此慢 watcher 可能持有 eventLock，阻塞 future delta / terminal，并间接拖慢 Turn Execution；不满足 CONV-020。
-
 Review Notes:
-- GAP-02 实现已完成：TurnStreamState 现在使用同一个 event lock 串行化 subscribe / unsubscribe / delta / terminal。
-- 新 watcher 的交接语义现在是 snapshot → future delta → terminal。
-- 已新增并发回归测试，专门阻塞 snapshot callback 并并发产生 future delta / terminal，保护事件不能越过 snapshot。
+- GAP-04 已实现：TurnStreamState 的 eventLock 只保护 content / terminal / watcher membership 与事件入队，不再执行外部 TurnStreamListener callback。
+- 每个 watcher 使用独立 WatcherSubscription 串行 mailbox，通过 ThreadUtils 虚拟线程异步 delivery。
+- snapshot / future delta / terminal 仍按 eventLock 中的入队顺序进入同一个 watcher mailbox，继续满足 GAP-02 的顺序契约。
+- 慢 watcher 的相邻 pending delta 会合并为一个 chunk；mailbox 不按 token 数无限增长，文本总量继续受 MessageConstant.MAX_CONTENT_LENGTH 约束。
+- 已新增慢 watcher 回归测试，保护“慢 watcher 不阻塞其他 watcher，也不阻塞 explicit Stop”。
+- 既有 GAP-02 snapshot ordering 与 GAP-03 multi-watcher STOPPED 测试已调整为等待异步 delivery。
 - 当前执行环境无法解析 github.com，目标 Maven 测试尚未实际执行；测试通过前保持 Review。
 
 ## Purpose

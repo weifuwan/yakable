@@ -47,16 +47,13 @@ Tests:
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
 
-Known Gaps:
-- GAP-04 — Reconnect 依赖 Streaming 的 watcher delivery。当前 SseEmitter callback 在 TurnStreamState eventLock 内执行，慢连接可能阻塞同 Turn 的其他 watcher 与后续事件；不满足 CONV-020。
-
 Review Notes:
-- GAP-02 的 snapshot / future delta ordering 已在 Streaming 的 TurnStreamState 中实现，不新增 Reconnect 私有排序机制。
-- GAP-03 不需要生产代码改动；当前 TurnStreamState 已支持多个 watcher，watchTurn 不启动新的 Execution。
-- 已新增 CONV-S08 回归测试：两个 watcher 订阅同一 running Turn，单次 Stop 后两个 watcher 都收到 STOPPED，且 watcher 可独立 unsubscribe。
-- 测试同时验证 watch / stop 路径不会调用 LLM Provider，因此不会因为多 Tab 创建额外 Execution。
-- Reconnect API、changes fallback、SSE contract 和前端均未修改。
-- 当前执行环境无法访问 github.com，目标 Maven 测试尚未实际执行；测试通过前保持 Review。
+- GAP-04 已实现：Reconnect 继续复用 Streaming 的 WatcherSubscription，不新增私有排序或调度机制。
+- 新 watcher 仍按 snapshot → future delta → terminal 入队，但实际 SSE callback 在独立 delivery 线程执行，不持有 Turn eventLock。
+- 一个慢 Reconnect 连接不会阻塞同 Turn 的其他 watcher 或 Turn Runtime。
+- unsubscribe 只关闭当前 watcher mailbox，不改变 Turn Execution。
+- Reconnect API、changes fallback、SSE event schema 和前端均未修改。
+- 当前执行环境无法解析 github.com，目标 Maven 测试尚未实际执行；测试通过前保持 Review。
 
 ## Purpose
 

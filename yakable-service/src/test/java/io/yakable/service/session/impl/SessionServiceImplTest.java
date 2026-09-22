@@ -45,6 +45,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -974,10 +975,12 @@ class SessionServiceImplTest {
 
         AtomicReference<String> snapshot = new AtomicReference<>();
         AtomicReference<String> delta = new AtomicReference<>();
+        CountDownLatch snapshotDelivered = new CountDownLatch(1);
         TurnStreamListener listener = new TurnStreamListener() {
             @Override
             public void onSnapshot(String content) {
                 snapshot.set(content);
+                snapshotDelivered.countDown();
             }
 
             @Override
@@ -1003,6 +1006,7 @@ class SessionServiceImplTest {
                 listener);
 
         verify(conversationMetrics).watcherConnected();
+        assertThat(snapshotDelivered.await(2, TimeUnit.SECONDS)).isTrue();
         assertThat(snapshot.get()).isEqualTo("Partial");
 
         finish.countDown();
@@ -1038,9 +1042,11 @@ class SessionServiceImplTest {
 
         AtomicInteger firstStopped = new AtomicInteger();
         AtomicInteger secondStopped = new AtomicInteger();
+        CountDownLatch firstStoppedDelivered = new CountDownLatch(1);
+        CountDownLatch secondStoppedDelivered = new CountDownLatch(1);
 
-        TurnStreamListener first = stoppedListener(firstStopped);
-        TurnStreamListener second = stoppedListener(secondStopped);
+        TurnStreamListener first = stoppedListener(firstStopped, firstStoppedDelivered);
+        TurnStreamListener second = stoppedListener(secondStopped, secondStoppedDelivered);
 
         Runnable unsubscribeFirst = sessionService.watchTurn(
                 new WatchTurnDTO("project-1", "session-1", turnId, "user-1"),
@@ -1053,6 +1059,8 @@ class SessionServiceImplTest {
                 new StopTurnDTO("project-1", "session-1", turnId, "user-1"));
 
         assertThat(result).isSameAs(stopped);
+        assertThat(firstStoppedDelivered.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(secondStoppedDelivered.await(2, TimeUnit.SECONDS)).isTrue();
         assertThat(firstStopped.get()).isEqualTo(1);
         assertThat(secondStopped.get()).isEqualTo(1);
 
@@ -1066,6 +1074,144 @@ class SessionServiceImplTest {
         unsubscribeSecond.run();
 
         verify(conversationMetrics, times(2)).watcherDisconnected();
+    }
+
+    @Test
+    void shouldIsolateSlowWatcherFromOtherWatchersAndStop() throws Exception {
+        stubExecuteInline();
+
+        String turnId = "turn-slow-watcher";
+        SessionEntity session = session("project-1", "session-1");
+        TurnExecutionVO execution = execution(turnId, "session-1");
+        TurnVO running = turn(turnId, TurnStatusEnum.RUNNING);
+        TurnVO stopped = turn(turnId, TurnStatusEnum.STOPPED);
+
+        when(sessionRepository.querySession("project-1", "session-1", "user-1"))
+                .thenReturn(Optional.of(session));
+        when(turnService.queryTurnExecution(turnId))
+                .thenReturn(Optional.of(execution));
+        when(turnService.queryTurn(turnId))
+                .thenReturn(running, running, running, running, stopped);
+        when(turnService.updateTurnStopped(eq(turnId), eq("session-1"), any(LocalDateTime.class)))
+                .thenReturn(1);
+
+        CountDownLatch slowDeltaEntered = new CountDownLatch(1);
+        CountDownLatch releaseSlowWatcher = new CountDownLatch(1);
+        CountDownLatch slowStoppedDelivered = new CountDownLatch(1);
+        CountDownLatch fastDeltaDelivered = new CountDownLatch(1);
+        CountDownLatch fastStoppedDelivered = new CountDownLatch(1);
+
+        TurnStreamListener slow = new TurnStreamListener() {
+            @Override
+            public void onSnapshot(String content) {
+            }
+
+            @Override
+            public void onDelta(String content) {
+                slowDeltaEntered.countDown();
+                try {
+                    releaseSlowWatcher.await(2, TimeUnit.SECONDS);
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+
+            @Override
+            public void onComplete() {
+            }
+
+            @Override
+            public void onError(String message) {
+            }
+
+            @Override
+            public void onStopped() {
+                slowStoppedDelivered.countDown();
+            }
+        };
+
+        TurnStreamListener fast = new TurnStreamListener() {
+            @Override
+            public void onSnapshot(String content) {
+            }
+
+            @Override
+            public void onDelta(String content) {
+                fastDeltaDelivered.countDown();
+            }
+
+            @Override
+            public void onComplete() {
+            }
+
+            @Override
+            public void onError(String message) {
+            }
+
+            @Override
+            public void onStopped() {
+                fastStoppedDelivered.countDown();
+            }
+        };
+
+        Runnable unsubscribeSlow = sessionService.watchTurn(
+                new WatchTurnDTO("project-1", "session-1", turnId, "user-1"),
+                slow);
+        Runnable unsubscribeFast = sessionService.watchTurn(
+                new WatchTurnDTO("project-1", "session-1", turnId, "user-1"),
+                fast);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> streamStates =
+                (Map<String, Object>) ReflectionTestUtils.getField(sessionService, "streamStates");
+        assertThat(streamStates).isNotNull();
+        Object streamState = streamStates.get(turnId);
+        assertThat(streamState).isNotNull();
+
+        Thread deltaThread = new Thread(() ->
+                ReflectionTestUtils.invokeMethod(streamState, "delta", "Partial"));
+        AtomicReference<TurnVO> stopResult = new AtomicReference<>();
+        AtomicReference<Throwable> stopFailure = new AtomicReference<>();
+        Thread stopThread = new Thread(() -> {
+            try {
+                stopResult.set(sessionService.stopTurn(
+                        new StopTurnDTO("project-1", "session-1", turnId, "user-1")));
+            } catch (Throwable throwable) {
+                stopFailure.set(throwable);
+            }
+        });
+
+        try {
+            deltaThread.start();
+
+            assertThat(slowDeltaEntered.await(2, TimeUnit.SECONDS)).isTrue();
+            deltaThread.join(500);
+            assertThat(deltaThread.isAlive()).isFalse();
+            assertThat(fastDeltaDelivered.await(2, TimeUnit.SECONDS)).isTrue();
+
+            stopThread.start();
+            stopThread.join(500);
+
+            assertThat(stopThread.isAlive()).isFalse();
+            assertThat(stopFailure.get()).isNull();
+            assertThat(stopResult.get()).isSameAs(stopped);
+            assertThat(fastStoppedDelivered.await(2, TimeUnit.SECONDS)).isTrue();
+            assertThat(slowStoppedDelivered.getCount()).isEqualTo(1L);
+
+            verify(turnService).updateTurnStopped(eq(turnId), eq("session-1"), any(LocalDateTime.class));
+            verify(messageService).addMessage(
+                    "session-1", turnId, MessageRoleEnum.ASSISTANT, "Partial");
+            verifyNoInteractions(llmClient);
+        } finally {
+            releaseSlowWatcher.countDown();
+            deltaThread.join(2_000);
+            stopThread.join(2_000);
+        }
+
+        assertThat(slowStoppedDelivered.await(2, TimeUnit.SECONDS)).isTrue();
+
+        unsubscribeSlow.run();
+        unsubscribeFast.run();
     }
 
     @Test
@@ -1189,7 +1335,8 @@ class SessionServiceImplTest {
         cleanup.run();
     }
 
-    private static TurnStreamListener stoppedListener(AtomicInteger stoppedCount) {
+    private static TurnStreamListener stoppedListener(
+            AtomicInteger stoppedCount, CountDownLatch stoppedDelivered) {
         return new TurnStreamListener() {
             @Override
             public void onSnapshot(String content) {
@@ -1210,6 +1357,7 @@ class SessionServiceImplTest {
             @Override
             public void onStopped() {
                 stoppedCount.incrementAndGet();
+                stoppedDelivered.countDown();
             }
         };
     }
