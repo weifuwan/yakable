@@ -641,6 +641,8 @@ class SessionServiceImplTest {
         when(turnService.queryTurnExecution("turn-2"))
                 .thenReturn(Optional.of(execution("turn-2", "session-2")));
         when(sessionRepository.queryById("session-2")).thenReturn(Optional.of(secondSession));
+        when(turnService.updatePendingTurn(eq("turn-2"), any(LocalDateTime.class)))
+                .thenReturn(Optional.empty());
 
         CountDownLatch started = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
@@ -662,6 +664,9 @@ class SessionServiceImplTest {
 
         release.countDown();
         awaitActiveExecutions(0);
+
+        sessionService.executeTurnAsync("turn-2");
+        verify(turnService, timeout(2000)).updatePendingTurn(eq("turn-2"), any(LocalDateTime.class));
     }
 
     @Test
