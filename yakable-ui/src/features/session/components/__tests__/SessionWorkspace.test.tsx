@@ -395,6 +395,126 @@ describe('SessionWorkspace', () => {
     });
   });
 
+  it('keeps the reading position during Streaming and resumes follow output after returning to latest', async () => {
+    const user = userEvent.setup();
+
+    vi.spyOn(SessionService, 'querySession').mockResolvedValue(
+      createSnapshot(),
+    );
+    vi.spyOn(SessionService, 'queryChanges').mockResolvedValue(
+      completedChanges,
+    );
+
+    let handlers:
+      | Parameters<typeof SessionService.streamingTurn>[5]
+      | undefined;
+    let resolveStream!: () => void;
+
+    vi.spyOn(SessionService, 'streamingTurn').mockImplementation(
+      async (
+        _projectId,
+        _sessionId,
+        _content,
+        _model,
+        _requestId,
+        nextHandlers,
+      ) => {
+        handlers = nextHandlers;
+        await new Promise<void>((resolve) => {
+          resolveStream = resolve;
+        });
+      },
+    );
+
+    render(
+      <SessionWorkspace
+        projectId="project-1"
+        sessionId="session-1"
+      />,
+    );
+
+    expect(await screen.findByText('I am Yakable.')).toBeTruthy();
+
+    const scroll = screen.getByTestId(
+      'session-message-scroll',
+    ) as HTMLDivElement;
+
+    let scrollHeight = 1000;
+    Object.defineProperties(scroll, {
+      clientHeight: {
+        configurable: true,
+        value: 400,
+      },
+      scrollHeight: {
+        configurable: true,
+        get: () => scrollHeight,
+      },
+      scrollTop: {
+        configurable: true,
+        writable: true,
+        value: scrollHeight,
+      },
+    });
+
+    scroll.scrollTop = 100;
+    fireEvent.scroll(scroll);
+
+    expect(
+      await screen.findByRole('button', {
+        name: 'Scroll to bottom',
+      }),
+    ).toBeTruthy();
+
+    const input = screen.getByRole('textbox', {
+      name: 'Send a message',
+    });
+    await user.type(input, 'Tell me more');
+    await user.keyboard('{Enter}');
+
+    await act(async () => {
+      handlers?.onStarted(started);
+      handlers?.onDelta('First chunk');
+    });
+
+    expect(await screen.findByText('First chunk')).toBeTruthy();
+    expect(scroll.scrollTop).toBe(100);
+    expect(
+      screen.getByRole('button', {
+        name: 'Scroll to bottom',
+      }),
+    ).toBeTruthy();
+
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Scroll to bottom',
+      }),
+    );
+
+    expect(scroll.scrollTop).toBe(1000);
+    expect(
+      screen.queryByRole('button', {
+        name: 'Scroll to bottom',
+      }),
+    ).toBeNull();
+
+    scrollHeight = 1200;
+
+    await act(async () => {
+      handlers?.onDelta(' second chunk');
+    });
+
+    await waitFor(() => {
+      expect(scroll.scrollTop).toBe(1200);
+    });
+    expect(
+      await screen.findByText('First chunk second chunk'),
+    ).toBeTruthy();
+
+    await act(async () => {
+      resolveStream();
+    });
+  });
+
   it('loads older messages when the user scrolls to the top', async () => {
     const historySnapshot = createSnapshot();
     historySnapshot.messages = [

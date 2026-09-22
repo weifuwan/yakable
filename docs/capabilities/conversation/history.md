@@ -47,8 +47,13 @@ Tests:
 - `yakable-service/src/test/java/io/yakable/service/message/impl/MessageServiceImplTest.java`
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 
-Known Gaps:
-- GAP-05 — CONV-S06 已有生产实现，但当前 SessionWorkspace 回归测试只覆盖历史分页，没有保护“离开 latest 后 Streaming 不抢阅读位置、Scroll to bottom 出现、返回 latest 后恢复 follow output”的完整交互。
+Review Notes:
+- GAP-05 已完成代码侧补强：生产行为未修改，只新增 CONV-S06 的前端回归测试。
+- 测试显式构造 scrollTop / scrollHeight / clientHeight，保护离开 latest 后 Streaming delta 不改变阅读位置。
+- 测试保护 Scroll to bottom 出现，点击后回到最新位置并恢复 follow output。
+- 测试再次增加 scrollHeight 并发送新的 Streaming delta，保护恢复 follow 后会继续自动滚到底部。
+- SessionWorkspace、SessionService、后端、API 和滚动算法均未修改。
+- 当前执行环境无法解析 github.com，目标 Vitest 尚未实际执行；测试通过前保持 Review。
 
 ## Purpose
 
