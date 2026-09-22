@@ -27,6 +27,11 @@ public interface TurnRepository extends BaseRepository<TurnEntity> {
     List<TurnEntity> queryTurnList(String sessionId);
 
     /**
+     * 按 ID 批量查询 Turn。
+     */
+    List<TurnEntity> queryTurnListByIds(List<String> turnIds);
+
+    /**
      * 查询 Session 最新 Turn。
      */
     Optional<TurnEntity> queryLatestTurn(String sessionId);

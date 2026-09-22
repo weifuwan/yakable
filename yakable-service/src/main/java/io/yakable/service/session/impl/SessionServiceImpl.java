@@ -53,6 +53,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -73,6 +74,8 @@ public class SessionServiceImpl implements SessionService {
     private static final String TURN_TASK_PREFIX = "turn-";
     private static final int RECOVERY_BATCH_SIZE = 100;
     private static final int INITIAL_MESSAGE_PAGE_SIZE = 50;
+    private static final int SESSION_CHANGE_MESSAGE_LIMIT = 100;
+    private static final int CONTEXT_HISTORY_BATCH_SIZE = 50;
     private static final int DEFAULT_MAX_CONCURRENT_EXECUTIONS = 16;
     private static final int DEFAULT_MAX_CONCURRENT_EXECUTIONS_PER_USER = 2;
 
@@ -258,7 +261,7 @@ public class SessionServiceImpl implements SessionService {
 
         SessionDetailVO result = new SessionDetailVO();
         result.setSession(toSessionVO(session));
-        result.setTurns(turnService.queryTurnList(dto.sessionId()));
+        result.setTurns(turnService.queryTurnListByIds(turnIds(messages)));
         result.setMessages(messages);
         result.setNextBeforeSequence(hasMore && !messages.isEmpty() ? messages.get(0).getSequence() : null);
         result.setHasMoreMessages(hasMore);
@@ -279,7 +282,8 @@ public class SessionServiceImpl implements SessionService {
 
         SessionChangesVO result = new SessionChangesVO();
         result.setLatestTurn(latest);
-        result.setMessages(messageService.queryMessageAfter(dto.sessionId(), dto.afterSequence()));
+        result.setMessages(messageService.queryMessageAfter(
+                dto.sessionId(), dto.afterSequence(), SESSION_CHANGE_MESSAGE_LIMIT));
         result.setLatestSequence(messageService.queryLatestMessageSequence(dto.sessionId()));
         return result;
     }
@@ -407,46 +411,66 @@ public class SessionServiceImpl implements SessionService {
     }
 
     private List<LlmMessage> buildContext(SessionEntity session, TurnVO running) {
-        String currentTurnId = running.getId();
-        List<MessageVO> messages = messageService.queryMessageList(session.getId());
-        Map<String, List<MessageVO>> messagesByTurn = messages.stream()
-                .collect(Collectors.groupingBy(MessageVO::getTurnId));
-        List<TurnVO> turns = turnService.queryTurnList(session.getId());
-
         TurnInvocationVO invocation = running.getInvocation();
         LlmModelMetadata metadata = llmClient.modelMetadata(invocation.getProvider(), invocation.getModel());
-        return buildTokenBudgetContext(
-                invocation.getProvider(), invocation.getModel(),
-                messages, messagesByTurn, turns, currentTurnId, metadata);
-    }
+        MessageVO currentUser = messageService.queryUserMessage(running.getId())
+                .orElseThrow(() -> new IllegalStateException(
+                        "USER Message not found for Turn: " + running.getId()));
 
-    private List<LlmMessage> buildTokenBudgetContext(
-            String provider, String model,
-            List<MessageVO> messages, Map<String, List<MessageVO>> messagesByTurn,
-            List<TurnVO> turns, String currentTurnId, LlmModelMetadata metadata) {
-        Set<String> selectedTurnIds = new HashSet<>();
-        selectedTurnIds.add(currentTurnId);
-
-        List<LlmMessage> context = contextMessages(messages, selectedTurnIds);
+        List<LlmMessage> context = List.of(toLlmMessage(currentUser));
         long inputBudget = metadata.inputBudgetTokens();
-        if (llmClient.estimateTokens(llmRequest(provider, model, context)) > inputBudget) {
+        if (llmClient.estimateTokens(llmRequest(
+                invocation.getProvider(), invocation.getModel(), context)) > inputBudget) {
             throw new SessionException(SessionErrorCode.CONTEXT_TOO_LARGE);
         }
 
-        for (int index = turns.size() - 1; index >= 0; index--) {
-            TurnVO turn = turns.get(index);
-            if (currentTurnId.equals(turn.getId()) || !isContextTurn(turn)
-                    || !hasCompleteExchange(messagesByTurn.getOrDefault(turn.getId(), List.of()))) {
+        long beforeSequence = currentUser.getSequence();
+        Set<String> processedTurnIds = new HashSet<>();
+        processedTurnIds.add(running.getId());
+
+        while (beforeSequence > 1) {
+            List<MessageVO> rows = messageService.queryMessageBefore(
+                    session.getId(), beforeSequence, CONTEXT_HISTORY_BATCH_SIZE);
+            if (rows.isEmpty()) {
+                break;
+            }
+            beforeSequence = rows.getLast().getSequence();
+
+            List<String> turnIds = historicalTurnIds(rows, processedTurnIds);
+            if (turnIds.isEmpty()) {
                 continue;
             }
 
-            selectedTurnIds.add(turn.getId());
-            List<LlmMessage> candidate = contextMessages(messages, selectedTurnIds);
-            if (llmClient.estimateTokens(llmRequest(provider, model, candidate)) > inputBudget) {
-                selectedTurnIds.remove(turn.getId());
-                break;
+            Map<String, TurnVO> turnsById = turnService.queryTurnListByIds(turnIds).stream()
+                    .collect(Collectors.toMap(TurnVO::getId, turn -> turn));
+            Map<String, List<MessageVO>> messagesByTurn = messageService.queryMessageListByTurnIds(turnIds).stream()
+                    .collect(Collectors.groupingBy(MessageVO::getTurnId));
+
+            List<List<LlmMessage>> exchanges = turnIds.stream()
+                    .map(turnsById::get)
+                    .filter(turn -> turn != null && isContextTurn(turn))
+                    .map(turn -> contextExchange(messagesByTurn.getOrDefault(turn.getId(), List.of())))
+                    .filter(exchange -> !exchange.isEmpty())
+                    .toList();
+            if (exchanges.isEmpty()) {
+                continue;
             }
-            context = candidate;
+
+            List<LlmMessage> batchCandidate = prependExchanges(context, exchanges);
+            if (llmClient.estimateTokens(llmRequest(
+                    invocation.getProvider(), invocation.getModel(), batchCandidate)) <= inputBudget) {
+                context = batchCandidate;
+                continue;
+            }
+
+            for (List<LlmMessage> exchange : exchanges) {
+                List<LlmMessage> candidate = prependExchange(context, exchange);
+                if (llmClient.estimateTokens(llmRequest(
+                        invocation.getProvider(), invocation.getModel(), candidate)) > inputBudget) {
+                    return context;
+                }
+                context = candidate;
+            }
         }
         return context;
     }
@@ -455,11 +479,47 @@ public class SessionServiceImpl implements SessionService {
         return new LlmRequest(provider, model, SYSTEM_PROMPT, messages);
     }
 
-    private static List<LlmMessage> contextMessages(List<MessageVO> messages, Set<String> selectedTurnIds) {
+    private static List<String> historicalTurnIds(List<MessageVO> rows, Set<String> processedTurnIds) {
+        Set<String> result = new LinkedHashSet<>();
+        for (MessageVO row : rows) {
+            if (processedTurnIds.add(row.getTurnId())) {
+                result.add(row.getTurnId());
+            }
+        }
+        return List.copyOf(result);
+    }
+
+    private static List<LlmMessage> contextExchange(List<MessageVO> messages) {
+        if (!hasCompleteExchange(messages)) {
+            return List.of();
+        }
         return messages.stream()
-                .filter(message -> selectedTurnIds.contains(message.getTurnId()))
+                .sorted(java.util.Comparator.comparing(MessageVO::getSequence))
                 .map(SessionServiceImpl::toLlmMessage)
                 .toList();
+    }
+
+    private static List<LlmMessage> prependExchanges(
+            List<LlmMessage> context, List<List<LlmMessage>> exchangesNewestFirst) {
+        List<LlmMessage> result = new ArrayList<>();
+        for (int index = exchangesNewestFirst.size() - 1; index >= 0; index--) {
+            result.addAll(exchangesNewestFirst.get(index));
+        }
+        result.addAll(context);
+        return List.copyOf(result);
+    }
+
+    private static List<LlmMessage> prependExchange(List<LlmMessage> context, List<LlmMessage> exchange) {
+        List<LlmMessage> result = new ArrayList<>(exchange.size() + context.size());
+        result.addAll(exchange);
+        result.addAll(context);
+        return List.copyOf(result);
+    }
+
+    private static List<String> turnIds(List<MessageVO> messages) {
+        Set<String> result = new LinkedHashSet<>();
+        messages.forEach(message -> result.add(message.getTurnId()));
+        return List.copyOf(result);
     }
 
     private static boolean isContextTurn(TurnVO turn) {

@@ -49,8 +49,14 @@ public class MessageServiceImpl implements MessageService {
     }
 
     @Override
-    public List<MessageVO> queryMessageAfter(String sessionId, long afterSequence) {
-        return messageRepository.queryMessageAfter(sessionId, afterSequence).stream()
+    public List<MessageVO> queryMessageListByTurnIds(List<String> turnIds) {
+        return messageRepository.queryMessageListByTurnIds(turnIds).stream()
+                .map(MessageServiceImpl::toMessageVO).toList();
+    }
+
+    @Override
+    public List<MessageVO> queryMessageAfter(String sessionId, long afterSequence, int limit) {
+        return messageRepository.queryMessageAfter(sessionId, afterSequence, limit).stream()
                 .map(MessageServiceImpl::toMessageVO).toList();
     }
 

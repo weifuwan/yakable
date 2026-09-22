@@ -118,7 +118,7 @@ public class SessionController {
             @AuthenticationPrincipal CurrentUserVO currentUser) {
         TurnStartVO started = sessionService.addStreamingTurn(
                 new AddTurnDTO(
-                        projectId, sessionId, dto.provider(), dto.model(), dto.content(), currentUser.getId()));
+                        projectId, sessionId, dto.provider(), dto.model(), dto.content(), dto.requestId(), currentUser.getId()));
 
         SseEmitter emitter = newEmitter(response);
         AtomicBoolean closed = new AtomicBoolean();

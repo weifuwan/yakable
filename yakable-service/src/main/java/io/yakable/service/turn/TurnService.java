@@ -43,6 +43,11 @@ public interface TurnService {
     List<TurnVO> queryTurnList(String sessionId);
 
     /**
+     * 按 ID 批量查询 Turn。
+     */
+    List<TurnVO> queryTurnListByIds(List<String> turnIds);
+
+    /**
      * 查询 Session 最新 Turn。
      */
     Optional<TurnVO> queryLatestTurn(String sessionId);

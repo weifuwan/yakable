@@ -64,6 +64,11 @@ public class TurnServiceImpl implements TurnService {
     }
 
     @Override
+    public List<TurnVO> queryTurnListByIds(List<String> turnIds) {
+        return turnRepository.queryTurnListByIds(turnIds).stream().map(TurnServiceImpl::toTurnVO).toList();
+    }
+
+    @Override
     public Optional<TurnVO> queryLatestTurn(String sessionId) {
         return turnRepository.queryLatestTurn(sessionId).map(TurnServiceImpl::toTurnVO);
     }

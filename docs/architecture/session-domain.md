@@ -52,7 +52,9 @@ Message 是 Session 内的消息记录，通过 `message_sequence` 保证稳定�
 
 一轮交互只有在 USER Message 成功持久化后才正式成立。USER Message 建立后，即使模型失败或用户停止生成，也不能回滚或删除该消息。
 
-Session 首次进入只加载最近 50 条 Message；更早历史通过 `beforeSequence` 向上分页加载。展示分页与 LLM Context 选择是两套独立规则。
+Session 首次进入只加载最近 50 条 Message，以及这些 Message 对应的 Turn 元数据；不会因为 Session 很长而一次加载全部 Turn。更早 Message 通过 `beforeSequence` 向上分页加载。展示分页与 LLM Context 选择是两套独立规则。
+
+Session 增量变化接口单次最多返回 100 条新 Message；`latestSequence` 继续表示数据库中的最新序号，调用方落后较多时可以继续从已收到的最后序号追赶。
 
 ## 创建 Turn
 
@@ -146,6 +148,8 @@ SessionService 定期把超时的 RUNNING Turn 恢复为 PENDING，并重新提�
 ```
 
 每个受支持的 provider / model 必须提供 `LlmModelMetadata`。Session 根据当前 Turn 的模型 Token Budget 选择历史，不存在按固定轮数兜底的 Context 路径。
+
+Context 不再先读取整个 Session 的全部 Turn / Message。当前 USER Message 直接按 Turn 查询，历史从最近向更早按 50 条 Message 一批读取；每批只补查涉及的 Turn 和完整 Message，达到 Token Budget 后立即停止继续访问更老历史。
 
 当前 Prompt 始终完整保留。加入更早历史会超过输入预算时，停止继续加入更老的历史；如果只保留当前 Prompt 仍然超过模型输入预算，本轮明确失败，不能静默截断 Prompt。
 
