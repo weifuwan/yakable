@@ -11,11 +11,7 @@ import {
 } from '@/service/session';
 import { cx, Icon, IconButton, PromptComposer, PromptComposerSkeleton } from '@/shared/ui';
 
-import {
-  buildTurnRenderModels,
-  type OptimisticTurnRenderInput,
-  TurnItem,
-} from './TurnItem';
+import { buildTurnRenderModels, type OptimisticTurnRenderInput, TurnItem } from './TurnItem';
 import { useSessionMessageWindow } from '../hooks/useSessionMessageWindow';
 
 const SESSION_POLL_INTERVAL_MS = 1000;
@@ -247,10 +243,13 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
     latestSequenceRef.current = latestSequence;
   }, [latestSequence]);
 
-  const applyChanges = useCallback((changes: SessionChanges) => {
-    setTurns((current) => mergeTurn(current, changes.latestTurn));
-    mergeMessages(changes.messages);
-  }, [mergeMessages]);
+  const applyChanges = useCallback(
+    (changes: SessionChanges) => {
+      setTurns((current) => mergeTurn(current, changes.latestTurn));
+      mergeMessages(changes.messages);
+    },
+    [mergeMessages],
+  );
 
   useEffect(() => {
     if (!activeTurnId || streamAbortRef.current || watchedTurnIdsRef.current.has(activeTurnId)) {
