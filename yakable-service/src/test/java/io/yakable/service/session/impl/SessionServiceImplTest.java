@@ -1078,7 +1078,12 @@ class SessionServiceImplTest {
         when(turnService.queryTurnExecution(turnId))
                 .thenReturn(Optional.of(execution));
         when(turnService.queryTurn(turnId))
-                .thenReturn(running, running, running, running, stopped);
+                .thenReturn(
+                        Optional.of(running),
+                        Optional.of(running),
+                        Optional.of(running),
+                        Optional.of(running),
+                        Optional.of(stopped));
         when(turnService.updateTurnStopped(eq(turnId), eq("session-1"), any(LocalDateTime.class)))
                 .thenReturn(1);
 
@@ -1133,7 +1138,7 @@ class SessionServiceImplTest {
         when(turnService.queryTurnExecution(turnId))
                 .thenReturn(Optional.of(execution));
         when(turnService.queryTurn(turnId))
-                .thenReturn(running, running, stopped);
+                .thenReturn(Optional.of(running), Optional.of(running), Optional.of(stopped));
 
         CountDownLatch stopUpdateEntered = new CountDownLatch(1);
         CountDownLatch releaseStopUpdate = new CountDownLatch(1);
@@ -1241,7 +1246,7 @@ class SessionServiceImplTest {
         when(turnService.queryTurnExecution(turnId))
                 .thenReturn(Optional.of(execution));
         when(turnService.queryTurn(turnId))
-                .thenReturn(running, running);
+                .thenReturn(Optional.of(running), Optional.of(running));
         when(turnService.updateTurnStopped(
                 eq(turnId), eq("session-1"), any(LocalDateTime.class)))
                 .thenThrow(new IllegalStateException("stop persistence failed"));
@@ -1547,7 +1552,7 @@ class SessionServiceImplTest {
         releaseSnapshot.countDown();
 
         watcherThread.join(2_000);
-        assertThat(watcherFailure.get()).isNull();
+        assertThat(watchFailure.get()).isNull();
         assertThat(deltaDelivered.await(2, TimeUnit.SECONDS)).isTrue();
         assertThat(terminalDelivered.await(2, TimeUnit.SECONDS)).isTrue();
         assertThat(events).containsExactly(
