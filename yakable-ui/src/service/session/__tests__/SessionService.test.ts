@@ -162,9 +162,9 @@ describe('SessionService', () => {
     };
     const get = vi.spyOn(HttpUtils, 'get').mockResolvedValue(window);
 
-    await expect(
-      SessionService.queryMessageWindow('project-1', 'session-1', 2),
-    ).resolves.toEqual(window);
+    await expect(SessionService.queryMessageWindow('project-1', 'session-1', 2)).resolves.toEqual(
+      window,
+    );
 
     expect(get).toHaveBeenCalledWith(
       '/api/projects/project-1/sessions/session-1/messages/window?anchorSequence=2',
