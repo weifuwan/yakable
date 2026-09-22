@@ -16,3 +16,7 @@ Decisions 用来记录少量重要且有取舍的技术决策。
 - 每次小改动的过程记录。
 
 原则：**只记录未来值得追问“当时为什么这么选”的决定。**
+
+## Current Decisions
+
+- [Yakable CI Design V1](./ci-design-v1.md)
