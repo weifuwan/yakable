@@ -77,7 +77,6 @@ function isSessionSnapshot(value: unknown): value is SessionSnapshot {
     typeof session.id === 'string' &&
     typeof session.projectId === 'string' &&
     typeof session.title === 'string' &&
-    (session.status === 'ACTIVE' || session.status === 'ARCHIVED') &&
     typeof session.createdAt === 'string' &&
     typeof session.updatedAt === 'string' &&
     isRecord(session.model) &&

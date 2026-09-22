@@ -7,7 +7,6 @@ export type {
   SessionModel,
   SessionRole,
   SessionSnapshot,
-  SessionStatus,
   SessionTurn,
   TurnInvocation,
   TurnStartResult,

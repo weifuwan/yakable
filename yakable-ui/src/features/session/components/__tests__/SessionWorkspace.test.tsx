@@ -60,7 +60,6 @@ function createSnapshot(
         provider: 'deepseek',
         model: 'deepseek-flash',
       },
-      status: 'ACTIVE',
       createdAt: '2026-09-21T00:00:00Z',
       updatedAt: '2026-09-21T00:00:01Z',
     },

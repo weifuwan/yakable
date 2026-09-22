@@ -26,25 +26,12 @@
             s.id AS latest_session_id,
             GREATEST(
                 p.create_time,
-                COALESCE(s.update_time, p.create_time)
+                COALESCE(s.activity_time, p.create_time)
             ) AS activity_time
         FROM yak_project p
-        LEFT JOIN (
-            SELECT
-                id,
-                project_id,
-                update_time,
-                create_by,
-                ROW_NUMBER() OVER (
-                    PARTITION BY project_id
-                    ORDER BY update_time DESC, id DESC
-                ) AS rn
-            FROM yak_session
-            WHERE create_by = #{userId}
-        ) s
+        LEFT JOIN yak_session s
             ON s.project_id = p.id
             AND s.create_by = p.create_by
-            AND s.rn = 1
         WHERE p.create_by = #{userId}
         ORDER BY activity_time DESC, p.id DESC
     </select>
