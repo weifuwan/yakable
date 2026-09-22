@@ -52,8 +52,10 @@ import org.springframework.validation.annotation.Validated;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -62,9 +64,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -76,6 +78,8 @@ public class SessionServiceImpl implements SessionService {
     private static final String SYSTEM_PROMPT = "You are Yakable, a concise and accurate assistant.";
     private static final String TURN_RECOVERY_TASK = "turn-recovery";
     private static final String TURN_TASK_PREFIX = "turn-";
+    private static final String WATCHER_DELIVERY_TASK_PREFIX = "turn-watcher-delivery-";
+    private static final AtomicLong WATCHER_DELIVERY_SEQUENCE = new AtomicLong();
     private static final int RECOVERY_BATCH_SIZE = 100;
     private static final int INITIAL_MESSAGE_PAGE_SIZE = 50;
     private static final int SESSION_CHANGE_MESSAGE_LIMIT = 100;
@@ -826,30 +830,44 @@ public class SessionServiceImpl implements SessionService {
     private static final class TurnStreamState {
 
         private final Object eventLock = new Object();
-        private final StringBuffer content = new StringBuffer();
-        private final List<TurnStreamListener> listeners = new CopyOnWriteArrayList<>();
+        private final StringBuilder content = new StringBuilder();
+        private final List<WatcherSubscription> watchers = new ArrayList<>();
         private final AtomicReference<TerminalEvent> terminal = new AtomicReference<>();
 
         void add(TurnStreamListener listener) {
             synchronized (eventLock) {
+                WatcherSubscription watcher = new WatcherSubscription(listener);
                 String snapshot = content.toString();
                 TerminalEvent current = terminal.get();
 
                 if (current == null) {
-                    listeners.add(listener);
+                    watchers.add(watcher);
                 }
-                if (!snapshot.isBlank()) {
-                    safeNotify(listener, item -> item.onSnapshot(snapshot));
+                if (!snapshot.isBlank() && !watcher.enqueueSnapshot(snapshot)) {
+                    watchers.remove(watcher);
+                    return;
                 }
                 if (current != null) {
-                    notifyTerminal(listener, current);
+                    watcher.enqueueTerminal(current);
                 }
             }
         }
 
         void remove(TurnStreamListener listener) {
+            WatcherSubscription removed = null;
             synchronized (eventLock) {
-                listeners.remove(listener);
+                for (WatcherSubscription watcher : watchers) {
+                    if (watcher.matches(listener)) {
+                        removed = watcher;
+                        break;
+                    }
+                }
+                if (removed != null) {
+                    watchers.remove(removed);
+                }
+            }
+            if (removed != null) {
+                removed.close();
             }
         }
 
@@ -862,7 +880,7 @@ public class SessionServiceImpl implements SessionService {
                     throw new SessionException(SessionErrorCode.MESSAGE_TOO_LARGE);
                 }
                 content.append(value);
-                listeners.forEach(listener -> safeNotify(listener, item -> item.onDelta(value)));
+                watchers.removeIf(watcher -> !watcher.enqueueDelta(value));
             }
         }
 
@@ -892,7 +910,7 @@ public class SessionServiceImpl implements SessionService {
 
         boolean isEmpty() {
             synchronized (eventLock) {
-                return listeners.isEmpty();
+                return watchers.isEmpty();
             }
         }
 
@@ -901,7 +919,141 @@ public class SessionServiceImpl implements SessionService {
                 if (!terminal.compareAndSet(null, event)) {
                     return;
                 }
-                listeners.forEach(listener -> notifyTerminal(listener, event));
+                watchers.removeIf(watcher -> !watcher.enqueueTerminal(event));
+            }
+        }
+    }
+
+    private static final class WatcherSubscription {
+
+        private final Object deliveryLock = new Object();
+        private final TurnStreamListener listener;
+        private final String taskName =
+                WATCHER_DELIVERY_TASK_PREFIX + WATCHER_DELIVERY_SEQUENCE.incrementAndGet();
+        private final Deque<WatcherDelivery> pending = new ArrayDeque<>();
+
+        private boolean draining;
+        private boolean closed;
+        private boolean terminalQueued;
+
+        private WatcherSubscription(TurnStreamListener listener) {
+            this.listener = listener;
+        }
+
+        boolean matches(TurnStreamListener candidate) {
+            return listener == candidate;
+        }
+
+        boolean enqueueSnapshot(String value) {
+            return enqueue(WatcherDelivery.snapshot(value));
+        }
+
+        boolean enqueueDelta(String value) {
+            boolean schedule;
+            synchronized (deliveryLock) {
+                if (closed || terminalQueued) {
+                    return false;
+                }
+
+                WatcherDelivery last = pending.peekLast();
+                if (last != null && last.type() == DeliveryType.DELTA) {
+                    last.append(value);
+                } else {
+                    pending.addLast(WatcherDelivery.delta(value));
+                }
+                schedule = markDraining();
+            }
+            return scheduleDrain(schedule);
+        }
+
+        boolean enqueueTerminal(TerminalEvent event) {
+            boolean schedule;
+            synchronized (deliveryLock) {
+                if (closed || terminalQueued) {
+                    return !closed;
+                }
+                terminalQueued = true;
+                pending.addLast(WatcherDelivery.terminal(event));
+                schedule = markDraining();
+            }
+            return scheduleDrain(schedule);
+        }
+
+        void close() {
+            boolean cancel;
+            synchronized (deliveryLock) {
+                if (closed) {
+                    return;
+                }
+                closed = true;
+                pending.clear();
+                cancel = draining;
+            }
+            if (cancel) {
+                ThreadUtils.cancel(taskName);
+            }
+        }
+
+        private boolean enqueue(WatcherDelivery delivery) {
+            boolean schedule;
+            synchronized (deliveryLock) {
+                if (closed || terminalQueued) {
+                    return false;
+                }
+                pending.addLast(delivery);
+                schedule = markDraining();
+            }
+            return scheduleDrain(schedule);
+        }
+
+        private boolean markDraining() {
+            if (draining) {
+                return false;
+            }
+            draining = true;
+            return true;
+        }
+
+        private boolean scheduleDrain(boolean schedule) {
+            if (!schedule) {
+                return true;
+            }
+            if (ThreadUtils.execute(taskName, this::drain)) {
+                return true;
+            }
+
+            synchronized (deliveryLock) {
+                closed = true;
+                pending.clear();
+                draining = false;
+            }
+            return false;
+        }
+
+        private void drain() {
+            while (true) {
+                WatcherDelivery delivery;
+                synchronized (deliveryLock) {
+                    if (closed) {
+                        pending.clear();
+                        draining = false;
+                        return;
+                    }
+                    delivery = pending.pollFirst();
+                    if (delivery == null) {
+                        draining = false;
+                        return;
+                    }
+                }
+                deliver(delivery);
+            }
+        }
+
+        private void deliver(WatcherDelivery delivery) {
+            switch (delivery.type()) {
+                case SNAPSHOT -> safeNotify(listener, item -> item.onSnapshot(delivery.content()));
+                case DELTA -> safeNotify(listener, item -> item.onDelta(delivery.content()));
+                case TERMINAL -> notifyTerminal(listener, delivery.terminal());
             }
         }
 
@@ -921,6 +1073,55 @@ public class SessionServiceImpl implements SessionService {
                 // 客户端连接异常不能影响 Turn 后台执行。
             }
         }
+    }
+
+    private static final class WatcherDelivery {
+
+        private final DeliveryType type;
+        private final StringBuilder content;
+        private final TerminalEvent terminal;
+
+        private WatcherDelivery(DeliveryType type, String content, TerminalEvent terminal) {
+            this.type = type;
+            this.content = content == null ? null : new StringBuilder(content);
+            this.terminal = terminal;
+        }
+
+        static WatcherDelivery snapshot(String content) {
+            return new WatcherDelivery(DeliveryType.SNAPSHOT, content, null);
+        }
+
+        static WatcherDelivery delta(String content) {
+            return new WatcherDelivery(DeliveryType.DELTA, content, null);
+        }
+
+        static WatcherDelivery terminal(TerminalEvent event) {
+            return new WatcherDelivery(DeliveryType.TERMINAL, null, event);
+        }
+
+        DeliveryType type() {
+            return type;
+        }
+
+        String content() {
+            return content == null ? "" : content.toString();
+        }
+
+        TerminalEvent terminal() {
+            return terminal;
+        }
+
+        void append(String value) {
+            if (content != null) {
+                content.append(value);
+            }
+        }
+    }
+
+    private enum DeliveryType {
+        SNAPSHOT,
+        DELTA,
+        TERMINAL
     }
 
     private record TerminalEvent(TerminalType type, String message) {
