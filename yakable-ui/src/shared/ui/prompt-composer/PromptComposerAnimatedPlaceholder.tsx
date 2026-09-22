@@ -59,7 +59,7 @@ export function PromptComposerAnimatedPlaceholder({
     if (suggestions.length === 0 || reducedMotion) return;
 
     let delay = TYPE_DELAY_MS;
-    let next: () => void;
+    let next = () => {};
 
     if (phase === 'typing') {
       if (visibleLength < currentSuggestion.length) {
