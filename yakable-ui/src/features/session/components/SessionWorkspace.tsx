@@ -244,6 +244,14 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
     latestSequenceRef.current = latestSequence;
   }, [latestSequence]);
 
+  const applyChanges = useCallback(
+    (changes: SessionChanges) => {
+      setTurns((current) => mergeTurn(current, changes.latestTurn));
+      mergeMessages(changes.messages);
+    },
+    [mergeMessages],
+  );
+
   useEffect(() => {
     if (!activeTurnId || streamAbortRef.current || watchedTurnIdsRef.current.has(activeTurnId)) {
       return;
@@ -289,7 +297,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
         try {
           const changes = await SessionService.queryChanges(projectId, sessionId, afterSequence);
           if (disposed) return;
-          setSnapshot((current) => (current ? mergeChanges(current, changes) : current));
+          applyChanges(changes);
           setStreamingContent('');
           setLoadError(null);
         } catch {
@@ -304,7 +312,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
           const changes = await SessionService.queryChanges(projectId, sessionId, afterSequence);
           if (disposed) return;
 
-          setSnapshot((current) => (current ? mergeChanges(current, changes) : current));
+          applyChanges(changes);
           setLoadError(null);
 
           shouldRewatch =
@@ -332,7 +340,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
         window.clearTimeout(retryTimer);
       }
     };
-  }, [activeTurnId, projectId, sessionId, watchRetryVersion]);
+  }, [activeTurnId, applyChanges, projectId, sessionId, watchRetryVersion]);
 
   useEffect(() => {
     if (!activeTurn || streamingTurnId || watchedTurnId) return;
@@ -343,7 +351,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
       void SessionService.queryChanges(projectId, sessionId, latestSequence)
         .then((changes) => {
           if (disposed) return;
-          setSnapshot((current) => (current ? mergeChanges(current, changes) : current));
+          applyChanges(changes);
           setLoadError(null);
         })
         .catch((requestError: unknown) => {
@@ -358,21 +366,55 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
       disposed = true;
       window.clearInterval(timer);
     };
-  }, [activeTurn, latestSequence, projectId, sessionId, streamingTurnId, watchedTurnId]);
+  }, [
+    activeTurn,
+    applyChanges,
+    latestSequence,
+    projectId,
+    sessionId,
+    streamingTurnId,
+    watchedTurnId,
+  ]);
 
-  const latestTurn = useMemo(() => snapshot?.turns.at(-1) ?? null, [snapshot]);
+  const latestTurn = useMemo(() => turns.at(-1) ?? null, [turns]);
 
-  const streamingMessage: SessionMessage | null =
-    visibleStreamingTurnId && streamingContent
-      ? {
-          id: 'stream-' + visibleStreamingTurnId,
-          turnId: visibleStreamingTurnId,
-          role: 'ASSISTANT',
-          content: streamingContent,
-          sequence: Number.MAX_SAFE_INTEGER,
-          createdAt: new Date().toISOString(),
-        }
-      : null;
+  const streamingMessage = useMemo<SessionMessage | null>(
+    () =>
+      visibleStreamingTurnId && streamingContent
+        ? {
+            id: 'stream-' + visibleStreamingTurnId,
+            turnId: visibleStreamingTurnId,
+            role: 'ASSISTANT',
+            content: streamingContent,
+            sequence: Number.MAX_SAFE_INTEGER,
+            createdAt: new Date().toISOString(),
+          }
+        : null,
+    [streamingContent, visibleStreamingTurnId],
+  );
+
+  const turnModels = useMemo(
+    () =>
+      buildTurnRenderModels({
+        messages,
+        turns,
+        optimisticTurn,
+        streamingMessage,
+        activeTurnId,
+        latestTurnId: latestTurn?.id ?? null,
+        showThinking: generating && !streamingContent,
+      }),
+    [
+      activeTurnId,
+      generating,
+      latestTurn?.id,
+      messages,
+      optimisticTurn,
+      streamingContent,
+      streamingMessage,
+      turns,
+    ],
+  );
 
   const runStreamingTurn = useCallback(
     async (
@@ -399,20 +441,11 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
               onEstablished();
               currentTurnIdRef.current = started.turn.id;
               setStreamingTurnId(started.turn.id);
-              setOptimisticMessage(null);
+              setOptimisticTurn(null);
               onActivity?.(sessionId, started.userMessage.createdAt);
-              setSnapshot((current) => {
-                if (!current) return current;
-                return {
-                  ...current,
-                  session: {
-                    ...current.session,
-                    model,
-                  },
-                  turns: [...current.turns, started.turn],
-                  messages: [...current.messages, started.userMessage],
-                };
-              });
+              setSessionInfo((current) => (current ? { ...current, model } : current));
+              setTurns((current) => mergeTurn(current, started.turn));
+              mergeMessages([started.userMessage]);
             },
             onSnapshot: (content) => {
               setStreamingContent(content);
@@ -425,16 +458,16 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
         );
 
         const changes = await SessionService.queryChanges(projectId, sessionId, afterSequence);
-        setSnapshot((current) => (current ? mergeChanges(current, changes) : current));
+        applyChanges(changes);
       } catch (requestError) {
         if (!established) {
-          setOptimisticMessage(null);
+          setOptimisticTurn(null);
         }
         if (controller.signal.aborted && stopRequestedRef.current) return;
 
         try {
           const changes = await SessionService.queryChanges(projectId, sessionId, afterSequence);
-          setSnapshot((current) => (current ? mergeChanges(current, changes) : current));
+          applyChanges(changes);
         } catch {
           // 保留原始流式错误。
         }
@@ -460,7 +493,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
         }
       }
     },
-    [onActivity, projectId, sessionId],
+    [applyChanges, mergeMessages, onActivity, projectId, sessionId],
   );
 
   const handleSubmit = useCallback(
@@ -483,13 +516,16 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
       streamAbortRef.current = controller;
       currentTurnIdRef.current = null;
       stopRequestedRef.current = false;
-      setOptimisticMessage({
-        id: 'optimistic-user-' + Date.now(),
-        turnId: 'optimistic',
-        role: 'USER',
-        content,
-        sequence: latestSequence + 1,
-        createdAt: new Date().toISOString(),
+      setOptimisticTurn({
+        key: 'optimistic:' + requestId,
+        message: {
+          id: 'optimistic-user-' + requestId,
+          turnId: 'optimistic',
+          role: 'USER',
+          content,
+          sequence: latestSequence + 1,
+          createdAt: new Date().toISOString(),
+        },
       });
       setIsGenerating(true);
       setSendError(null);
@@ -528,25 +564,19 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
     streamAbortRef.current?.abort();
 
     if (!turnId) {
-      setOptimisticMessage(null);
+      setOptimisticTurn(null);
       setIsGenerating(false);
       return;
     }
 
     void SessionService.stopTurn(projectId, sessionId, turnId)
       .then(async (stopped) => {
-        setSnapshot((current) => {
-          if (!current) return current;
-          return {
-            ...current,
-            turns: current.turns.map((turn) => (turn.id === stopped.id ? stopped : turn)),
-          };
-        });
+        setTurns((current) => mergeTurn(current, stopped));
         setSendError(null);
 
         try {
           const changes = await SessionService.queryChanges(projectId, sessionId, latestSequence);
-          setSnapshot((current) => (current ? mergeChanges(current, changes) : current));
+          applyChanges(changes);
           setStreamingTurnId(null);
           setStreamingContent('');
         } catch {
@@ -561,7 +591,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
       .finally(() => {
         setIsGenerating(false);
       });
-  }, [activeTurnId, latestSequence, projectId, sessionId]);
+  }, [activeTurnId, applyChanges, latestSequence, projectId, sessionId]);
 
   return (
     <div
@@ -571,7 +601,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
       )}
     >
       <ProjectHeader
-        title={snapshot?.session.title ?? 'Project'}
+        title={sessionInfo?.title ?? 'Project'}
         loading={isSessionLoading}
         expanded={expanded}
         onToggleExpanded={() => setExpanded((current) => !current)}
@@ -603,30 +633,9 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
                 </output>
               )}
 
-              {snapshot?.messages.map((message) => (
-                <MessageItem key={message.id} message={message} />
+              {turnModels.map((turn) => (
+                <TurnItem key={turn.key} turn={turn} />
               ))}
-
-              {optimisticMessage && (
-                <MessageItem key={optimisticMessage.id} message={optimisticMessage} />
-              )}
-
-              {streamingMessage && (
-                <MessageItem key={streamingMessage.id} message={streamingMessage} />
-              )}
-
-              {generating && !streamingContent && (
-                <output className="block px-1 text-sm text-foreground-subtle">Thinking...</output>
-              )}
-
-              {latestTurn?.status === 'FAILED' && (
-                <div
-                  className="rounded-xl border border-danger-border-subtle bg-danger-surface px-4 py-3 text-sm text-danger-foreground"
-                  role="alert"
-                >
-                  {latestTurn.errorMessage ?? 'Turn failed.'}
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -684,13 +693,13 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
               placeholder="Ask Yakable..."
               submitLabel="Send message"
               submitTooltip="Send prompt"
-              disabled={!snapshot}
+              disabled={!sessionInfo}
               running={generating}
               trailingActions={
                 selectedModel ? (
                   <ModelSelector
                     surface="chassis"
-                    disabled={!snapshot}
+                    disabled={!sessionInfo}
                     value={selectedModel}
                     onValueChange={setSelectedModel}
                   />
