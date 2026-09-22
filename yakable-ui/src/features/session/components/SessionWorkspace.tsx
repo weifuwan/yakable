@@ -28,10 +28,13 @@ function hasActiveTurn(turns: SessionTurn[]) {
 }
 
 function latestActiveTurnId(turns: SessionTurn[]) {
-  return (
-    turns.filter((turn) => turn.status === 'PENDING' || turn.status === 'RUNNING').at(-1)?.id ??
-    null
-  );
+  for (let index = turns.length - 1; index >= 0; index -= 1) {
+    const turn = turns[index];
+    if (turn.status === 'PENDING' || turn.status === 'RUNNING') {
+      return turn.id;
+    }
+  }
+  return null;
 }
 
 function isNearBottom(element: HTMLElement) {
