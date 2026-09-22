@@ -57,6 +57,7 @@ export function RecentProjects() {
     isLoadingMore,
     hasMore,
     error,
+    retryInitial,
     loadMore,
   } = useProjects();
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -108,9 +109,18 @@ export function RecentProjects() {
       )}
 
       {projects.length === 0 && !isLoading && error && (
-        <p className="m-0 px-2 py-1 text-xs leading-5 text-foreground-faint">
-          Recent projects unavailable
-        </p>
+        <div className="px-2 py-1">
+          <p className="m-0 text-xs leading-5 text-foreground-faint">
+            Recent projects unavailable
+          </p>
+          <button
+            type="button"
+            className="mt-1 text-xs text-foreground-muted hover:text-foreground-tertiary"
+            onClick={() => void retryInitial()}
+          >
+            Retry
+          </button>
+        </div>
       )}
 
       {projects.length === 0 && !isLoading && !error && (

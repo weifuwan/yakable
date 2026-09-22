@@ -2,10 +2,9 @@ export { CreateProjectComposer } from './components/CreateProjectComposer';
 export { ProjectHeader } from './components/ProjectHeader';
 export { RecentProjects } from './components/RecentProjects';
 export { ProjectsProvider } from './context/ProjectsProvider';
+export { useProjects } from './hooks/useProjects';
 export type {
   CreateProjectInput,
-  ProjectDetails,
   ProjectModel,
-  ProjectStatus,
   ProjectSummary,
 } from '@/service/project';
