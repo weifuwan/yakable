@@ -2,9 +2,13 @@ package io.yakable.boot.controller.session;
 
 import io.yakable.boot.configuration.exception.GlobalExceptionHandler;
 import io.yakable.common.bean.dto.session.AddTurnDTO;
+import io.yakable.common.bean.dto.session.QuerySessionMessageWindowDTO;
+import io.yakable.common.bean.dto.session.QuerySessionTurnNavigationDTO;
 import io.yakable.common.bean.dto.session.WatchTurnDTO;
 import io.yakable.common.bean.vo.session.MessageVO;
+import io.yakable.common.bean.vo.session.SessionMessageWindowVO;
 import io.yakable.common.bean.vo.session.TurnInvocationVO;
+import io.yakable.common.bean.vo.session.TurnNavigationItemVO;
 import io.yakable.common.bean.vo.session.TurnStartVO;
 import io.yakable.common.bean.vo.session.TurnVO;
 import io.yakable.common.bean.vo.user.CurrentUserVO;
@@ -42,6 +46,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -79,6 +84,65 @@ class SessionControllerTest {
     @AfterEach
     void clearCurrentUser() {
         SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void shouldQueryTurnNavigationForCurrentUser() throws Exception {
+        TurnNavigationItemVO item = new TurnNavigationItemVO();
+        item.setTurnId("turn-1");
+        item.setUserMessageId("message-1");
+        item.setUserMessageSequence(1L);
+        item.setPreview("Build a CRM");
+        when(sessionService.queryTurnNavigation(any(QuerySessionTurnNavigationDTO.class)))
+                .thenReturn(List.of(item));
+
+        mockMvc.perform(get("/api/projects/project-1/sessions/session-1/turns/navigation"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].turnId").value("turn-1"))
+                .andExpect(jsonPath("$.data[0].userMessageSequence").value(1))
+                .andExpect(jsonPath("$.data[0].preview").value("Build a CRM"));
+
+        ArgumentCaptor<QuerySessionTurnNavigationDTO> captor =
+                ArgumentCaptor.forClass(QuerySessionTurnNavigationDTO.class);
+        verify(sessionService).queryTurnNavigation(captor.capture());
+        assertThat(captor.getValue().projectId()).isEqualTo("project-1");
+        assertThat(captor.getValue().sessionId()).isEqualTo("session-1");
+        assertThat(captor.getValue().userId()).isEqualTo("user-1");
+    }
+
+    @Test
+    void shouldQueryMessageWindowForCurrentUser() throws Exception {
+        MessageVO anchor = new MessageVO();
+        anchor.setId("message-20");
+        anchor.setTurnId("turn-10");
+        anchor.setRole("USER");
+        anchor.setContent("Anchor");
+        anchor.setSequence(20L);
+        anchor.setCreatedAt(LocalDateTime.of(2026, 9, 21, 9, 0));
+
+        SessionMessageWindowVO window = new SessionMessageWindowVO();
+        window.setMessages(List.of(anchor));
+        window.setHasOlder(true);
+        window.setHasNewer(true);
+        window.setOlderCursor(10L);
+        window.setNewerCursor(30L);
+        when(sessionService.queryMessageWindow(any(QuerySessionMessageWindowDTO.class)))
+                .thenReturn(window);
+
+        mockMvc.perform(get("/api/projects/project-1/sessions/session-1/messages/window")
+                        .param("anchorSequence", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.messages[0].sequence").value(20))
+                .andExpect(jsonPath("$.data.hasOlder").value(true))
+                .andExpect(jsonPath("$.data.hasNewer").value(true))
+                .andExpect(jsonPath("$.data.olderCursor").value(10))
+                .andExpect(jsonPath("$.data.newerCursor").value(30));
+
+        ArgumentCaptor<QuerySessionMessageWindowDTO> captor =
+                ArgumentCaptor.forClass(QuerySessionMessageWindowDTO.class);
+        verify(sessionService).queryMessageWindow(captor.capture());
+        assertThat(captor.getValue().anchorSequence()).isEqualTo(20L);
+        assertThat(captor.getValue().userId()).isEqualTo("user-1");
     }
 
     @Test
