@@ -1,6 +1,6 @@
 # Yakable CI Verification V1
 
-Status: Designing
+Status: Review
 
 Scope:
 - Repository Verification
@@ -25,6 +25,9 @@ Frontend:
   - `npm ci`
   - `npm run check`
   - `npm run build`
+
+Workflow:
+- `.github/workflows/ci.yml`
 
 Required Check:
 - `Yakable / Quality Gate`
