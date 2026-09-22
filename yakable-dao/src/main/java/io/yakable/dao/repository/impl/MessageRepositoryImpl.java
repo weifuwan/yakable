@@ -63,12 +63,26 @@ public class MessageRepositoryImpl extends BaseRepositoryImpl<MessageMapper, Mes
     }
 
     @Override
-    public List<MessageEntity> queryMessageAfter(String sessionId, long afterSequence) {
+    public List<MessageEntity> queryMessageListByTurnIds(List<String> turnIds) {
+        if (turnIds.isEmpty()) {
+            return List.of();
+        }
         return messageMapper.selectList(
                 Wrappers.<MessageEntity>lambdaQuery()
-                        .eq(MessageEntity::getSessionId, sessionId)
-                        .gt(MessageEntity::getMessageSequence, afterSequence)
+                        .in(MessageEntity::getTurnId, turnIds)
                         .orderByAsc(MessageEntity::getMessageSequence));
+    }
+
+    @Override
+    public List<MessageEntity> queryMessageAfter(String sessionId, long afterSequence, int limit) {
+        Page<MessageEntity> page = new Page<>(1, limit, false);
+        return messageMapper.selectPage(
+                        page,
+                        Wrappers.<MessageEntity>lambdaQuery()
+                                .eq(MessageEntity::getSessionId, sessionId)
+                                .gt(MessageEntity::getMessageSequence, afterSequence)
+                                .orderByAsc(MessageEntity::getMessageSequence))
+                .getRecords();
     }
 
     @Override
