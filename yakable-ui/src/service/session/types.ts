@@ -60,6 +60,8 @@ export interface SessionSnapshot {
   session: SessionInfo;
   turns: SessionTurn[];
   messages: SessionMessage[];
+  nextBeforeSequence: number | null;
+  hasMoreMessages: boolean;
 }
 
 export interface SessionChanges {

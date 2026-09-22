@@ -26,6 +26,8 @@ import { MessageItem } from './MessageItem';
 
 const SESSION_POLL_INTERVAL_MS = 1000;
 const SCROLL_BOTTOM_THRESHOLD_PX = 120;
+const HISTORY_LOAD_THRESHOLD_PX = 80;
+const MESSAGE_PAGE_SIZE = 50;
 
 function hasActiveTurn(snapshot: SessionSnapshot | null) {
   return Boolean(
@@ -131,12 +133,14 @@ export function SessionWorkspace({
   const [optimisticMessage, setOptimisticMessage] =
     useState<SessionMessage | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [isSessionLoading, setIsSessionLoading] = useState(true);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [selectedModel, setSelectedModel] = useState<ModelSelection | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const streamAbortRef = useRef<AbortController | null>(null);
+  const loadingOlderRef = useRef(false);
   const currentTurnIdRef = useRef<string | null>(null);
   const watchedTurnIdsRef = useRef(new Set<string>());
   const stopRequestedRef = useRef(false);
@@ -169,6 +173,67 @@ export function SessionWorkspace({
     element.scrollTop = element.scrollHeight;
   }, []);
 
+  const loadOlderMessages = useCallback(async () => {
+    const current = snapshot;
+    const element = scrollRef.current;
+    if (
+      !current ||
+      !element ||
+      !current.hasMoreMessages ||
+      current.nextBeforeSequence === null ||
+      loadingOlderRef.current
+    ) {
+      return;
+    }
+
+    loadingOlderRef.current = true;
+    setIsLoadingOlder(true);
+    const previousScrollHeight = element.scrollHeight;
+
+    try {
+      const page = await SessionService.queryMessages(
+        projectId,
+        sessionId,
+        current.nextBeforeSequence,
+        MESSAGE_PAGE_SIZE,
+      );
+
+      setSnapshot((latest) => {
+        if (!latest) return latest;
+
+        const existingSequences = new Set(
+          latest.messages.map((message) => message.sequence),
+        );
+        const older = page.messages.filter(
+          (message) => !existingSequences.has(message.sequence),
+        );
+
+        return {
+          ...latest,
+          messages: [...older, ...latest.messages],
+          nextBeforeSequence: page.nextBeforeSequence,
+          hasMoreMessages: page.hasMore,
+        };
+      });
+
+      window.requestAnimationFrame(() => {
+        const currentElement = scrollRef.current;
+        if (!currentElement) return;
+        currentElement.scrollTop +=
+          currentElement.scrollHeight - previousScrollHeight;
+      });
+    } catch (requestError) {
+      setLoadError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Unable to load earlier messages.',
+      );
+    } finally {
+      loadingOlderRef.current = false;
+      setIsLoadingOlder(false);
+    }
+  }, [projectId, sessionId, snapshot]);
+
   const handleScroll = useCallback(() => {
     const element = scrollRef.current;
     if (!element) return;
@@ -176,7 +241,11 @@ export function SessionWorkspace({
     const nearBottom = isNearBottom(element);
     followOutputRef.current = nearBottom;
     setShowScrollBottom(!nearBottom);
-  }, []);
+
+    if (element.scrollTop <= HISTORY_LOAD_THRESHOLD_PX) {
+      void loadOlderMessages();
+    }
+  }, [loadOlderMessages]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -193,6 +262,8 @@ export function SessionWorkspace({
     watchedTurnIdsRef.current.clear();
     setStreamingContent('');
     setIsGenerating(false);
+    loadingOlderRef.current = false;
+    setIsLoadingOlder(false);
     setSelectedModel(null);
     setIsSessionLoading(true);
 
@@ -382,7 +453,11 @@ export function SessionWorkspace({
       model: ModelSelection,
       controller: AbortController,
       afterSequence: number,
+      onEstablished: () => void,
+      onRejected: () => void,
     ) => {
+      let established = false;
+
       try {
         await SessionService.streamingTurn(
           projectId,
@@ -391,6 +466,8 @@ export function SessionWorkspace({
           model,
           {
             onStarted: (started) => {
+              established = true;
+              onEstablished();
               currentTurnIdRef.current = started.turn.id;
               setStreamingTurnId(started.turn.id);
               setOptimisticMessage(null);
@@ -427,7 +504,6 @@ export function SessionWorkspace({
           current ? mergeChanges(current, changes) : current,
         );
       } catch (requestError) {
-        const established = Boolean(currentTurnIdRef.current);
         if (!established) {
           setOptimisticMessage(null);
         }
@@ -454,6 +530,9 @@ export function SessionWorkspace({
           );
         }
       } finally {
+        if (!established) {
+          onRejected();
+        }
         const stopped = controller.signal.aborted && stopRequestedRef.current;
         if (streamAbortRef.current === controller) {
           streamAbortRef.current = null;
@@ -489,15 +568,25 @@ export function SessionWorkspace({
       setSendError(null);
       setStreamingContent('');
 
-      void runStreamingTurn(content, selectedModel, controller, latestSequence);
-      return true;
+      return new Promise<boolean>((resolve) => {
+        let settled = false;
+        const settle = (accepted: boolean) => {
+          if (settled) return;
+          settled = true;
+          resolve(accepted);
+        };
+
+        void runStreamingTurn(
+          content,
+          selectedModel,
+          controller,
+          latestSequence,
+          () => settle(true),
+          () => settle(false),
+        );
+      });
     },
     [latestSequence, runStreamingTurn, selectedModel],
-  );
-
-  const handleRegenerateMessage = useCallback(
-    (_message: SessionMessage, content: string) => handleSubmit(content),
-    [handleSubmit],
   );
 
   const handleStop = useCallback(() => {
@@ -585,14 +674,17 @@ export function SessionWorkspace({
                 </div>
               )}
 
+              {isLoadingOlder && (
+                <p
+                  className="m-0 text-center text-xs text-foreground-subtle"
+                  role="status"
+                >
+                  Loading earlier messages...
+                </p>
+              )}
+
               {snapshot?.messages.map((message) => (
-                <MessageItem
-                  key={message.id}
-                  message={message}
-                  onRegenerate={
-                    generating ? undefined : handleRegenerateMessage
-                  }
-                />
+                <MessageItem key={message.id} message={message} />
               ))}
 
               {optimisticMessage && (

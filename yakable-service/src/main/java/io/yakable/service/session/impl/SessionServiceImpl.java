@@ -69,6 +69,7 @@ public class SessionServiceImpl implements SessionService {
     private static final String TURN_RECOVERY_TASK = "turn-recovery";
     private static final String TURN_TASK_PREFIX = "turn-";
     private static final int RECOVERY_BATCH_SIZE = 100;
+    private static final int INITIAL_MESSAGE_PAGE_SIZE = 50;
 
     private final Map<String, TurnStreamState> streamStates = new ConcurrentHashMap<>();
     private final Set<String> stoppingTurns = ConcurrentHashMap.newKeySet();
@@ -213,10 +214,19 @@ public class SessionServiceImpl implements SessionService {
     public SessionDetailVO querySession(QuerySessionDTO dto) {
         SessionEntity session = queryOwnedSession(dto.projectId(), dto.sessionId(), dto.userId());
 
+        List<MessageVO> rows =
+                messageService.queryMessageBefore(dto.sessionId(), null, INITIAL_MESSAGE_PAGE_SIZE + 1);
+        boolean hasMore = rows.size() > INITIAL_MESSAGE_PAGE_SIZE;
+        List<MessageVO> pageRows = hasMore ? rows.subList(0, INITIAL_MESSAGE_PAGE_SIZE) : rows;
+        List<MessageVO> messages = new ArrayList<>(pageRows);
+        Collections.reverse(messages);
+
         SessionDetailVO result = new SessionDetailVO();
         result.setSession(toSessionVO(session));
         result.setTurns(turnService.queryTurnList(dto.sessionId()));
-        result.setMessages(messageService.queryMessageList(dto.sessionId()));
+        result.setMessages(messages);
+        result.setNextBeforeSequence(hasMore && !messages.isEmpty() ? messages.get(0).getSequence() : null);
+        result.setHasMoreMessages(hasMore);
         return result;
     }
 

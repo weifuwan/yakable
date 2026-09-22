@@ -20,6 +20,12 @@ public class SessionDetailVO {
     @Schema(description = "Turn 列表")
     private List<TurnVO> turns;
 
-    @Schema(description = "Message 列表")
+    @Schema(description = "最近 Message 列表")
     private List<MessageVO> messages;
+
+    @Schema(description = "更早 Message 的游标")
+    private Long nextBeforeSequence;
+
+    @Schema(description = "是否还有更早 Message")
+    private boolean hasMoreMessages;
 }

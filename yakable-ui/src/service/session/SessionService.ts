@@ -85,7 +85,10 @@ function isSessionSnapshot(value: unknown): value is SessionSnapshot {
     Array.isArray(value.turns) &&
     value.turns.every(isSessionTurn) &&
     Array.isArray(value.messages) &&
-    value.messages.every(isSessionMessage)
+    value.messages.every(isSessionMessage) &&
+    (value.nextBeforeSequence === null ||
+      typeof value.nextBeforeSequence === 'number') &&
+    typeof value.hasMoreMessages === 'boolean'
   );
 }
 

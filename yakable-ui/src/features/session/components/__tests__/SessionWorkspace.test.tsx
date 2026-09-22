@@ -1,5 +1,6 @@
 import {
   act,
+  fireEvent,
   render,
   screen,
   waitFor,
@@ -64,6 +65,8 @@ function createSnapshot(
       updatedAt: '2026-09-21T00:00:01Z',
     },
     turns: [succeededTurn],
+    nextBeforeSequence: null,
+    hasMoreMessages: false,
     messages: [
       {
         id: 'message-1',
@@ -337,6 +340,7 @@ describe('SessionWorkspace', () => {
     await user.type(input, 'Tell me more');
     await user.keyboard('{Enter}');
 
+    expect((input as HTMLTextAreaElement).value).toBe('Tell me more');
     expect(await screen.findByText('Tell me more')).toBeTruthy();
     expect(SessionService.streamingTurn).toHaveBeenCalledWith(
       'project-1',
@@ -359,6 +363,9 @@ describe('SessionWorkspace', () => {
       handlers?.onDelta('Streaming reply.');
     });
 
+    await waitFor(() => {
+      expect((input as HTMLTextAreaElement).value).toBe('');
+    });
     expect(
       await screen.findByText('Streaming reply.'),
     ).toBeTruthy();
@@ -374,6 +381,129 @@ describe('SessionWorkspace', () => {
         }),
       ).toBeNull();
     });
+  });
+
+  it('loads older messages when the user scrolls to the top', async () => {
+    const historySnapshot = createSnapshot();
+    historySnapshot.messages = [
+      {
+        ...historySnapshot.messages[0],
+        id: 'message-51',
+        sequence: 51,
+        content: 'Recent user message',
+      },
+      {
+        ...historySnapshot.messages[1],
+        id: 'message-52',
+        sequence: 52,
+        content: 'Recent assistant message',
+      },
+    ];
+    historySnapshot.nextBeforeSequence = 51;
+    historySnapshot.hasMoreMessages = true;
+
+    vi.spyOn(SessionService, 'querySession').mockResolvedValue(
+      historySnapshot,
+    );
+    const queryMessages = vi
+      .spyOn(SessionService, 'queryMessages')
+      .mockResolvedValue({
+        messages: [
+          {
+            id: 'message-1',
+            turnId: 'turn-old',
+            role: 'USER',
+            content: 'Older user message',
+            sequence: 1,
+            createdAt: '2026-09-20T00:00:00Z',
+          },
+          {
+            id: 'message-2',
+            turnId: 'turn-old',
+            role: 'ASSISTANT',
+            content: 'Older assistant message',
+            sequence: 2,
+            createdAt: '2026-09-20T00:00:01Z',
+          },
+        ],
+        nextBeforeSequence: null,
+        hasMore: false,
+      });
+
+    render(
+      <SessionWorkspace
+        projectId="project-1"
+        sessionId="session-1"
+      />,
+    );
+
+    expect(await screen.findByText('Recent user message')).toBeTruthy();
+
+    const scroll = screen.getByTestId('session-message-scroll');
+    fireEvent.scroll(scroll, { target: { scrollTop: 0 } });
+
+    await waitFor(() => {
+      expect(queryMessages).toHaveBeenCalledWith(
+        'project-1',
+        'session-1',
+        51,
+        50,
+      );
+    });
+    expect(await screen.findByText('Older user message')).toBeTruthy();
+    expect(screen.getByText('Older assistant message')).toBeTruthy();
+  });
+
+  it('keeps the Prompt when streaming fails before started', async () => {
+    const user = userEvent.setup();
+
+    vi.spyOn(SessionService, 'querySession').mockResolvedValue(
+      createSnapshot(),
+    );
+    vi.spyOn(SessionService, 'streamingTurn').mockRejectedValue(
+      new Error('Unable to create turn.'),
+    );
+    vi.spyOn(SessionService, 'queryChanges').mockRejectedValue(
+      new Error('No turn created.'),
+    );
+
+    render(
+      <SessionWorkspace
+        projectId="project-1"
+        sessionId="session-1"
+      />,
+    );
+
+    const input = await screen.findByRole('textbox', {
+      name: 'Send a message',
+    });
+    await user.type(input, 'Keep this prompt');
+    await user.keyboard('{Enter}');
+
+    expect(
+      (await screen.findByRole('alert')).textContent,
+    ).toContain('Unable to create turn.');
+    expect((input as HTMLTextAreaElement).value).toBe(
+      'Keep this prompt',
+    );
+  });
+
+  it('does not expose Edit or Regenerate actions for historical messages', async () => {
+    vi.spyOn(SessionService, 'querySession').mockResolvedValue(
+      createSnapshot(),
+    );
+
+    render(
+      <SessionWorkspace
+        projectId="project-1"
+        sessionId="session-1"
+      />,
+    );
+
+    expect(await screen.findByText('Who are you?')).toBeTruthy();
+    expect(
+      screen.queryByRole('button', { name: 'Edit message' }),
+    ).toBeNull();
   });
 
   it('reports Project activity when the user Turn is persisted', async () => {
