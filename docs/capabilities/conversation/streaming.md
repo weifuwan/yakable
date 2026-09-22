@@ -1,6 +1,6 @@
 # Streaming
 
-Status: Review
+Status: Implementing
 Domain: Conversation
 
 Depends On:
@@ -59,8 +59,14 @@ Tests:
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
 
-Known Gaps:
-- 当前 TurnStreamState 订阅顺序是先注册 listener 再读取 snapshot；并发 delta 可能在 snapshot 之前到达，并被 snapshot 再次包含，存在重复 / 乱序竞态。当前测试未覆盖该并发窗口。
+Implementation Design:
+- TurnStreamState 使用同一个 event lock 串行化 subscribe / unsubscribe / delta / terminal。
+- 新 watcher 加入时，在 event lock 内读取当前 snapshot、注册 listener 并发送 snapshot。
+- delta 在同一 event lock 内追加 buffer 并通知当前 listeners。
+- 如果 delta 先获得锁，新 watcher 不在该次 listener 集合中，后续 snapshot 会包含这段 delta。
+- 如果 subscribe 先获得锁，snapshot 先发送；后续 delta 等待锁并在 snapshot 之后发送。
+- terminal 与 subscribe / delta 使用相同 event lock，保证 terminal 不越过 snapshot / delta。
+- 不新增事件序号、持久化 delta、消息队列或分布式 Stream Log。
 
 ## Purpose
 
