@@ -71,6 +71,21 @@ export interface SessionMessagePage {
   hasMore: boolean;
 }
 
+export interface SessionTurnNavigationItem {
+  turnId: string;
+  userMessageId: string;
+  userMessageSequence: number;
+  preview: string;
+}
+
+export interface SessionMessageWindow {
+  messages: SessionMessage[];
+  hasOlder: boolean;
+  hasNewer: boolean;
+  olderCursor: number | null;
+  newerCursor: number | null;
+}
+
 export interface TurnStartResult {
   turn: SessionTurn;
   userMessage: SessionMessage;
