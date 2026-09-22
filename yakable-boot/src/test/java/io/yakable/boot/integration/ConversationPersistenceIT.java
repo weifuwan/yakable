@@ -78,7 +78,7 @@ class ConversationPersistenceIT {
                 Integer.class);
 
         assertThat(contentType).isEqualTo("mediumtext");
-        assertThat(latestVersion).isGreaterThanOrEqualTo(11);
+        assertThat(latestVersion).isEqualTo(1);
     }
 
     @Test
