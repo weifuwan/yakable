@@ -4,7 +4,7 @@ Status: Done
 Domain: User
 
 Depends On:
-- User data
+- None
 
 Related:
 - [User Management](./user-management.md)
