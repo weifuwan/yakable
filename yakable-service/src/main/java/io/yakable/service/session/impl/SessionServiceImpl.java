@@ -189,6 +189,10 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     public void executeTurnAsync(String turnId) {
+        if (activeExecutions.get() >= maxConcurrentExecutions) {
+            return;
+        }
+
         TurnExecutionVO execution = turnService.queryTurnExecution(turnId).orElse(null);
         if (execution == null) {
             return;
@@ -519,12 +523,7 @@ public class SessionServiceImpl implements SessionService {
 
     private void recoverTurns() {
         turnService.updateStaleTurnPending(DateUtils.now().minus(runningTimeout));
-        int available = Math.max(0, maxConcurrentExecutions - activeExecutions.get());
-        if (available == 0) {
-            return;
-        }
-        turnService.queryPendingTurnIdList(Math.min(RECOVERY_BATCH_SIZE, available))
-                .forEach(this::executeTurnAsync);
+        turnService.queryPendingTurnIdList(RECOVERY_BATCH_SIZE).forEach(this::executeTurnAsync);
     }
 
     private boolean tryAcquireExecutionSlot(String userId) {
