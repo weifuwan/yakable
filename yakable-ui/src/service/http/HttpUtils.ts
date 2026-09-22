@@ -62,7 +62,7 @@ function readCookie(name: string) {
   return value ? decodeURIComponent(value.slice(prefix.length)) : null;
 }
 
-function csrfHeaders(method: string | undefined) {
+function csrfHeaders(method: string | undefined): Record<string, string> {
   if (SAFE_METHODS.has((method ?? 'GET').toUpperCase())) return {};
 
   const token = readCookie(CSRF_COOKIE);
