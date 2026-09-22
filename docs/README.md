@@ -24,7 +24,6 @@ Code / Test / Acceptance
 - [plans/](./plans/)：实现顺序与 PR 拆分。
 - [implementation/](./implementation/)：单个功能的详细实现方案。
 - [decisions/](./decisions/)：重要技术决策记录。
-- [quality/](./quality/)：跨功能的质量与工程底线。
 
 ## 工程规范
 
