@@ -27,18 +27,13 @@ export function PromptComposerAnimatedPlaceholder({
   const [phase, setPhase] = useState<TypewriterPhase>('typing');
   const [reducedMotion, setReducedMotion] = useState(prefersReducedMotion);
 
-
-  const currentSuggestion =
-    suggestions[phraseIndex % Math.max(suggestions.length, 1)] ?? '';
+  const currentSuggestion = suggestions[phraseIndex % Math.max(suggestions.length, 1)] ?? '';
   const visibleSuggestion = reducedMotion
     ? currentSuggestion
     : currentSuggestion.slice(0, visibleLength);
 
   useEffect(() => {
-    if (
-      typeof window === 'undefined' ||
-      typeof window.matchMedia !== 'function'
-    ) {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
       return;
     }
 
@@ -92,13 +87,7 @@ export function PromptComposerAnimatedPlaceholder({
     return () => {
       window.clearTimeout(timer);
     };
-  }, [
-    currentSuggestion,
-    phase,
-    reducedMotion,
-    suggestions.length,
-    visibleLength,
-  ]);
+  }, [currentSuggestion, phase, reducedMotion, suggestions.length, visibleLength]);
 
   if (suggestions.length === 0) return null;
 
@@ -110,12 +99,7 @@ export function PromptComposerAnimatedPlaceholder({
     >
       <span>{prefix}</span>
       {visibleSuggestion && <span> {visibleSuggestion}</span>}
-      {!reducedMotion && (
-        <span
-          aria-hidden="true"
-          className="yak-composer-placeholder-caret"
-        />
-      )}
+      {!reducedMotion && <span aria-hidden="true" className="yak-composer-placeholder-caret" />}
     </span>
   );
 }

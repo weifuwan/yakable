@@ -1,7 +1,4 @@
-import {
-  forwardRef,
-  type SVGProps,
-} from 'react';
+import { forwardRef, type SVGProps } from 'react';
 
 export interface IconProps extends SVGProps<SVGSVGElement> {
   label?: string;
@@ -9,13 +6,7 @@ export interface IconProps extends SVGProps<SVGSVGElement> {
 }
 
 export const Icon = forwardRef<SVGSVGElement, IconProps>(function Icon(
-  {
-    children,
-    label,
-    size = 16,
-    viewBox = '0 0 24 24',
-    ...props
-  },
+  { children, label, size = 16, viewBox = '0 0 24 24', ...props },
   ref,
 ) {
   return (

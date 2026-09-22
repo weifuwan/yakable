@@ -139,40 +139,27 @@
   opacity: 0.06;
 }
 
-.yak-select-trigger:active:not(:disabled)
-  .yak-select-fx-layer[data-fx-layer='drop-shadow'],
-.yak-select-trigger:active:not(:disabled)
-  .yak-select-fx-layer[data-fx-layer='spotlights'],
+.yak-select-trigger:active:not(:disabled) .yak-select-fx-layer[data-fx-layer='drop-shadow'],
+.yak-select-trigger:active:not(:disabled) .yak-select-fx-layer[data-fx-layer='spotlights'],
 .yak-select-trigger:active:not(:disabled)
   .yak-select-fx-layer[data-fx-layer='secondary-spotlights'] {
   opacity: 0;
 }
 
-.yak-select-trigger[data-open]
-  .yak-select-fx-layer[data-fx-layer='drop-shadow'],
-.yak-select-trigger[data-open]
-  .yak-select-fx-layer[data-fx-layer='base-fill'],
-.yak-select-trigger[data-open]
-  .yak-select-fx-layer[data-fx-layer='interaction'],
-.yak-select-trigger[data-open]
-  .yak-select-fx-layer[data-fx-layer='spotlights'],
-.yak-select-trigger[data-open]
-  .yak-select-fx-layer[data-fx-layer='dome-overlay'],
-.yak-select-trigger[data-open]
-  .yak-select-fx-layer[data-fx-layer='rim'],
-.yak-select-trigger[data-open]
-  .yak-select-fx-layer[data-fx-layer='secondary-spotlights'] {
+.yak-select-trigger[data-open] .yak-select-fx-layer[data-fx-layer='drop-shadow'],
+.yak-select-trigger[data-open] .yak-select-fx-layer[data-fx-layer='base-fill'],
+.yak-select-trigger[data-open] .yak-select-fx-layer[data-fx-layer='interaction'],
+.yak-select-trigger[data-open] .yak-select-fx-layer[data-fx-layer='spotlights'],
+.yak-select-trigger[data-open] .yak-select-fx-layer[data-fx-layer='dome-overlay'],
+.yak-select-trigger[data-open] .yak-select-fx-layer[data-fx-layer='rim'],
+.yak-select-trigger[data-open] .yak-select-fx-layer[data-fx-layer='secondary-spotlights'] {
   opacity: 0;
 }
 
-.yak-select-trigger[data-open]
-  .yak-select-fx-layer[data-fx-layer='engaged-drop-shadow'],
-.yak-select-trigger[data-open]
-  .yak-select-fx-layer[data-fx-layer='engaged-fill'],
-.yak-select-trigger[data-open]
-  .yak-select-fx-layer[data-fx-layer='engaged-dome'],
-.yak-select-trigger[data-open]
-  .yak-select-fx-layer[data-fx-layer='engaged-highlights'] {
+.yak-select-trigger[data-open] .yak-select-fx-layer[data-fx-layer='engaged-drop-shadow'],
+.yak-select-trigger[data-open] .yak-select-fx-layer[data-fx-layer='engaged-fill'],
+.yak-select-trigger[data-open] .yak-select-fx-layer[data-fx-layer='engaged-dome'],
+.yak-select-trigger[data-open] .yak-select-fx-layer[data-fx-layer='engaged-highlights'] {
   opacity: 1;
 }
 

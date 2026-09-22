@@ -8,10 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 
-import {
-  ProjectService,
-  type ProjectSummary,
-} from '@/service/project';
+import { ProjectService, type ProjectSummary } from '@/service/project';
 
 import { PROJECT_PAGE_SIZE } from '../constants';
 
@@ -24,24 +21,14 @@ export interface ProjectsState {
   retryInitial: () => Promise<void>;
   loadMore: () => Promise<void>;
   upsertProject: (project: ProjectSummary) => void;
-  markProjectActive: (
-    projectId: string,
-    sessionId: string,
-    updatedAt: string,
-  ) => void;
+  markProjectActive: (projectId: string, sessionId: string, updatedAt: string) => void;
 }
 
 const ProjectsContext = createContext<ProjectsState | null>(null);
 
-function mergeProjects(
-  current: ProjectSummary[],
-  incoming: ProjectSummary[],
-) {
+function mergeProjects(current: ProjectSummary[], incoming: ProjectSummary[]) {
   const incomingIds = new Set(incoming.map((project) => project.id));
-  return [
-    ...current.filter((project) => !incomingIds.has(project.id)),
-    ...incoming,
-  ];
+  return [...current.filter((project) => !incomingIds.has(project.id)), ...incoming];
 }
 
 export function ProjectsProvider({ children }: { children: ReactNode }) {
@@ -53,10 +40,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const loadingMoreRef = useRef(false);
 
-  const loadInitial = useCallback(async (signal?: AbortSignal) => {
-    setIsLoading(true);
-    setError(null);
-
+  const fetchInitial = useCallback(async (signal?: AbortSignal) => {
     try {
       const page = await ProjectService.queryProject(
         {
@@ -72,35 +56,51 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       setHasMore(page.current < page.pages);
     } catch (requestError) {
       if (signal?.aborted) return;
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : 'Unable to load projects.',
-      );
+      setError(requestError instanceof Error ? requestError.message : 'Unable to load projects.');
     } finally {
       if (!signal?.aborted) setIsLoading(false);
     }
   }, []);
 
+  const loadInitial = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    await fetchInitial();
+  }, [fetchInitial]);
+
   useEffect(() => {
     const controller = new AbortController();
-    void loadInitial(controller.signal);
+
+    void ProjectService.queryProject(
+      {
+        current: 1,
+        pageSize: PROJECT_PAGE_SIZE,
+      },
+      controller.signal,
+    )
+      .then((page) => {
+        if (controller.signal.aborted) return;
+        setProjects(page.records);
+        setCurrentPage(page.current);
+        setHasMore(page.current < page.pages);
+      })
+      .catch((requestError: unknown) => {
+        if (controller.signal.aborted) return;
+        setError(requestError instanceof Error ? requestError.message : 'Unable to load projects.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoading(false);
+      });
 
     return () => {
       controller.abort();
     };
-  }, [loadInitial]);
+  }, []);
 
-  const retryInitial = useCallback(
-    () => loadInitial(),
-    [loadInitial],
-  );
+  const retryInitial = useCallback(() => loadInitial(), [loadInitial]);
 
   const upsertProject = useCallback((project: ProjectSummary) => {
-    setProjects((current) => [
-      project,
-      ...current.filter((item) => item.id !== project.id),
-    ]);
+    setProjects((current) => [project, ...current.filter((item) => item.id !== project.id)]);
     setError(null);
   }, []);
 
@@ -116,10 +116,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
           updatedAt,
         };
 
-        return [
-          activeProject,
-          ...current.filter((item) => item.id !== projectId),
-        ];
+        return [activeProject, ...current.filter((item) => item.id !== projectId)];
       });
     },
     [],
@@ -142,9 +139,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       setHasMore(page.current < page.pages);
     } catch (requestError) {
       setError(
-        requestError instanceof Error
-          ? requestError.message
-          : 'Unable to load more projects.',
+        requestError instanceof Error ? requestError.message : 'Unable to load more projects.',
       );
     } finally {
       loadingMoreRef.current = false;

@@ -1,11 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 
 import { useAuth } from '@/features/auth';
-import {
-  ResetPasswordDialog,
-  UserFormDialog,
-  UsersTable,
-} from '@/features/user-management';
+import { ResetPasswordDialog, UserFormDialog, UsersTable } from '@/features/user-management';
 import {
   UserService,
   type PageData,
@@ -33,15 +29,11 @@ export function UsersPage() {
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [formUser, setFormUser] = useState<UserRecord | null | undefined>(
-    undefined,
-  );
+  const [formUser, setFormUser] = useState<UserRecord | null | undefined>(undefined);
   const [resetUser, setResetUser] = useState<UserRecord | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
-    setError(null);
 
     void UserService.queryUser(
       {
@@ -56,11 +48,7 @@ export function UsersPage() {
       .then(setPage)
       .catch((requestError: unknown) => {
         if (controller.signal.aborted) return;
-        setError(
-          requestError instanceof Error
-            ? requestError.message
-            : 'Unable to load users.',
-        );
+        setError(requestError instanceof Error ? requestError.message : 'Unable to load users.');
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -71,10 +59,16 @@ export function UsersPage() {
 
   if (!currentUser) return null;
 
+  function updateQuery(updater: (current: UserQuery) => UserQuery) {
+    setLoading(true);
+    setError(null);
+    setQuery(updater);
+  }
+
   function search(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const normalized = keyword.trim();
-    setQuery((current) => ({
+    updateQuery((current) => ({
       ...current,
       current: 1,
       keyword: normalized || undefined,
@@ -82,6 +76,9 @@ export function UsersPage() {
   }
 
   function refresh(firstPage = false) {
+    setLoading(true);
+    setError(null);
+
     if (firstPage && query.current !== 1) {
       setQuery((current) => ({ ...current, current: 1 }));
       return;
@@ -101,9 +98,7 @@ export function UsersPage() {
       refresh();
     } catch (requestError) {
       setError(
-        requestError instanceof Error
-          ? requestError.message
-          : 'Unable to update user status.',
+        requestError instanceof Error ? requestError.message : 'Unable to update user status.',
       );
     } finally {
       setBusyUserId(null);
@@ -114,26 +109,18 @@ export function UsersPage() {
     <div className="mx-auto w-full max-w-6xl px-6 py-10">
       <header className="mb-7 flex items-start justify-between gap-4">
         <div>
-          <h1 className="m-0 text-2xl font-semibold tracking-[-0.03em]">
-            Users
-          </h1>
+          <h1 className="m-0 text-2xl font-semibold tracking-[-0.03em]">Users</h1>
           <p className="mb-0 mt-2 text-sm text-foreground-subtle">
             Manage the accounts that can sign in to Yakable.
           </p>
         </div>
-        <Button
-          variant="primary"
-          onClick={() => setFormUser(null)}
-        >
+        <Button variant="primary" onClick={() => setFormUser(null)}>
           Add user
         </Button>
       </header>
 
       <div className="mb-5 flex flex-wrap items-center gap-2">
-        <form
-          className="flex min-w-64 flex-1 items-center gap-2"
-          onSubmit={search}
-        >
+        <form className="flex min-w-64 flex-1 items-center gap-2" onSubmit={search}>
           <Input
             aria-label="Search users"
             placeholder="Search username, name or email"
@@ -147,7 +134,7 @@ export function UsersPage() {
           aria-label="Filter by role"
           value={query.role ?? ''}
           onChange={(event) =>
-            setQuery((current) => ({
+            updateQuery((current) => ({
               ...current,
               current: 1,
               role: (event.target.value || undefined) as UserRole | undefined,
@@ -164,12 +151,10 @@ export function UsersPage() {
           aria-label="Filter by status"
           value={query.status ?? ''}
           onChange={(event) =>
-            setQuery((current) => ({
+            updateQuery((current) => ({
               ...current,
               current: 1,
-              status: (event.target.value || undefined) as
-                | UserStatus
-                | undefined,
+              status: (event.target.value || undefined) as UserStatus | undefined,
             }))
           }
           className="h-9 rounded-lg border border-border-control bg-surface px-3 text-sm text-foreground outline-none focus:border-border-focus focus:outline-2 focus:outline-offset-1 focus:outline-focus-ring-soft"
@@ -190,12 +175,9 @@ export function UsersPage() {
       ) : null}
 
       {loading && !page ? (
-        <div
-          className="flex min-h-52 items-center justify-center rounded-xl border border-border-quiet text-sm text-foreground-subtle"
-          role="status"
-        >
+        <output className="flex min-h-52 items-center justify-center rounded-xl border border-border-quiet text-sm text-foreground-subtle">
           Loading users…
-        </div>
+        </output>
       ) : (
         <UsersTable
           users={page?.records ?? []}
@@ -217,7 +199,7 @@ export function UsersPage() {
               size="sm"
               disabled={page.current <= 1 || loading}
               onClick={() =>
-                setQuery((current) => ({
+                updateQuery((current) => ({
                   ...current,
                   current: Math.max(1, current.current - 1),
                 }))
@@ -232,7 +214,7 @@ export function UsersPage() {
               size="sm"
               disabled={page.current >= page.pages || loading}
               onClick={() =>
-                setQuery((current) => ({
+                updateQuery((current) => ({
                   ...current,
                   current: current.current + 1,
                 }))

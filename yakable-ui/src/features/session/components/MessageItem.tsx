@@ -1,15 +1,7 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { SessionMessage } from '@/service/session';
-import {
-  Icon,
-  Markdown,
-} from '@/shared/ui';
+import { Icon, Markdown } from '@/shared/ui';
 
 const COPY_FEEDBACK_DURATION_MS = 1800;
 
@@ -28,11 +20,7 @@ function formatMessageTime(createdAt: string) {
   const date = new Date(createdAt);
   if (Number.isNaN(date.getTime())) return null;
 
-  return (
-    messageDateFormatter.format(date) +
-    ' at ' +
-    messageTimeFormatter.format(date)
-  );
+  return messageDateFormatter.format(date) + ' at ' + messageTimeFormatter.format(date);
 }
 
 function CopyStatusIcon({ copied }: { copied: boolean }) {
@@ -47,9 +35,7 @@ function CopyStatusIcon({ copied }: { copied: boolean }) {
         size={16}
         className={
           'absolute inset-0 transition-all duration-150 ease-out ' +
-          (copied
-            ? 'scale-90 opacity-0'
-            : 'scale-100 opacity-100')
+          (copied ? 'scale-90 opacity-0' : 'scale-100 opacity-100')
         }
       >
         <rect x="9" y="9" width="10" height="10" rx="2" />
@@ -61,9 +47,7 @@ function CopyStatusIcon({ copied }: { copied: boolean }) {
         strokeWidth={1.8}
         className={
           'absolute inset-0 text-success transition-all duration-150 ease-out ' +
-          (copied
-            ? 'scale-100 opacity-100'
-            : 'scale-90 opacity-0')
+          (copied ? 'scale-100 opacity-100' : 'scale-90 opacity-0')
         }
       >
         <circle cx="12" cy="12" r="8.5" />
@@ -73,11 +57,7 @@ function CopyStatusIcon({ copied }: { copied: boolean }) {
   );
 }
 
-export function MessageItem({
-  message,
-}: {
-  message: SessionMessage;
-}) {
+export function MessageItem({ message }: { message: SessionMessage }) {
   const isUser = message.role === 'USER';
   const [copied, setCopied] = useState(false);
   const copyFeedbackTimerRef = useRef<number | null>(null);
@@ -98,14 +78,8 @@ export function MessageItem({
 
   if (!isUser) {
     return (
-      <div
-        className="flex w-full justify-start"
-        aria-label="Assistant message"
-      >
-        <div
-          className="w-full min-w-0 px-1 py-2"
-          data-testid="assistant-message-content"
-        >
+      <div className="flex w-full justify-start" aria-label="Assistant message">
+        <div className="w-full min-w-0 px-1 py-2" data-testid="assistant-message-content">
           <Markdown content={message.content} />
         </div>
       </div>
@@ -155,13 +129,12 @@ export function MessageItem({
             onClick={handleCopy}
           >
             {copied && (
-              <span
-                role="status"
+              <output
                 data-allow-shadow="true"
                 className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg border border-border-quiet bg-surface px-2.5 py-1 text-xs font-medium text-foreground shadow-sm"
               >
                 Copied
-              </span>
+              </output>
             )}
 
             <CopyStatusIcon copied={copied} />

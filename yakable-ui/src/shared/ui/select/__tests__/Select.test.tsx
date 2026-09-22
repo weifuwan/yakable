@@ -42,9 +42,7 @@ describe('Select', () => {
         })
         .getAttribute('aria-checked'),
     ).toBe('true');
-    expect(
-      screen.getByText('Detailed spec for complex builds'),
-    ).toBeTruthy();
+    expect(screen.getByText('Detailed spec for complex builds')).toBeTruthy();
     expect(screen.getByText('Switch modes with Alt P')).toBeTruthy();
   });
 
@@ -59,30 +57,18 @@ describe('Select', () => {
     expect(trigger.getAttribute('data-surface')).toBe('chassis');
     expect(trigger.className).toContain('yak-select-trigger-chassis');
     expect(layers).toHaveLength(12);
-    expect(
-      trigger.querySelector('[data-fx-layer="drop-shadow"]'),
-    ).toBeTruthy();
-    expect(
-      trigger.querySelector('[data-fx-layer="engaged-glow"]'),
-    ).toBeTruthy();
+    expect(trigger.querySelector('[data-fx-layer="drop-shadow"]')).toBeTruthy();
+    expect(trigger.querySelector('[data-fx-layer="engaged-glow"]')).toBeTruthy();
     expect(trigger.hasAttribute('data-open')).toBe(false);
 
     await user.click(trigger);
 
     expect(trigger.hasAttribute('data-open')).toBe(true);
-    expect(screen.getByRole('menu').parentElement?.className).toContain(
-      'yak-select-menu',
-    );
+    expect(screen.getByRole('menu').parentElement?.className).toContain('yak-select-menu');
   });
 
   it('renders borderless surface without the layered chassis', () => {
-    render(
-      <Select
-        defaultValue="build"
-        options={options}
-        surface="borderless"
-      />,
-    );
+    render(<Select defaultValue="build" options={options} surface="borderless" />);
 
     const trigger = screen.getByRole('button', { name: /Build/ });
 
@@ -111,13 +97,7 @@ describe('Select', () => {
     const user = userEvent.setup();
     const onValueChange = vi.fn();
 
-    render(
-      <Select
-        defaultValue="build"
-        options={options}
-        onValueChange={onValueChange}
-      />,
-    );
+    render(<Select defaultValue="build" options={options} onValueChange={onValueChange} />);
 
     const trigger = screen.getByRole('button', { name: /Build/ });
 
@@ -137,13 +117,7 @@ describe('Select', () => {
     const user = userEvent.setup();
     const onValueChange = vi.fn();
 
-    render(
-      <Select
-        defaultValue="build"
-        options={options}
-        onValueChange={onValueChange}
-      />,
-    );
+    render(<Select defaultValue="build" options={options} onValueChange={onValueChange} />);
 
     const trigger = screen.getByRole('button', { name: /Build/ });
     trigger.focus();
@@ -196,16 +170,12 @@ describe('Select', () => {
     await user.keyboard('{ArrowDown}');
 
     await waitFor(() => {
-      expect(
-        document.activeElement?.getAttribute('data-value'),
-      ).toBe('build');
+      expect(document.activeElement?.getAttribute('data-value')).toBe('build');
     });
 
     await user.keyboard('{ArrowDown}');
 
-    expect(document.activeElement?.getAttribute('data-value')).toBe(
-      'review',
-    );
+    expect(document.activeElement?.getAttribute('data-value')).toBe('review');
   });
 
   it('closes on Escape and restores trigger focus', async () => {

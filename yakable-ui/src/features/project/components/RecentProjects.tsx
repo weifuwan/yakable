@@ -1,16 +1,10 @@
-import {
-  useEffect,
-  useRef,
-} from 'react';
+import { useEffect, useRef } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import type { ProjectSummary } from '@/service/project';
 import { cx } from '@/shared/ui';
 
-import {
-  PROJECT_LOAD_MORE_SKELETON_ROWS,
-  PROJECT_PAGE_SIZE,
-} from '../constants';
+import { PROJECT_LOAD_MORE_SKELETON_ROWS, PROJECT_PAGE_SIZE } from '../constants';
 import { useProjects } from '../hooks/useProjects';
 
 function projectHref(project: ProjectSummary): string {
@@ -22,24 +16,11 @@ function projectHref(project: ProjectSummary): string {
   );
 }
 
-function ProjectSkeletonRows({
-  count,
-  testId,
-}: {
-  count: number;
-  testId: string;
-}) {
+function ProjectSkeletonRows({ count, testId }: { count: number; testId: string }) {
   return (
-    <div
-      aria-hidden="true"
-      className="flex flex-col gap-0.5"
-      data-testid={testId}
-    >
+    <div aria-hidden="true" className="flex flex-col gap-0.5" data-testid={testId}>
       {Array.from({ length: count }, (_, index) => (
-        <div
-          key={index}
-          className="flex h-8 items-center px-2"
-        >
+        <div key={index} className="flex h-8 items-center px-2">
           <div className="h-3 w-full animate-pulse rounded-full bg-surface-skeleton" />
         </div>
       ))}
@@ -51,15 +32,8 @@ export function RecentProjects() {
   const { projectId: activeProjectId } = useParams<{
     projectId: string;
   }>();
-  const {
-    projects,
-    isLoading,
-    isLoadingMore,
-    hasMore,
-    error,
-    retryInitial,
-    loadMore,
-  } = useProjects();
+  const { projects, isLoading, isLoadingMore, hasMore, error, retryInitial, loadMore } =
+    useProjects();
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -99,20 +73,15 @@ export function RecentProjects() {
       </h2>
 
       {projects.length === 0 && isLoading && (
-        <div role="status">
+        <output className="block">
           <span className="sr-only">Loading recent projects</span>
-          <ProjectSkeletonRows
-            count={PROJECT_PAGE_SIZE}
-            testId="recent-projects-skeleton"
-          />
-        </div>
+          <ProjectSkeletonRows count={PROJECT_PAGE_SIZE} testId="recent-projects-skeleton" />
+        </output>
       )}
 
       {projects.length === 0 && !isLoading && error && (
         <div className="px-2 py-1">
-          <p className="m-0 text-xs leading-5 text-foreground-faint">
-            Recent projects unavailable
-          </p>
+          <p className="m-0 text-xs leading-5 text-foreground-faint">Recent projects unavailable</p>
           <button
             type="button"
             className="mt-1 text-xs text-foreground-muted hover:text-foreground-tertiary"
@@ -124,9 +93,7 @@ export function RecentProjects() {
       )}
 
       {projects.length === 0 && !isLoading && !error && (
-        <p className="m-0 px-2 py-1 text-xs text-foreground-faint">
-          No recent projects
-        </p>
+        <p className="m-0 px-2 py-1 text-xs text-foreground-faint">No recent projects</p>
       )}
 
       {projects.length > 0 && (
@@ -156,13 +123,13 @@ export function RecentProjects() {
           </nav>
 
           {isLoadingMore && (
-            <div className="mt-0.5" role="status">
+            <output className="mt-0.5 block">
               <span className="sr-only">Loading more recent projects</span>
               <ProjectSkeletonRows
                 count={PROJECT_LOAD_MORE_SKELETON_ROWS}
                 testId="recent-projects-loading-more"
               />
-            </div>
+            </output>
           )}
 
           {error && hasMore && !isLoadingMore && (

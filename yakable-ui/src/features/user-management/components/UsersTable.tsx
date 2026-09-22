@@ -64,7 +64,10 @@ export function UsersTable({
             const busy = busyUserId === user.id;
             return (
               <tr key={user.id} className="border-t border-border-quiet">
-                <td className="px-4 py-3">
+                <td
+                  className="px-4 py-3"
+                  aria-label={user.name + ', ' + (user.email || 'No email')}
+                >
                   <div className="min-w-36">
                     <div className="font-medium text-foreground">{user.name}</div>
                     <div className="mt-0.5 text-xs text-foreground-subtle">
@@ -74,22 +77,12 @@ export function UsersTable({
                 </td>
                 <td className="px-4 py-3 text-foreground-secondary">
                   {user.username}
-                  {self ? (
-                    <span className="ml-2 text-xs text-foreground-subtle">
-                      You
-                    </span>
-                  ) : null}
+                  {self ? <span className="ml-2 text-xs text-foreground-subtle">You</span> : null}
                 </td>
-                <td className="px-4 py-3">
-                  {user.role === 'ADMIN' ? 'Admin' : 'User'}
-                </td>
+                <td className="px-4 py-3">{user.role === 'ADMIN' ? 'Admin' : 'User'}</td>
                 <td className="px-4 py-3">
                   <span
-                    className={
-                      user.status === 'ACTIVE'
-                        ? 'text-success'
-                        : 'text-foreground-subtle'
-                    }
+                    className={user.status === 'ACTIVE' ? 'text-success' : 'text-foreground-subtle'}
                   >
                     {statusLabel(user.status)}
                   </span>
@@ -100,16 +93,12 @@ export function UsersTable({
                 <td className="whitespace-nowrap px-4 py-3 text-foreground-subtle">
                   {formatDate(user.createdAt)}
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3" aria-label={'Actions for ' + user.name}>
                   <div className="flex justify-end gap-1">
                     <Button size="sm" onClick={() => onEdit(user)} disabled={busy}>
                       Edit
                     </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => onResetPassword(user)}
-                      disabled={busy || self}
-                    >
+                    <Button size="sm" onClick={() => onResetPassword(user)} disabled={busy || self}>
                       Reset password
                     </Button>
                     <Button
@@ -118,11 +107,7 @@ export function UsersTable({
                       onClick={() => onToggleStatus(user)}
                       disabled={busy || self}
                     >
-                      {busy
-                        ? 'Updating…'
-                        : user.status === 'ACTIVE'
-                          ? 'Disable'
-                          : 'Enable'}
+                      {busy ? 'Updating…' : user.status === 'ACTIVE' ? 'Disable' : 'Enable'}
                     </Button>
                   </div>
                 </td>

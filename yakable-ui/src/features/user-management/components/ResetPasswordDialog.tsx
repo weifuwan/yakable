@@ -9,11 +9,7 @@ interface ResetPasswordDialogProps {
   onReset: () => void;
 }
 
-export function ResetPasswordDialog({
-  user,
-  onClose,
-  onReset,
-}: ResetPasswordDialogProps) {
+export function ResetPasswordDialog({ user, onClose, onReset }: ResetPasswordDialogProps) {
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
   const [saving, setSaving] = useState(false);
@@ -41,33 +37,24 @@ export function ResetPasswordDialog({
       });
       onReset();
     } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : 'Unable to reset password.',
-      );
+      setError(requestError instanceof Error ? requestError.message : 'Unable to reset password.');
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4"
-      role="dialog"
-      aria-modal="true"
+    <dialog
+      open
+      className="fixed inset-0 z-50 flex h-full w-full max-w-none items-center justify-center border-0 bg-black/20 p-4"
       aria-labelledby="reset-password-title"
     >
       <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-6">
-        <h2
-          id="reset-password-title"
-          className="m-0 text-lg font-semibold tracking-[-0.02em]"
-        >
+        <h2 id="reset-password-title" className="m-0 text-lg font-semibold tracking-[-0.02em]">
           Reset password
         </h2>
         <p className="mb-6 mt-1 text-sm text-foreground-subtle">
-          Reset the password for {user.name || user.username}. Existing
-          sessions will be signed out.
+          Reset the password for {user.name || user.username}. Existing sessions will be signed out.
         </p>
 
         <form className="space-y-4" onSubmit={submit}>
@@ -89,10 +76,7 @@ export function ResetPasswordDialog({
           </div>
 
           <div className="space-y-1.5">
-            <label
-              htmlFor="reset-password-confirmation"
-              className="text-sm font-medium"
-            >
+            <label htmlFor="reset-password-confirmation" className="text-sm font-medium">
               Confirm password
             </label>
             <Input
@@ -118,16 +102,12 @@ export function ResetPasswordDialog({
             <Button type="button" onClick={onClose} disabled={saving}>
               Cancel
             </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={saving || !password || !confirmation}
-            >
+            <Button type="submit" variant="primary" disabled={saving || !password || !confirmation}>
               {saving ? 'Resetting…' : 'Reset password'}
             </Button>
           </div>
         </form>
       </div>
-    </div>
+    </dialog>
   );
 }

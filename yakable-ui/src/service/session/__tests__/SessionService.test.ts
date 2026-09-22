@@ -3,11 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HttpUtils } from '@/service/http';
 
 import { SessionService } from '../SessionService';
-import type {
-  SessionSnapshot,
-  SessionTurn,
-  TurnStartResult,
-} from '../types';
+import type { SessionSnapshot, SessionTurn, TurnStartResult } from '../types';
 
 const succeededTurn: SessionTurn = {
   id: 'turn-1',
@@ -109,14 +105,11 @@ describe('SessionService', () => {
   it('loads a valid session from the encoded session path', async () => {
     const get = vi.spyOn(HttpUtils, 'get').mockResolvedValue(snapshot);
 
-    await expect(
-      SessionService.querySession('project 1', 'session/1'),
-    ).resolves.toEqual(snapshot);
+    await expect(SessionService.querySession('project 1', 'session/1')).resolves.toEqual(snapshot);
 
-    expect(get).toHaveBeenCalledWith(
-      '/api/projects/project%201/sessions/session%2F1',
-      { signal: undefined },
-    );
+    expect(get).toHaveBeenCalledWith('/api/projects/project%201/sessions/session%2F1', {
+      signal: undefined,
+    });
   });
 
   it('rejects an invalid session response as a parse error', async () => {
@@ -124,9 +117,7 @@ describe('SessionService', () => {
       session: { id: 'session-1' },
     });
 
-    await expect(
-      SessionService.querySession('project-1', 'session-1'),
-    ).rejects.toEqual(
+    await expect(SessionService.querySession('project-1', 'session-1')).rejects.toEqual(
       expect.objectContaining({
         name: 'ApiError',
         kind: 'parse',
@@ -189,15 +180,10 @@ describe('SessionService', () => {
         onEvent({ event: 'complete', data: { turnId: 'turn-2' } });
       });
 
-    await SessionService.watchTurn(
-      'project-1',
-      'session-1',
-      'turn-2',
-      {
-        onSnapshot,
-        onDelta,
-      },
-    );
+    await SessionService.watchTurn('project-1', 'session-1', 'turn-2', {
+      onSnapshot,
+      onDelta,
+    });
 
     expect(postSse).toHaveBeenCalledWith(
       '/api/projects/project-1/sessions/session-1/turns/turn-2/stream',
@@ -217,9 +203,9 @@ describe('SessionService', () => {
     };
     const post = vi.spyOn(HttpUtils, 'post').mockResolvedValue(stopped);
 
-    await expect(
-      SessionService.stopTurn('project-1', 'session-1', 'turn-2'),
-    ).resolves.toEqual(stopped);
+    await expect(SessionService.stopTurn('project-1', 'session-1', 'turn-2')).resolves.toEqual(
+      stopped,
+    );
 
     expect(post).toHaveBeenCalledWith(
       '/api/projects/project-1/sessions/session-1/turns/turn-2/stop',
@@ -229,14 +215,12 @@ describe('SessionService', () => {
   });
 
   it('turns a stream error event into a business error', async () => {
-    vi.spyOn(HttpUtils, 'postSse').mockImplementation(
-      async (_url, _body, onEvent) => {
-        onEvent({
-          event: 'error',
-          data: { message: 'Provider rejected the request.' },
-        });
-      },
-    );
+    vi.spyOn(HttpUtils, 'postSse').mockImplementation(async (_url, _body, onEvent) => {
+      onEvent({
+        event: 'error',
+        data: { message: 'Provider rejected the request.' },
+      });
+    });
 
     await expect(
       SessionService.streamingTurn(
@@ -258,12 +242,10 @@ describe('SessionService', () => {
   });
 
   it('fails when the streaming connection ends without complete', async () => {
-    vi.spyOn(HttpUtils, 'postSse').mockImplementation(
-      async (_url, _body, onEvent) => {
-        onEvent({ event: 'started', data: started });
-        onEvent({ event: 'delta', data: { content: 'Partial answer' } });
-      },
-    );
+    vi.spyOn(HttpUtils, 'postSse').mockImplementation(async (_url, _body, onEvent) => {
+      onEvent({ event: 'started', data: started });
+      onEvent({ event: 'delta', data: { content: 'Partial answer' } });
+    });
 
     await expect(
       SessionService.streamingTurn(

@@ -21,9 +21,7 @@ export function ProfilePage() {
   return (
     <div className="mx-auto w-full max-w-3xl px-6 py-10">
       <header className="mb-8">
-        <h1 className="m-0 text-2xl font-semibold tracking-[-0.03em]">
-          Profile
-        </h1>
+        <h1 className="m-0 text-2xl font-semibold tracking-[-0.03em]">Profile</h1>
         <p className="mb-0 mt-2 text-sm text-foreground-subtle">
           Manage your account information and password.
         </p>
@@ -33,20 +31,14 @@ export function ProfilePage() {
         <div className="mb-5">
           <h2 className="m-0 text-base font-semibold">Account information</h2>
           <p className="mb-0 mt-1 text-sm text-foreground-subtle">
-            Username{' '}
-            <strong className="font-medium text-foreground">
-              {user.username}
-            </strong>{' '}
-            cannot be changed.
+            Username <strong className="font-medium text-foreground">{user.username}</strong> cannot
+            be changed.
           </p>
         </div>
         <ProfileForm />
       </section>
 
-      <section
-        id="password"
-        className="mt-6 scroll-mt-6 rounded-2xl border border-border p-6"
-      >
+      <section id="password" className="mt-6 scroll-mt-6 rounded-2xl border border-border p-6">
         <div className="mb-5">
           <h2 className="m-0 text-base font-semibold">Password</h2>
           <p className="mb-0 mt-1 text-sm text-foreground-subtle">

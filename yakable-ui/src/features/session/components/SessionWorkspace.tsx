@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { ModelSelector, type ModelSelection } from '@/features/model';
 import { ProjectHeader } from '@/features/project';
@@ -14,13 +8,7 @@ import {
   type SessionMessage,
   type SessionSnapshot,
 } from '@/service/session';
-import {
-  cx,
-  Icon,
-  IconButton,
-  PromptComposer,
-  PromptComposerSkeleton,
-} from '@/shared/ui';
+import { cx, Icon, IconButton, PromptComposer, PromptComposerSkeleton } from '@/shared/ui';
 
 import { MessageItem } from './MessageItem';
 
@@ -32,49 +20,34 @@ const MESSAGE_PAGE_SIZE = 50;
 
 function hasActiveTurn(snapshot: SessionSnapshot | null) {
   return Boolean(
-    snapshot?.turns.some(
-      (turn) => turn.status === 'PENDING' || turn.status === 'RUNNING',
-    ),
+    snapshot?.turns.some((turn) => turn.status === 'PENDING' || turn.status === 'RUNNING'),
   );
 }
 
 function latestActiveTurnId(snapshot: SessionSnapshot | null) {
   return (
-    snapshot?.turns
-      .filter((turn) => turn.status === 'PENDING' || turn.status === 'RUNNING')
-      .at(-1)?.id ?? null
+    snapshot?.turns.filter((turn) => turn.status === 'PENDING' || turn.status === 'RUNNING').at(-1)
+      ?.id ?? null
   );
 }
 
 function isNearBottom(element: HTMLElement) {
   return (
-    element.scrollHeight - element.scrollTop - element.clientHeight <=
-    SCROLL_BOTTOM_THRESHOLD_PX
+    element.scrollHeight - element.scrollTop - element.clientHeight <= SCROLL_BOTTOM_THRESHOLD_PX
   );
 }
 
-function mergeChanges(
-  snapshot: SessionSnapshot,
-  changes: SessionChanges,
-): SessionSnapshot {
-  const hasLatestTurn = snapshot.turns.some(
-    (turn) => turn.id === changes.latestTurn.id,
-  );
+function mergeChanges(snapshot: SessionSnapshot, changes: SessionChanges): SessionSnapshot {
+  const hasLatestTurn = snapshot.turns.some((turn) => turn.id === changes.latestTurn.id);
 
   const turns = hasLatestTurn
-    ? snapshot.turns.map((turn) =>
-        turn.id === changes.latestTurn.id ? changes.latestTurn : turn,
-      )
+    ? snapshot.turns.map((turn) => (turn.id === changes.latestTurn.id ? changes.latestTurn : turn))
     : [...snapshot.turns, changes.latestTurn];
 
-  const existingSequences = new Set(
-    snapshot.messages.map((message) => message.sequence),
-  );
+  const existingSequences = new Set(snapshot.messages.map((message) => message.sequence));
   const messages = [
     ...snapshot.messages,
-    ...changes.messages.filter(
-      (message) => !existingSequences.has(message.sequence),
-    ),
+    ...changes.messages.filter((message) => !existingSequences.has(message.sequence)),
   ].sort((left, right) => left.sequence - right.sequence);
 
   return {
@@ -86,22 +59,14 @@ function mergeChanges(
 
 function SessionLoadingIndicator() {
   return (
-    <div
-      className="flex h-full items-center justify-center"
-      role="status"
-      aria-label="Loading session"
-    >
+    <output className="flex h-full items-center justify-center" aria-label="Loading session">
       <svg
         aria-hidden="true"
         className="size-5 animate-spin text-loading"
         viewBox="0 0 24 24"
         fill="none"
       >
-        <g
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-        >
+        <g stroke="currentColor" strokeWidth="2" strokeLinecap="round">
           <path d="M12 3v3" />
           <path d="m18.36 5.64-2.12 2.12" />
           <path d="M21 12h-3" />
@@ -112,19 +77,21 @@ function SessionLoadingIndicator() {
           <path d="m5.64 5.64 2.12 2.12" />
         </g>
       </svg>
-    </div>
+    </output>
   );
 }
 
-export function SessionWorkspace({
-  projectId,
-  sessionId,
-  onActivity,
-}: {
+interface SessionWorkspaceProps {
   projectId: string;
   sessionId: string;
   onActivity?: (sessionId: string, updatedAt: string) => void;
-}) {
+}
+
+export function SessionWorkspace(props: SessionWorkspaceProps) {
+  return <SessionWorkspaceContent key={props.projectId + ':' + props.sessionId} {...props} />;
+}
+
+function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWorkspaceProps) {
   const [snapshot, setSnapshot] = useState<SessionSnapshot | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -132,8 +99,7 @@ export function SessionWorkspace({
   const [watchedTurnId, setWatchedTurnId] = useState<string | null>(null);
   const [watchRetryVersion, setWatchRetryVersion] = useState(0);
   const [streamingContent, setStreamingContent] = useState('');
-  const [optimisticMessage, setOptimisticMessage] =
-    useState<SessionMessage | null>(null);
+  const [optimisticMessage, setOptimisticMessage] = useState<SessionMessage | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [isSessionLoading, setIsSessionLoading] = useState(true);
@@ -208,12 +174,8 @@ export function SessionWorkspace({
       setSnapshot((latest) => {
         if (!latest) return latest;
 
-        const existingSequences = new Set(
-          latest.messages.map((message) => message.sequence),
-        );
-        const older = page.messages.filter(
-          (message) => !existingSequences.has(message.sequence),
-        );
+        const existingSequences = new Set(latest.messages.map((message) => message.sequence));
+        const older = page.messages.filter((message) => !existingSequences.has(message.sequence));
 
         return {
           ...latest,
@@ -226,14 +188,11 @@ export function SessionWorkspace({
       window.requestAnimationFrame(() => {
         const currentElement = scrollRef.current;
         if (!currentElement) return;
-        currentElement.scrollTop +=
-          currentElement.scrollHeight - previousScrollHeight;
+        currentElement.scrollTop += currentElement.scrollHeight - previousScrollHeight;
       });
     } catch (requestError) {
       setLoadError(
-        requestError instanceof Error
-          ? requestError.message
-          : 'Unable to load earlier messages.',
+        requestError instanceof Error ? requestError.message : 'Unable to load earlier messages.',
       );
     } finally {
       loadingOlderRef.current = false;
@@ -257,25 +216,6 @@ export function SessionWorkspace({
   useEffect(() => {
     const controller = new AbortController();
 
-    initialScrollDoneRef.current = false;
-    followOutputRef.current = true;
-    setShowScrollBottom(false);
-    setSnapshot(null);
-    setLoadError(null);
-    setSendError(null);
-    setOptimisticMessage(null);
-    setStreamingTurnId(null);
-    setWatchedTurnId(null);
-    setWatchRetryVersion(0);
-    watchedTurnIdsRef.current.clear();
-    setStreamingContent('');
-    setIsGenerating(false);
-    loadingOlderRef.current = false;
-    setIsLoadingOlder(false);
-    setSelectedModel(null);
-    pendingRequestRef.current = null;
-    setIsSessionLoading(true);
-
     void SessionService.querySession(projectId, sessionId, controller.signal)
       .then((result) => {
         if (controller.signal.aborted) return;
@@ -286,9 +226,7 @@ export function SessionWorkspace({
       .catch((requestError: unknown) => {
         if (controller.signal.aborted) return;
         setLoadError(
-          requestError instanceof Error
-            ? requestError.message
-            : 'Unable to load session.',
+          requestError instanceof Error ? requestError.message : 'Unable to load session.',
         );
         setIsSessionLoading(false);
       });
@@ -299,7 +237,7 @@ export function SessionWorkspace({
   }, [projectId, sessionId]);
 
   useEffect(() => {
-    if (!snapshot) return;
+    if (!loadedSessionId) return;
 
     if (!initialScrollDoneRef.current) {
       initialScrollDoneRef.current = true;
@@ -310,27 +248,20 @@ export function SessionWorkspace({
     if (followOutputRef.current) {
       scrollToBottom();
     }
-  }, [
-    loadedSessionId,
-    messageCount,
-    optimisticMessage,
-    scrollToBottom,
-    streamingContent,
-  ]);
+  }, [loadedSessionId, messageCount, optimisticMessage, scrollToBottom, streamingContent]);
 
   const activeTurn = hasActiveTurn(snapshot);
   const activeTurnId = latestActiveTurnId(snapshot);
   const generating = isGenerating || activeTurn;
   const latestSequence = snapshot?.messages.at(-1)?.sequence ?? 0;
-  latestSequenceRef.current = latestSequence;
   const visibleStreamingTurnId = streamingTurnId ?? watchedTurnId;
 
   useEffect(() => {
-    if (
-      !activeTurnId ||
-      streamAbortRef.current ||
-      watchedTurnIdsRef.current.has(activeTurnId)
-    ) {
+    latestSequenceRef.current = latestSequence;
+  }, [latestSequence]);
+
+  useEffect(() => {
+    if (!activeTurnId || streamAbortRef.current || watchedTurnIdsRef.current.has(activeTurnId)) {
       return;
     }
 
@@ -372,15 +303,9 @@ export function SessionWorkspace({
       .then(async () => {
         if (disposed) return;
         try {
-          const changes = await SessionService.queryChanges(
-            projectId,
-            sessionId,
-            afterSequence,
-          );
+          const changes = await SessionService.queryChanges(projectId, sessionId, afterSequence);
           if (disposed) return;
-          setSnapshot((current) =>
-            current ? mergeChanges(current, changes) : current,
-          );
+          setSnapshot((current) => (current ? mergeChanges(current, changes) : current));
           setStreamingContent('');
           setLoadError(null);
         } catch {
@@ -392,21 +317,14 @@ export function SessionWorkspace({
 
         let shouldRewatch = true;
         try {
-          const changes = await SessionService.queryChanges(
-            projectId,
-            sessionId,
-            afterSequence,
-          );
+          const changes = await SessionService.queryChanges(projectId, sessionId, afterSequence);
           if (disposed) return;
 
-          setSnapshot((current) =>
-            current ? mergeChanges(current, changes) : current,
-          );
+          setSnapshot((current) => (current ? mergeChanges(current, changes) : current));
           setLoadError(null);
 
           shouldRewatch =
-            changes.latestTurn.status === 'PENDING' ||
-            changes.latestTurn.status === 'RUNNING';
+            changes.latestTurn.status === 'PENDING' || changes.latestTurn.status === 'RUNNING';
           if (!shouldRewatch) {
             setStreamingContent('');
           }
@@ -438,24 +356,16 @@ export function SessionWorkspace({
     let disposed = false;
 
     const timer = window.setInterval(() => {
-      void SessionService.queryChanges(
-        projectId,
-        sessionId,
-        latestSequence,
-      )
+      void SessionService.queryChanges(projectId, sessionId, latestSequence)
         .then((changes) => {
           if (disposed) return;
-          setSnapshot((current) =>
-            current ? mergeChanges(current, changes) : current,
-          );
+          setSnapshot((current) => (current ? mergeChanges(current, changes) : current));
           setLoadError(null);
         })
         .catch((requestError: unknown) => {
           if (disposed) return;
           setLoadError(
-            requestError instanceof Error
-              ? requestError.message
-              : 'Unable to refresh session.',
+            requestError instanceof Error ? requestError.message : 'Unable to refresh session.',
           );
         });
     }, SESSION_POLL_INTERVAL_MS);
@@ -464,19 +374,9 @@ export function SessionWorkspace({
       disposed = true;
       window.clearInterval(timer);
     };
-  }, [
-    activeTurn,
-    latestSequence,
-    projectId,
-    sessionId,
-    streamingTurnId,
-    watchedTurnId,
-  ]);
+  }, [activeTurn, latestSequence, projectId, sessionId, streamingTurnId, watchedTurnId]);
 
-  const latestTurn = useMemo(
-    () => snapshot?.turns.at(-1) ?? null,
-    [snapshot],
-  );
+  const latestTurn = useMemo(() => snapshot?.turns.at(-1) ?? null, [snapshot]);
 
   const streamingMessage: SessionMessage | null =
     visibleStreamingTurnId && streamingContent
@@ -540,14 +440,8 @@ export function SessionWorkspace({
           controller.signal,
         );
 
-        const changes = await SessionService.queryChanges(
-          projectId,
-          sessionId,
-          afterSequence,
-        );
-        setSnapshot((current) =>
-          current ? mergeChanges(current, changes) : current,
-        );
+        const changes = await SessionService.queryChanges(projectId, sessionId, afterSequence);
+        setSnapshot((current) => (current ? mergeChanges(current, changes) : current));
       } catch (requestError) {
         if (!established) {
           setOptimisticMessage(null);
@@ -555,23 +449,15 @@ export function SessionWorkspace({
         if (controller.signal.aborted && stopRequestedRef.current) return;
 
         try {
-          const changes = await SessionService.queryChanges(
-            projectId,
-            sessionId,
-            afterSequence,
-          );
-          setSnapshot((current) =>
-            current ? mergeChanges(current, changes) : current,
-          );
+          const changes = await SessionService.queryChanges(projectId, sessionId, afterSequence);
+          setSnapshot((current) => (current ? mergeChanges(current, changes) : current));
         } catch {
           // 保留原始流式错误。
         }
 
         if (!established) {
           setSendError(
-            requestError instanceof Error
-              ? requestError.message
-              : 'Unable to stream turn.',
+            requestError instanceof Error ? requestError.message : 'Unable to stream turn.',
           );
         }
       } finally {
@@ -597,18 +483,15 @@ export function SessionWorkspace({
     (content: string) => {
       if (!selectedModel) return false;
 
-      const fingerprint = [
-        selectedModel.provider,
-        selectedModel.model,
-        content,
-      ].join('\n');
+      const fingerprint = [selectedModel.provider, selectedModel.model, content].join('\n');
       const currentRequest = pendingRequestRef.current;
-      const pendingRequest = currentRequest?.fingerprint === fingerprint
-        ? currentRequest
-        : {
-            fingerprint,
-            requestId: globalThis.crypto.randomUUID(),
-          };
+      const pendingRequest =
+        currentRequest?.fingerprint === fingerprint
+          ? currentRequest
+          : {
+              fingerprint,
+              requestId: globalThis.crypto.randomUUID(),
+            };
       pendingRequestRef.current = pendingRequest;
       const requestId = pendingRequest.requestId;
 
@@ -672,22 +555,14 @@ export function SessionWorkspace({
           if (!current) return current;
           return {
             ...current,
-            turns: current.turns.map((turn) =>
-              turn.id === stopped.id ? stopped : turn,
-            ),
+            turns: current.turns.map((turn) => (turn.id === stopped.id ? stopped : turn)),
           };
         });
         setSendError(null);
 
         try {
-          const changes = await SessionService.queryChanges(
-            projectId,
-            sessionId,
-            latestSequence,
-          );
-          setSnapshot((current) =>
-            current ? mergeChanges(current, changes) : current,
-          );
+          const changes = await SessionService.queryChanges(projectId, sessionId, latestSequence);
+          setSnapshot((current) => (current ? mergeChanges(current, changes) : current));
           setStreamingTurnId(null);
           setStreamingContent('');
         } catch {
@@ -696,9 +571,7 @@ export function SessionWorkspace({
       })
       .catch((requestError: unknown) => {
         setSendError(
-          requestError instanceof Error
-            ? requestError.message
-            : 'Unable to stop generation.',
+          requestError instanceof Error ? requestError.message : 'Unable to stop generation.',
         );
       })
       .finally(() => {
@@ -741,12 +614,9 @@ export function SessionWorkspace({
               )}
 
               {isLoadingOlder && (
-                <p
-                  className="m-0 text-center text-xs text-foreground-subtle"
-                  role="status"
-                >
+                <output className="block text-center text-xs text-foreground-subtle">
                   Loading earlier messages...
-                </p>
+                </output>
               )}
 
               {snapshot?.messages.map((message) => (
@@ -754,23 +624,15 @@ export function SessionWorkspace({
               ))}
 
               {optimisticMessage && (
-                <MessageItem
-                  key={optimisticMessage.id}
-                  message={optimisticMessage}
-                />
+                <MessageItem key={optimisticMessage.id} message={optimisticMessage} />
               )}
 
               {streamingMessage && (
-                <MessageItem
-                  key={streamingMessage.id}
-                  message={streamingMessage}
-                />
+                <MessageItem key={streamingMessage.id} message={streamingMessage} />
               )}
 
               {generating && !streamingContent && (
-                <p className="m-0 px-1 text-sm text-foreground-subtle" role="status">
-                  Thinking...
-                </p>
+                <output className="block px-1 text-sm text-foreground-subtle">Thinking...</output>
               )}
 
               {latestTurn?.status === 'FAILED' && (

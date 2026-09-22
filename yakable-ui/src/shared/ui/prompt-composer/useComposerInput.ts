@@ -8,14 +8,9 @@ import {
   type KeyboardEvent,
 } from 'react';
 
-export type PromptComposerSubmitResult =
-  | void
-  | boolean
-  | Promise<void | boolean>;
+export type PromptComposerSubmitResult = void | boolean | Promise<void | boolean>;
 
-export type PromptComposerSubmitHandler = (
-  value: string,
-) => PromptComposerSubmitResult;
+export type PromptComposerSubmitHandler = (value: string) => PromptComposerSubmitResult;
 
 const MIN_TEXTAREA_HEIGHT = 56;
 const MAX_TEXTAREA_HEIGHT = 160;
@@ -32,8 +27,7 @@ function resizeTextarea(element: HTMLTextAreaElement | null) {
   );
 
   element.style.height = `${nextHeight}px`;
-  element.style.overflowY =
-    element.scrollHeight > MAX_TEXTAREA_HEIGHT ? 'auto' : 'hidden';
+  element.style.overflowY = element.scrollHeight > MAX_TEXTAREA_HEIGHT ? 'auto' : 'hidden';
 }
 
 export function useComposerInput({
@@ -50,11 +44,7 @@ export function useComposerInput({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const normalizedValue = value.trim();
-  const canSubmit =
-    Boolean(onSubmit) &&
-    normalizedValue.length > 0 &&
-    !disabled &&
-    !isSubmitting;
+  const canSubmit = Boolean(onSubmit) && normalizedValue.length > 0 && !disabled && !isSubmitting;
 
   useLayoutEffect(() => {
     resizeTextarea(textareaRef.current);

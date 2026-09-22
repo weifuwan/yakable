@@ -161,9 +161,7 @@ describe('UserService', () => {
       pageSize: 20,
     });
 
-    await expect(
-      UserService.queryUser({ current: 1, pageSize: 20 }),
-    ).rejects.toMatchObject({
+    await expect(UserService.queryUser({ current: 1, pageSize: 20 })).rejects.toMatchObject({
       name: 'ApiError',
       kind: 'parse',
     });

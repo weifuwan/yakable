@@ -30,16 +30,13 @@ describe('UsersTable', () => {
     );
 
     expect(
-      (screen.getByRole('button', { name: 'Reset password' }) as HTMLButtonElement)
-        .disabled,
+      (screen.getByRole('button', { name: 'Reset password' }) as HTMLButtonElement).disabled,
     ).toBe(true);
-    expect(
-      (screen.getByRole('button', { name: 'Disable' }) as HTMLButtonElement)
-        .disabled,
-    ).toBe(true);
-    expect(
-      (screen.getByRole('button', { name: 'Edit' }) as HTMLButtonElement)
-        .disabled,
-    ).toBe(false);
+    expect((screen.getByRole('button', { name: 'Disable' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+    expect((screen.getByRole('button', { name: 'Edit' }) as HTMLButtonElement).disabled).toBe(
+      false,
+    );
   });
 });

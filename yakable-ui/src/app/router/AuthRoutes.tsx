@@ -4,12 +4,9 @@ import { useAuth } from '@/features/auth';
 
 function AuthLoading() {
   return (
-    <div
-      className="flex h-full items-center justify-center bg-background text-sm text-foreground-subtle"
-      role="status"
-    >
+    <output className="flex h-full items-center justify-center bg-background text-sm text-foreground-subtle">
       Loading…
-    </div>
+    </output>
   );
 }
 

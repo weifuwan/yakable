@@ -1,10 +1,5 @@
 export type SessionRole = 'USER' | 'ASSISTANT';
-export type TurnStatus =
-  | 'PENDING'
-  | 'RUNNING'
-  | 'SUCCEEDED'
-  | 'FAILED'
-  | 'STOPPED';
+export type TurnStatus = 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'STOPPED';
 
 export interface SessionModel {
   provider: string;

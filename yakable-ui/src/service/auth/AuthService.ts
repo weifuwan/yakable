@@ -10,10 +10,7 @@ function invalidUser(data: unknown): never {
   });
 }
 
-async function login(
-  input: LoginInput,
-  signal?: AbortSignal,
-): Promise<CurrentUser> {
+async function login(input: LoginInput, signal?: AbortSignal): Promise<CurrentUser> {
   const data = await HttpUtils.post<unknown>('/api/auth/login', input, {
     signal,
   });
@@ -24,9 +21,7 @@ async function logout(signal?: AbortSignal) {
   await HttpUtils.post<null>('/api/auth/logout', {}, { signal });
 }
 
-async function queryCurrentUser(
-  signal?: AbortSignal,
-): Promise<CurrentUser> {
+async function queryCurrentUser(signal?: AbortSignal): Promise<CurrentUser> {
   const data = await HttpUtils.get<unknown>('/api/auth/me', { signal });
   return isCurrentUser(data) ? data : invalidUser(data);
 }

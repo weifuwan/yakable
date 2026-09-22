@@ -41,11 +41,7 @@ export function PasswordForm({ onChanged }: PasswordFormProps) {
       invalidate();
       onChanged();
     } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : 'Unable to change password.',
-      );
+      setError(requestError instanceof Error ? requestError.message : 'Unable to change password.');
     } finally {
       setSaving(false);
     }
@@ -83,9 +79,7 @@ export function PasswordForm({ onChanged }: PasswordFormProps) {
           disabled={saving}
           required
         />
-        <p className="m-0 text-xs text-foreground-subtle">
-          Use 8–64 characters.
-        </p>
+        <p className="m-0 text-xs text-foreground-subtle">Use 8–64 characters.</p>
       </div>
 
       <div className="space-y-1.5">

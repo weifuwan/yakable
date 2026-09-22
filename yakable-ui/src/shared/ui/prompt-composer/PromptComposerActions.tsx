@@ -63,10 +63,7 @@ export function PromptComposerActions({
             className="cursor-pointer disabled:cursor-default"
           >
             {stoppingEnabled ? (
-              <span
-                aria-hidden="true"
-                className="size-2.5 rounded-[2px] bg-primary-foreground"
-              />
+              <span aria-hidden="true" className="size-2.5 rounded-[2px] bg-primary-foreground" />
             ) : isSubmitting ? (
               <span
                 aria-hidden="true"

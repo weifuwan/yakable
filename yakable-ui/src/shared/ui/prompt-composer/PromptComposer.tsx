@@ -4,10 +4,7 @@ import { cx } from '../cx';
 import { PromptComposerActions } from './PromptComposerActions';
 import { PromptComposerAnimatedPlaceholder } from './PromptComposerAnimatedPlaceholder';
 import { PromptComposerSurfaceEffects } from './PromptComposerSurfaceEffects';
-import {
-  useComposerInput,
-  type PromptComposerSubmitHandler,
-} from './useComposerInput';
+import { useComposerInput, type PromptComposerSubmitHandler } from './useComposerInput';
 import './prompt-composer.css';
 
 export interface PromptComposerProps {
@@ -58,28 +55,13 @@ export function PromptComposer({
     onSubmit,
   });
 
-  const animatedPlaceholder =
-    Boolean(placeholderPrefix) &&
-    Boolean(placeholderSuggestions?.length);
+  const animatedPlaceholder = Boolean(placeholderPrefix) && Boolean(placeholderSuggestions?.length);
 
   return (
-    <div
-      className={cx(
-        'yak-composer-root',
-        disabled && 'opacity-55',
-        className,
-      )}
-    >
-      <span
-        aria-hidden="true"
-        data-testid="prompt-composer-halo"
-        className="yak-composer-halo"
-      />
+    <div className={cx('yak-composer-root', disabled && 'opacity-55', className)}>
+      <span aria-hidden="true" data-testid="prompt-composer-halo" className="yak-composer-halo" />
 
-      <div
-        data-testid="prompt-composer-surface"
-        className="yak-composer-surface p-3"
-      >
+      <div data-testid="prompt-composer-surface" className="yak-composer-surface p-3">
         <PromptComposerSurfaceEffects />
 
         <div className="relative z-10">

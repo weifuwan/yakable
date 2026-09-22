@@ -1,6 +1,6 @@
 export function PlaceholderPage({
   title,
-  description = "This page is ready for future content.",
+  description = 'This page is ready for future content.',
 }: {
   title: string;
   description?: string;
@@ -11,9 +11,7 @@ export function PlaceholderPage({
         <h1 className="m-0 text-2xl font-semibold tracking-[-0.025em] text-title-foreground">
           {title}
         </h1>
-        <p className="mb-0 mt-2 text-sm leading-6 text-foreground-muted">
-          {description}
-        </p>
+        <p className="mb-0 mt-2 text-sm leading-6 text-foreground-muted">{description}</p>
       </div>
     </div>
   );

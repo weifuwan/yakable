@@ -42,9 +42,7 @@ export function ModelSelector({
       surface={surface}
       className="max-w-40"
       onValueChange={(nextValue) => {
-        const selected = models.find(
-          (model) => modelValue(model) === nextValue,
-        );
+        const selected = models.find((model) => modelValue(model) === nextValue);
 
         if (!selected) return;
 
