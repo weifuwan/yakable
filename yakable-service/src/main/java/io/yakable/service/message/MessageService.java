@@ -29,7 +29,7 @@ public interface MessageService {
     /**
      * 查询 Session 下的 USER Message。
      */
-    List<MessageVO> queryUserMessageList(String sessionId);
+    List<MessageVO> queryUserNavigationMessageList(String sessionId);
 
     /**
      * 查询 Session 下的 Message。
