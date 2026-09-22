@@ -1,6 +1,6 @@
 # Streaming
 
-Status: Implementing
+Status: Review
 Domain: Conversation
 
 Depends On:
@@ -61,19 +61,14 @@ Tests:
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
 
-Implementation Design:
-- TurnStreamState 继续用 eventLock 保护 content / terminal / watcher membership 与事件入队顺序。
-- eventLock 内禁止执行 TurnStreamListener 外部 callback。
-- 每个 watcher 包装成独立 WatcherSubscription，拥有自己的串行 delivery mailbox。
-- snapshot / delta / terminal 在 eventLock 内按发生顺序写入对应 watcher mailbox，因此继续保持 GAP-02 的 snapshot → future delta → terminal 契约。
-- mailbox 由 ThreadUtils 的独立虚拟线程异步 drain；SseEmitter.send 只发生在 watcher delivery 线程，不占用 Turn eventLock，也不占用 Provider Execution 线程。
-- 相邻未发送 delta 在 mailbox 中合并成一个 delta chunk；单 Turn 总内容仍受 MessageConstant.MAX_CONTENT_LENGTH 约束，避免慢 watcher 按 token 数无限堆积事件对象。
-- unsubscribe 会关闭对应 WatcherSubscription、丢弃未发送事件并取消其 delivery task，不影响其他 watcher。
-- 本次不修改 SSE API、Turn 状态机、Reconnect API、Stop API、数据库或前端。
-
 Review Notes:
-- GAP-02 的事件顺序约束必须在本次实现后继续成立。
-- GAP-03 的多 watcher STOPPED 收敛行为必须继续成立。
+- GAP-04 已实现：TurnStreamState 的 eventLock 只保护 content / terminal / watcher membership 与事件入队，不再执行外部 TurnStreamListener callback。
+- 每个 watcher 使用独立 WatcherSubscription 串行 mailbox，通过 ThreadUtils 虚拟线程异步 delivery。
+- snapshot / future delta / terminal 仍按 eventLock 中的入队顺序进入同一个 watcher mailbox，继续满足 GAP-02 的顺序契约。
+- 慢 watcher 的相邻 pending delta 会合并为一个 chunk；mailbox 不按 token 数无限增长，文本总量继续受 MessageConstant.MAX_CONTENT_LENGTH 约束。
+- 已新增慢 watcher 回归测试，保护“慢 watcher 不阻塞其他 watcher，也不阻塞 explicit Stop”。
+- 既有 GAP-02 snapshot ordering 与 GAP-03 multi-watcher STOPPED 测试已调整为等待异步 delivery。
+- 当前执行环境无法解析 github.com，目标 Maven 测试尚未实际执行；测试通过前保持 Review。
 
 ## Purpose
 
