@@ -10,6 +10,7 @@ import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class MessageServiceImpl implements MessageService {
@@ -28,6 +29,11 @@ public class MessageServiceImpl implements MessageService {
         entity.setMessageSequence(messageRepository.queryNextMessageSequence(sessionId));
         messageRepository.add(entity);
         return toMessageVO(entity);
+    }
+
+    @Override
+    public Optional<MessageVO> queryUserMessage(String turnId) {
+        return messageRepository.queryUserMessage(turnId).map(MessageServiceImpl::toMessageVO);
     }
 
     @Override
