@@ -2,6 +2,7 @@ package io.yakable.boot.controller.session;
 
 import io.yakable.boot.configuration.exception.GlobalExceptionHandler;
 import io.yakable.common.bean.dto.session.AddTurnDTO;
+import io.yakable.common.bean.dto.session.WatchTurnDTO;
 import io.yakable.common.bean.vo.session.MessageVO;
 import io.yakable.common.bean.vo.session.TurnInvocationVO;
 import io.yakable.common.bean.vo.session.TurnStartVO;
@@ -10,10 +11,8 @@ import io.yakable.common.bean.vo.user.CurrentUserVO;
 import io.yakable.common.enums.session.MessageRoleEnum;
 import io.yakable.common.enums.session.SessionErrorCode;
 import io.yakable.common.exception.SessionException;
-import io.yakable.core.llm.LlmResponse;
-import io.yakable.core.llm.LlmStreamEvent;
-import io.yakable.core.llm.LlmUsage;
 import io.yakable.service.session.SessionService;
+import io.yakable.service.session.TurnStreamListener;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,13 +30,13 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
@@ -156,18 +155,14 @@ class SessionControllerTest {
         TurnStartVO started = turnStart("turn-1", "message-1");
         when(sessionService.addStreamingTurn(any(AddTurnDTO.class))).thenReturn(started);
 
-        doAnswer(invocation -> {
-            Consumer<LlmStreamEvent> consumer = invocation.getArgument(1);
-            consumer.accept(LlmStreamEvent.delta("Hello"));
-            consumer.accept(LlmStreamEvent.complete(new LlmResponse(
-                    "deepseek",
-                    "deepseek-flash",
-                    "Hello",
-                    new LlmUsage(10L, 2L, 12L),
-                    "req-1",
-                    "stop")));
-            return null;
-        }).when(sessionService).executeTurnStreamingAsync(eq("turn-1"), any(), any());
+        when(sessionService.watchTurn(any(WatchTurnDTO.class), any(TurnStreamListener.class)))
+                .thenAnswer(invocation -> {
+                    TurnStreamListener listener = invocation.getArgument(1);
+                    listener.onDelta("Hello");
+                    listener.onComplete();
+                    return (Runnable) () -> {
+                    };
+                });
 
         MvcResult result = mockMvc.perform(post("/api/projects/project-1/sessions/session-1/turns/stream")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -184,6 +179,7 @@ class SessionControllerTest {
         ArgumentCaptor<AddTurnDTO> captor = ArgumentCaptor.forClass(AddTurnDTO.class);
         verify(sessionService).addStreamingTurn(captor.capture());
         assertThat(captor.getValue().userId()).isEqualTo("user-1");
+        verify(sessionService).executeTurnAsync("turn-1");
 
         mockMvc.perform(asyncDispatch(result))
                 .andExpect(status().isOk())
@@ -193,6 +189,34 @@ class SessionControllerTest {
                 .andExpect(content().string(containsString("Hello")))
                 .andExpect(content().string(containsString("event:complete")))
                 .andExpect(content().string(containsString("turn-1")));
+    }
+
+    @Test
+    void shouldWatchExistingTurnWithoutStoppingIt() throws Exception {
+        when(sessionService.watchTurn(any(WatchTurnDTO.class), any(TurnStreamListener.class)))
+                .thenAnswer(invocation -> {
+                    TurnStreamListener listener = invocation.getArgument(1);
+                    listener.onSnapshot("Partial");
+                    listener.onDelta(" answer");
+                    listener.onComplete();
+                    return (Runnable) () -> {
+                    };
+                });
+
+        MvcResult result = mockMvc.perform(
+                        post("/api/projects/project-1/sessions/session-1/turns/turn-1/stream"))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        mockMvc.perform(asyncDispatch(result))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("event:snapshot")))
+                .andExpect(content().string(containsString("Partial")))
+                .andExpect(content().string(containsString("event:delta")))
+                .andExpect(content().string(containsString("answer")))
+                .andExpect(content().string(containsString("event:complete")));
+
+        verify(sessionService, never()).stopTurn(any());
     }
 
     private static TurnStartVO turnStart(String turnId, String messageId) {

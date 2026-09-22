@@ -6,6 +6,7 @@ import io.yakable.common.Result;
 import io.yakable.common.bean.dto.session.AddTurnDTO;
 import io.yakable.common.bean.dto.session.AddTurnRequestDTO;
 import io.yakable.common.bean.dto.session.StopTurnDTO;
+import io.yakable.common.bean.dto.session.WatchTurnDTO;
 import io.yakable.common.bean.dto.session.QuerySessionChangesDTO;
 import io.yakable.common.bean.dto.session.QuerySessionDTO;
 import io.yakable.common.bean.dto.session.QuerySessionMessagesDTO;
@@ -16,7 +17,7 @@ import io.yakable.common.bean.vo.session.TurnStartVO;
 import io.yakable.common.bean.vo.session.TurnVO;
 import io.yakable.common.bean.vo.user.CurrentUserVO;
 import io.yakable.common.utils.StringUtils;
-import io.yakable.core.llm.LlmStreamEvent;
+import io.yakable.service.session.TurnStreamListener;
 import io.yakable.service.session.SessionService;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletResponse;
@@ -32,6 +33,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Tag(name = "Session", description = "Session 会话管理")
@@ -117,46 +119,99 @@ public class SessionController {
         TurnStartVO started = sessionService.addStreamingTurn(
                 new AddTurnDTO(
                         projectId, sessionId, dto.provider(), dto.model(), dto.content(), currentUser.getId()));
-        SseEmitter emitter = new SseEmitter(sseTimeout.toMillis());
-        AtomicBoolean closed = new AtomicBoolean();
 
+        SseEmitter emitter = newEmitter(response);
+        AtomicBoolean closed = new AtomicBoolean();
+        send(emitter, closed, "started", started);
+
+        watchTurn(
+                emitter,
+                closed,
+                new WatchTurnDTO(projectId, sessionId, started.getTurn().getId(), currentUser.getId()));
+        sessionService.executeTurnAsync(started.getTurn().getId());
+        return emitter;
+    }
+
+    @Operation(summary = "订阅已有 Turn 流式输出")
+    @PostMapping(value = "/{sessionId}/turns/{turnId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter watchTurn(
+            @PathVariable String projectId,
+            @PathVariable String sessionId,
+            @PathVariable String turnId,
+            HttpServletResponse response,
+            @AuthenticationPrincipal CurrentUserVO currentUser) {
+        SseEmitter emitter = newEmitter(response);
+        AtomicBoolean closed = new AtomicBoolean();
+        watchTurn(
+                emitter,
+                closed,
+                new WatchTurnDTO(projectId, sessionId, turnId, currentUser.getId()));
+        return emitter;
+    }
+
+    private SseEmitter newEmitter(HttpServletResponse response) {
         response.setHeader(HttpHeaders.CACHE_CONTROL, "no-cache");
         response.setHeader("X-Accel-Buffering", "no");
-        StopTurnDTO stop = new StopTurnDTO(projectId, sessionId, started.getTurn().getId(), currentUser.getId());
-        emitter.onCompletion(() -> closed.set(true));
+        return new SseEmitter(sseTimeout.toMillis());
+    }
+
+    private void watchTurn(SseEmitter emitter, AtomicBoolean closed, WatchTurnDTO dto) {
+        AtomicReference<Runnable> unsubscribe = new AtomicReference<>(() -> {
+        });
+
+        Runnable cleanup = () -> unsubscribe.get().run();
+        emitter.onCompletion(() -> {
+            closed.set(true);
+            cleanup.run();
+        });
         emitter.onTimeout(() -> {
-            sessionService.stopTurn(stop);
+            cleanup.run();
             complete(emitter, closed);
         });
         emitter.onError(error -> {
             closed.set(true);
-            sessionService.stopTurn(stop);
+            cleanup.run();
         });
 
-        send(emitter, closed, "started", started);
-        sessionService.executeTurnStreamingAsync(
-                started.getTurn().getId(),
-                event -> handleStreamEvent(emitter, closed, started.getTurn().getId(), event),
-                exception -> handleStreamError(emitter, closed, exception));
-        return emitter;
-    }
+        TurnStreamListener listener = new TurnStreamListener() {
+            @Override
+            public void onSnapshot(String content) {
+                send(emitter, closed, "snapshot", Map.of("content", content));
+            }
 
-    private static void handleStreamEvent(
-            SseEmitter emitter, AtomicBoolean closed, String turnId, LlmStreamEvent event) {
-        if (event.type() == LlmStreamEvent.Type.DELTA) {
-            send(emitter, closed, "delta", Map.of("content", event.delta()));
-            return;
+            @Override
+            public void onDelta(String content) {
+                send(emitter, closed, "delta", Map.of("content", content));
+            }
+
+            @Override
+            public void onComplete() {
+                send(emitter, closed, "complete", Map.of("turnId", dto.turnId()));
+                complete(emitter, closed);
+            }
+
+            @Override
+            public void onError(String message) {
+                send(
+                        emitter,
+                        closed,
+                        "error",
+                        Map.of("message", StringUtils.isBlank(message) ? "Streaming turn failed." : message));
+                complete(emitter, closed);
+            }
+
+            @Override
+            public void onStopped() {
+                send(emitter, closed, "stopped", Map.of("turnId", dto.turnId()));
+                complete(emitter, closed);
+            }
+        };
+
+        Runnable current = sessionService.watchTurn(dto, listener);
+        unsubscribe.set(current);
+        if (closed.get()) {
+            current.run();
         }
-        send(emitter, closed, "complete", Map.of("turnId", turnId));
-        complete(emitter, closed);
-    }
-
-    private static void handleStreamError(SseEmitter emitter, AtomicBoolean closed, RuntimeException exception) {
-        String message = StringUtils.isBlank(exception.getMessage())
-                ? "Streaming turn failed."
-                : exception.getMessage();
-        send(emitter, closed, "error", Map.of("message", message));
-        complete(emitter, closed);
     }
 
     private static void send(SseEmitter emitter, AtomicBoolean closed, String event, Object data) {

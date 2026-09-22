@@ -420,6 +420,73 @@ describe('SessionWorkspace', () => {
     });
   });
 
+  it('reconnects to the same active Turn after restoring a Session', async () => {
+    let handlers:
+      | Parameters<typeof SessionService.watchTurn>[3]
+      | undefined;
+    let resolveWatch!: () => void;
+
+    const recoveringSnapshot: SessionSnapshot = {
+      ...runningSnapshot,
+      messages: [
+        {
+          ...started.userMessage,
+          content: 'Continue',
+        },
+      ],
+    };
+
+    vi.spyOn(SessionService, 'querySession').mockResolvedValue(
+      recoveringSnapshot,
+    );
+    vi.spyOn(SessionService, 'queryChanges').mockResolvedValue(
+      completedChanges,
+    );
+    const watchTurn = vi
+      .spyOn(SessionService, 'watchTurn')
+      .mockImplementation(
+        async (
+          _projectId,
+          _sessionId,
+          _turnId,
+          nextHandlers,
+        ) => {
+          handlers = nextHandlers;
+          await new Promise<void>((resolve) => {
+            resolveWatch = resolve;
+          });
+        },
+      );
+
+    render(
+      <SessionWorkspace
+        projectId="project-1"
+        sessionId="session-1"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(watchTurn).toHaveBeenCalledWith(
+        'project-1',
+        'session-1',
+        'turn-2',
+        expect.any(Object),
+        expect.anything(),
+      );
+    });
+
+    await act(async () => {
+      handlers?.onSnapshot('Partial');
+      handlers?.onDelta(' answer');
+    });
+
+    expect(await screen.findByText('Partial answer')).toBeTruthy();
+
+    await act(async () => {
+      resolveWatch();
+    });
+  });
+
   it('stops an active turn and keeps the partial answer visible', async () => {
     const user = userEvent.setup();
     const stopTurn = vi
@@ -431,6 +498,9 @@ describe('SessionWorkspace', () => {
     );
     vi.spyOn(SessionService, 'queryChanges').mockResolvedValue(
       stoppedChanges,
+    );
+    vi.spyOn(SessionService, 'watchTurn').mockImplementation(
+      async () => new Promise<void>(() => {}),
     );
 
     render(

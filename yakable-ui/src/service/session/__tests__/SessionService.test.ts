@@ -134,12 +134,14 @@ describe('SessionService', () => {
 
   it('delivers started and delta events and completes the stream', async () => {
     const onStarted = vi.fn();
+    const onSnapshot = vi.fn();
     const onDelta = vi.fn();
 
     const postSse = vi
       .spyOn(HttpUtils, 'postSse')
       .mockImplementation(async (_url, _body, onEvent) => {
         onEvent({ event: 'started', data: started });
+        onEvent({ event: 'snapshot', data: { content: 'Already ' } });
         onEvent({ event: 'delta', data: { content: 'Hello ' } });
         onEvent({ event: 'delta', data: { content: 'world' } });
         onEvent({ event: 'complete', data: { turnId: 'turn-2' } });
@@ -152,6 +154,7 @@ describe('SessionService', () => {
       selectedModel,
       {
         onStarted,
+        onSnapshot,
         onDelta,
       },
     );
@@ -167,7 +170,39 @@ describe('SessionService', () => {
       { signal: undefined },
     );
     expect(onStarted).toHaveBeenCalledWith(started);
+    expect(onSnapshot).toHaveBeenCalledWith('Already ');
     expect(onDelta.mock.calls).toEqual([['Hello '], ['world']]);
+  });
+
+  it('watches an existing Turn and replays the current snapshot', async () => {
+    const onSnapshot = vi.fn();
+    const onDelta = vi.fn();
+    const postSse = vi
+      .spyOn(HttpUtils, 'postSse')
+      .mockImplementation(async (_url, _body, onEvent) => {
+        onEvent({ event: 'snapshot', data: { content: 'Partial' } });
+        onEvent({ event: 'delta', data: { content: ' answer' } });
+        onEvent({ event: 'complete', data: { turnId: 'turn-2' } });
+      });
+
+    await SessionService.watchTurn(
+      'project-1',
+      'session-1',
+      'turn-2',
+      {
+        onSnapshot,
+        onDelta,
+      },
+    );
+
+    expect(postSse).toHaveBeenCalledWith(
+      '/api/projects/project-1/sessions/session-1/turns/turn-2/stream',
+      {},
+      expect.any(Function),
+      { signal: undefined },
+    );
+    expect(onSnapshot).toHaveBeenCalledWith('Partial');
+    expect(onDelta).toHaveBeenCalledWith(' answer');
   });
 
   it('stops a Turn through the stop endpoint', async () => {

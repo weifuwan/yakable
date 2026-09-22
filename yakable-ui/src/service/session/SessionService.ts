@@ -232,7 +232,9 @@ async function streamingTurn(
   model: SessionModel,
   handlers: {
     onStarted: (result: TurnStartResult) => void;
+    onSnapshot?: (content: string) => void;
     onDelta: (content: string) => void;
+    onStopped?: () => void;
   },
   signal?: AbortSignal,
 ) {
@@ -254,6 +256,14 @@ async function streamingTurn(
         return;
       }
 
+      if (event === 'snapshot') {
+        if (!isRecord(data) || typeof data.content !== 'string') {
+          invalidResponse('Streaming snapshot event is invalid.', data);
+        }
+        handlers.onSnapshot?.(data.content);
+        return;
+      }
+
       if (event === 'delta') {
         if (!isRecord(data) || typeof data.content !== 'string') {
           invalidResponse('Streaming delta event is invalid.', data);
@@ -272,11 +282,82 @@ async function streamingTurn(
       }
 
       if (event === 'complete') completed = true;
+      if (event === 'stopped') {
+        completed = true;
+        handlers.onStopped?.();
+      }
     },
     { signal },
   );
 
   if (!completed) {
+    throw new ApiError('Streaming connection ended before completion.', {
+      kind: 'network',
+    });
+  }
+}
+
+
+async function watchTurn(
+  projectId: string,
+  sessionId: string,
+  turnId: string,
+  handlers: {
+    onSnapshot: (content: string) => void;
+    onDelta: (content: string) => void;
+    onStopped?: () => void;
+  },
+  signal?: AbortSignal,
+) {
+  let terminal = false;
+
+  await HttpUtils.postSse(
+    sessionPath(projectId, sessionId) +
+      '/turns/' +
+      encodeURIComponent(turnId) +
+      '/stream',
+    {},
+    ({ event, data }) => {
+      if (event === 'snapshot') {
+        if (!isRecord(data) || typeof data.content !== 'string') {
+          invalidResponse('Streaming snapshot event is invalid.', data);
+        }
+        handlers.onSnapshot(data.content);
+        return;
+      }
+
+      if (event === 'delta') {
+        if (!isRecord(data) || typeof data.content !== 'string') {
+          invalidResponse('Streaming delta event is invalid.', data);
+        }
+        handlers.onDelta(data.content);
+        return;
+      }
+
+      if (event === 'error') {
+        terminal = true;
+        throw new ApiError(
+          isRecord(data) && typeof data.message === 'string'
+            ? data.message
+            : 'Streaming turn failed.',
+          { kind: 'business', data },
+        );
+      }
+
+      if (event === 'complete') {
+        terminal = true;
+        return;
+      }
+
+      if (event === 'stopped') {
+        terminal = true;
+        handlers.onStopped?.();
+      }
+    },
+    { signal },
+  );
+
+  if (!terminal) {
     throw new ApiError('Streaming connection ended before completion.', {
       kind: 'network',
     });
@@ -290,4 +371,5 @@ export const SessionService = {
   addTurn,
   stopTurn,
   streamingTurn,
+  watchTurn,
 };

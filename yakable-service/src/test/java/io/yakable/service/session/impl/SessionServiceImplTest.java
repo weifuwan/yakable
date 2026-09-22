@@ -3,6 +3,7 @@ package io.yakable.service.session.impl;
 import io.yakable.common.bean.dto.session.AddSessionDTO;
 import io.yakable.common.bean.dto.session.AddTurnDTO;
 import io.yakable.common.bean.dto.session.StopTurnDTO;
+import io.yakable.common.bean.dto.session.WatchTurnDTO;
 import io.yakable.common.bean.dto.session.QuerySessionDTO;
 import io.yakable.common.bean.dto.session.QuerySessionMessagesDTO;
 import io.yakable.common.bean.vo.session.MessageVO;
@@ -19,9 +20,13 @@ import io.yakable.core.llm.LlmClient;
 import io.yakable.core.llm.LlmMessage;
 import io.yakable.core.llm.LlmModelMetadata;
 import io.yakable.core.llm.LlmRequest;
+import io.yakable.core.llm.LlmResponse;
+import io.yakable.core.llm.LlmStreamEvent;
+import io.yakable.core.llm.LlmUsage;
 import io.yakable.dao.entity.SessionEntity;
 import io.yakable.dao.repository.SessionRepository;
 import io.yakable.service.message.MessageService;
+import io.yakable.service.session.TurnStreamListener;
 import io.yakable.service.turn.TurnService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -47,7 +52,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -197,6 +201,8 @@ class SessionServiceImplTest {
 
     @Test
     void shouldExecuteTurnWithItsOwnModelInsteadOfSessionDefault() throws Exception {
+        stubExecuteWithoutResultInline();
+
         String currentTurnId = "turn-current";
         SessionEntity session = session("project-1", "session-1");
         session.setProvider("deepseek");
@@ -212,20 +218,24 @@ class SessionServiceImplTest {
                 message("m1", currentTurnId, MessageRoleEnum.USER, "Hello", 1L)));
         when(turnService.queryTurnList("session-1")).thenReturn(List.of(current));
         when(llmClient.modelMetadata("kimi", "kimi-k3")).thenReturn(Optional.empty());
+        when(turnService.updateTurnSucceeded(
+                eq(currentTurnId),
+                eq("session-1"),
+                any(), any(), any(), any(), any(), any(LocalDateTime.class)))
+                .thenReturn(1);
 
         AtomicReference<LlmRequest> capturedRequest = new AtomicReference<>();
         CountDownLatch done = new CountDownLatch(1);
         doAnswer(invocation -> {
             capturedRequest.set(invocation.getArgument(0));
+            @SuppressWarnings("unchecked")
+            Consumer<LlmStreamEvent> consumer = invocation.getArgument(1);
+            consumer.accept(LlmStreamEvent.complete(response("kimi", "kimi-k3", "Done")));
             done.countDown();
             return null;
         }).when(llmClient).streamingChat(any(LlmRequest.class), any());
 
-        sessionService.executeTurnStreamingAsync(
-                currentTurnId,
-                event -> {
-                },
-                exception -> done.countDown());
+        sessionService.executeTurnAsync(currentTurnId);
 
         assertThat(done.await(2, TimeUnit.SECONDS)).isTrue();
         assertThat(capturedRequest.get()).isNotNull();
@@ -235,6 +245,7 @@ class SessionServiceImplTest {
 
     @Test
     void shouldTrimOlderTurnsUsingModelTokenBudget() throws Exception {
+        stubExecuteWithoutResultInline();
         ReflectionTestUtils.setField(sessionService, "maxHistoryTurns", 20);
 
         String currentTurnId = "turn-current";
@@ -243,7 +254,8 @@ class SessionServiceImplTest {
         TurnVO recent = turn("turn-recent", TurnStatusEnum.SUCCEEDED);
         TurnVO oldest = turn("turn-oldest", TurnStatusEnum.SUCCEEDED);
 
-        when(turnService.queryTurnExecution(currentTurnId)).thenReturn(Optional.of(execution(currentTurnId, "session-1")));
+        when(turnService.queryTurnExecution(currentTurnId))
+                .thenReturn(Optional.of(execution(currentTurnId, "session-1")));
         when(sessionRepository.queryById("session-1")).thenReturn(Optional.of(session));
         when(turnService.updatePendingTurn(eq(currentTurnId), any(LocalDateTime.class)))
                 .thenReturn(Optional.of(current));
@@ -264,27 +276,27 @@ class SessionServiceImplTest {
                 default -> 110L;
             };
         });
+        when(turnService.updateTurnSucceeded(
+                eq(currentTurnId),
+                eq("session-1"),
+                any(), any(), any(), any(), any(), any(LocalDateTime.class)))
+                .thenReturn(1);
 
         AtomicReference<LlmRequest> capturedRequest = new AtomicReference<>();
-        AtomicReference<RuntimeException> failure = new AtomicReference<>();
         CountDownLatch done = new CountDownLatch(1);
         doAnswer(invocation -> {
             capturedRequest.set(invocation.getArgument(0));
+            @SuppressWarnings("unchecked")
+            Consumer<LlmStreamEvent> consumer = invocation.getArgument(1);
+            consumer.accept(LlmStreamEvent.complete(
+                    response("deepseek", "deepseek-flash", "Done")));
             done.countDown();
             return null;
         }).when(llmClient).streamingChat(any(LlmRequest.class), any());
 
-        sessionService.executeTurnStreamingAsync(
-                currentTurnId,
-                event -> {
-                },
-                exception -> {
-                    failure.set(exception);
-                    done.countDown();
-                });
+        sessionService.executeTurnAsync(currentTurnId);
 
         assertThat(done.await(2, TimeUnit.SECONDS)).isTrue();
-        assertThat(failure.get()).isNull();
         assertThat(capturedRequest.get()).isNotNull();
         assertThat(capturedRequest.get().messages())
                 .extracting(LlmMessage::content)
@@ -299,7 +311,8 @@ class SessionServiceImplTest {
         SessionEntity session = session("project-1", "session-1");
         TurnVO current = turn(currentTurnId, TurnStatusEnum.RUNNING);
 
-        when(turnService.queryTurnExecution(currentTurnId)).thenReturn(Optional.of(execution(currentTurnId, "session-1")));
+        when(turnService.queryTurnExecution(currentTurnId))
+                .thenReturn(Optional.of(execution(currentTurnId, "session-1")));
         when(sessionRepository.queryById("session-1")).thenReturn(Optional.of(session));
         when(turnService.updatePendingTurn(eq(currentTurnId), any(LocalDateTime.class)))
                 .thenReturn(Optional.of(current));
@@ -311,26 +324,25 @@ class SessionServiceImplTest {
         when(llmClient.estimateTokens(any(LlmRequest.class))).thenReturn(81L);
         when(turnService.queryTurn(currentTurnId)).thenReturn(Optional.of(current));
 
-        AtomicReference<RuntimeException> failure = new AtomicReference<>();
-        CountDownLatch done = new CountDownLatch(1);
-
-        sessionService.executeTurnStreamingAsync(
-                currentTurnId,
-                event -> {
-                },
-                exception -> {
-                    failure.set(exception);
-                    done.countDown();
+        CountDownLatch failed = new CountDownLatch(1);
+        when(turnService.updateTurnFailed(
+                eq(currentTurnId),
+                eq("session-1"),
+                any(),
+                any(LocalDateTime.class)))
+                .thenAnswer(invocation -> {
+                    failed.countDown();
+                    return 1;
                 });
 
-        assertThat(done.await(2, TimeUnit.SECONDS)).isTrue();
-        assertThat(failure.get()).isInstanceOf(SessionException.class);
-        assertThat(((SessionException) failure.get()).getErrorCode()).isEqualTo(SessionErrorCode.CONTEXT_TOO_LARGE);
+        sessionService.executeTurnAsync(currentTurnId);
+
+        assertThat(failed.await(2, TimeUnit.SECONDS)).isTrue();
         verify(llmClient, never()).streamingChat(any(), any());
     }
 
     @Test
-    void shouldPersistFailureWhenStreamingProviderFails() throws Exception {
+    void shouldPersistFailureAndPartialAssistantContent() throws Exception {
         stubExecuteWithoutResultInline();
         ReflectionTestUtils.setField(sessionService, "maxHistoryTurns", 0);
 
@@ -339,7 +351,8 @@ class SessionServiceImplTest {
         TurnVO current = turn(currentTurnId, TurnStatusEnum.RUNNING);
         RuntimeException providerFailure = new RuntimeException("provider down");
 
-        when(turnService.queryTurnExecution(currentTurnId)).thenReturn(Optional.of(execution(currentTurnId, "session-1")));
+        when(turnService.queryTurnExecution(currentTurnId))
+                .thenReturn(Optional.of(execution(currentTurnId, "session-1")));
         when(sessionRepository.queryById("session-1")).thenReturn(Optional.of(session));
         when(turnService.updatePendingTurn(eq(currentTurnId), any(LocalDateTime.class)))
                 .thenReturn(Optional.of(current));
@@ -348,28 +361,131 @@ class SessionServiceImplTest {
         when(turnService.queryTurnList("session-1")).thenReturn(List.of(current));
         when(llmClient.modelMetadata("deepseek", "deepseek-flash")).thenReturn(Optional.empty());
         when(turnService.queryTurn(currentTurnId)).thenReturn(Optional.of(current));
-        doThrow(providerFailure).when(llmClient).streamingChat(any(LlmRequest.class), any());
+        when(turnService.updateTurnFailed(
+                eq(currentTurnId),
+                eq("session-1"),
+                eq("provider down"),
+                any(LocalDateTime.class)))
+                .thenReturn(1);
 
-        AtomicReference<RuntimeException> failure = new AtomicReference<>();
-        CountDownLatch done = new CountDownLatch(1);
-
-        sessionService.executeTurnStreamingAsync(
+        CountDownLatch partialPersisted = new CountDownLatch(1);
+        when(messageService.addMessage(
+                "session-1",
                 currentTurnId,
-                event -> {
-                },
-                exception -> {
-                    failure.set(exception);
-                    done.countDown();
+                MessageRoleEnum.ASSISTANT,
+                "Partial answer"))
+                .thenAnswer(invocation -> {
+                    partialPersisted.countDown();
+                    return message("m2", currentTurnId, MessageRoleEnum.ASSISTANT, "Partial answer", 2L);
                 });
 
-        assertThat(done.await(2, TimeUnit.SECONDS)).isTrue();
-        assertThat(failure.get()).isSameAs(providerFailure);
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            Consumer<LlmStreamEvent> consumer = invocation.getArgument(1);
+            consumer.accept(LlmStreamEvent.delta("Partial "));
+            consumer.accept(LlmStreamEvent.delta("answer"));
+            throw providerFailure;
+        }).when(llmClient).streamingChat(any(LlmRequest.class), any());
+
+        sessionService.executeTurnAsync(currentTurnId);
+
+        assertThat(partialPersisted.await(2, TimeUnit.SECONDS)).isTrue();
         verify(turnService).updateTurnFailed(
                 eq(currentTurnId),
                 eq("session-1"),
                 eq("provider down"),
                 any(LocalDateTime.class));
-        verify(sessionRepository, never()).update(any());
+        verify(messageService).addMessage(
+                "session-1",
+                currentTurnId,
+                MessageRoleEnum.ASSISTANT,
+                "Partial answer");
+    }
+
+    @Test
+    void shouldReplayStreamingSnapshotWhenWatchingActiveTurn() throws Exception {
+        stubExecuteWithoutResultInline();
+
+        String turnId = "turn-1";
+        SessionEntity session = session("project-1", "session-1");
+        TurnVO running = turn(turnId, TurnStatusEnum.RUNNING);
+
+        when(turnService.queryTurnExecution(turnId))
+                .thenReturn(Optional.of(execution(turnId, "session-1")));
+        when(sessionRepository.queryById("session-1")).thenReturn(Optional.of(session));
+        when(turnService.updatePendingTurn(eq(turnId), any(LocalDateTime.class)))
+                .thenReturn(Optional.of(running));
+        when(messageService.queryMessageList("session-1")).thenReturn(List.of(
+                message("m1", turnId, MessageRoleEnum.USER, "Hello", 1L)));
+        when(turnService.queryTurnList("session-1")).thenReturn(List.of(running));
+        when(llmClient.modelMetadata("deepseek", "deepseek-flash")).thenReturn(Optional.empty());
+        when(turnService.updateTurnSucceeded(
+                eq(turnId),
+                eq("session-1"),
+                any(), any(), any(), any(), any(), any(LocalDateTime.class)))
+                .thenReturn(1);
+
+        CountDownLatch partialReady = new CountDownLatch(1);
+        CountDownLatch finish = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            Consumer<LlmStreamEvent> consumer = invocation.getArgument(1);
+            consumer.accept(LlmStreamEvent.delta("Partial"));
+            partialReady.countDown();
+            finish.await(2, TimeUnit.SECONDS);
+            consumer.accept(LlmStreamEvent.delta(" answer"));
+            consumer.accept(LlmStreamEvent.complete(
+                    response("deepseek", "deepseek-flash", "Partial answer")));
+            return null;
+        }).when(llmClient).streamingChat(any(LlmRequest.class), any());
+
+        sessionService.executeTurnAsync(turnId);
+        assertThat(partialReady.await(2, TimeUnit.SECONDS)).isTrue();
+
+        when(sessionRepository.querySession("project-1", "session-1", "user-1"))
+                .thenReturn(Optional.of(session));
+        when(turnService.queryTurn(turnId)).thenReturn(Optional.of(running));
+
+        AtomicReference<String> snapshot = new AtomicReference<>();
+        AtomicReference<String> delta = new AtomicReference<>();
+        TurnStreamListener listener = new TurnStreamListener() {
+            @Override
+            public void onSnapshot(String content) {
+                snapshot.set(content);
+            }
+
+            @Override
+            public void onDelta(String content) {
+                delta.set(content);
+            }
+
+            @Override
+            public void onComplete() {
+            }
+
+            @Override
+            public void onError(String message) {
+            }
+
+            @Override
+            public void onStopped() {
+            }
+        };
+
+        Runnable unsubscribe = sessionService.watchTurn(
+                new WatchTurnDTO("project-1", "session-1", turnId, "user-1"),
+                listener);
+
+        assertThat(snapshot.get()).isEqualTo("Partial");
+
+        finish.countDown();
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+        while (delta.get() == null && System.nanoTime() < deadline) {
+            Thread.onSpinWait();
+        }
+        assertThat(delta.get()).isEqualTo(" answer");
+
+        unsubscribe.run();
     }
 
     private void stubExecuteInline() {
@@ -427,6 +543,16 @@ class SessionServiceImplTest {
         turn.setAttemptCount(1);
         turn.setInvocation(invocation);
         return turn;
+    }
+
+    private static LlmResponse response(String provider, String model, String content) {
+        return new LlmResponse(
+                provider,
+                model,
+                content,
+                new LlmUsage(10L, 5L, 15L),
+                "request-1",
+                "stop");
     }
 
     private static MessageVO message(
