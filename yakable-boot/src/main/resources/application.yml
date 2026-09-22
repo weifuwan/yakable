@@ -16,6 +16,8 @@ yakable:
   turn-execution:
     recovery-interval: 5s
     running-timeout: 10m
+    max-concurrent: ${YAKABLE_TURN_MAX_CONCURRENT:16}
+    max-concurrent-per-user: ${YAKABLE_TURN_MAX_CONCURRENT_PER_USER:2}
   session:
     context:
       max-history-turns: ${YAKABLE_CONTEXT_MAX_HISTORY_TURNS:20}
