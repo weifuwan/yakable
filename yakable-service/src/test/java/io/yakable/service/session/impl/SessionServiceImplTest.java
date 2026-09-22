@@ -47,6 +47,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1013,6 +1014,127 @@ class SessionServiceImplTest {
         unsubscribe.run();
         unsubscribe.run();
         verify(conversationMetrics).watcherDisconnected();
+    }
+
+    @Test
+    void shouldDeliverSnapshotBeforeConcurrentFutureEvents() throws Exception {
+        stubExecuteWithoutResultInline();
+
+        String turnId = "turn-race";
+        SessionEntity session = session("project-1", "session-1");
+        TurnVO running = turn(turnId, TurnStatusEnum.RUNNING);
+
+        when(turnService.queryTurnExecution(turnId))
+                .thenReturn(Optional.of(execution(turnId, "session-1")));
+        when(sessionRepository.queryById("session-1")).thenReturn(Optional.of(session));
+        when(turnService.updatePendingTurn(eq(turnId), any(LocalDateTime.class)))
+                .thenReturn(Optional.of(running));
+        stubContext(
+                "session-1",
+                turnId,
+                List.of(message("m-race", turnId, MessageRoleEnum.USER, "Hello", 1L)),
+                List.of(running));
+        when(llmClient.modelMetadata("deepseek", "deepseek-flash"))
+                .thenReturn(new LlmModelMetadata(100_000L, 10_000L));
+        when(turnService.updateTurnSucceeded(
+                eq(turnId), eq("session-1"),
+                any(), any(), any(), any(), any(), any(LocalDateTime.class)))
+                .thenReturn(1);
+
+        CountDownLatch partialReady = new CountDownLatch(1);
+        CountDownLatch releaseFutureEvents = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            Consumer<LlmStreamEvent> consumer = invocation.getArgument(1);
+            consumer.accept(LlmStreamEvent.delta("Partial"));
+            partialReady.countDown();
+            releaseFutureEvents.await(2, TimeUnit.SECONDS);
+            consumer.accept(LlmStreamEvent.delta(" answer"));
+            consumer.accept(LlmStreamEvent.complete(
+                    response("deepseek", "deepseek-flash", "Partial answer")));
+            return null;
+        }).when(llmClient).streamingChat(any(LlmRequest.class), any());
+
+        sessionService.executeTurnAsync(turnId);
+        assertThat(partialReady.await(2, TimeUnit.SECONDS)).isTrue();
+
+        when(sessionRepository.querySession("project-1", "session-1", "user-1"))
+                .thenReturn(Optional.of(session));
+        when(turnService.queryTurn(turnId)).thenReturn(Optional.of(running));
+
+        CountDownLatch snapshotEntered = new CountDownLatch(1);
+        CountDownLatch releaseSnapshot = new CountDownLatch(1);
+        CountDownLatch deltaDelivered = new CountDownLatch(1);
+        CountDownLatch terminalDelivered = new CountDownLatch(1);
+        List<String> events = new CopyOnWriteArrayList<>();
+        AtomicReference<Runnable> unsubscribe = new AtomicReference<>();
+        AtomicReference<Throwable> watchFailure = new AtomicReference<>();
+
+        TurnStreamListener listener = new TurnStreamListener() {
+            @Override
+            public void onSnapshot(String content) {
+                snapshotEntered.countDown();
+                try {
+                    releaseSnapshot.await(2, TimeUnit.SECONDS);
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                }
+                events.add("snapshot:" + content);
+            }
+
+            @Override
+            public void onDelta(String content) {
+                events.add("delta:" + content);
+                deltaDelivered.countDown();
+            }
+
+            @Override
+            public void onComplete() {
+                events.add("complete");
+                terminalDelivered.countDown();
+            }
+
+            @Override
+            public void onError(String message) {
+            }
+
+            @Override
+            public void onStopped() {
+            }
+        };
+
+        Thread watcherThread = new Thread(() -> {
+            try {
+                unsubscribe.set(sessionService.watchTurn(
+                        new WatchTurnDTO("project-1", "session-1", turnId, "user-1"),
+                        listener));
+            } catch (Throwable throwable) {
+                watchFailure.set(throwable);
+            }
+        });
+        watcherThread.start();
+
+        assertThat(snapshotEntered.await(2, TimeUnit.SECONDS)).isTrue();
+
+        releaseFutureEvents.countDown();
+
+        assertThat(deltaDelivered.await(200, TimeUnit.MILLISECONDS)).isFalse();
+        assertThat(terminalDelivered.await(200, TimeUnit.MILLISECONDS)).isFalse();
+
+        releaseSnapshot.countDown();
+
+        watcherThread.join(2_000);
+        assertThat(watcherFailure.get()).isNull();
+        assertThat(deltaDelivered.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(terminalDelivered.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(events).containsExactly(
+                "snapshot:Partial",
+                "delta: answer",
+                "complete");
+
+        Runnable cleanup = unsubscribe.get();
+        assertThat(cleanup).isNotNull();
+        cleanup.run();
     }
 
     private void assertRequestConflict(AddTurnDTO dto) {
