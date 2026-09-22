@@ -146,6 +146,10 @@ export function SessionWorkspace({
   const stopRequestedRef = useRef(false);
   const followOutputRef = useRef(true);
   const initialScrollDoneRef = useRef(false);
+  const pendingRequestRef = useRef<{
+    fingerprint: string;
+    requestId: string;
+  } | null>(null);
   const loadedSessionId = snapshot?.session.id ?? null;
   const messageCount = snapshot?.messages.length ?? 0;
 
@@ -265,6 +269,7 @@ export function SessionWorkspace({
     loadingOlderRef.current = false;
     setIsLoadingOlder(false);
     setSelectedModel(null);
+    pendingRequestRef.current = null;
     setIsSessionLoading(true);
 
     void SessionService.querySession(projectId, sessionId, controller.signal)
@@ -451,6 +456,7 @@ export function SessionWorkspace({
     async (
       content: string,
       model: ModelSelection,
+      requestId: string,
       controller: AbortController,
       afterSequence: number,
       onEstablished: () => void,
@@ -464,6 +470,7 @@ export function SessionWorkspace({
           sessionId,
           content,
           model,
+          requestId,
           {
             onStarted: (started) => {
               established = true;
@@ -552,6 +559,19 @@ export function SessionWorkspace({
     (content: string) => {
       if (!selectedModel) return false;
 
+      const fingerprint = [
+        selectedModel.provider,
+        selectedModel.model,
+        content,
+      ].join('\n');
+      if (pendingRequestRef.current?.fingerprint !== fingerprint) {
+        pendingRequestRef.current = {
+          fingerprint,
+          requestId: globalThis.crypto.randomUUID(),
+        };
+      }
+      const requestId = pendingRequestRef.current.requestId;
+
       const controller = new AbortController();
       streamAbortRef.current = controller;
       currentTurnIdRef.current = null;
@@ -579,9 +599,15 @@ export function SessionWorkspace({
         void runStreamingTurn(
           content,
           selectedModel,
+          requestId,
           controller,
           latestSequence,
-          () => settle(true),
+          () => {
+            if (pendingRequestRef.current?.requestId === requestId) {
+              pendingRequestRef.current = null;
+            }
+            settle(true);
+          },
           () => settle(false),
         );
       });
