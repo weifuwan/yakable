@@ -1,59 +1,94 @@
 # Capabilities
 
-Capability 是 Yakable 的实际施工单元。
+Capability 是 Yakable 的最小施工与 Context 单元。
 
-一个 Capability 必须足够独立，使人或 AI 不扫描整个仓库也能回答：
+目录代表 Domain，文件代表 Capability：
 
 ```text
-它解决什么问题？
-用户怎么使用？
-它不负责什么？
-调用链是什么？
-代码从哪里开始读？
-改动应该落在哪里？
-要保护哪些测试？
-它和哪些能力组装？
+capabilities/
+├── project/
+│   ├── README.md
+│   ├── create.md
+│   └── recent-projects.md
+├── conversation/
+├── user/
+└── model/
 ```
 
-推荐结构保持简单：
+## Capability Manifest
+
+所有 Capability 第一屏统一使用：
 
 ```text
 # Capability
 
-## 能力
-## 用户行为
-## 边界
-## 流程
-## 代码
-## 测试
-## 依赖
+Status:
+Domain:
+
+Depends On:
+- ...
+
+Related:
+- ...
+
+Frontend:
+- ...
+
+Backend:
+- ...
+
+Data:
+- ...
+
+Shared Rules:
+- ...
+
+Scenarios:
+- ...
+
+Tests:
+- ...
 ```
 
-不是每个小按钮都要成为 Capability。
+字段含义：
 
-只有当一块逻辑能够独立理解、实现和验收时，才单独拆出来。
+- `Depends On`：没有这些能力，本能力不能成立。默认加载。
+- `Related`：存在影响关系，但不是每次都需要加载。
+- `Frontend / Backend`：当前真实代码入口；尚未实现时必须标注 Planned。
+- `Data`：涉及的稳定数据概念。
+- `Shared Rules`：必须遵守的 Domain Rule ID。
+- `Scenarios`：修改本能力时必须一起 Review 的组合场景。
+- `Tests`：最小回归入口。
 
-当前能力域：
+## Body
+
+Manifest 后正文默认只写：
+
+```text
+## Purpose
+## Contract
+## Flow
+## Boundary
+```
+
+不要重复 Manifest 已经表达的路径和依赖。
+
+## Context Expansion
+
+AI 修改 Capability 时：
+
+1. 先读 Domain README。
+2. 再读目标 Capability。
+3. 默认加载 Depends On。
+4. 通过 Shared Rules / Scenarios 判断 Related 是否需要进入 Context。
+5. 只加载 Manifest 指定的代码和测试。
+6. 如果证据仍不足，再继续扩展。
+
+## Current Domains
 
 - [Project](./project/)
 - [Conversation](./conversation/)
 - [User](./user/)
 - [Model](./model/)
 
-
-## 新增能力规则
-
-开始新增 Capability 前，必须先遵守 [Yakable 新增功能规范](../README.md#新增功能规范)。
-
-核心要求：
-
-```text
-一次一个功能
-→ 先读当前代码
-→ 先设计 README
-→ 再开发
-→ 再 Review
-→ 完成后才能进入下一个功能
-```
-
-Capability README 是这一块开发与 Review 的唯一入口。
+新增 Capability 前必须遵守 [Feature Development Rule](../README.md#feature-development-rule)。
