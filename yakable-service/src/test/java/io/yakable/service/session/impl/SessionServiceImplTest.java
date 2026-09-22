@@ -194,6 +194,39 @@ class SessionServiceImplTest {
     }
 
     @Test
+    void shouldRejectRepeatedRequestWhenSubmissionSemanticsChanged() {
+        stubExecuteInline();
+
+        SessionEntity session = session("project-1", "session-1");
+        TurnVO existing = turn("turn-existing", TurnStatusEnum.SUCCEEDED, "deepseek", "deepseek-flash");
+        MessageVO userMessage = message(
+                "message-existing", "turn-existing", MessageRoleEnum.USER, "Hello", 1L);
+
+        when(sessionRepository.querySession("project-1", "session-1", "user-1"))
+                .thenReturn(Optional.of(session));
+        when(sessionRepository.querySessionForUpdate("session-1")).thenReturn(true);
+        when(turnService.queryTurnByRequestId("session-1", "turn-request-existing"))
+                .thenReturn(Optional.of(existing));
+        when(messageService.queryUserMessage("turn-existing"))
+                .thenReturn(Optional.of(userMessage));
+
+        assertRequestConflict(new AddTurnDTO(
+                "project-1", "session-1", "deepseek", "deepseek-flash",
+                "Different prompt", "turn-request-existing", "user-1"));
+        assertRequestConflict(new AddTurnDTO(
+                "project-1", "session-1", "kimi", "deepseek-flash",
+                "Hello", "turn-request-existing", "user-1"));
+        assertRequestConflict(new AddTurnDTO(
+                "project-1", "session-1", "deepseek", "deepseek-chat",
+                "Hello", "turn-request-existing", "user-1"));
+
+        verify(turnService, never()).addTurn(any(), any(), any(), any());
+        verify(messageService, never()).addMessage(any(), any(), any(), any());
+        verify(sessionRepository, never()).update(any());
+        verify(conversationMetrics, never()).idempotencyReplay("turn");
+    }
+
+    @Test
     void shouldRejectTurnWhenSessionAlreadyHasActiveTurn() {
         stubExecuteInline();
 
@@ -980,6 +1013,14 @@ class SessionServiceImplTest {
         unsubscribe.run();
         unsubscribe.run();
         verify(conversationMetrics).watcherDisconnected();
+    }
+
+    private void assertRequestConflict(AddTurnDTO dto) {
+        assertThatThrownBy(() -> sessionService.addStreamingTurn(dto))
+                .isInstanceOf(SessionException.class)
+                .satisfies(exception ->
+                        assertThat(((SessionException) exception).getErrorCode())
+                                .isEqualTo(SessionErrorCode.REQUEST_CONFLICT));
     }
 
     private void stubContext(

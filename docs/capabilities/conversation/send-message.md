@@ -49,9 +49,6 @@ Tests:
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
 
-Known Gaps:
-- 当前后端发现已有 requestId 时直接返回原 Turn，没有校验 Prompt / provider / model 是否与原提交一致；不满足 CONV-017 的冲突拒绝语义。
-
 ## Purpose
 
 在当前 Session 中提交一条 Prompt，建立一个新的 Turn 和 USER Message。
@@ -78,7 +75,15 @@ SessionWorkspace.handleSubmit
 → POST /turns/stream
 → SessionController
 → SessionService.addStreamingTurn
-→ Turn + USER Message transaction
+→ lock Session
+→ find by sessionId + requestId
+   ├─ no existing Turn
+   │  → create Turn + USER Message
+   ├─ same content + provider + model
+   │  → replay original Turn / USER Message
+   └─ different semantics
+      → HTTP 409 request conflict
+→ new Turn commit
 → SSE started
 → clear composer
 → executeTurnAsync

@@ -164,9 +164,11 @@ Project Ownership 是 Session / Turn / Message 的根访问边界。
 
 ### CONV-017 — Request Identity
 
-同一个逻辑提交使用同一个 requestId 重试时，必须返回原 Turn / USER Message，不能产生第二份业务数据，也不能再次更新 activity。
+Turn requestId 的幂等边界是当前 Session。
 
-同一个 requestId 如果被用于不同 Prompt、不同 Session 或不同 provider / model 语义，必须明确拒绝冲突，不能静默当作幂等成功。
+同一个 Session 内，同一个逻辑提交使用同一个 requestId 重试时，必须返回原 Turn / USER Message，不能产生第二份业务数据，也不能再次更新 activity。
+
+同一个 Session 内，同一个 requestId 如果被用于不同 Prompt 或不同 provider / model 语义，必须明确拒绝冲突，不能静默当作幂等成功。
 
 ### CONV-018 — Establishment Error Boundary
 

@@ -75,7 +75,8 @@ public class GlobalExceptionHandler {
                 || errorCode == UserErrorCode.CANNOT_OPERATE_SELF
                 || errorCode == UserErrorCode.LAST_ACTIVE_ADMIN
                 || errorCode == UserErrorCode.STATUS_CHANGED
-                || errorCode == SessionErrorCode.BUSY) {
+                || errorCode == SessionErrorCode.BUSY
+                || errorCode == SessionErrorCode.REQUEST_CONFLICT) {
             return HttpStatus.CONFLICT;
         }
         return HttpStatus.BAD_REQUEST;
