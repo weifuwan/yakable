@@ -58,6 +58,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -387,6 +388,17 @@ public class SessionServiceImpl implements SessionService {
 
         TurnVO existing = turnService.queryTurnByRequestId(session.getId(), requestId).orElse(null);
         if (existing != null) {
+            TurnStartVO existingStart = existingTurnStart(existing);
+            if (!sameTurnRequest(existingStart, provider, model, content)) {
+                log.log(
+                        System.Logger.Level.WARNING,
+                        "Turn idempotency conflict requestId=" + requestId
+                                + " userId=" + session.getCreateBy()
+                                + " projectId=" + session.getProjectId()
+                                + " sessionId=" + session.getId()
+                                + " turnId=" + existing.getId());
+                throw new SessionException(SessionErrorCode.REQUEST_CONFLICT);
+            }
             conversationMetrics.idempotencyReplay("turn");
             log.log(
                     System.Logger.Level.INFO,
@@ -395,7 +407,7 @@ public class SessionServiceImpl implements SessionService {
                             + " projectId=" + session.getProjectId()
                             + " sessionId=" + session.getId()
                             + " turnId=" + existing.getId());
-            return existingTurnStart(existing);
+            return existingStart;
         }
         if (turnService.queryActiveTurnCount(session.getId()) > 0) {
             throw new SessionException(SessionErrorCode.BUSY);
@@ -424,6 +436,15 @@ public class SessionServiceImpl implements SessionService {
         result.setTurn(turn);
         result.setUserMessage(message);
         return result;
+    }
+
+    private static boolean sameTurnRequest(
+            TurnStartVO existing, String provider, String model, String content) {
+        TurnInvocationVO invocation = existing.getTurn().getInvocation();
+        return invocation != null
+                && Objects.equals(provider, invocation.getProvider())
+                && Objects.equals(model, invocation.getModel())
+                && Objects.equals(content, existing.getUserMessage().getContent());
     }
 
     private void executeTurnStreaming(String turnId, SessionEntity session, String requestId) {
