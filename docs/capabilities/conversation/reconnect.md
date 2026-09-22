@@ -34,6 +34,7 @@ Shared Rules:
 - CONV-013
 - CONV-016
 - CONV-020
+- CONV-022
 
 Scenarios:
 - CONV-S03
@@ -46,6 +47,9 @@ Tests:
 - `yakable-ui/src/service/session/__tests__/SessionService.test.ts`
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
+
+Known Gaps:
+- GAP-07 — `SessionWorkspace` 在第一次 watch 当前 active turnId 时会把它永久加入 `watchedTurnIdsRef`。watcher 因临时网络错误结束后，finally 会清空 `streamingContent`，但 turnId 不会从该集合移除，因此当前页面生命周期内不会再次建立 SSE watcher，只剩数据库 polling。RUNNING partial 尚未持久化时，用户会丢失已经看到的 partial，并失去后续实时 delta，直到终态持久化结果出现；不满足 CONV-022 / CONV-S04。
 
 Review Notes:
 - GAP-04 已实现：Reconnect 继续复用 Streaming 的 WatcherSubscription，不新增私有排序或调度机制。
