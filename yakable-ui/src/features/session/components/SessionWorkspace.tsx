@@ -244,13 +244,10 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
     latestSequenceRef.current = latestSequence;
   }, [latestSequence]);
 
-  const applyChanges = useCallback(
-    (changes: SessionChanges) => {
-      setTurns((current) => mergeTurn(current, changes.latestTurn));
-      mergeMessages(changes.messages);
-    },
-    [mergeMessages],
-  );
+  const applyChanges = useCallback((changes: SessionChanges) => {
+    setTurns((current) => mergeTurn(current, changes.latestTurn));
+    mergeMessages(changes.messages);
+  }, [mergeMessages]);
 
   useEffect(() => {
     if (!activeTurnId || streamAbortRef.current || watchedTurnIdsRef.current.has(activeTurnId)) {
