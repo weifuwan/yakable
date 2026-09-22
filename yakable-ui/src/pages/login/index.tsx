@@ -49,12 +49,9 @@ export function LoginPage() {
         </p>
 
         {message ? (
-          <p
-            role="status"
-            className="mb-4 rounded-lg border border-border-quiet bg-surface-hover-subtle px-3 py-2 text-sm text-foreground-secondary"
-          >
+          <output className="mb-4 block rounded-lg border border-border-quiet bg-surface-hover-subtle px-3 py-2 text-sm text-foreground-secondary">
             {message}
-          </p>
+          </output>
         ) : null}
 
         <LoginForm
