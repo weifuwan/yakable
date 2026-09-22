@@ -323,7 +323,7 @@ class SessionServiceImplTest {
 
         when(sessionRepository.querySession("project-1", "session-1", "user-1"))
                 .thenReturn(Optional.of(session));
-        when(messageService.queryUserMessageList("session-1")).thenReturn(List.of(
+        when(messageService.queryUserNavigationMessageList("session-1")).thenReturn(List.of(
                 message("message-1", "turn-1", MessageRoleEnum.USER, "First prompt", 1L),
                 message("message-2", "turn-2", MessageRoleEnum.USER, longPrompt, 3L)));
 
