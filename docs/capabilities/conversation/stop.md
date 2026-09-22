@@ -32,9 +32,12 @@ Shared Rules:
 - CONV-006
 - CONV-009
 - CONV-010
+- CONV-016
+- CONV-018
 
 Scenarios:
 - CONV-S02
+- CONV-S08
 
 Tests:
 - `yakable-ui/src/features/session/components/__tests__/SessionWorkspace.test.tsx`
@@ -51,6 +54,7 @@ Tests:
 - Stop 针对明确 turnId。
 - 重复 Stop 必须安全。
 - 非空 partial Assistant 持久化。
+- 没有 Assistant 内容时不创建空 Assistant Message。
 - Turn 原子进入 STOPPED。
 - 后台执行被取消或尽快终止。
 - Watcher 最终观察到 STOPPED。
