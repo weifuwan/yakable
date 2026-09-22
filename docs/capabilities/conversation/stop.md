@@ -1,6 +1,6 @@
 # Stop
 
-Status: Review
+Status: Implementing
 Domain: Conversation
 
 Depends On:
@@ -49,15 +49,20 @@ Tests:
 - `yakable-service/src/test/java/io/yakable/service/turn/impl/TurnServiceImplTest.java`
 
 Known Gaps:
-- GAP-06 — stopTurn 先设置 `stoppingTurns` 再读取 `TurnStreamState.snapshot()`，但 Provider delta 对 `stoppingTurns` 的检查发生在 `state.delta()` 之前且不与 snapshot 共用原子边界；存在 post-cutover delta 可见但未持久化的竞态。
-- GAP-08 — 对已有 StreamState 的 PENDING Turn 执行 Stop 时会加入 `stoppingTurns`。若 Turn 尚未成功 claim 为 RUNNING，后续 `executeTurnStreaming()` 会在进入 cleanup finally 前直接 return，导致该 turnId 永久留在 `stoppingTurns`，形成进程级集合泄漏。
+- GAP-08 — 对已有 StreamState 的 PENDING Turn 执行 Stop 时会加入 `stoppingTurns`。若 Turn 尚未成功 claim 为 RUNNING，后续 `executeTurnStreaming()` 会在进入 cleanup finally 前直接 return，导致该 turnId 永久留在 `stoppingTurns`，形成进程级集合泄漏。本 PR 不处理。
+
+Implementation Design:
+- stopTurn 对已有 TurnStreamState 使用 beginStopCutover()，不再通过普通 snapshot() 建立 Stop partial 边界。
+- beginStopCutover() 在 Turn eventLock 内同时冻结后续 delta 并返回 cutover snapshot。
+- STOPPED partial 只持久化该 cutover snapshot。
+- cutover 后的 delta 即使 Provider callback 已经开始执行，也必须在 state.delta() 内被拒绝。
+- Stop transaction 抛错或 updateTurnStopped 返回 0 时，调用 cancelStopCutover()；只有 Stream 尚未 terminal 时才重新允许 delta。
+- Stop 成功后保持 cutover，随后 state.stopped() 发布 terminal；不等待 watcher 网络发送完成。
+- 本次不处理 stoppingTurns 的 PENDING cleanup（GAP-08）。
 
 Review Notes:
-- GAP-04 已实现：stopTurn 读取 partial snapshot 时只竞争短生命周期 Turn eventLock；watcher callback 已移出该锁。
-- STOPPED terminal 只在 eventLock 内按顺序写入各 watcher mailbox，stopTurn 不等待实际网络发送完成。
-- 已新增慢 watcher 回归测试，保护 slow callback 未释放时 explicit Stop 仍可完成，fast watcher 仍可收到 STOPPED。
-- Stop API、partial persistence 和 Turn terminal 语义未修改。
-- 当前执行环境无法解析 github.com，目标 Maven 测试尚未实际执行；测试通过前保持 Review。
+- GAP-04 watcher isolation 已实现，Stop 仍不能等待 watcher callback。
+- CONV-S02 / CONV-S08 既有语义必须保持不变。
 
 ## Purpose
 
