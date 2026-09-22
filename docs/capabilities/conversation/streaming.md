@@ -1,6 +1,6 @@
 # Streaming
 
-Status: Review
+Status: Implementing
 Domain: Conversation
 
 Depends On:
@@ -61,14 +61,19 @@ Tests:
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
 
-Known Gaps:
-- GAP-04 — TurnStreamState 在 eventLock 内直接执行 watcher callback。Controller listener 会同步调用 SseEmitter.send，因此慢 watcher 可能持有 eventLock，阻塞 future delta / terminal，并间接拖慢 Turn Execution；不满足 CONV-020。
+Implementation Design:
+- TurnStreamState 继续用 eventLock 保护 content / terminal / watcher membership 与事件入队顺序。
+- eventLock 内禁止执行 TurnStreamListener 外部 callback。
+- 每个 watcher 包装成独立 WatcherSubscription，拥有自己的串行 delivery mailbox。
+- snapshot / delta / terminal 在 eventLock 内按发生顺序写入对应 watcher mailbox，因此继续保持 GAP-02 的 snapshot → future delta → terminal 契约。
+- mailbox 由 ThreadUtils 的独立虚拟线程异步 drain；SseEmitter.send 只发生在 watcher delivery 线程，不占用 Turn eventLock，也不占用 Provider Execution 线程。
+- 相邻未发送 delta 在 mailbox 中合并成一个 delta chunk；单 Turn 总内容仍受 MessageConstant.MAX_CONTENT_LENGTH 约束，避免慢 watcher 按 token 数无限堆积事件对象。
+- unsubscribe 会关闭对应 WatcherSubscription、丢弃未发送事件并取消其 delivery task，不影响其他 watcher。
+- 本次不修改 SSE API、Turn 状态机、Reconnect API、Stop API、数据库或前端。
 
 Review Notes:
-- GAP-02 实现已完成：TurnStreamState 现在使用同一个 event lock 串行化 subscribe / unsubscribe / delta / terminal。
-- 新 watcher 的交接语义现在是 snapshot → future delta → terminal。
-- 已新增并发回归测试，专门阻塞 snapshot callback 并并发产生 future delta / terminal，保护事件不能越过 snapshot。
-- 当前执行环境无法解析 github.com，目标 Maven 测试尚未实际执行；测试通过前保持 Review。
+- GAP-02 的事件顺序约束必须在本次实现后继续成立。
+- GAP-03 的多 watcher STOPPED 收敛行为必须继续成立。
 
 ## Purpose
 
