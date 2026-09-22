@@ -11,10 +11,10 @@ import io.yakable.core.llm.LlmStreamEvent;
 import io.yakable.plugin.model.api.ModelCapability;
 import io.yakable.plugin.model.api.ModelPlugin;
 import io.yakable.plugin.model.api.ModelPluginDescriptor;
+import io.yakable.plugin.model.api.ModelPluginException;
 import io.yakable.plugin.model.openai.OpenAiCompatibleClient;
 
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -43,8 +43,12 @@ public final class DeepSeekModelPlugin implements ModelPlugin {
     }
 
     @Override
-    public Optional<LlmModelMetadata> modelMetadata(String model) {
-        return Optional.ofNullable(MODELS.get(model));
+    public LlmModelMetadata modelMetadata(String model) {
+        LlmModelMetadata metadata = MODELS.get(model);
+        if (metadata == null) {
+            throw new ModelPluginException("Model context metadata not found: " + PROVIDER + "/" + model);
+        }
+        return metadata;
     }
 
     @Override

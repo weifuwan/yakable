@@ -14,7 +14,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.function.Consumer;
 
@@ -30,7 +29,7 @@ public class PluginLlmClient implements LlmClient {
     private Environment environment;
 
     @Override
-    public Optional<LlmModelMetadata> modelMetadata(String provider, String model) {
+    public LlmModelMetadata modelMetadata(String provider, String model) {
         return requireProvider(provider).modelMetadata(model);
     }
 
