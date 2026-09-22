@@ -1064,7 +1064,7 @@ class SessionServiceImplTest {
     }
 
     @Test
-    void shouldConvergeMultipleWatchersToStoppedWithoutStartingAnotherExecution() {
+    void shouldConvergeMultipleWatchersToStoppedWithoutStartingAnotherExecution() throws Exception {
         stubExecuteInline();
 
         String turnId = "turn-multi-tab";
