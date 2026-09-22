@@ -48,16 +48,16 @@ Tests:
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
 - `yakable-service/src/test/java/io/yakable/service/turn/impl/TurnServiceImplTest.java`
 
-Known Gaps:
-- GAP-06 — stopTurn 先设置 `stoppingTurns` 再读取 `TurnStreamState.snapshot()`，但 Provider delta 对 `stoppingTurns` 的检查发生在 `state.delta()` 之前且不与 snapshot 共用原子边界；存在 post-cutover delta 可见但未持久化的竞态。GAP-06 runtime fix 当前尚未进入 main，本 PR 不处理。
-
 Review Notes:
-- GAP-08 已实现：成功 Stop 在 `streamState.stopped()` 发布 terminal 后立即 `stoppingTurns.remove(turnId)`，不再依赖 execution thread finally 做正常成功路径清理。
-- terminal 发布后，late delta 会被 TurnStreamState 拒绝；late complete 无法把数据库中已 STOPPED 的 Turn 更新为 SUCCEEDED，因此立即清理 marker 不会重新开放业务状态。
-- Stop transaction 抛错和终态更新失败路径仍会立即清理 marker。
+- GAP-06 已实现：stopTurn 对已有 TurnStreamState 使用 beginStopCutover()，以同一个 eventLock 原子完成“冻结 delta + 截取 partial snapshot”。
+- STOPPED partial 只持久化 cutover snapshot；post-cutover delta 会在 state.delta() 内被拒绝。
+- Stop transaction 抛错或 updateTurnStopped 未成功时会 rollback 当前 cutover，允许原 Turn 继续接收 delta。
+- 并发 Stop 使用 cutover 计数，单个失败 Stop 不会误释放另一个仍有效的 cutover。
+- 已新增并发 Stop / Delta 竞态测试，以及 Stop 持久化失败后的 rollback 测试。
+- GAP-08 已实现：成功 Stop 在 streamState.stopped() 发布 terminal 后立即清理 stoppingTurns，不再依赖 execution thread finally 做正常成功路径清理。
 - execution thread finally 中的 remove 保留为幂等兜底。
-- 已新增 PENDING Turn + existing StreamState + Stop before execution 的回归测试，直接保护旧泄漏路径。
-- Stop API、TurnExecutionVO、数据库、Provider 流程、GAP-06 和 GAP-07 均未修改。
+- 已新增 PENDING Turn + existing StreamState + Stop before execution 的回归测试。
+- Stop API、partial persistence schema、Turn terminal 状态机和 watcher delivery 均未修改。
 - 当前执行环境无法解析 github.com，目标 Maven 测试尚未实际执行；测试通过前保持 Review。
 
 ## Purpose

@@ -1119,6 +1119,189 @@ class SessionServiceImplTest {
     }
 
     @Test
+    void shouldPersistOnlyPreCutoverDeltaWhenStopRacesWithProviderDelta() throws Exception {
+        stubExecuteInline();
+
+        String turnId = "turn-stop-cutover";
+        SessionEntity session = session("project-1", "session-1");
+        TurnExecutionVO execution = execution(turnId, "session-1");
+        TurnVO running = turn(turnId, TurnStatusEnum.RUNNING);
+        TurnVO stopped = turn(turnId, TurnStatusEnum.STOPPED);
+
+        when(sessionRepository.querySession("project-1", "session-1", "user-1"))
+                .thenReturn(Optional.of(session));
+        when(turnService.queryTurnExecution(turnId))
+                .thenReturn(Optional.of(execution));
+        when(turnService.queryTurn(turnId))
+                .thenReturn(running, running, stopped);
+
+        CountDownLatch stopUpdateEntered = new CountDownLatch(1);
+        CountDownLatch releaseStopUpdate = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            stopUpdateEntered.countDown();
+            assertThat(releaseStopUpdate.await(2, TimeUnit.SECONDS)).isTrue();
+            return 1;
+        }).when(turnService).updateTurnStopped(
+                eq(turnId), eq("session-1"), any(LocalDateTime.class));
+
+        CountDownLatch firstDeltaDelivered = new CountDownLatch(1);
+        CountDownLatch stoppedDelivered = new CountDownLatch(1);
+        List<String> events = new CopyOnWriteArrayList<>();
+        TurnStreamListener listener = new TurnStreamListener() {
+            @Override
+            public void onSnapshot(String content) {
+            }
+
+            @Override
+            public void onDelta(String content) {
+                events.add("delta:" + content);
+                firstDeltaDelivered.countDown();
+            }
+
+            @Override
+            public void onComplete() {
+            }
+
+            @Override
+            public void onError(String message) {
+            }
+
+            @Override
+            public void onStopped() {
+                events.add("stopped");
+                stoppedDelivered.countDown();
+            }
+        };
+
+        Runnable unsubscribe = sessionService.watchTurn(
+                new WatchTurnDTO("project-1", "session-1", turnId, "user-1"),
+                listener);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> streamStates =
+                (Map<String, Object>) ReflectionTestUtils.getField(sessionService, "streamStates");
+        assertThat(streamStates).isNotNull();
+        Object streamState = streamStates.get(turnId);
+        assertThat(streamState).isNotNull();
+
+        ReflectionTestUtils.invokeMethod(streamState, "delta", "A");
+        assertThat(firstDeltaDelivered.await(2, TimeUnit.SECONDS)).isTrue();
+
+        AtomicReference<TurnVO> stopResult = new AtomicReference<>();
+        AtomicReference<Throwable> stopFailure = new AtomicReference<>();
+        Thread stopThread = new Thread(() -> {
+            try {
+                stopResult.set(sessionService.stopTurn(
+                        new StopTurnDTO("project-1", "session-1", turnId, "user-1")));
+            } catch (Throwable throwable) {
+                stopFailure.set(throwable);
+            }
+        });
+
+        try {
+            stopThread.start();
+            assertThat(stopUpdateEntered.await(2, TimeUnit.SECONDS)).isTrue();
+
+            ReflectionTestUtils.invokeMethod(streamState, "delta", "B");
+
+            String cutoverSnapshot =
+                    ReflectionTestUtils.invokeMethod(streamState, "snapshot");
+            assertThat(cutoverSnapshot).isEqualTo("A");
+            assertThat(events).doesNotContain("delta:B");
+
+            releaseStopUpdate.countDown();
+            stopThread.join(2_000);
+
+            assertThat(stopThread.isAlive()).isFalse();
+            assertThat(stopFailure.get()).isNull();
+            assertThat(stopResult.get()).isSameAs(stopped);
+            assertThat(stoppedDelivered.await(2, TimeUnit.SECONDS)).isTrue();
+
+            verify(messageService).addMessage(
+                    "session-1", turnId, MessageRoleEnum.ASSISTANT, "A");
+            assertThat(events).containsExactly("delta:A", "stopped");
+        } finally {
+            releaseStopUpdate.countDown();
+            stopThread.join(2_000);
+            unsubscribe.run();
+        }
+    }
+
+    @Test
+    void shouldResumeDeltaAfterStopCutoverRollsBack() throws Exception {
+        stubExecuteInline();
+
+        String turnId = "turn-stop-cutover-rollback";
+        SessionEntity session = session("project-1", "session-1");
+        TurnExecutionVO execution = execution(turnId, "session-1");
+        TurnVO running = turn(turnId, TurnStatusEnum.RUNNING);
+
+        when(sessionRepository.querySession("project-1", "session-1", "user-1"))
+                .thenReturn(Optional.of(session));
+        when(turnService.queryTurnExecution(turnId))
+                .thenReturn(Optional.of(execution));
+        when(turnService.queryTurn(turnId))
+                .thenReturn(running, running);
+        when(turnService.updateTurnStopped(
+                eq(turnId), eq("session-1"), any(LocalDateTime.class)))
+                .thenThrow(new IllegalStateException("stop persistence failed"));
+
+        CountDownLatch deltasDelivered = new CountDownLatch(2);
+        List<String> deltas = new CopyOnWriteArrayList<>();
+        TurnStreamListener listener = new TurnStreamListener() {
+            @Override
+            public void onSnapshot(String content) {
+            }
+
+            @Override
+            public void onDelta(String content) {
+                deltas.add(content);
+                deltasDelivered.countDown();
+            }
+
+            @Override
+            public void onComplete() {
+            }
+
+            @Override
+            public void onError(String message) {
+            }
+
+            @Override
+            public void onStopped() {
+            }
+        };
+
+        Runnable unsubscribe = sessionService.watchTurn(
+                new WatchTurnDTO("project-1", "session-1", turnId, "user-1"),
+                listener);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> streamStates =
+                (Map<String, Object>) ReflectionTestUtils.getField(sessionService, "streamStates");
+        assertThat(streamStates).isNotNull();
+        Object streamState = streamStates.get(turnId);
+        assertThat(streamState).isNotNull();
+
+        ReflectionTestUtils.invokeMethod(streamState, "delta", "A");
+
+        assertThatThrownBy(() ->
+                sessionService.stopTurn(
+                        new StopTurnDTO("project-1", "session-1", turnId, "user-1")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("stop persistence failed");
+
+        ReflectionTestUtils.invokeMethod(streamState, "delta", "B");
+
+        assertThat(deltasDelivered.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(deltas).containsExactly("A", "B");
+        String snapshot = ReflectionTestUtils.invokeMethod(streamState, "snapshot");
+        assertThat(snapshot).isEqualTo("AB");
+
+        unsubscribe.run();
+    }
+
+    @Test
     void shouldIsolateSlowWatcherFromOtherWatchersAndStop() throws Exception {
         stubExecuteInline();
 
