@@ -54,8 +54,8 @@ public class MessageServiceImpl implements MessageService {
     }
 
     @Override
-    public List<MessageVO> queryUserMessageList(String sessionId) {
-        return messageRepository.queryUserMessageList(sessionId).stream()
+    public List<MessageVO> queryUserNavigationMessageList(String sessionId) {
+        return messageRepository.queryUserNavigationMessageList(sessionId).stream()
                 .map(MessageServiceImpl::toMessageVO).toList();
     }
 
