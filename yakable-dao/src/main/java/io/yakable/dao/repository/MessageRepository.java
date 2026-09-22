@@ -31,9 +31,14 @@ public interface MessageRepository extends BaseRepository<MessageEntity> {
     List<MessageEntity> queryMessageList(String sessionId);
 
     /**
+     * 按 Turn ID 批量查询 Message。
+     */
+    List<MessageEntity> queryMessageListByTurnIds(List<String> turnIds);
+
+    /**
      * 查询指定序号之后的 Message。
      */
-    List<MessageEntity> queryMessageAfter(String sessionId, long afterSequence);
+    List<MessageEntity> queryMessageAfter(String sessionId, long afterSequence, int limit);
 
     /**
      * 查询指定序号之前的 Message。
