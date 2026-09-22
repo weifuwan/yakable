@@ -843,6 +843,13 @@ class SessionServiceImplTest {
                 .findFirst()
                 .orElseThrow();
         when(messageService.queryUserMessage(currentTurnId)).thenReturn(Optional.of(currentUser));
+
+        boolean hasHistory = messages.stream()
+                .anyMatch(message -> message.getSequence() < currentUser.getSequence());
+        if (!hasHistory) {
+            return;
+        }
+
         when(messageService.queryMessageBefore(eq(sessionId), anyLong(), eq(50)))
                 .thenAnswer(invocation -> {
                     long beforeSequence = invocation.getArgument(1);
