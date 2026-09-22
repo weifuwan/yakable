@@ -7,82 +7,78 @@
 
 ## 1. 设计目标
 
-Turn Navigator 解决长 Session 中“我现在在哪一轮、之前问过什么、怎样快速回去”的问题。
+Turn Navigator 只解决长 Session 中的 Turn 定位，不改变 Session、Turn、Message 的业务语义。
 
-本设计只负责确定前端结构、状态、滚动模型、交互边界和所需数据契约。  
-不改变 Session、Turn、Message 的业务语义，不引入 Agent、Search 或新的全局状态框架。
+V1 的核心约束：
 
-设计目标：
+- 以 Turn 为唯一导航单位。
+- Navigator 由数据驱动，不扫描 DOM 生成业务数据。
+- Current、Preview、Click、Drag、Keyboard 共用同一套 Turn Identity。
+- Streaming / Optimistic 不产生重复节点。
+- 完整 Navigator 不要求一次性加载全部 Message 正文。
+- 500 Turn 下不允许全部 Markdown 长期常驻 DOM。
+- 不新增全局 Store，不新增虚拟列表依赖。
 
-- Navigator 以 Turn 为单位，不以 Message 为单位。
-- Navigator 数据由 Session 数据驱动，不通过扫描 DOM 反推业务数据。
-- Current Turn、点击、Drag、Preview、键盘导航使用同一套 Turn Identity。
-- Streaming、Optimistic、Stop、Failure 不产生重复导航节点。
-- Navigator 可以覆盖完整 Session，但 Message 正文仍按需加载。
-- 长 Session 不依赖所有 Markdown Message 同时存在于 DOM。
-- 不新增全局 Store，不把 feature 状态放进 `shared/ui`。
-- 不新增前端虚拟列表依赖，优先使用 Turn 级有界 DOM Window。
+## 2. 当前实现
 
-## 2. 当前实现与差距
-
-当前 Session 页面已经具备：
-
-- `SessionWorkspace` 负责 Session 加载、Streaming、Stop、历史分页和滚动。
-- `scrollRef` 是唯一 Message 滚动容器。
-- 初次只加载最近 50 条 Message。
-- 向上接近顶部时继续加载更早 Message。
-- `followOutputRef` 控制 Streaming 是否继续跟随底部。
-- `optimisticMessage` 在 Turn 正式建立前即时展示 USER Prompt。
-- `streamingMessage` 展示当前 Assistant Streaming 内容。
-- `scrollToBottom` 和现有底部按钮负责返回最新内容。
-- `querySession` 已返回当前 Session 的全部 Turn，但只返回最近 50 条 Message。
-
-当前缺少：
-
-- Turn 级 DOM 边界。
-- 完整 Turn 对应的 USER Prompt 导航信息。
-- Current Turn 判定。
-- Turn 跳转控制器。
-- 未加载历史 Turn 的目标跳转。
-- 双向 Message Window。
-- Navigator Rail / Preview / Drag / Fisheye / Keyboard。
-- 长 Session 的有界重渲染机制。
-
-最关键的数据缺口是：
+当前 `SessionWorkspace` 已有：
 
 ```text
 querySession
-  ├── turns[]            -> 全部 Turn
-  └── messages[]         -> 最近 50 条 Message
+  ├── turns[]      -> 当前 Session 全部 Turn
+  └── messages[]   -> 最近 50 条 Message
+
+scrollRef
+followOutputRef
+optimisticMessage
+streamingMessage
+loadOlderMessages
+scrollToBottom
 ```
 
-旧 Turn 虽然存在于 `turns[]`，但它对应的 USER Prompt 已不一定存在于当前 `messages[]`。  
-因此前端不能仅靠当前 `SessionSnapshot` 构建完整 Prompt Navigator。
+现有能力可以直接复用：
+
+- Session 初始加载。
+- Streaming / Stop / Recovery。
+- 最近 50 条 Message。
+- 向上历史分页。
+- 用户离开底部后停止自动跟随。
+- 回到底部入口。
+
+当前真正缺少的是：
+
+```text
+完整 Turn Prompt Index
+Turn 级 DOM Anchor
+Current Turn
+统一 Jump Controller
+未加载 Turn 的 Target Window
+Navigator Rail / Preview / Drag / Fisheye / Keyboard
+长 Session DOM Window
+```
 
 ## 3. 总体结构
-
-Turn Navigator 保持在 `session` feature 内。
 
 ```text
 SessionWorkspace
 ├── useSessionMessageWindow
 ├── useTurnNavigator
-├── Session message viewport
+├── MessageViewport
 │   └── TurnItem
 │       ├── USER MessageItem
 │       ├── ASSISTANT MessageItem
-│       └── Turn local state
+│       └── Thinking / Failure / Streaming
 └── TurnNavigator
     ├── origin
-    ├── scrollable rib column
+    ├── rib column
     ├── terminus
     └── shared Prompt Preview
 ```
 
-建议文件：
+建议目录：
 
 ```text
-yakable-ui/src/features/session/
+features/session/
 ├── components/
 │   ├── SessionWorkspace.tsx
 │   ├── MessageItem.tsx
@@ -90,91 +86,16 @@ yakable-ui/src/features/session/
 │   └── turn-navigator/
 │       ├── TurnNavigator.tsx
 │       ├── useTurnNavigator.ts
-│       ├── turn-navigation.ts
-│       └── __tests__/
+│       └── turn-navigation.ts
 └── hooks/
     └── useSessionMessageWindow.ts
 ```
 
-不拆 `TurnNavigatorItem`、`TurnNavigatorPreview` 等只有少量 JSX 的组件。  
-只有当实现确实出现独立职责时再继续拆分。
+不为了形式继续拆 `TurnNavigatorItem`、`TurnNavigatorPreview` 等小组件。
 
-## 4. 核心设计原则
+## 4. 数据模型
 
-### 4.1 Navigator 由数据驱动
-
-禁止把 DOM 当作 Navigator 的数据源。
-
-不要：
-
-```text
-querySelectorAll(message)
--> 猜 Turn
--> 抓 textContent
--> 生成导航
-```
-
-应当：
-
-```text
-Session navigation data
-        +
-optimistic Turn
-        ↓
-TurnNavigationEntry[]
-        ↓
-TurnNavigator
-```
-
-DOM 只负责：
-
-- 当前可视位置。
-- Turn 几何位置。
-- Scroll target。
-- Focus target。
-
-这样 Streaming 时即使 Message DOM 变化，Navigator Identity 也不依赖 DOM id。
-
-### 4.2 Turn 是唯一导航单位
-
-Message 继续负责内容展示，TurnItem 负责一轮对话的 DOM 边界。
-
-```text
-TurnItem
-├── USER Message
-├── ASSISTANT Message
-├── Thinking
-└── Failure / partial state
-```
-
-每个 TurnItem 必须有稳定 Turn Anchor：
-
-```text
-data-turn-id
-data-turn-key
-```
-
-正式 Turn 使用 `turnId`。  
-临时 Turn 使用 `optimistic:<requestId>`。
-
-### 4.3 Navigation Index 与 Message Window 分离
-
-完整 Navigator 和当前正文不是同一份数据。
-
-```text
-Navigation Index
-= 整个 Session 的轻量 Turn 索引
-
-Message Window
-= 当前正文真正需要展示的一段 Message
-```
-
-Navigator 不要求加载全部 Markdown。  
-Message Window 也不决定 Navigator 是否知道一个 Turn 的存在。
-
-## 5. Frontend 数据模型
-
-### 5.1 TurnNavigationEntry
+### 4.1 TurnNavigationEntry
 
 ```ts
 interface TurnNavigationEntry {
@@ -187,28 +108,19 @@ interface TurnNavigationEntry {
 }
 ```
 
-字段语义：
-
-- `key`：当前页面生命周期内稳定的 UI Identity。
-- `turnId`：正式 Turn ID；Optimistic 阶段为 null。
-- `userMessageId`：正式 USER Message ID。
-- `userMessageSequence`：用于定位历史 Message Window。
-- `preview`：导航展示的 Prompt Preview。
-- `persisted`：是否已经正式成立。
-
-正式历史项默认：
+正式历史项：
 
 ```text
 key = turn:<turnId>
 ```
 
-发送新 Prompt 后：
+Optimistic：
 
 ```text
 key = optimistic:<requestId>
 ```
 
-收到 `onStarted` 后，不新增第二项，而是在原项上补齐：
+`onStarted` 后直接补齐原 Entry：
 
 ```text
 turnId
@@ -217,11 +129,11 @@ userMessageSequence
 persisted = true
 ```
 
-页面刷新后重新加载时，使用正式 `turn:<turnId>` 即可，不要求跨刷新保持原 client key。
+不能再 append 第二个 Entry，也不能通过 Prompt 文本匹配 Optimistic Turn。
 
-### 5.2 TurnRenderModel
+### 4.2 TurnRenderModel
 
-Message 展示不再直接平铺 `snapshot.messages.map(...)`，而是先按 Turn 聚合：
+Message 不再直接平铺。
 
 ```ts
 interface TurnRenderModel {
@@ -234,12 +146,9 @@ interface TurnRenderModel {
 }
 ```
 
-`Thinking...`、Turn Failure、Streaming Assistant 都进入对应 TurnItem。  
-这样一个 Turn 的垂直范围才是完整且稳定的。
+`Thinking...`、Failure、Partial Answer、Streaming 都属于对应 TurnItem。
 
-### 5.3 SessionMessageWindow
-
-前端不再把“当前已经加载的 Message”理解成“从最旧已加载一直到最新的无限增长数组”。
+### 4.3 Message Window
 
 ```ts
 interface SessionMessageWindow {
@@ -251,24 +160,20 @@ interface SessionMessageWindow {
 }
 ```
 
-进入 Session 时：
+Navigation Index 与 Message Window 必须分离：
 
 ```text
-latest window
-hasNewer = false
+Navigation Index = 整个 Session 的轻量 Turn 索引
+Message Window   = 当前正文需要展示的一段 Message
 ```
 
-跳转到很早的 Turn 时，可以切换为目标附近的 Message Window，而不需要把目标到最新位置之间的全部 Message 都下载和渲染出来。
+## 5. 所需数据契约
 
-## 6. 所需后端数据契约
+当前 API 已返回全部 Turn，但旧 Turn 的 USER Prompt 不一定存在于最近 50 条 Message 中，因此还缺两个契约。
 
-Frontend Design 不规定 Java 内部实现，但当前 API 无法完整满足 PRD，需要两个轻量能力。
+### 5.1 Turn Navigation Index
 
-### 6.1 Turn Navigation Index
-
-新增 Session 级轻量导航查询。
-
-前端期望语义：
+前端需要：
 
 ```text
 SessionService.queryTurnNavigation(projectId, sessionId)
@@ -287,34 +192,28 @@ interface SessionTurnNavigationItem {
 
 规则：
 
-- 只返回已经正式成立的 Turn。
+- 只返回正式成立 Turn。
 - 按 USER Message sequence 升序。
-- 不返回 Assistant Message 正文。
-- `preview` 由 USER Prompt 得到。
-- Preview 在服务端完成空白收敛和长度限制，避免 500 个长 Prompt 形成大响应。
-- 建议 Preview 最大 160 个 Unicode 字符。
-- 权限边界与 Session 查询一致。
+- 不返回 Assistant 正文。
+- Prompt 空白在服务端收敛。
+- Preview 服务端限长，建议最多 160 个 Unicode 字符。
+- Turn 动态状态继续使用现有 `snapshot.turns`。
 
-Turn 状态继续来自现有 `snapshot.turns`，不在 Navigation Index 重复维护动态状态。
+### 5.2 Target Message Window
 
-### 6.2 Target Message Window
+现有 `queryMessages(beforeSequence)` 只能不断向前翻页，不能直接跳到很老的 Turn。
 
-现有 `queryMessages(beforeSequence)` 只能向过去分页。  
-它不适合从 Turn 500 直接跳到 Turn 50，因为前端只能连续向前请求直到目标出现。
-
-需要一个按 USER Message sequence 定位的窗口查询：
+前端需要：
 
 ```text
 SessionService.queryMessageWindow(
   projectId,
   sessionId,
-  anchorSequence,
-  before,
-  after
+  anchorSequence
 )
 ```
 
-返回一段连续 Message，以及：
+返回：
 
 ```ts
 interface SessionMessageWindowResult {
@@ -326,95 +225,13 @@ interface SessionMessageWindowResult {
 }
 ```
 
-推荐默认：
+目标 USER Message 必须包含在窗口中。默认窗口约 50 条 Message，目标附近前后各保留一部分。
 
-```text
-before = 24
-after = 25
-```
+这个能力只用于“跳到未加载 Turn”，不是把全部历史一次性拉到浏览器。
 
-目标 USER Message 必须包含在返回窗口中。
+## 6. TurnItem
 
-这个契约的目的不是替代所有历史分页，而是让“跳到未加载 Turn”只加载目标附近必要正文。
-
-## 7. Message Window 行为
-
-### 7.1 初始进入
-
-仍使用当前 Session 初始请求：
-
-```text
-最近 50 条 Message
-```
-
-转换为：
-
-```text
-hasOlder = current hasMoreMessages
-hasNewer = false
-```
-
-Session 默认滚到最新位置。
-
-### 7.2 向上阅读
-
-接近窗口顶部：
-
-```text
-query older
--> prepend
--> 保持当前视觉锚点
-```
-
-保留现有“prepend 后补偿 scrollHeight 差值”的思路。
-
-### 7.3 从历史窗口向下阅读
-
-如果 `hasNewer = true`，接近当前窗口底部时加载下一段较新的 Message。
-
-只有真正到达最新 Message Window 后：
-
-```text
-hasNewer = false
-```
-
-此时才恢复普通最新内容语义。
-
-### 7.4 Jump 到未加载 Turn
-
-流程：
-
-```text
-Navigator target
-    ↓
-target Turn 已在 DOM？
- ├─ yes -> 直接 scroll
- └─ no
-      ↓
-queryMessageWindow(targetSequence)
-      ↓
-替换当前 active Message Window
-      ↓
-render
-      ↓
-scroll target Turn
-```
-
-目标加载期间：
-
-- Navigator 保持用户选择的目标。
-- Shared Preview 显示 loading 状态。
-- Session 现有正文不立即清空。
-- 请求成功后再切换 Window。
-- 请求失败时保留原阅读位置并允许重试。
-
-新的 Jump 到来时必须取消旧 Jump。
-
-## 8. TurnItem DOM Boundary
-
-TurnItem 是 Current Turn、Focus 和长 Session Windowing 的基础。
-
-建议结构：
+每个 Turn 必须有一个顶层 DOM Anchor：
 
 ```tsx
 <section
@@ -426,216 +243,228 @@ TurnItem 是 Current Turn、Focus 和长 Session Windowing 的基础。
 </section>
 ```
 
+TurnItem 负责：
+
+- 包住该轮 USER / ASSISTANT / Streaming / Error。
+- 提供唯一 Scroll Anchor。
+- 提供 Keyboard Focus Target。
+- 提供高度测量边界。
+
+TurnItem 不负责 Navigator 业务。
+
+## 7. Message Window
+
+### 7.1 初始进入
+
+保持当前行为：
+
+```text
+最近 50 条 Message
+hasOlder = hasMoreMessages
+hasNewer = false
+```
+
+默认定位最新位置。
+
+### 7.2 正常历史滚动
+
+顶部附近：
+
+```text
+load older
+-> prepend
+-> 补偿 scrollHeight 差值
+```
+
+从历史 Target Window 向下阅读时，如果 `hasNewer = true`，底部附近加载较新的 Message。
+
+### 7.3 Jump 到未加载 Turn
+
+```text
+jumpToTurn
+    ↓
+TurnItem 已存在？
+ ├─ yes -> scroll
+ └─ no
+      ↓
+queryMessageWindow(targetSequence)
+      ↓
+成功后切换 active window
+      ↓
+render
+      ↓
+scroll target
+```
+
+请求过程中原正文保持不动。
+
+新的 Jump 到来：
+
+```text
+abort old request
+invalidate old scroll
+只执行 latest target
+```
+
+加载失败不改变当前正文位置。
+
+## 8. Current Turn
+
+### 8.1 Reading Anchor
+
+V1 固定使用消息 viewport 顶部向下 **30%** 的位置。
+
+```text
+0%   ────────────
+
+30%  ── anchor ──
+
+100% ────────────
+```
+
 规则：
 
-- 一个 Turn 只有一个顶层 TurnItem。
-- USER / ASSISTANT / Thinking / Failure 都在同一 TurnItem 内。
-- TurnItem 不负责导航逻辑。
-- TurnItem 可以被程序化 focus。
-- 普通鼠标点击不会留下多余 focus ring。
-- Navigator 跳转后，键盘用户可以把焦点落到 TurnItem。
+- Anchor 落入某个 TurnItem：该 Turn 为 Current。
+- 落入两个 Turn 之间：取上方最近 Turn。
+- Session 顶部：最早已显示 Turn。
+- Session 真正底部：最新 Turn。
+- 任意时刻只有一个 Current。
 
-## 9. Current Turn
+Current 不使用“IntersectionObserver 第一个回调项”推断。
 
-### 9.1 固定阅读锚点
+### 8.2 Visible Turn
 
-V1 使用消息滚动容器顶部向下 **30%** 的位置作为 Reading Anchor。
+`IntersectionObserver` 只维护与 viewport 相交的 Turn 集合，用于次一级高亮。
+
+### 8.3 Layout 更新
 
 ```text
-scroll viewport
+scroll
+-> requestAnimationFrame
+-> Current calculation
 
-0%   ─────────────
-        ...
-30%  ── anchor ──
-        ...
-100% ─────────────
+ResizeObserver
+-> invalidate Turn geometry
 ```
 
-Current Turn 规则：
+Streaming、Markdown、代码块、图片导致高度变化时重新测量。
 
-- anchor 落在某个 TurnItem 垂直范围内：该 Turn 为 Current。
-- anchor 落在 Turn 间空白：取 anchor 上方最近 Turn。
-- scrollTop = 0：最早已显示 Turn。
-- 到达 Session 真正底部：最新 Turn。
-- 只允许一个 Current Turn。
+不使用 MutationObserver 维护 Turn Identity。
 
-### 9.2 Visible Turn
+## 9. 统一 Scroll Controller
 
-Visible Turn 与 Current Turn 分开。
-
-使用 `IntersectionObserver` 维护当前和 Message viewport 相交的 Turn set，只用于：
-
-- 次一级高亮。
-- 辅助 Navigator 状态。
-
-Current Turn 不直接依赖 IntersectionObserver 回调顺序。
-
-### 9.3 几何更新
-
-使用：
+所有入口都必须调用：
 
 ```text
-scroll -> requestAnimationFrame -> Current Turn calculation
-ResizeObserver -> invalidate Turn layout
-```
-
-Markdown、代码块、图片或 Streaming 导致高度变化时，通过 ResizeObserver 刷新 Turn 几何。
-
-V1 不使用 MutationObserver 追踪 Message Identity。  
-Identity 来自数据，DOM 内容变化只属于 layout 问题。
-
-## 10. Scroll Controller
-
-所有 Turn 跳转必须走同一个 scroll controller。
-
-不要分别在：
-
-- rib click
-- Preview click
-- previous
-- next
-- keyboard
-- drag release
-
-各写一套 `scrollIntoView`。
-
-统一：
-
-```text
-jumpToTurn(turnKey, mode)
-```
-
-### 10.1 已加载 Turn
-
-读取 TurnItem 和 scroll container 的实时几何位置。
-
-目标位置：
-
-```text
-Turn top
-- 固定顶部安全间距
-```
-
-平滑滚动期间每帧重新读取目标相对位置，避免 Markdown 或 Streaming 在滚动中改变高度导致最终落点偏移。
-
-使用单一 scroll token：
-
-```text
-new jump
--> invalidate previous jump
-```
-
-连续快速点击时只有最后一个目标有效。
-
-### 10.2 Reduced Motion
-
-`prefers-reduced-motion: reduce` 时：
-
-- Turn 跳转直接定位。
-- Fisheye 不做连续放大动画。
-- Preview 和键盘功能正常保留。
-
-### 10.3 回到最新位置
-
-现有 `scrollToBottom` 改为共享的：
-
-```text
+jumpToTurn(turnKey)
 jumpToLatest()
 ```
 
-如果当前 Message Window 不是最新 Window：
+包括：
+
+- rib click。
+- Preview click。
+- Previous / Next。
+- Origin / Terminus。
+- Keyboard。
+- Drag release。
+
+### 9.1 Smooth Jump
+
+目标已加载时，每帧重新读取 TurnItem 相对位置，而不是一次计算后完全依赖旧坐标。
+
+原因：
+
+```text
+scroll animation
++
+Streaming / Markdown layout change
+=
+target position may move
+```
+
+使用 scroll token：
+
+```text
+new jump
+-> old token invalid
+```
+
+快速连续点击最终只到最后一个目标。
+
+### 9.2 Reduced Motion
+
+`prefers-reduced-motion: reduce`：
+
+- Turn Jump 直接定位。
+- Fisheye 不做连续放大动画。
+- Preview / Click / Drag / Keyboard 保留。
+
+### 9.3 Latest
+
+现有 Scroll-to-Bottom 与 Navigator Terminus 统一调用 `jumpToLatest()`。
+
+如果当前不是 latest Message Window：
 
 ```text
 load latest window
--> render
 -> scroll bottom
 ```
 
-如果已经是最新 Window：
-
-```text
-scroll current container bottom
-```
-
-无论来自：
-
-- 现有底部按钮。
-- Navigator terminus。
-
-最终都必须：
+最后统一：
 
 ```text
 followOutputRef = true
 currentTurn = latest
 ```
 
-## 11. Navigator Rail
+## 10. Turn Navigator Rail
 
-TurnNavigator 是 Message scroll container 的绝对定位 sibling，不放到 Message 正文内部。
+Navigator 是 Message scroll container 的绝对定位 sibling：
 
 ```text
-relative workspace body
+workspace body
 ├── message scroll container
-└── absolute TurnNavigator
+└── TurnNavigator
 ```
 
-这样：
+不参与正文布局，不改变正文宽度。
 
-- Rail 不参与正文布局。
-- Preview 不被正文 overflow 裁剪。
-- Message 滚动不会直接移动 Rail。
-
-桌面端满足 PRD 阈值时显示；窄屏隐藏。
-
-### 11.1 Rail 结构
+Rail：
 
 ```text
-origin button
-    ↓
+origin
+  ↓
 scrollable rib column
-    ↓
-terminus button
+  ↓
+terminus
 ```
 
-Origin 和 Terminus 固定，不进入 rib column 的滚动内容。
+Origin / Terminus 固定，不跟中间 rib 一起滚走。
 
-长 Session 时：
+长 Session：
 
-- rib column 自己可以滚动。
-- 隐藏视觉 scrollbar。
-- 自动保持 Current Turn 附近 rib 可见。
-- Pointer / Focus / Drag 正在操作 Rail 时暂停自动居中。
-- 用户可以用滚轮浏览远处 rib。
+- rib column 自己滚动。
+- 隐藏 scrollbar。
+- 默认把 Current rib 保持在中部附近。
+- Pointer / Focus / Drag 期间暂停自动居中。
+- 用户可用滚轮浏览远处 rib。
 
-### 11.2 Rib 状态
-
-每个 Turn rib 有四种视觉状态：
-
-```text
-dim
-visible
-current
-focused
-```
-
-优先级：
+## 11. Rib 状态
 
 ```text
 focused > current > visible > dim
 ```
 
-Current 在静止状态下已经比普通 rib 更长。  
-Fisheye 是额外的交互放大，不负责表达 Current。
+Current 在静止状态下就比普通 rib 更长。
+
+Hover 只增加交互强调，不能覆盖 Current / Visible 语义。
+
+所有 rib 使用固定 row height，防止 Fisheye 导致纵向 reflow。
 
 ## 12. Shared Prompt Preview
 
 整个 Navigator 只有一个 Preview。
-
-触发源：
-
-- pointer hover。
-- keyboard focus。
-- Drag 当前目标。
 
 优先级：
 
@@ -647,91 +476,64 @@ drag target
 
 Preview：
 
-- 展示单个 Prompt。
-- 文本直接来自 Navigation Entry。
-- 不读取 TurnItem DOM textContent。
-- Prompt 内换行折叠为空格。
-- 过长内容省略。
-- 点击 Preview 调用同一个 `jumpToTurn`。
-- 首次打开可以有很短延迟，已经打开后切换 Turn 应即时更新。
-- 不为每个 rib 创建独立 HoverCard。
+- 只展示一个 USER Prompt。
+- 直接读取 Navigation Entry。
+- 不读 DOM textContent。
+- 换行收敛。
+- 长文本省略。
+- 点击调用同一个 `jumpToTurn`。
+- 已打开后切换 Turn 即时更新。
+- 不给每个 rib 创建独立 HoverCard。
 
 ## 13. Fisheye
 
-Fisheye 只发生在 Rail 自己的 DOM。
-
-性能热路径不进入 React state：
+Fisheye 热路径不走 React state：
 
 ```text
 pointermove
 -> requestAnimationFrame
--> read cached rib centers
--> calculate falloff
--> write rib width / height
+-> ribLayoutRef
+-> cosine falloff
+-> direct width / height update
 ```
 
-使用余弦衰减：
+只改变：
 
 ```text
-pointer 最近 rib  = peak
-附近 rib          = partial
-超出影响半径      = base
+rib width
+rib thickness
 ```
 
-所有 rib 使用固定 row height。  
-只改变横向长度和线条厚度，不改变每个 rib 行在垂直方向占用的高度。
+不改变：
 
-因此 Fisheye 不会：
+```text
+row height
+row order
+hit target vertical position
+```
 
-- 推动下面的 rib。
-- 改变 hit target 顺序。
-- 导致 pointer 下的目标自己移动。
+因此鼠标下的 rib 不会因为自己变大而移动。
 
 ## 14. Drag-to-Scrub
 
-### 14.1 Pointer 状态
+`pointerdown` 记录起点。
 
-`pointerdown` 后记录：
-
-```text
-pointerId
-startX
-startY
-```
-
-移动距离未超过 4px：
+移动距离：
 
 ```text
-仍按 click 候选处理
+< 4px  -> click candidate
+>= 4px -> dragging
 ```
 
-超过 4px：
+Pointer move / up / cancel 使用 document 级监听。
 
-```text
-进入 dragging
-```
+Drag 后抑制紧随其后的 synthetic click。
 
-Drag 结束后抑制浏览器紧随其后的 synthetic click。
+### 14.1 Unified Rib Layout
 
-Pointer move / up / cancel 使用 document 级监听，避免指针离开细 Rail 后丢失 Drag。
+Hover、Fisheye、Preview、Click、Drag 共用同一个 `ribLayoutRef`。
 
-### 14.2 统一 Rib Layout
-
-Hover、Fisheye、Preview、Gap Click、Drag 必须读取同一个：
-
-```ts
-ribLayoutRef
-```
-
-每项包含：
-
-```text
-entry key
-row center
-base dimensions
-```
-
-Pointer 转成 rib column content-space：
+Pointer 统一转换：
 
 ```text
 clientY
@@ -740,398 +542,336 @@ clientY
 -> nearest rib
 ```
 
-禁止不同交互各自用一套比例或坐标系计算目标。
+禁止不同交互分别按比例、index、offsetTop 猜目标。
 
-### 14.3 已加载 / 未加载目标
+### 14.2 History
 
-Drag 到已加载 Turn：
-
-```text
-可以即时正文跟随
-```
-
-Drag 到未加载 Turn：
+已加载 Turn：
 
 ```text
-只更新 Preview 和 target
-不发历史请求
+drag -> 可以实时正文跟随
 ```
 
-Pointer release：
+未加载 Turn：
 
 ```text
-只对最终 target 执行一次 jumpToTurn
+drag -> 只更新 target + Preview
+release -> query target window once
 ```
 
-## 15. Optimistic 与 Streaming
+Drag 中禁止连续加载历史。
 
-### 15.1 Optimistic Entry
+## 15. Optimistic / Streaming
 
-Navigator 已经显示时，提交 Prompt 后立即 append：
+Navigator 已经显示时，发送 Prompt 立即 append：
 
 ```text
 optimistic:<requestId>
 ```
 
-Navigator 尚未达到 3 个 persisted Turn 时，不因为 Optimistic Entry 单独显示。
+Navigator 还没达到 3 个 persisted Turn 时，不因为 Optimistic Entry 单独出现。
 
-### 15.2 onStarted Reconcile
-
-收到：
+`onStarted`：
 
 ```text
-turn
-userMessage
+same Entry
+-> fill turnId
+-> fill userMessageId
+-> fill sequence
+-> persisted = true
 ```
 
-后：
+Streaming delta 只更新对应 TurnItem，不允许：
 
-- 替换 Optimistic TurnRenderModel。
-- 在同一 Navigation Entry 上补 turnId / messageId / sequence。
-- 不 append 第二个 entry。
-- 保持当前 rib 所在顺序。
-- 不通过 Message 文本匹配去猜哪一个 optimistic item。
+- rebuild 整个 Navigation Index。
+- 强制 Current = latest。
+- 强制 Rail 回 latest。
 
-### 15.3 Streaming
-
-Streaming 只更新对应 TurnItem 的 Assistant 内容。
-
-禁止：
-
-- 每个 delta rebuild Navigation Index。
-- 每个 delta set Current Turn。
-- 每个 delta 重新创建 rib list。
-
-如果用户仍位于最新位置：
-
-```text
-follow output
-current = latest
-```
-
-如果用户已经离开底部：
-
-```text
-Streaming 继续
-正文不回拉
-Rail 不回拉
-```
+用户停留最新位置时正常 follow；用户已阅读历史时完全尊重历史位置。
 
 ## 16. Keyboard Accessibility
 
-Navigator 只保留一个 Tab stop，采用 roving tabindex。
+Rail 使用 roving tabindex，只保留一个 Tab stop。
 
 ```text
-current/focused rib -> tabIndex=0
-other ribs          -> tabIndex=-1
+focused/current rib -> tabIndex=0
+other ribs         -> tabIndex=-1
 ```
 
 键盘：
 
 ```text
-ArrowUp / ArrowDown -> 移动一个 Turn
-Home                 -> 最早 Turn
-End                  -> 最新 Turn
+ArrowUp / ArrowDown -> 前后一个 Turn
+Home / End           -> 最早 / 最新
 Enter / Space        -> jump
 ```
 
-跳转完成后：
+Jump 完成后：
 
 ```text
 TurnItem.focus({ preventScroll: true })
 ```
 
-使键盘用户从目标 Turn 继续阅读。
-
-全局快捷键：
+快捷键：
 
 ```text
 Shift + Alt + M
 ```
 
-只在 Navigator 当前真实可见且能够成功 focus 时调用 `preventDefault()`。  
-Navigator 未显示时不吞掉按键。
+只有 Navigator 确实可见且 focus 成功时才 `preventDefault()`。
 
-## 17. 长 Session 与有界 DOM
+## 17. 长 Session DOM Window
 
-500 个 Turn 时，允许存在 500 个轻量 Navigation Entry 和 500 个 rib。  
-不允许 500 个复杂 Markdown Turn 长期全部保留为重 DOM。
+允许存在 500 个轻量 Navigation Entry 和 rib。
 
-### 17.1 Turn 级 Row Window
+不允许 500 个复杂 Markdown Turn 长期全部挂载。
 
-TurnItem 初次渲染后测量真实高度并缓存。
+TurnItem 首次渲染后缓存真实高度。
 
-当 Turn 离当前 viewport 足够远时：
+离 viewport 足够远时：
 
 ```text
 heavy TurnItem
 -> exact-height placeholder
 ```
 
-placeholder 保留：
+必须保留 heavy DOM：
 
-- Turn key。
-- 精确高度。
-- Scroll geometry。
-
-保留重 DOM 的范围：
-
-- 当前 viewport。
+- viewport 内 Turn。
 - 上下 overscan。
-- 当前 Streaming Turn。
-- 当前 keyboard focus Turn。
-- 正在执行导航落点校准的 Turn。
+- Streaming Turn。
+- Keyboard focused Turn。
+- 正在执行 Jump final snap 的 Turn。
 
-### 17.2 Height Cache
+Height Cache 由 `ResizeObserver` 更新。
 
-使用 `ResizeObserver` 更新已挂载 Turn 高度。
-
-Window resize 或正文宽度变化时，旧高度可能失效：
-
-```text
-invalidate
--> 分批重新测量
-```
-
-Streaming tail 永远保持挂载，直到进入终态并离开 overscan。
-
-### 17.3 Jump 到 Placeholder
-
-目标 Turn 已加载但当前是 placeholder：
+目标 Turn 当前是 placeholder：
 
 ```text
 scroll placeholder
--> Turn 进入 render window
--> mount heavy content
+-> target enters render window
+-> mount TurnItem
 -> final snap
 ```
 
-这样点击 Navigator 不要求目标复杂 Markdown 事先一直挂载。
+这样 Navigator Jump 不要求目标 Markdown 一直挂在 DOM。
 
-## 18. Rail Auto Follow
+## 18. 状态所有权
 
-Rail 有自己独立的 scroll state。
-
-普通正文滚动：
-
-```text
-Current Turn changes
--> Rail 将 current rib 保持在可见中部附近
-```
-
-以下状态冻结自动居中：
-
-- pointer 在 Rail 内。
-- keyboard focus 在 Rail 内。
-- dragging。
-- 用户正在滚动 Rail。
-
-交互结束后，再恢复自动跟随 Current Turn。
-
-这样用户浏览远处 Navigator 时不会被正文 Streaming 或 Current 变化抢回。
-
-## 19. 错误与恢复
-
-Navigation Index 失败：
-
-- 不阻塞 Session 正文。
-- Navigator 暂不显示。
-- Session 的发送、Streaming、历史分页继续可用。
-
-Target Message Window 加载失败：
-
-- 不切换现有 Message Window。
-- 不改变当前正文位置。
-- Preview 显示可重试状态。
-- 后续点击同一 Turn 可以重新请求。
-
-Session 切换：
-
-- 取消 Navigation Index 请求。
-- 取消 Target Window 请求。
-- 取消正在执行的 smooth jump。
-- 清空 rib layout / current / focused / drag 状态。
-- 不短暂展示上一 Session Navigator。
-
-## 20. 状态所有权
-
-`SessionWorkspace` 继续拥有：
+`SessionWorkspace`：
 
 - Session 生命周期。
 - send / stop / streaming。
-- model selection。
+- model。
 - follow output。
 
-`useSessionMessageWindow` 拥有：
+`useSessionMessageWindow`：
 
-- active Message Window。
+- 当前 Message Window。
 - older / newer pagination。
-- target window loading。
-- window request cancellation。
+- Target Window。
+- Window request abort。
 
-`useTurnNavigator` 拥有：
+`useTurnNavigator`：
 
-- navigation entries。
-- Current Turn。
-- Visible Turns。
-- focused / hovered / drag target。
-- jump controller。
+- Navigation Entry。
+- Current / Visible。
+- Hover / Focus / Drag。
+- Jump Controller。
 - Rail auto-follow。
-- keyboard navigation。
+- Keyboard。
 
-`TurnNavigator` 只负责：
+`TurnNavigator`：
 
-- Rail JSX。
-- Preview JSX。
-- pointer / keyboard event wiring。
+- JSX。
+- Pointer / Keyboard event wiring。
+- Preview。
 - visual state。
 
-不要把业务状态搬到 `shared/ui`。
+禁止把 Session / Turn 状态放到 `shared/ui`。
 
-## 21. 性能规则
+## 19. 错误与清理
 
-- Scroll handler 不直接循环 setState。
-- 高频 Scroll / Pointer path 统一通过 `requestAnimationFrame`。
-- Fisheye 不通过 React state 驱动每一帧。
-- Streaming delta 不重新构建完整 Navigation Entry 数组。
-- Navigation Index 只在初始加载、新 Turn 建立或 Session 变化时改变。
-- `IntersectionObserver` 只负责 visible set。
-- `ResizeObserver` 只负责 layout invalidation。
-- 不用 MutationObserver 维护 Turn Identity。
-- Shared Preview 只有一个实例。
-- Turn heavy DOM 数量必须被 Window 限制。
+Navigation Index 失败：
 
-## 22. 测试设计
+```text
+Session 正文继续可用
+Navigator 不显示
+```
 
-### 22.1 Pure helpers
+Target Window 失败：
 
-覆盖：
+```text
+原正文不动
+原 Current 不动
+Preview 提供 retry
+```
 
-- Navigation Entry 构建。
-- Prompt Preview normalize。
-- Current Turn anchor 计算。
-- Rib nearest target。
-- Fisheye falloff。
-- Optimistic -> persisted reconcile。
+Session 切换时必须取消：
 
-### 22.2 TurnNavigator Component
+- Navigation Index request。
+- Target Window request。
+- smooth jump。
+- Drag listeners。
 
-覆盖：
+并清空：
 
-- persisted Turn < 3 不显示。
-- Optimistic 不触发首次显示。
-- 已显示后 Optimistic 正常追加。
-- Current / visible / focused visual state。
-- Shared Preview。
-- click jump。
-- Previous / Next / Origin / Terminus。
-- roving tabindex。
-- Arrow / Home / End / Enter / Space。
-- Shift + Alt + M 条件处理。
-- Drag threshold。
-- post-drag click suppression。
-- reduced motion。
-- 长 rib column。
+- Current。
+- Visible。
+- Hover / Focus。
+- rib layout。
 
-### 22.3 SessionWorkspace Integration
+不能短暂显示上一 Session Navigator。
 
-覆盖：
+## 20. 性能硬约束
 
-- query Navigation Index。
-- Optimistic Entry 与 onStarted reconcile。
-- Streaming 不抢历史阅读位置。
-- target Turn 已加载直接跳转。
-- target Turn 未加载只在最终选择时 query window。
-- target window failure 保持当前正文。
-- jumpToLatest 从历史 window 返回最新 window。
-- older / newer pagination。
-- Session 切换清理旧 Navigator。
+```text
+Scroll        -> requestAnimationFrame
+Pointer Move  -> requestAnimationFrame
+Fisheye       -> no React state per frame
+Streaming     -> no Navigation Index rebuild per delta
+Visible       -> IntersectionObserver
+Layout        -> ResizeObserver
+Identity      -> data, not MutationObserver
+Preview       -> one instance
+Heavy Turn DOM -> bounded
+```
 
-### 22.4 Long Session
+## 21. 测试
 
-构造至少 500 个 Turn：
+Pure helper：
 
-- Navigator 仍能访问全部 entry。
-- Heavy TurnItem 数量保持在 Window 上限附近。
-- Jump 到远处 Turn 可完成。
-- Streaming tail 保持挂载。
-- Rail keyboard 不产生 500 个 Tab stop。
+```text
+Navigation build
+Current anchor
+nearest rib
+fisheye falloff
+optimistic reconcile
+```
 
-前端最终必须通过：
+TurnNavigator：
+
+```text
+3 Turn threshold
+optimistic threshold
+current / visible / focused
+shared Preview
+click
+prev / next / origin / terminus
+roving tabindex
+keyboard
+drag threshold
+post-drag click suppression
+reduced motion
+```
+
+SessionWorkspace integration：
+
+```text
+Navigation Index
+Streaming does not steal history
+loaded Turn jump
+unloaded Turn target window
+jump cancellation
+jump latest
+older / newer pagination
+session switch cleanup
+```
+
+Long Session：
+
+```text
+500 Turn entries
+all ribs reachable
+heavy TurnItem bounded
+far jump works
+streaming tail stays mounted
+only one Tab stop
+```
+
+最终执行：
 
 ```text
 npm run check
 ```
 
-## 23. 实现顺序
-
-建议按依赖拆成 6 个 PR。
+## 22. 实现顺序
 
 ### PR1：Navigation Data Contract
 
-- Turn Navigation Index。
-- Target Message Window。
-- Frontend SessionService types / parser。
-- 不改 UI。
+```text
+Turn Navigation Index
+Target Message Window
+Frontend SessionService types / parser
+```
 
 ### PR2：Turn Render Boundary
 
-- Message 按 Turn 聚合。
-- TurnItem。
-- useSessionMessageWindow。
-- 双向窗口基础。
-- 保持现有视觉不变。
+```text
+TurnRenderModel
+TurnItem
+useSessionMessageWindow
+older / newer window
+视觉保持不变
+```
 
 ### PR3：Current Turn + Basic Navigator
 
-- useTurnNavigator。
-- Reading Anchor。
-- Visible Turn。
-- rib rail。
-- click jump。
-- Previous / Next / Origin / Terminus。
-- Shared Preview。
+```text
+Reading Anchor
+Visible Turn
+Rail
+Shared Preview
+Click
+Prev / Next / Origin / Terminus
+```
 
 ### PR4：Drag + Fisheye + Accessibility
 
-- unified rib layout。
-- Drag-to-Scrub。
-- Fisheye。
-- keyboard / roving tabindex。
-- reduced motion。
-- Shift + Alt + M。
+```text
+unified rib layout
+Drag
+Fisheye
+roving tabindex
+Reduced Motion
+Shift + Alt + M
+```
 
 ### PR5：Streaming + History Jump
 
-- Optimistic Navigation Entry。
-- onStarted reconcile。
-- unloaded target jump。
-- target request cancellation。
-- latest Window / follow output 收口。
-- failure / stop / recovery 边界。
+```text
+Optimistic Entry
+onStarted reconcile
+unloaded target
+jump cancellation
+jump latest
+Stop / Failure / Recovery
+```
 
-### PR6：Long Session Windowing + Acceptance
+### PR6：Long Session + Acceptance
 
-- Turn heavy DOM window。
-- exact-height placeholder。
-- 500 Turn tests。
-- 全量 PRD Acceptance。
-- 只修验收发现的问题，不继续扩功能。
+```text
+Turn DOM Window
+exact-height placeholder
+500 Turn tests
+PRD Acceptance
+不继续新增功能
+```
 
-## 24. Done 条件
+## 23. Done 条件
 
-Frontend Design V1 完成后的实现必须满足：
+实现完成时必须满足：
 
 - Navigator 完全以 Turn 数据驱动。
-- Current Turn 有唯一且稳定的 Reading Anchor 规则。
-- 所有跳转经过同一 scroll controller。
-- Hover、Preview、Fisheye、Click、Drag 使用同一 rib layout。
-- 完整 Navigation Index 不要求加载全部 Message 正文。
-- 未加载历史只在最终 jump 时加载目标附近 Message Window。
-- Optimistic -> persisted 不产生重复 Turn。
+- Current Turn 使用固定 30% Reading Anchor。
+- 所有跳转经过同一个 Scroll Controller。
+- Hover / Preview / Click / Drag / Fisheye 共用 Rib Layout。
+- 完整 Navigation Index 不加载全部 Message 正文。
+- 未加载 Turn 只在最终 Jump 时加载目标附近 Message Window。
+- Optimistic -> Persisted 不产生重复节点。
 - Streaming 不抢用户历史阅读位置。
-- Navigator 和现有 Scroll-to-Bottom 共用 latest 语义。
-- Keyboard 可完整操作且只有一个 Tab stop。
-- 500 Turn 下 heavy Markdown DOM 有明确上限。
-- 不依赖 MutationObserver 维持 Turn Identity。
-- 不引入新的全局状态框架和前端虚拟列表依赖。
+- Navigator Terminus 与现有 Scroll-to-Bottom 共用 Latest 语义。
+- Keyboard 只有一个 Tab stop。
+- 500 Turn 下 Heavy Markdown DOM 有明确上限。
+- Turn Identity 不依赖 MutationObserver。
+- 不新增全局状态框架和前端虚拟列表依赖。
