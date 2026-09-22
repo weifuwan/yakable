@@ -1,6 +1,6 @@
 # Reconnect
 
-Status: Implementing
+Status: Review
 Domain: Conversation
 
 Depends On:
@@ -47,16 +47,13 @@ Tests:
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
 
-Implementation Design:
-- Reconnect 不新增独立调度或排序机制，继续复用 Streaming 的 WatcherSubscription。
-- 新 watcher 仍按 snapshot → future delta → terminal 入队。
-- watcher callback 在独立 delivery 线程执行，一个慢 Reconnect 连接不能持有 Turn eventLock，也不能阻塞其他 watcher。
-- unsubscribe 只关闭当前 watcher mailbox，不影响同一 Turn 的 Execution 或其他 watcher。
-- 本次不修改 watchTurn API、changes fallback、SSE event schema 或前端。
-
 Review Notes:
-- GAP-02 snapshot / future delta ordering 必须继续成立。
-- GAP-03 multi-tab convergence 必须继续成立。
+- GAP-04 已实现：Reconnect 继续复用 Streaming 的 WatcherSubscription，不新增私有排序或调度机制。
+- 新 watcher 仍按 snapshot → future delta → terminal 入队，但实际 SSE callback 在独立 delivery 线程执行，不持有 Turn eventLock。
+- 一个慢 Reconnect 连接不会阻塞同 Turn 的其他 watcher 或 Turn Runtime。
+- unsubscribe 只关闭当前 watcher mailbox，不改变 Turn Execution。
+- Reconnect API、changes fallback、SSE event schema 和前端均未修改。
+- 当前执行环境无法解析 github.com，目标 Maven 测试尚未实际执行；测试通过前保持 Review。
 
 ## Purpose
 
