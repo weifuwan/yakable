@@ -123,7 +123,7 @@ class ConversationPersistenceIT {
         insertMessage("message-2", "session-1", "turn-1", MessageRoleEnum.ASSISTANT, "Answer", 2L);
         insertMessage("message-3", "session-1", "turn-2", MessageRoleEnum.USER, "Second", 3L);
 
-        assertThat(messageRepository.queryUserMessageList("session-1"))
+        assertThat(messageRepository.queryUserNavigationMessageList("session-1"))
                 .extracting(MessageEntity::getId)
                 .containsExactly("message-1", "message-3");
         assertThat(messageRepository.queryMessage("session-1", 2L))
