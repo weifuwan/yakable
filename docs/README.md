@@ -185,6 +185,12 @@ Done          文档描述当前真实实现
 - [Entity 规则](../yakable-dao/ENTITY_RULES.md)
 - [Repository / Mapper 规则](../yakable-dao/REPOSITORY_RULES.md)
 - [Flyway 规则](../yakable-dao/FLYWAY_RULES.md)
+- [前端全局规则](../yakable-ui/FRONTEND_RULES.md)
+- [前端 Service 规则](../yakable-ui/SERVICE_RULES.md)
+- [前端测试规则](../yakable-ui/TEST_RULES.md)
+- [Feature 规则](../yakable-ui/src/features/FEATURE_RULES.md)
+- [Shared UI 规则](../yakable-ui/src/shared/ui/UI_RULES.md)
+- [Shared Lib 规则](../yakable-ui/src/shared/lib/LIB_RULES.md)
 
 原则：
 

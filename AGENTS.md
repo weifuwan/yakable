@@ -52,14 +52,39 @@ yakable-plugins/yakable-plugin-model/**
 
 ## Frontend Context
 
-Frontend rules are still routed through the current frontend documents until the Frontend Code Rules migration is complete:
+Any frontend change starts with:
 
 ```text
-yakable-ui/**
-→ yakable-ui/ARCHITECTURE.md
+yakable-ui/FRONTEND_RULES.md
+yakable-ui/ARCHITECTURE.md
+```
 
+Load `yakable-ui/TEST_RULES.md` when changing observable behavior or regression tests.
+
+Then load only the nearest rules touched by the task:
+
+```text
 yakable-ui/src/service/**
-→ yakable-ui/SERVICE_README.md
+→ yakable-ui/SERVICE_RULES.md
+
+yakable-ui/src/features/**
+→ yakable-ui/src/features/FEATURE_RULES.md
+
+yakable-ui/src/shared/lib/**
+→ yakable-ui/src/shared/lib/LIB_RULES.md
+
+yakable-ui/src/shared/ui/**
+→ yakable-ui/src/shared/ui/UI_RULES.md
+
+yakable-ui/src/**/*.test.ts
+yakable-ui/src/**/*.test.tsx
+→ yakable-ui/TEST_RULES.md
+```
+
+Frontend tooling facts remain in:
+
+```text
+yakable-ui/docs/tooling.md
 ```
 
 ## Capability Context
@@ -101,8 +126,8 @@ Must Not:
 ```text
 Task goal
 + Capability Contract when behavior is involved
-+ JAVA_RULES.md for Java
-+ Nearest module RULES
++ JAVA_RULES.md for Java / FRONTEND_RULES.md for frontend
++ Architecture + nearest module RULES
 + Target code
 + Direct dependencies
 + Relevant tests
