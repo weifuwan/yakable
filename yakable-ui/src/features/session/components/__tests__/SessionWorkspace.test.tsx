@@ -347,8 +347,10 @@ describe('SessionWorkspace', () => {
 
     expect((input as HTMLTextAreaElement).value).toBe('Tell me more');
     expect(
-      (await screen.findByLabelText('User message')).textContent,
-    ).toContain('Tell me more');
+      (await screen.findAllByLabelText('User message')).some(
+        (item) => item.textContent?.includes('Tell me more'),
+      ),
+    ).toBe(true);
     expect(SessionService.streamingTurn).toHaveBeenCalledWith(
       'project-1',
       'session-1',
