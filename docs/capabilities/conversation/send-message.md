@@ -1,6 +1,6 @@
 # Send Message
 
-Status: Review
+Status: Implementing
 Domain: Conversation
 
 Depends On:
@@ -49,8 +49,13 @@ Tests:
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
 
-Known Gaps:
-- 当前后端发现已有 requestId 时直接返回原 Turn，没有校验 Prompt / provider / model 是否与原提交一致；不满足 CONV-017 的冲突拒绝语义。
+Implementation Design:
+- requestId replay 继续以 `sessionId + requestId` 定位原 Turn。
+- 找到原 Turn 后，读取原 USER Message 与 Turn invocation。
+- 仅当 `content + provider + model` 与原提交完全一致时返回原 Turn / USER Message。
+- 任一字段不一致时抛出明确的 Session request conflict，不创建 Turn，不创建 Message，不更新 Session activity。
+- 冲突检查复用现有 Turn / Message 数据，不新增表、不新增字段、不修改 Flyway。
+- 冲突日志只记录 requestId / userId / projectId / sessionId / turnId，不记录 Prompt 内容。
 
 ## Purpose
 
