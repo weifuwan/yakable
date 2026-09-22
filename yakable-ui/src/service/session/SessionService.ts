@@ -3,9 +3,11 @@ import type {
   SessionChanges,
   SessionMessage,
   SessionMessagePage,
+  SessionMessageWindow,
   SessionModel,
   SessionSnapshot,
   SessionTurn,
+  SessionTurnNavigationItem,
   TurnInvocation,
   TurnStartResult,
 } from './types';
@@ -109,6 +111,28 @@ function isSessionMessagePage(value: unknown): value is SessionMessagePage {
   );
 }
 
+function isTurnNavigationItem(value: unknown): value is SessionTurnNavigationItem {
+  return (
+    isRecord(value) &&
+    typeof value.turnId === 'string' &&
+    typeof value.userMessageId === 'string' &&
+    typeof value.userMessageSequence === 'number' &&
+    typeof value.preview === 'string'
+  );
+}
+
+function isSessionMessageWindow(value: unknown): value is SessionMessageWindow {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.messages) &&
+    value.messages.every(isSessionMessage) &&
+    typeof value.hasOlder === 'boolean' &&
+    typeof value.hasNewer === 'boolean' &&
+    (value.olderCursor === null || typeof value.olderCursor === 'number') &&
+    (value.newerCursor === null || typeof value.newerCursor === 'number')
+  );
+}
+
 function isTurnStartResult(value: unknown): value is TurnStartResult {
   return (
     isRecord(value) &&
@@ -172,6 +196,38 @@ async function queryMessages(
   return isSessionMessagePage(data)
     ? data
     : invalidResponse('Session messages API returned an invalid response.', data);
+}
+
+async function queryTurnNavigation(
+  projectId: string,
+  sessionId: string,
+  signal?: AbortSignal,
+) {
+  const data = await HttpUtils.get<unknown>(
+    sessionPath(projectId, sessionId) + '/turns/navigation',
+    { signal },
+  );
+  return Array.isArray(data) && data.every(isTurnNavigationItem)
+    ? data
+    : invalidResponse('Turn navigation API returned an invalid response.', data);
+}
+
+async function queryMessageWindow(
+  projectId: string,
+  sessionId: string,
+  anchorSequence: number,
+  signal?: AbortSignal,
+) {
+  const params = new URLSearchParams({
+    anchorSequence: String(anchorSequence),
+  });
+  const data = await HttpUtils.get<unknown>(
+    sessionPath(projectId, sessionId) + '/messages/window?' + params.toString(),
+    { signal },
+  );
+  return isSessionMessageWindow(data)
+    ? data
+    : invalidResponse('Message window API returned an invalid response.', data);
 }
 
 async function addTurn(
@@ -354,6 +410,8 @@ export const SessionService = {
   querySession,
   queryChanges,
   queryMessages,
+  queryTurnNavigation,
+  queryMessageWindow,
   addTurn,
   stopTurn,
   streamingTurn,
