@@ -1,85 +1,180 @@
 # Yakable Docs
 
-这是 Yakable 文档的唯一入口。
+这是 Yakable 的唯一文档入口。
 
-文档不再按 PRD / UX / Design / Plan 分散组织，而是围绕“产品”和“能力块”组织。
+这些文档首先服务于 **Context 定位**，不是为了完成传统研发流程中的文档交付。
 
-```text
-Yakable
-├── Product
-│   ├── Project
-│   ├── Session
-│   ├── User
-│   └── Frontend Domain Harness
-│
-├── Capabilities
-│   ├── Project
-│   ├── Conversation
-│   ├── User
-│   └── Model
-│
-└── Decisions
-```
+目标只有一个：
 
-## Product
+> 人或 AI 接到一个任务后，能够快速知道它属于哪里、受什么规则约束、会影响谁、应该读哪些代码和测试。
 
-[product/](./product/) 只回答稳定的产品语义：它是什么、用户为什么需要、边界在哪里。
-
-## Capabilities
-
-[capabilities/](./capabilities/) 是日常开发的主要入口。
-
-一个能力块就是一个可以独立理解、独立实现、独立测试、再组装进系统的工作单元。
-
-每个能力 README 都回答：
+## Knowledge Map
 
 ```text
-这块干嘛
-用户怎么用
-边界是什么
-流程怎么走
-Frontend 在哪
-Backend 在哪
-DAO 在哪
-测试在哪
-依赖谁 / 被谁依赖
+Product
+  → 稳定产品事实
+
+Domain Contract
+  → Shared Rules
+  → Cross-Capability Scenarios
+
+Capability Manifest
+  → Depends On / Related
+  → Code / Data / Tests
+  → Contract / Flow / Boundary
+
+Decision
+  → 少量长期技术取舍
 ```
 
-### 当前能力地图
+当前：
+
+- [Product](./product/)
+- [Capabilities](./capabilities/)
+- [Decisions](./decisions/)
+
+## Context Loading
+
+收到开发任务后，不默认扫描整个仓库。
+
+固定读取顺序：
 
 ```text
-Project
-├── Create Project
-└── Recent Projects
-
-Conversation
-├── Send Message
-├── Streaming
-├── Stop
-├── Reconnect
-├── Recovery
-├── History
-├── Context
-└── Turn Navigator (Draft)
-
-User
-├── Authentication
-└── User Management
-
-Model
-├── Model Selection
-└── Provider Runtime
+Task
+→ 识别 Domain + Capability
+→ 读取 Domain README
+→ 读取目标 Capability
+→ 加载 Depends On
+→ 根据 Shared Rules / Scenarios 找到关联能力
+→ 只加载 Manifest 指定的 Code / Data / Tests
+→ 开始设计
 ```
 
-## Decisions
+`Related` 不是默认全部加载；只有任务实际触及对应场景或共享规则时才继续扩展。
 
-[decisions/](./decisions/) 只记录少量重要且有长期影响的技术取舍。
+## Document Rules
 
-普通实现细节直接写在对应 Capability README，不单独制造设计文档。
+### 规则只写一次
+
+跨多个能力成立的规则必须放在 Domain README，并分配稳定 ID。
+
+例如：
+
+```text
+CONV-006
+Refresh / disconnect 不得触发 STOPPED。
+```
+
+Capability 只引用：
+
+```text
+Shared Rules:
+- CONV-006
+```
+
+禁止在多个 Capability 中复制同一条规则正文。
+
+### 交叉行为写 Scenario
+
+一个行为同时涉及多个 Capability 时，不强行归给其中一个。
+
+放到 Domain README：
+
+```text
+CONV-S03
+Streaming → Refresh → Reconnect → Continue
+```
+
+Scenario 明确：
+
+- 涉及哪些 Capability。
+- 必须保证什么结果。
+
+这样修改一个能力时，可以通过 Scenario 找到需要一起 Review 的影响面。
+
+### 第一屏必须能路由 Context
+
+Capability 文件开头必须先写 Context Manifest：
+
+```text
+Status
+Domain
+Depends On
+Related
+Frontend
+Backend
+Data
+Shared Rules
+Scenarios
+Tests
+```
+
+AI 不需要先读长篇背景，第一屏就应该知道下一步读什么。
+
+### 正文只保留高密度信息
+
+Capability 正文默认只有：
+
+```text
+Purpose
+Contract
+Flow
+Boundary
+```
+
+已经能从 Manifest 得到的信息，不在正文重复。
+
+普通 Capability 应尽量保持简短；如果一份 Capability 持续膨胀，优先检查它是不是应该继续拆分。
+
+## Status
+
+统一使用：
+
+```text
+Planned       尚未设计
+Designing     正在设计，代码可能不存在
+Implementing  正在开发
+Review        开发完成，正在 Review
+Done          文档描述当前真实实现
+```
+
+`Done` 文档必须和当前代码一致。
+
+`Designing` / `Implementing` 文档必须明确哪些路径是计划落点，不能让 AI 把未来设计当成当前实现。
+
+## Feature Development Rule
+
+新增功能必须串行推进，一次只做一个 Capability 或一个已经明确拆分好的功能块。
+
+固定流程：
+
+```text
+选择一个功能
+→ 读取当前 Domain / Capability / Code / Tests
+→ 识别真实 Gap
+→ 先更新 Capability 设计
+→ 开发最小实现
+→ 执行对应测试
+→ 按 Capability + Shared Rules + Scenarios Review
+→ 修复 Review Gap
+→ 将 Status 更新为 Done
+→ 才能进入下一个功能
+```
+
+禁止：
+
+- 一个 PR 同时新增多个独立功能。
+- 当前功能未 Review 完就开始下一个。
+- 不看当前代码直接重新设计一套结构。
+- 为未来需求提前实现代码。
+- 为了“架构完整”随意新增 Manager / Coordinator / Handler / Assembler。
+- 让代码改动超出当前 Capability 的边界。
+
+设计变更时，先更新文档，再继续开发。
 
 ## Engineering Rules
 
-工程规范仍放在最接近代码的位置：
+代码规范仍放在离代码最近的位置：
 
 - [Java 全局规范](../JAVA_GLOBAL_CODE_README.md)
 - [后端测试规范](../BACKEND_TEST_README.md)
@@ -90,117 +185,6 @@ Model
 - [Repository / Mapper 规范](../yakable-dao/REPOSITORY_README.md)
 - [Flyway 规范](../yakable-dao/FLYWAY_README.md)
 
-## 新增功能规范
+原则：
 
-新增功能必须串行推进，不能一次性新增多个功能。
-
-### 一次只做一个功能
-
-一个开发周期只允许新增一个 Capability，或者只解决一个已经明确拆分好的功能块。
-
-禁止：
-
-- 一个 PR 同时新增多个互相独立的功能。
-- 做当前功能时顺手把“以后可能需要”的功能一起加进去。
-- 当前功能还没有 Review 完成，就继续进入下一个功能。
-
-功能过大时，先拆成多个可以独立理解、实现和验收的块，再一块一块完成。
-
-### 先看当前代码
-
-新增或修改功能前，必须先理解当前实现。
-
-默认阅读顺序：
-
-```text
-docs/README.md
-→ 对应 Capability README
-→ README 指定的 Frontend / Backend / DAO / Test 入口
-→ 当前真实调用链
-```
-
-必须先确认：
-
-- 当前代码已经怎么设计。
-- 现有职责边界在哪里。
-- 哪些代码可以直接复用。
-- 当前测试保护了什么。
-- 新功能真正缺少的是什么。
-
-禁止脱离现有代码重新想一套结构，也不能因为新写一个类更方便，就随意新增 Manager / Coordinator / Handler / Assembler 等中间层。
-
-### 先设计，再开发
-
-写代码前，先完成对应 Capability 的设计。
-
-新增 Capability 就先创建它的 README；已有 Capability 就先更新现有 README。
-
-设计至少要明确：
-
-```text
-功能解决什么问题
-用户怎么使用
-这块负责什么 / 不负责什么
-完整流程怎么走
-Frontend 放在哪里
-Backend 放在哪里
-DAO 是否需要变化
-计划修改 / 新增哪些文件
-异常和边界怎么处理
-需要保护哪些测试
-和哪些能力组装
-```
-
-设计没有明确到代码落点之前，不进入开发。
-
-开发过程中如果发现设计需要变化，先更新 README，再继续改代码。
-
-### 按设计最小实现
-
-开发只实现当前设计已经定义的内容。
-
-要求：
-
-- 优先复用现有结构。
-- 不做无关重构。
-- 不提前实现下一个功能。
-- 不为了“架构完整”增加当前不需要的抽象。
-- 不让代码范围超过 Capability README 定义的边界。
-
-### 开发完成后必须 Review
-
-代码完成后，不直接开始下一个功能。
-
-必须重新对照 Capability README Review 当前实现：
-
-```text
-设计
-→ 当前代码
-→ 是否一致
-→ 是否缺失
-→ 是否过度实现
-→ 是否破坏已有边界
-→ 测试是否覆盖关键行为
-→ 必要修复
-→ 完成
-```
-
-Review 完成并关闭本功能后，才能进入下一个功能。
-
-## 工作方式
-
-以后开发一个能力，固定流程是：
-
-```text
-选择一个功能
-→ 阅读当前实现
-→ 设计 Capability
-→ 开发
-→ 测试
-→ Review
-→ 修复 Review 问题
-→ 完成本功能
-→ 再选择下一个功能
-```
-
-原则：**一次一个功能，先理解，先设计，再开发，再 Review，最后组装。**
+> **把稳定事实写成 Contract，把共享约束写成 Rule，把交叉行为写成 Scenario，把代码入口写进 Manifest。**
