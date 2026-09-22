@@ -20,6 +20,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -121,11 +122,22 @@ class ConversationPersistenceIT {
         insertTurn("turn-2", "session-1", "turn-request-2", TurnStatusEnum.SUCCEEDED, null);
         insertMessage("message-1", "session-1", "turn-1", MessageRoleEnum.USER, "First", 1L);
         insertMessage("message-2", "session-1", "turn-1", MessageRoleEnum.ASSISTANT, "Answer", 2L);
-        insertMessage("message-3", "session-1", "turn-2", MessageRoleEnum.USER, "Second", 3L);
+        insertMessage(
+                "message-3",
+                "session-1",
+                "turn-2",
+                MessageRoleEnum.USER,
+                "  Build\n\t" + "界".repeat(170) + "  ",
+                3L);
 
-        assertThat(messageRepository.queryUserNavigationMessageList("session-1"))
+        List<MessageEntity> navigation = messageRepository.queryUserNavigationMessageList("session-1");
+        assertThat(navigation)
                 .extracting(MessageEntity::getId)
                 .containsExactly("message-1", "message-3");
+        assertThat(navigation.get(1).getContent()).doesNotContain("\n", "\t");
+        assertThat(navigation.get(1).getContent().codePointCount(0, navigation.get(1).getContent().length()))
+                .isEqualTo(160);
+
         assertThat(messageRepository.queryMessage("session-1", 2L))
                 .get()
                 .extracting(MessageEntity::getId)
