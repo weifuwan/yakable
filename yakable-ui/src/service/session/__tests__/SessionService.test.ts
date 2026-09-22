@@ -154,6 +154,7 @@ describe('SessionService', () => {
       'session-1',
       'Tell me more',
       selectedModel,
+      'turn-request-1',
       {
         onStarted,
         onSnapshot,
@@ -167,6 +168,7 @@ describe('SessionService', () => {
         content: 'Tell me more',
         provider: 'kimi',
         model: 'kimi-k3',
+        requestId: 'turn-request-1',
       },
       expect.any(Function),
       { signal: undefined },
@@ -242,6 +244,7 @@ describe('SessionService', () => {
         'session-1',
         'Hello',
         selectedModel,
+        'turn-request-2',
         {
           onStarted: vi.fn(),
           onDelta: vi.fn(),
@@ -268,6 +271,7 @@ describe('SessionService', () => {
         'session-1',
         'Hello',
         selectedModel,
+        'turn-request-3',
         {
           onStarted: vi.fn(),
           onDelta: vi.fn(),
