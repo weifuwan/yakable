@@ -45,6 +45,7 @@ import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -738,8 +739,6 @@ class SessionServiceImplTest {
 
     @Test
     void shouldLeaveInterruptedRuntimeTurnForShutdownRecovery() {
-        stubExecuteWithoutResultInline();
-
         String currentTurnId = "turn-shutdown";
         SessionEntity session = session("project-1", "session-1");
         TurnVO current = turn(currentTurnId, TurnStatusEnum.RUNNING);
@@ -767,6 +766,11 @@ class SessionServiceImplTest {
 
         verify(turnService, never()).updateTurnFailed(
                 eq(currentTurnId), eq("session-1"), any(), any(LocalDateTime.class));
+
+        @SuppressWarnings("unchecked")
+        Set<String> shutdownRecoveryTurnIds =
+                (Set<String>) ReflectionTestUtils.getField(sessionService, "shutdownRecoveryTurnIds");
+        assertThat(shutdownRecoveryTurnIds).contains(currentTurnId);
     }
 
     @Test
