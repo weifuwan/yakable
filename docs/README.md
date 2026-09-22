@@ -176,14 +176,15 @@ Done          文档描述当前真实实现
 
 代码规范仍放在离代码最近的位置：
 
-- [Java 全局规范](../JAVA_GLOBAL_CODE_README.md)
-- [后端测试规范](../BACKEND_TEST_README.md)
-- [Service 规范](../yakable-service/SERVICE_README.md)
-- [Core 规范](../yakable-core/CORE_README.md)
-- [Common 规范](../yakable-common/COMMON_CODE.md)
-- [Entity 规范](../yakable-dao/ENTITY_README.md)
-- [Repository / Mapper 规范](../yakable-dao/REPOSITORY_README.md)
-- [Flyway 规范](../yakable-dao/FLYWAY_README.md)
+- [Java 全局规则](../JAVA_RULES.md)
+- [后端测试规则](../BACKEND_TEST_RULES.md)
+- [Controller 规则](../yakable-boot/CONTROLLER_RULES.md)
+- [Service 规则](../yakable-service/SERVICE_RULES.md)
+- [Core 规则](../yakable-core/CORE_RULES.md)
+- [Common 规则](../yakable-common/COMMON_RULES.md)
+- [Entity 规则](../yakable-dao/ENTITY_RULES.md)
+- [Repository / Mapper 规则](../yakable-dao/REPOSITORY_RULES.md)
+- [Flyway 规则](../yakable-dao/FLYWAY_RULES.md)
 
 原则：
 

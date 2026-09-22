@@ -1,21 +1,25 @@
 # yakable-dao
 
-`yakable-dao` 只负责数据库持久化。
+`yakable-dao` only owns database persistence.
 
-固定调用链：
+Call chain:
 
 ```text
 Service
-    ↓
+  ↓
 Repository
-    ↓
+  ↓
 Mapper
-    ↓
+  ↓
 Entity
 ```
 
-## 规范
+## Rules
 
-- [ENTITY_README.md](./ENTITY_README.md)：Entity、BaseEntity、ID、时间、枚举和注释。
-- [REPOSITORY_README.md](./REPOSITORY_README.md)：Repository、Mapper、SQL、Update 和分页。
-- [FLYWAY_README.md](./FLYWAY_README.md)：数据库结构与 Migration。
+Load only the rule file required by the task:
+
+- [ENTITY_RULES.md](./ENTITY_RULES.md) — Entity mapping, BaseEntity, ID, time, enum and comments.
+- [REPOSITORY_RULES.md](./REPOSITORY_RULES.md) — Repository, Mapper, SQL, state update and pagination.
+- [FLYWAY_RULES.md](./FLYWAY_RULES.md) — Schema and Migration contract.
+
+Cross-table business orchestration does not belong in DAO.
