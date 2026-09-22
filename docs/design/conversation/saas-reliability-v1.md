@@ -1,6 +1,6 @@
 # Yakable SaaS Reliability V1
 
-> 状态：Draft  
+> 状态：Done  
 > 版本：V1  
 > 范围：当前 SaaS 核心链路  
 > 原则：不新增产品功能，只提高稳定性、可用性和性能
@@ -322,6 +322,68 @@ SaaS V1 明确只支持单实例后端部署；这不是未来多实例方案，
 ```
 
 不要为了 Review 数量制造问题。
+
+## 15. V1 Acceptance
+
+SaaS Reliability V1 已完成当前核心链路验收。
+
+验收范围：
+
+```text
+User
+  ↓
+Project
+  ↓
+Session
+  ↓
+Turn
+  ↓
+Message
+  ↓
+LLM
+```
+
+本轮可靠性收口对应：
+
+- PR1 Request Idempotency：Project / Turn 重试不会重复建立业务数据，数据库唯一约束处理并发重复请求。
+- PR2 Execution Resource Boundary：全局与单用户 Execution 有明确并发上限，PENDING 作为持久等待状态，不创建无限内存队列。
+- PR3 Message Size Boundary：用户输入、Streaming Buffer、Message 持久化和数据库容量具有一致边界。
+- PR4 Long Session Performance：Session 首屏、增量查询与 Context 历史读取均保持有界。
+- PR5 SaaS Runtime Boundary：V1 明确单实例运行，正常发布支持 graceful shutdown 和同 Turn Recovery。
+- PR6 Observability Baseline：HTTP trace、Conversation 生命周期日志、Actuator 与低基数 Metrics 已建立。
+- PR7 Reliability Acceptance：真实 MySQL Integration Test 与 GitHub CI Gate 保护关键持久化行为和前后端回归。
+
+V1 的真实 MySQL 验收至少保护：
+
+- Flyway 能在空 MySQL 8 实例完整迁移到当前最新 Schema。
+- Message 内容字段为与应用层边界匹配的 `MEDIUMTEXT`。
+- Project requestId、Turn requestId、Project 单 Session 等数据库唯一边界真实生效。
+- Turn 成功后，迟到 Failure / Stop 不能覆盖终态。
+- RUNNING Turn 可以原地恢复为 PENDING，并保留原 Turn、requestId、provider 和 model identity。
+
+自动化执行约定：
+
+```text
+./mvnw test
+→ 快速 Unit Test
+
+./mvnw verify
+→ Unit Test + Testcontainers MySQL Integration Test
+
+cd yakable-ui
+npm run typecheck
+npm run test
+npm run build
+→ TypeScript contract + frontend regressions + production bundle
+```
+
+GitHub CI 对 Pull Request 和 main push 执行 Backend Verify，以及 Frontend Typecheck / Test / Build。
+
+当前历史代码仍存在一批与可靠性无关的 lint warning，因此 V1 不把全量 lint 清零混入 Reliability Acceptance；lint 继续作为独立代码质量治理项。
+
+本次 Done 只表示 `SaaS Reliability V1` 的当前边界完成，不等价于未来所有可靠性问题已经不存在。出现新的真实故障证据时，继续按本文 Review 方法增加最小修复。
+
+`Conversation Infrastructure PRD V1` 仍是独立的产品 / 基础设施验收契约，不因为本设计文档 Done 自动改变其状态。
 
 ## 原则
 

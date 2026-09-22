@@ -7,6 +7,7 @@ import io.yakable.common.bean.dto.project.QueryProjectPageDTO;
 import io.yakable.common.bean.vo.project.ProjectListVO;
 import io.yakable.common.bean.vo.user.CurrentUserVO;
 import io.yakable.common.constant.MessageConstant;
+import io.yakable.service.auth.AuthService;
 import io.yakable.service.project.ProjectService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,6 +45,9 @@ class ProjectControllerTest {
 
     @MockBean
     private ProjectService projectService;
+
+    @MockBean
+    private AuthService authService;
 
     @BeforeEach
     void setCurrentUser() {

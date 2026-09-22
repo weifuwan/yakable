@@ -557,11 +557,6 @@ class SessionServiceImplTest {
         when(sessionRepository.queryById("session-1")).thenReturn(Optional.of(session));
         when(turnService.updatePendingTurn(eq(currentTurnId), any(LocalDateTime.class)))
                 .thenReturn(Optional.of(current));
-        stubContext(
-                "session-1",
-                currentTurnId,
-                List.of(message("m1", currentTurnId, MessageRoleEnum.USER, "Hello", 1L)),
-                List.of(current));
         when(llmClient.modelMetadata("deepseek", "unknown-model"))
                 .thenThrow(new IllegalArgumentException("Model context metadata not found"));
         current.getInvocation().setModel("unknown-model");

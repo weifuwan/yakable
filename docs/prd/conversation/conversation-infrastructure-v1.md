@@ -47,7 +47,7 @@ Session PRD 决定产品行为，Conversation Infrastructure 决定这些行为�
 
 ### SaaS Reliability V1
 
-`docs/quality/saas-reliability-v1.md` 是 Yakable 整体 SaaS 的质量底线。
+`docs/design/conversation/saas-reliability-v1.md` 是 Yakable 整体 SaaS 的可靠性设计与质量底线。
 
 Conversation Infrastructure V1 是这套质量规则在 AI Conversation 核心链路上的具体契约。
 
