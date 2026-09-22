@@ -52,6 +52,17 @@ public class TurnRepositoryImpl extends BaseRepositoryImpl<TurnMapper, TurnEntit
     }
 
     @Override
+    public List<TurnEntity> queryTurnListByIds(List<String> turnIds) {
+        if (turnIds.isEmpty()) {
+            return List.of();
+        }
+        return turnMapper.selectList(
+                Wrappers.<TurnEntity>lambdaQuery()
+                        .in(TurnEntity::getId, turnIds)
+                        .orderByAsc(TurnEntity::getCreateTime, TurnEntity::getId));
+    }
+
+    @Override
     public Optional<TurnEntity> queryLatestTurn(String sessionId) {
         Page<TurnEntity> page = new Page<>(1, 1, false);
         return turnMapper.selectPage(
