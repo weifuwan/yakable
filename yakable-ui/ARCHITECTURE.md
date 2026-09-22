@@ -85,6 +85,8 @@ Creating a project returns the id first, then navigation moves immediately to th
 
 Features own product capabilities.
 
+Detailed feature constraints: [FEATURE_RULES.md](./src/features/FEATURE_RULES.md).
+
 `project` owns Dashboard project interactions and project-query state. `model` owns model identity and selection UI; its current catalog is local until a real model API exists. `conversation` owns project messages and the Project chat surface.
 
 Add one feature at a time only after its ownership and contract are understood. The current product stage intentionally stops at conversation; Agent execution, planning, generated files, and Preview remain future work.
@@ -147,11 +149,13 @@ Backend API
 - `HttpUtils` owns HTTP, `Result<T>`, network errors, JSON parsing and SSE framing.
 - domain Service owns endpoint paths, request/response contracts and SSE business events.
 - API contract types live with the owning Service, not under feature.
-- details are defined in [SERVICE_README.md](./SERVICE_README.md).
+- details are defined in [SERVICE_RULES.md](./SERVICE_RULES.md).
 
 ## UI boundary
 
 `shared/ui` owns small, reusable Yakable product primitives.
+
+Detailed primitive constraints: [UI_RULES.md](./src/shared/ui/UI_RULES.md).
 
 ```text
 shared/ui/
@@ -228,4 +232,4 @@ Frontend architecture rules are backed by executable checks rather than review c
 - `npm test` owns frontend unit and component behavior.
 - `npm run check` is the local aggregate quality gate.
 
-See [docs/tooling.md](./docs/tooling.md) for the tooling contract and [docs/testing.md](./docs/testing.md) for test boundaries.
+See [docs/tooling.md](./docs/tooling.md) for the tooling contract and [TEST_RULES.md](./TEST_RULES.md) for test boundaries.

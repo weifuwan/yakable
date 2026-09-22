@@ -1,6 +1,6 @@
 # Yakable UI
 
-Yakable's browser application.
+Yakable 浏览器应用。
 
 ## Development
 
@@ -9,19 +9,26 @@ npm install
 npm run dev
 ```
 
-The Vite development server proxies `/api` to the Java backend at `http://127.0.0.1:8080`.
+Vite 开发服务器将 `/api` 代理到：
 
-## Quality checks
-
-```bash
-npm run check
+```text
+http://127.0.0.1:8080
 ```
 
-Use `npm run lint:fix` for safe lint fixes, `npm run format` to format code, and `npm run test:watch` while developing tests.
+## Context
 
-See [docs/tooling.md](./docs/tooling.md) for the executable frontend tooling contract and [docs/testing.md](./docs/testing.md) for the testing contract.
+修改前端代码时按任务加载：
 
-## Source architecture
+- [FRONTEND_RULES.md](./FRONTEND_RULES.md) — 全局前端代码规则。
+- [ARCHITECTURE.md](./ARCHITECTURE.md) — 当前目录、ownership 和依赖方向。
+- [SERVICE_RULES.md](./SERVICE_RULES.md) — Backend API / HTTP / SSE 规则。
+- [TEST_RULES.md](./TEST_RULES.md) — 前端测试规则。
+- [src/features/FEATURE_RULES.md](./src/features/FEATURE_RULES.md) — Feature ownership。
+- [src/shared/ui/UI_RULES.md](./src/shared/ui/UI_RULES.md) — Shared UI Primitive。
+- [src/shared/lib/LIB_RULES.md](./src/shared/lib/LIB_RULES.md) — Shared helper。
+- [docs/tooling.md](./docs/tooling.md) — Oxlint / Oxfmt / TypeScript / Vitest 工具事实。
+
+## Source
 
 ```text
 src/
@@ -33,8 +40,21 @@ src/
 └── shared/
 ```
 
-See [ARCHITECTURE.md](./ARCHITECTURE.md) for ownership and dependency rules, and [SERVICE_README.md](./SERVICE_README.md) for backend API conventions.
+浏览器原生交互留在本模块。
 
-Browser-native behavior stays in this module, including Preview DOM interaction and visual selection.
+后端领域逻辑、模型集成、Project 编排、持久化和 Harness Runtime 属于 Java 模块。
 
-Backend domain logic, model integration, project orchestration, persistence, and Harness runtime belong in the Java modules.
+## Verification
+
+```bash
+npm run check
+npm run build
+```
+
+开发中可以使用：
+
+```bash
+npm run lint:fix
+npm run format
+npm run test:watch
+```
