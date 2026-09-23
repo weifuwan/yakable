@@ -489,15 +489,6 @@ describe('SessionWorkspace', () => {
       },
     });
 
-    scroll.scrollTop = 100;
-    fireEvent.scroll(scroll);
-
-    expect(
-      await screen.findByRole('button', {
-        name: 'Scroll to bottom',
-      }),
-    ).toBeTruthy();
-
     const input = screen.getByRole('textbox', {
       name: 'Send a message',
     });
@@ -510,12 +501,23 @@ describe('SessionWorkspace', () => {
     });
 
     expect(await screen.findByText('First chunk')).toBeTruthy();
-    expect(scroll.scrollTop).toBe(100);
+    expect(scroll.scrollTop).toBe(1000);
+
+    scroll.scrollTop = 100;
+    fireEvent.scroll(scroll);
+
     expect(
-      screen.getByRole('button', {
+      await screen.findByRole('button', {
         name: 'Scroll to bottom',
       }),
     ).toBeTruthy();
+
+    await act(async () => {
+      handlers?.onDelta(' second chunk');
+    });
+
+    expect(await screen.findByText('First chunk second chunk')).toBeTruthy();
+    expect(scroll.scrollTop).toBe(100);
 
     await user.click(
       screen.getByRole('button', {
@@ -533,13 +535,13 @@ describe('SessionWorkspace', () => {
     scrollHeight = 1200;
 
     await act(async () => {
-      handlers?.onDelta(' second chunk');
+      handlers?.onDelta(' third chunk');
     });
 
     await waitFor(() => {
       expect(scroll.scrollTop).toBe(1200);
     });
-    expect(await screen.findByText('First chunk second chunk')).toBeTruthy();
+    expect(await screen.findByText('First chunk second chunk third chunk')).toBeTruthy();
 
     await act(async () => {
       resolveStream();
