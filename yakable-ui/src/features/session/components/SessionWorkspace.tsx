@@ -381,7 +381,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
         <div
           ref={scrollRef}
           data-testid="session-message-scroll"
-          className="h-full overflow-y-auto"
+          className="scrollbar-subtle h-full overflow-y-auto"
           onScroll={handleScroll}
         >
           {isSessionLoading ? (
