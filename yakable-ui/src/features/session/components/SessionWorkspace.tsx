@@ -487,13 +487,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
           );
         });
     },
-    [
-      hasNewer,
-      restoreLatest,
-      scrollToBottom,
-      setFollowLatest,
-      cancelNavigationJump,
-    ],
+    [hasNewer, restoreLatest, scrollToBottom, setFollowLatest, cancelNavigationJump],
   );
 
   const runStreamingTurn = useCallback(
