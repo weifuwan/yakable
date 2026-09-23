@@ -99,6 +99,42 @@ describe('HttpUtils', () => {
     );
   });
 
+  it('bootstraps CSRF before an unsafe request when the cookie is missing', async () => {
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      if (url === '/api/auth/csrf') {
+        document.cookie = 'XSRF-TOKEN=csrf-token; path=/';
+        return apiResponse('csrf-token');
+      }
+      return apiResponse({ id: 'project-1' });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await HttpUtils.post('/api/projects', { prompt: 'Build a CRM' });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/api/auth/csrf',
+      expect.objectContaining({
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+        },
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/projects',
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'X-XSRF-TOKEN': 'csrf-token',
+        },
+      }),
+    );
+  });
+
   it('notifies the app when an HTTP request becomes unauthorized', async () => {
     const onUnauthorized = vi.fn();
     setUnauthorizedHandler(onUnauthorized);
