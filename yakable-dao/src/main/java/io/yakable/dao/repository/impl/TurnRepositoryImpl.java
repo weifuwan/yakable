@@ -36,6 +36,14 @@ public class TurnRepositoryImpl extends BaseRepositoryImpl<TurnMapper, TurnEntit
     }
 
     @Override
+    public Optional<TurnEntity> queryTurnForUpdate(String turnId) {
+        return Optional.ofNullable(turnMapper.selectOne(
+                Wrappers.<TurnEntity>lambdaQuery()
+                        .eq(TurnEntity::getId, turnId)
+                        .last("FOR UPDATE")));
+    }
+
+    @Override
     public long queryActiveTurnCount(String sessionId) {
         return turnMapper.selectCount(
                 Wrappers.<TurnEntity>lambdaQuery()
