@@ -1,0 +1,89 @@
+.yakable-markdown [data-streamdown='code-block'] {
+  gap: 0;
+  margin-block: 14px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 20px;
+  background: var(--code-block-background);
+  padding: 14px 16px 16px;
+}
+
+.yakable-markdown [data-streamdown='code-block-header'] {
+  height: 28px;
+  gap: 7px;
+  color: var(--foreground-muted);
+  font-size: 12px;
+}
+
+.yakable-markdown [data-streamdown='code-block-header']::before {
+  display: inline-flex;
+  width: 22px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-control);
+  border-radius: 5px;
+  color: var(--foreground-soft);
+  content: '</>';
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 9px;
+  line-height: 1;
+}
+
+.yakable-markdown [data-streamdown='code-block-header'] > span {
+  margin-left: 0;
+  font-family: inherit;
+  text-transform: capitalize;
+}
+
+.yakable-markdown [data-streamdown='code-block-header'] + div {
+  top: 14px;
+  height: 28px;
+  margin-top: -28px;
+}
+
+.yakable-markdown [data-streamdown='code-block-actions'] {
+  gap: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  backdrop-filter: none;
+}
+
+.yakable-markdown [data-streamdown='code-block-copy-button'] {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  padding: 0;
+  color: var(--icon-muted);
+}
+
+.yakable-markdown [data-streamdown='code-block-copy-button']:hover {
+  background: var(--surface-hover);
+  color: var(--icon-hover);
+}
+
+.yakable-markdown [data-streamdown='code-block-body'] {
+  margin-top: 8px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 8px 4px 2px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.yakable-markdown [data-streamdown='code-block-body'] pre {
+  margin: 0;
+  border-radius: 0;
+  background: transparent !important;
+  padding: 0;
+}
+
+.yakable-markdown [data-streamdown='code-block-body'] code {
+  background: transparent;
+  padding: 0;
+}

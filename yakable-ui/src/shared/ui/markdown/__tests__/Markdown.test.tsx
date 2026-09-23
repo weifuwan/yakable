@@ -33,7 +33,7 @@ describe('Markdown', () => {
 
     expect(await screen.findByText('java')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Copy Code' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Download file' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Download file' })).toBeNull();
 
     const codeBlock = container.querySelector('[data-streamdown="code-block"]');
     expect(codeBlock?.textContent).toContain('class Hello');
@@ -106,9 +106,8 @@ describe('Markdown', () => {
     render(<Markdown content={javaMarkdown} mode="streaming" />);
 
     const copyButton = await screen.findByRole('button', { name: 'Copy Code' });
-    const downloadButton = screen.getByRole('button', { name: 'Download file' });
 
     expect((copyButton as HTMLButtonElement).disabled).toBe(true);
-    expect((downloadButton as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Download file' })).toBeNull();
   });
 });
