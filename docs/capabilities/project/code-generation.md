@@ -21,7 +21,9 @@ Backend:
 - `yakable-service/src/main/java/io/yakable/service/turn/TurnService.java`
 - `yakable-service/src/main/java/io/yakable/service/turn/impl/TurnServiceImpl.java`
 - `yakable-dao/src/main/java/io/yakable/dao/entity/TurnEntity.java`
-- Planned: Project code generation Core capability
+- `yakable-core/src/main/java/io/yakable/core/project/generation/ProjectCodeGenerator.java`
+- `yakable-core/src/main/java/io/yakable/core/project/generation/GeneratedProject.java`
+- `yakable-core/src/main/java/io/yakable/core/project/generation/ProjectCodeGenerationResult.java`
 - `yakable-core/src/main/java/io/yakable/core/project/files/ProjectFile.java`
 - `yakable-core/src/main/java/io/yakable/core/project/files/ProjectFiles.java`
 
@@ -44,11 +46,11 @@ Tests:
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
 - `yakable-service/src/test/java/io/yakable/service/turn/impl/TurnServiceImplTest.java`
 - `yakable-core/src/test/java/io/yakable/core/project/files/ProjectFilesTest.java`
+- `yakable-core/src/test/java/io/yakable/core/project/generation/ProjectCodeGeneratorTest.java`
 
 Known Gaps:
-- Project code generation is not implemented yet.
 - Initial Turn execution routing to Project Code Generation is not implemented yet.
-- Project Files Core is not assembled into the application until generation execution is connected.
+- Project Code Generator and Project Files Core are not yet connected into one Turn execution flow.
 
 ## Purpose
 
