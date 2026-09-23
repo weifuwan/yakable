@@ -2,7 +2,9 @@ package io.yakable.common.bean.dto.session;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.yakable.common.constant.MessageConstant;
+import io.yakable.common.enums.session.TurnTypeEnum;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -14,6 +16,7 @@ public record AddSessionDTO(
         @Schema(description = "Session 标题") @NotBlank String title,
         @Schema(description = "模型提供商", example = "deepseek") @NotBlank String provider,
         @Schema(description = "模型名称", example = "deepseek-chat") @NotBlank String model,
+        @Schema(hidden = true) @NotNull TurnTypeEnum turnType,
         @Schema(description = "用户输入内容") @NotBlank @Size(max = MessageConstant.MAX_CONTENT_LENGTH) String content,
         @Schema(description = "客户端请求ID") @NotBlank @Size(max = 64) String requestId,
         @Schema(hidden = true) @NotBlank String userId) {
