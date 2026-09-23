@@ -58,8 +58,7 @@ export function useTurnWindowing({
   const pinnedKeysRef = useRef(new Set<string>());
   const frameRef = useRef<number | null>(null);
   const turnKey = turnKeys.join('|');
-  const pinnedKey = pinnedTurnKeys.join('|');
-  const pinnedKeys = useMemo(() => new Set(pinnedTurnKeys), [pinnedKey]);
+  const pinnedKeys = useMemo(() => new Set(pinnedTurnKeys), [pinnedTurnKeys]);
 
   const measureWindow = useCallback(() => {
     const container = scrollRef.current;
@@ -131,7 +130,7 @@ export function useTurnWindowing({
   useEffect(() => {
     pinnedKeysRef.current = pinnedKeys;
     scheduleMeasure();
-  }, [pinnedKey, pinnedKeys, scheduleMeasure]);
+  }, [pinnedKeys, scheduleMeasure]);
 
   useEffect(() => {
     scheduleMeasure();
