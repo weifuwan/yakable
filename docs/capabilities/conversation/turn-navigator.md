@@ -17,9 +17,10 @@ Frontend:
 - Contract Types: `yakable-ui/src/service/session/types.ts`
 - Turn Boundary: `yakable-ui/src/features/session/components/TurnItem.tsx`
 - Message Window: `yakable-ui/src/features/session/hooks/useSessionMessageWindow.ts`
-- Basic Rail: `yakable-ui/src/features/session/components/turn-navigator/TurnNavigator.tsx`
-- Navigation State: `yakable-ui/src/features/session/components/turn-navigator/useTurnNavigator.ts`
-- Geometry: `yakable-ui/src/features/session/components/turn-navigator/turn-navigation.ts`
+- Interactive Rail: `yakable-ui/src/features/session/components/turn-navigator/TurnNavigator.tsx`
+- Interaction State Machine: `yakable-ui/src/features/session/components/turn-navigator/useTurnNavigatorInteraction.ts`
+- Navigation State / Jump Focus: `yakable-ui/src/features/session/components/turn-navigator/useTurnNavigator.ts`
+- Conversation + Rail Geometry: `yakable-ui/src/features/session/components/turn-navigator/turn-navigation.ts`
 - Existing host: `yakable-ui/src/features/session/components/SessionWorkspace.tsx`
 
 Backend:
@@ -50,7 +51,8 @@ Tests:
 - `yakable-ui/src/features/session/components/turn-navigator/__tests__/TurnNavigator.test.tsx`
 - `yakable-ui/src/features/session/components/turn-navigator/__tests__/useTurnNavigator.test.tsx`
 - SessionWorkspace basic navigation integration
-- Planned: Navigator geometry / drag / focus / windowing invariant regression tests
+- Navigator geometry / Drag / Fisheye / Focus / Keyboard regression tests
+- Planned: geometry-preserving windowing invariant regression tests
 - Planned: 500 Turn long-session test
 
 ## Purpose
@@ -84,6 +86,13 @@ Tests:
 - 当前 DOM 中存在 turnId 不代表 Turn 起点已加载；只有该 Turn 的 USER Message 已在 Message Window 中时才能直接 Jump，否则仍需加载 Target Message Window。
 - Origin / Terminus 固定在可滚动 rib column 外；Origin 定位 Session start，Terminus 定位 latest 并恢复 follow latest。
 - 当前显示 Message Window 与 Session 最新 sequence 分离；跳到历史窗口不得让 Streaming / Reconnect 的 afterSequence 回退。
+- Drag 已使用 4px movement threshold；Pointer Move 只更新共享 Preview / Fisheye / drag target，release 后才执行最终 Jump，未加载历史不会在拖动过程中连续请求正文。
+- Pointer cancel / window blur 会清理 drag state；完成 Drag 后抑制紧随其后的 synthetic click，避免重复 Jump。
+- Fisheye 只通过 rib visual 的 horizontal transform 放大，不修改固定 row height、row order 或纵向 hit target；Hover/Drag 均使用同一份 measured rib layout。
+- Navigator rib 使用 roving tabindex；ArrowUp / ArrowDown / Home / End 只移动 Navigator Focus，Enter / Space 通过统一 Jump 语义激活目标。
+- 键盘激活 Jump 后 Focus 进入目标 TurnItem；Pointer Click / Drag 不额外抢夺目标 Focus。
+- `Shift + Alt + M` 将 Focus 返回 Current rib；Hover / Focus / Drag 继续共用一个 Prompt Preview。
+- 用户 Pointer / Focus / Drag 操作 Rail 时暂停 Current 自动跟随；Rail hit-test 与 Fisheye 在 rail content space 中统一计算。
 
 ## Frontend Design Invariants
 
