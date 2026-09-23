@@ -173,7 +173,11 @@ export function useTurnNavigator({
         const entry = layout.find((candidate) => candidate.turnId === item.turnId);
         if (!entry) return;
 
-        container.scrollTop = targetScrollTop(entry, container.clientHeight, container.scrollHeight);
+        container.scrollTop = targetScrollTop(
+          entry,
+          container.clientHeight,
+          container.scrollHeight,
+        );
         scheduleMeasure();
       } catch {
         // Navigation is optional; keep the current Message Window when a target load fails.
@@ -214,14 +218,7 @@ export function useTurnNavigator({
     } finally {
       setIsJumping(false);
     }
-  }, [
-    ensureTurnRendered,
-    isJumping,
-    items,
-    onFollowLatestChange,
-    scheduleMeasure,
-    scrollRef,
-  ]);
+  }, [ensureTurnRendered, isJumping, items, onFollowLatestChange, scheduleMeasure, scrollRef]);
 
   const jumpTerminus = useCallback(async () => {
     const container = scrollRef.current;
@@ -240,14 +237,7 @@ export function useTurnNavigator({
     } finally {
       setIsJumping(false);
     }
-  }, [
-    ensureTurnRendered,
-    isJumping,
-    items,
-    onFollowLatestChange,
-    scheduleMeasure,
-    scrollRef,
-  ]);
+  }, [ensureTurnRendered, isJumping, items, onFollowLatestChange, scheduleMeasure, scrollRef]);
 
   const previewItem = useMemo(
     () => items.find((item) => item.turnId === previewTurnId) ?? null,
