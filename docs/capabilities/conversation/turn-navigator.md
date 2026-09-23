@@ -1,6 +1,6 @@
 # Turn Navigator
 
-Status: Review
+Status: Done
 Domain: Conversation
 
 Depends On:
@@ -55,6 +55,8 @@ Tests:
 - Navigator geometry / Drag / Fisheye / Focus / Keyboard regression tests
 - `yakable-ui/src/features/session/hooks/__tests__/useTurnWindowing.test.tsx`
 - 500 Turn long-session windowing acceptance
+- 500 Turn Hook lifecycle / scroll / resize bounded-Heavy-DOM regression
+- placeholder active-Jump remount / final-focus regression
 
 ## Purpose
 
@@ -103,8 +105,8 @@ Tests:
 - Turn 首次真实渲染后通过 ResizeObserver 记录精确高度；off-window Turn 使用 exact-height placeholder，不能用估算高度替代已测量高度。
 - Windowing 默认保留 viewport 前后各 1.5 个 viewport 的 overscan；Current / Streaming / Optimistic / active Jump / Focused Turn 强制保持真实 DOM。
 - placeholder 保留 data-turn-id / data-turn-key / data-turn-user-loaded / tabIndex，因此 Current、Jump、Previous / Next 与 Focus 语义不因 Heavy DOM 卸载而改变。
-- Session viewport 宽度变化时旧高度缓存失效并重新测量，避免 Markdown 换行后继续使用过期高度。
-- 500 Turn 验收允许 500 个轻量 Anchor 常驻，但在高度已测量后 Heavy Turn DOM 必须受 viewport overscan + pinned Turn 集合约束。
+- Session viewport 宽度变化时不全量清空高度缓存；已挂载 Turn 通过 ResizeObserver 刷新精确高度，off-window placeholder 暂时保留最近一次测量高度，进入 overscan 后再渐进重测，避免一次性重新挂载全部 Heavy Markdown。
+- 500 Turn 验收允许 500 个轻量 Anchor 常驻，但在高度已测量后 Heavy Turn DOM 必须受 viewport overscan + pinned Turn 集合约束；scroll / resize 后同样不能退化为全量 Heavy DOM。
 
 ## Frontend Design Invariants
 
@@ -160,8 +162,24 @@ Tests:
 - 已实现：卸载远处复杂 Markdown 时保留 Turn Anchor 与已测量高度，scroll geometry 不随 Heavy DOM 卸载塌缩。
 - 已实现：off-window Turn 使用 exact-height placeholder；未知高度 Turn 先真实渲染完成测量，不以估算值替代精确值。
 - 已实现：viewport + overscan、Streaming、Optimistic、Current、Keyboard Focus、active Jump target 保持真实 DOM。
-- 已实现：viewport 宽度变化会使高度缓存失效并重新测量。
+- 已实现：viewport 宽度变化不会触发全量 Heavy DOM remount；当前 mounted / overscan Turn 通过 ResizeObserver 刷新高度，远处 placeholder 保留最近一次测量几何直到重新进入 window。
+- 已实现：active Jump target 即使当前只是 placeholder，也会先 pin 并等待真实 Turn subtree remount，再执行最终 scroll / focus。
 - Windowing 只减少 Heavy DOM，不能破坏 Current、Jump、Previous / Next、Focus 或 Rail 定位语义。
+
+## Acceptance
+
+Turn Navigator V1 已完成 PR1～PR6 Capability Acceptance。
+
+验收证据：
+
+- Navigation Data Contract、Turn Render Boundary、Current / Visible、Basic Navigator、Drag / Fisheye / Accessibility、Streaming / History Jump 均已有回归保护。
+- 500 Turn Windowing 不再只验证 selector；已覆盖真实 Hook lifecycle、scroll、resize 与 bounded Heavy DOM。
+- placeholder active Jump 已覆盖：目标先 pin，真实 Turn subtree remount 后才执行最终 scroll / focus。
+- viewport resize 不再清空全部高度导致全量 Heavy DOM remount；远处 placeholder 保留最近测量几何并在进入 window 后渐进重测。
+- 正式 CI 已移除临时 formatter 诊断步骤。
+- Acceptance Fix 已通过完整 Frontend Verification、Backend Verification 与 Quality Gate。
+
+`Status: Done` 表示上述 Contract 与 V1 Acceptance 已闭环；后续新增能力需要新的 Capability / Contract，不继续向 V1 范围叠加。
 
 ## Flow
 
@@ -198,4 +216,4 @@ Does Not Own:
 - Turn execution
 - Context selection
 
-Design must be reviewed against current SessionWorkspace before implementation starts.
+V1 implementation and acceptance are complete.

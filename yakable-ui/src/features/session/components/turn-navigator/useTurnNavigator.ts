@@ -57,8 +57,7 @@ async function waitForTurnAnchor(
 
     const anchor = findTurnElement(container, turnId);
     const hasRequiredStart = anchor && (!requireTurnStart || hasLoadedTurnStart(anchor));
-    const hasRequiredContent =
-      anchor && (!requireMountedContent || hasMountedTurnContent(anchor));
+    const hasRequiredContent = anchor && (!requireMountedContent || hasMountedTurnContent(anchor));
     if (anchor && hasRequiredStart && hasRequiredContent) return anchor;
     await nextFrame();
   }
@@ -206,22 +205,12 @@ export function useTurnNavigator({
       if (!container || !isActiveJump(jump)) return null;
 
       const existing = findTurnElement(container, item.turnId);
-      if (
-        existing &&
-        hasLoadedTurnStart(existing) &&
-        hasMountedTurnContent(existing)
-      ) {
+      if (existing && hasLoadedTurnStart(existing) && hasMountedTurnContent(existing)) {
         return existing;
       }
 
       if (existing && hasLoadedTurnStart(existing)) {
-        return waitForTurnAnchor(
-          container,
-          item.turnId,
-          jump.controller.signal,
-          true,
-          true,
-        );
+        return waitForTurnAnchor(container, item.turnId, jump.controller.signal, true, true);
       }
 
       const windowResult = await SessionService.queryMessageWindow(
@@ -233,13 +222,7 @@ export function useTurnNavigator({
       if (!isActiveJump(jump)) return null;
 
       replaceWindow(windowResult);
-      return waitForTurnAnchor(
-        container,
-        item.turnId,
-        jump.controller.signal,
-        true,
-        true,
-      );
+      return waitForTurnAnchor(container, item.turnId, jump.controller.signal, true, true);
     },
     [isActiveJump, projectId, replaceWindow, scrollRef, sessionId],
   );
