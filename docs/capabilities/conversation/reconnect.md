@@ -19,6 +19,8 @@ Backend:
 - `yakable-boot/src/main/java/io/yakable/boot/controller/session/SessionController.java`
 - `yakable-service/src/main/java/io/yakable/service/session/SessionService.java`
 - `yakable-service/src/main/java/io/yakable/service/session/impl/SessionServiceImpl.java`
+- `yakable-core/src/main/java/io/yakable/core/conversation/stream/TurnStreamRuntime.java`
+- `yakable-core/src/main/java/io/yakable/core/conversation/stream/TurnStreamListener.java`
 
 Data:
 - Session
@@ -47,6 +49,7 @@ Tests:
 - `yakable-ui/src/service/session/__tests__/SessionService.test.ts`
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
+- `yakable-core/src/test/java/io/yakable/core/conversation/stream/TurnStreamRuntimeTest.java`
 
 Review Notes:
 - GAP-07 已实现：active Turn watcher 临时失败后保留当前 streamingContent，不再立即清空用户已经看到的 partial。

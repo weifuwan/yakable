@@ -21,7 +21,8 @@ Frontend:
 Backend:
 - `yakable-boot/src/main/java/io/yakable/boot/controller/session/SessionController.java`
 - `yakable-service/src/main/java/io/yakable/service/session/impl/SessionServiceImpl.java`
-- `yakable-service/src/main/java/io/yakable/service/session/TurnStreamListener.java`
+- `yakable-core/src/main/java/io/yakable/core/conversation/stream/TurnStreamRuntime.java`
+- `yakable-core/src/main/java/io/yakable/core/conversation/stream/TurnStreamListener.java`
 - `yakable-core/src/main/java/io/yakable/core/llm/LlmClient.java`
 - `yakable-core/src/main/java/io/yakable/core/llm/LlmStreamEvent.java`
 
@@ -61,9 +62,11 @@ Tests:
 - `yakable-ui/src/service/session/__tests__/SessionService.test.ts`
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
+- `yakable-core/src/test/java/io/yakable/core/conversation/stream/TurnStreamRuntimeTest.java`
 
 Review Notes:
-- GAP-06 已实现：TurnStreamState 增加 Stop cutover，并与 delta() 共用同一个 eventLock。
+- Stream Runtime ownership 已迁移到 Core；SessionServiceImpl 只保留 Turn 业务状态、事务、持久化和 Runtime 协作。
+- GAP-06 已实现：Core TurnStreamRuntime 内部 TurnStreamState 增加 Stop cutover，并与 delta() 共用同一个 eventLock。
 - beginStopCutover() 在 eventLock 内一次性冻结后续 delta 并返回 cutover snapshot；cutover 后的 delta 不进入 content，也不进入 watcher mailbox。
 - 如果 delta 先获得 eventLock，它会先进入 content，随后 Stop snapshot 必然包含该 delta；如果 Stop 先获得 eventLock，后续 delta 必然被拒绝。
 - Stop transaction 失败或未更新终态时会 cancelStopCutover()，恢复 delta 接收。
@@ -96,7 +99,7 @@ executeTurnAsync
 → LlmClient.streamingChat
 → LlmProvider
 → LlmStreamEvent
-→ TurnStreamState
+→ TurnStreamRuntime
 → watcher
 → SSE
 → SessionService.ts
