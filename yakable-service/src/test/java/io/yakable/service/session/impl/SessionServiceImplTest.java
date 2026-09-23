@@ -172,7 +172,7 @@ class SessionServiceImplTest {
 
         assertThat(result.getTurn()).isSameAs(turn);
         assertThat(result.getUserMessage()).isSameAs(message);
-        verify(turnService).addTurn("session-1", "kimi", "kimi-k3", "turn-request-1");
+        verify(turnService).addTurn("session-1", TurnTypeEnum.CHAT, "kimi", "kimi-k3", "turn-request-1");
         assertThat(session.getProvider()).isEqualTo("kimi");
         assertThat(session.getModel()).isEqualTo("kimi-k3");
         assertThat(session.getActivityTime()).isEqualTo(message.getCreatedAt());
@@ -203,7 +203,7 @@ class SessionServiceImplTest {
         assertThat(result.getTurn()).isSameAs(existing);
         assertThat(result.getUserMessage()).isSameAs(userMessage);
         verify(conversationMetrics).idempotencyReplay("turn");
-        verify(turnService, never()).addTurn(any(), any(), any(), any());
+        verify(turnService, never()).addTurn(any(), any(), any(), any(), any());
         verify(messageService, never()).addMessage(any(), any(), any(), any());
         verify(sessionRepository, never()).update(any());
     }
@@ -235,7 +235,7 @@ class SessionServiceImplTest {
                 "project-1", "session-1", "deepseek", "deepseek-chat",
                 "Hello", "turn-request-existing", "user-1"));
 
-        verify(turnService, never()).addTurn(any(), any(), any(), any());
+        verify(turnService, never()).addTurn(any(), any(), any(), any(), any());
         verify(messageService, never()).addMessage(any(), any(), any(), any());
         verify(sessionRepository, never()).update(any());
         verify(conversationMetrics, never()).idempotencyReplay("turn");
@@ -256,7 +256,7 @@ class SessionServiceImplTest {
                 .satisfies(exception ->
                         assertThat(((SessionException) exception).getErrorCode()).isEqualTo(SessionErrorCode.BUSY));
 
-        verify(turnService, never()).addTurn(any(), any(), any(), any());
+        verify(turnService, never()).addTurn(any(), any(), any(), any(), any());
         verifyNoInteractions(messageService);
     }
 
