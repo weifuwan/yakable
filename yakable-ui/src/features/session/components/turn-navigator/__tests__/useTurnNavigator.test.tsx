@@ -293,5 +293,4 @@ describe('useTurnNavigator', () => {
     expect(replaceWindow).toHaveBeenCalledTimes(1);
     expect(replaceWindow.mock.calls[0][0].messages[0]?.turnId).toBe('turn-2');
   });
-
 });

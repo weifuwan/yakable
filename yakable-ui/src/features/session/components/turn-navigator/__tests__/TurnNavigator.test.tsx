@@ -123,9 +123,11 @@ describe('TurnNavigator', () => {
     fireEvent.pointerMove(screen.getByRole('button', { name: 'Go to turn 2: Prompt 2' }));
     rerender(<TurnNavigator {...props} currentTurnId="turn-5" />);
 
-    expect(screen.getByRole('button', { name: 'Go to turn 5: Prompt 5' }).getAttribute('aria-current')).toBe(
-      'true',
-    );
+    expect(
+      screen
+        .getByRole('button', { name: 'Go to turn 5: Prompt 5' })
+        .getAttribute('aria-current'),
+    ).toBe('true');
     expect(scrollIntoViewMock).not.toHaveBeenCalled();
   });
 
