@@ -57,8 +57,10 @@ export function TurnNavigator({
     ).find((element) => element.dataset.navTurnId === currentTurnId);
     if (!current) return;
 
-    const top = current.offsetTop;
-    const bottom = top + current.offsetHeight;
+    const railRect = rail.getBoundingClientRect();
+    const currentRect = current.getBoundingClientRect();
+    const top = rail.scrollTop + currentRect.top - railRect.top;
+    const bottom = top + currentRect.height;
 
     if (top < rail.scrollTop) {
       rail.scrollTop = top;
@@ -115,7 +117,8 @@ export function TurnNavigator({
           }}
           onFocusCapture={() => setInteracting(true)}
           onBlurCapture={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            const next = event.relatedTarget;
+            if (!(next instanceof Node) || !event.currentTarget.contains(next)) {
               setInteracting(false);
             }
           }}
