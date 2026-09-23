@@ -25,6 +25,7 @@ import io.yakable.common.bean.vo.session.TurnVO;
 import io.yakable.common.enums.session.MessageRoleEnum;
 import io.yakable.common.enums.session.SessionErrorCode;
 import io.yakable.common.enums.session.TurnStatusEnum;
+import io.yakable.common.enums.session.TurnTypeEnum;
 import io.yakable.common.exception.SessionException;
 import io.yakable.common.utils.ConverUtils;
 import io.yakable.common.utils.DateUtils;
@@ -166,7 +167,7 @@ public class SessionServiceImpl implements SessionService {
         sessionRepository.add(session);
 
         TurnStartVO turn = addPendingTurn(
-                session, dto.provider(), dto.model(), dto.content(), dto.requestId());
+                session, dto.turnType(), dto.provider(), dto.model(), dto.content(), dto.requestId());
 
         SessionInitVO result = new SessionInitVO();
         result.setSessionId(session.getId());
@@ -434,12 +435,12 @@ public class SessionServiceImpl implements SessionService {
         return transactionTemplate.execute(status -> {
             SessionEntity session = queryOwnedSession(dto.projectId(), dto.sessionId(), dto.userId());
             return addPendingTurn(
-                    session, dto.provider(), dto.model(), dto.content(), dto.requestId());
+                    session, TurnTypeEnum.CHAT, dto.provider(), dto.model(), dto.content(), dto.requestId());
         });
     }
 
     private TurnStartVO addPendingTurn(
-            SessionEntity session, String provider, String model, String content, String requestId) {
+            SessionEntity session, TurnTypeEnum turnType, String provider, String model, String content, String requestId) {
         if (!sessionRepository.querySessionForUpdate(session.getId())) {
             throw new SessionException(SessionErrorCode.NOT_FOUND);
         }
@@ -471,7 +472,7 @@ public class SessionServiceImpl implements SessionService {
             throw new SessionException(SessionErrorCode.BUSY);
         }
 
-        TurnVO turn = turnService.addTurn(session.getId(), provider, model, requestId);
+        TurnVO turn = turnService.addTurn(session.getId(), turnType, provider, model, requestId);
         MessageVO message = messageService.addMessage(session.getId(), turn.getId(), MessageRoleEnum.USER, content);
 
         session.setProvider(provider);
