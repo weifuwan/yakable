@@ -453,9 +453,11 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
     onFollowLatestChange: setFollowLatest,
   });
 
+  const cancelNavigationJump = turnNavigator.cancelJump;
+
   const restoreLatestView = useCallback(
     (scrollAfterRestore: boolean) => {
-      turnNavigator.cancelJump();
+      cancelNavigationJump();
       setFollowLatest(true);
 
       if (!hasNewer) {
@@ -484,7 +486,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
       restoreLatest,
       scrollToBottom,
       setFollowLatest,
-      turnNavigator.cancelJump,
+      cancelNavigationJump,
     ],
   );
 
