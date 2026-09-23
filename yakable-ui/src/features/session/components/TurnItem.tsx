@@ -1,3 +1,5 @@
+import { useLayoutEffect, useRef } from 'react';
+
 import type { SessionMessage, SessionTurn, TurnStatus } from '@/service/session';
 
 import { MessageItem } from './MessageItem';
@@ -26,6 +28,13 @@ interface BuildTurnRenderModelsInput {
   activeTurnId: string | null;
   latestTurnId: string | null;
   showThinking: boolean;
+}
+
+interface TurnItemProps {
+  turn: TurnRenderModel;
+  mounted?: boolean;
+  placeholderHeight?: number | null;
+  onMeasure?: (key: string, height: number) => void;
 }
 
 function createPersistedModel(turnId: string, turnById: Map<string, SessionTurn>): TurnRenderModel {
@@ -104,34 +113,65 @@ export function buildTurnRenderModels({
   return [...models.values()];
 }
 
-export function TurnItem({ turn }: { turn: TurnRenderModel }) {
+export function TurnItem({
+  turn,
+  mounted = true,
+  placeholderHeight = null,
+  onMeasure,
+}: TurnItemProps) {
+  const anchorRef = useRef<HTMLElement>(null);
+
+  useLayoutEffect(() => {
+    const anchor = anchorRef.current;
+    if (!anchor || !mounted || !onMeasure) return;
+
+    const report = () => {
+      onMeasure(turn.key, anchor.getBoundingClientRect().height);
+    };
+
+    report();
+
+    if (typeof ResizeObserver === 'undefined') return;
+
+    const observer = new ResizeObserver(report);
+    observer.observe(anchor);
+    return () => observer.disconnect();
+  }, [mounted, onMeasure, turn.key]);
+
   return (
     <section
+      ref={anchorRef}
       data-turn-id={turn.turnId ?? undefined}
       data-turn-key={turn.key}
       data-turn-user-loaded={turn.userMessage ? 'true' : 'false'}
+      data-turn-window={mounted ? 'mounted' : 'placeholder'}
       tabIndex={-1}
-      className="flex flex-col gap-6 outline-none focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-focus-ring"
+      style={!mounted && placeholderHeight !== null ? { height: placeholderHeight } : undefined}
+      className="flex shrink-0 flex-col gap-6 outline-none focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-focus-ring"
     >
-      {turn.userMessage && <MessageItem message={turn.userMessage} />}
+      {mounted && (
+        <>
+          {turn.userMessage && <MessageItem message={turn.userMessage} />}
 
-      {turn.assistantMessages.map((message) => (
-        <MessageItem key={message.id} message={message} />
-      ))}
+          {turn.assistantMessages.map((message) => (
+            <MessageItem key={message.id} message={message} />
+          ))}
 
-      {turn.streamingMessage && <MessageItem message={turn.streamingMessage} />}
+          {turn.streamingMessage && <MessageItem message={turn.streamingMessage} />}
 
-      {turn.isThinking && (
-        <output className="block px-1 text-sm text-foreground-subtle">Thinking...</output>
-      )}
+          {turn.isThinking && (
+            <output className="block px-1 text-sm text-foreground-subtle">Thinking...</output>
+          )}
 
-      {turn.failureMessage && (
-        <div
-          className="rounded-xl border border-danger-border-subtle bg-danger-surface px-4 py-3 text-sm text-danger-foreground"
-          role="alert"
-        >
-          {turn.failureMessage}
-        </div>
+          {turn.failureMessage && (
+            <div
+              className="rounded-xl border border-danger-border-subtle bg-danger-surface px-4 py-3 text-sm text-danger-foreground"
+              role="alert"
+            >
+              {turn.failureMessage}
+            </div>
+          )}
+        </>
       )}
     </section>
   );
