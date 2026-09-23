@@ -542,6 +542,7 @@ class SessionServiceImplTest {
                 eq(10L), eq(5L), eq(15L),
                 eq("generation-request"), eq("stop"), any(LocalDateTime.class));
         verify(llmClient, never()).streamingChat(any(LlmRequest.class), any());
+        verify(conversationMetrics, timeout(2000)).executionFinished();
     }
 
     @Test
@@ -576,6 +577,7 @@ class SessionServiceImplTest {
                 eq(null), eq("recovered"), any(LocalDateTime.class));
         verifyNoInteractions(projectCodeGenerator);
         verify(projectFiles, never()).publish(any(), any(), any());
+        verify(conversationMetrics, timeout(2000)).executionFinished();
     }
 
     @Test
@@ -640,6 +642,7 @@ class SessionServiceImplTest {
         verify(turnService, timeout(2000)).updateTurnFailed(
                 eq(turnId), eq("session-1"), eq("generation failed"), any(LocalDateTime.class));
         verify(projectFiles, never()).publish(any(), any(), any());
+        verify(conversationMetrics, timeout(2000)).executionFinished();
     }
 
     @Test
