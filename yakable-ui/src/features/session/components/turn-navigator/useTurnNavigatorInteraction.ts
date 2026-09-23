@@ -156,7 +156,9 @@ export function useTurnNavigatorInteraction({
         }
       }
 
-      onPreviewTurnChange(null);
+      if (cancelled || !pointerInsideRef.current) {
+        onPreviewTurnChange(null);
+      }
 
       const rail = railRef.current;
       if (!pointerInsideRef.current && !rail?.contains(document.activeElement)) {
@@ -226,6 +228,13 @@ export function useTurnNavigatorInteraction({
         return;
       }
 
+      if (
+        typeof window.matchMedia === 'function' &&
+        !window.matchMedia('(min-width: 768px)').matches
+      ) {
+        return;
+      }
+
       const targetTurnId = currentTurnId ?? rovingTurnId ?? items[0]?.turnId;
       if (!targetTurnId) return;
 
@@ -258,6 +267,7 @@ export function useTurnNavigatorInteraction({
       if (dragRef.current?.dragging) return;
 
       resetFisheye();
+      onPreviewTurnChange(null);
       if (!event.currentTarget.contains(document.activeElement)) {
         setInteracting(false);
       }
