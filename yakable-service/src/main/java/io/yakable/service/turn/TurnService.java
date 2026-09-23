@@ -2,6 +2,7 @@ package io.yakable.service.turn;
 
 import io.yakable.common.bean.vo.session.TurnExecutionVO;
 import io.yakable.common.bean.vo.session.TurnVO;
+import io.yakable.common.enums.session.TurnTypeEnum;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -15,7 +16,7 @@ public interface TurnService {
     /**
      * 新增待执行 Turn，并确定本轮模型。
      */
-    TurnVO addTurn(String sessionId, String provider, String model, String requestId);
+    TurnVO addTurn(String sessionId, TurnTypeEnum turnType, String provider, String model, String requestId);
 
     /**
      * 按 Session 和客户端请求ID查询 Turn。
