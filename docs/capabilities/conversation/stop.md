@@ -51,12 +51,13 @@ Tests:
 - `yakable-service/src/test/java/io/yakable/service/turn/impl/TurnServiceImplTest.java`
 
 Review Notes:
-- GAP-06 已实现：stopTurn 对已有 TurnStreamState 使用 beginStopCutover()，以同一个 eventLock 原子完成“冻结 delta + 截取 partial snapshot”。
-- STOPPED partial 只持久化 cutover snapshot；post-cutover delta 会在 state.delta() 内被拒绝。
+- Stream Runtime ownership 已迁移到 Core；stopTurn 通过 TurnStreamRuntime.beginStopCutover() 获取 cutover snapshot，Service 继续拥有 STOPPED 事务和 partial persistence。
+- GAP-06 已实现：TurnStreamRuntime 内部使用同一个 eventLock 原子完成“冻结 delta + 截取 partial snapshot”。
+- STOPPED partial 只持久化 cutover snapshot；post-cutover delta 会在 Core Runtime 内被拒绝。
 - Stop transaction 抛错或 updateTurnStopped 未成功时会 rollback 当前 cutover，允许原 Turn 继续接收 delta。
 - 并发 Stop 使用 cutover 计数，单个失败 Stop 不会误释放另一个仍有效的 cutover。
 - 已新增并发 Stop / Delta 竞态测试，以及 Stop 持久化失败后的 rollback 测试。
-- GAP-08 已实现：成功 Stop 在 streamState.stopped() 发布 terminal 后立即清理 stoppingTurns，不再依赖 execution thread finally 做正常成功路径清理。
+- GAP-08 已实现：成功 Stop 在 TurnStreamRuntime.stopped() 发布 terminal 后立即清理 stoppingTurns，不再依赖 execution thread finally 做正常成功路径清理。
 - execution thread finally 中的 remove 保留为幂等兜底。
 - 已新增 PENDING Turn + existing StreamState + Stop before execution 的回归测试。
 - Stop API、partial persistence schema、Turn terminal 状态机和 watcher delivery 均未修改。
