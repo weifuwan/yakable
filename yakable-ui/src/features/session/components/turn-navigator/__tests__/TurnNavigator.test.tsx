@@ -77,7 +77,11 @@ function configureRailGeometry() {
   setRect(rail, 100, 48);
 
   items.forEach((_, index) => {
-    setRect(screen.getByRole('button', { name: 'Go to turn ' + (index + 1) }), 100 + index * 16, 16);
+    setRect(
+      screen.getByRole('button', { name: 'Go to turn ' + (index + 1) }),
+      100 + index * 16,
+      16,
+    );
   });
 
   return rail;
