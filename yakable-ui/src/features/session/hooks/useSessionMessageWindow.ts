@@ -99,6 +99,36 @@ export function useSessionMessageWindow(projectId: string, sessionId: string) {
     }
   }, [projectId, sessionId, windowState.hasOlder, windowState.olderCursor]);
 
+  const restoreLatest = useCallback(
+    async (signal?: AbortSignal) => {
+      const page = await SessionService.queryMessages(
+        projectId,
+        sessionId,
+        undefined,
+        MESSAGE_PAGE_SIZE,
+        signal,
+      );
+      if (signal?.aborted) return false;
+
+      setWindowState((current) => {
+        const pageLastSequence = page.messages.at(-1)?.sequence ?? 0;
+        const localNewer = current.messages.filter(
+          (message) => message.sequence > pageLastSequence,
+        );
+
+        return {
+          messages: mergeMessages(page.messages, localNewer),
+          olderCursor: page.nextBeforeSequence,
+          newerCursor: null,
+          hasOlder: page.hasMore,
+          hasNewer: false,
+        };
+      });
+      return true;
+    },
+    [projectId, sessionId],
+  );
+
   const loadNewer = useCallback(async () => {
     if (loadingNewerRef.current || !windowState.hasNewer || windowState.newerCursor === null) {
       return false;
@@ -138,6 +168,7 @@ export function useSessionMessageWindow(projectId: string, sessionId: string) {
     initialize,
     replaceWindow,
     mergeMessages: merge,
+    restoreLatest,
     loadOlder,
     loadNewer,
   };
