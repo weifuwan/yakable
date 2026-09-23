@@ -57,7 +57,12 @@ function CopyStatusIcon({ copied }: { copied: boolean }) {
   );
 }
 
-export function MessageItem({ message }: { message: SessionMessage }) {
+interface MessageItemProps {
+  message: SessionMessage;
+  streaming?: boolean;
+}
+
+export function MessageItem({ message, streaming = false }: MessageItemProps) {
   const isUser = message.role === 'USER';
   const [copied, setCopied] = useState(false);
   const copyFeedbackTimerRef = useRef<number | null>(null);
@@ -80,7 +85,7 @@ export function MessageItem({ message }: { message: SessionMessage }) {
     return (
       <div className="flex w-full justify-start" aria-label="Assistant message">
         <div className="w-full min-w-0 px-1 py-2" data-testid="assistant-message-content">
-          <Markdown content={message.content} />
+          <Markdown content={message.content} mode={streaming ? 'streaming' : 'static'} />
         </div>
       </div>
     );

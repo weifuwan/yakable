@@ -1,6 +1,6 @@
 # Markdown Renderer
 
-Status: Designing
+Status: Implementing
 Domain: Conversation
 
 Depends On:
@@ -13,7 +13,7 @@ Related:
 Frontend:
 - Current Renderer: `yakable-ui/src/shared/ui/markdown/Markdown.tsx`
 - Current Consumer: `yakable-ui/src/features/session/components/MessageItem.tsx`
-- Planned Code Renderer: `yakable-ui/src/shared/ui/markdown/CodeBlock.tsx` only if Streamdown configuration cannot own the required behavior
+- Code Renderer: `@streamdown/code` configured by `yakable-ui/src/shared/ui/markdown/Markdown.tsx`
 - Public Contract: `@/shared/ui`
 
 Backend:
@@ -35,14 +35,14 @@ Scenarios:
 - CONV-S07
 
 Tests:
-- Planned: `yakable-ui/src/shared/ui/markdown/__tests__/Markdown.test.tsx`
+- `yakable-ui/src/shared/ui/markdown/__tests__/Markdown.test.tsx`
 - Existing integration: `yakable-ui/src/features/session/components/__tests__/SessionWorkspace.test.tsx`
 
 Known Gaps:
-- 当前 `Markdown.tsx` 只是 `Streamdown` + typography。
-- `@streamdown/code` 尚未安装。
-- 当前没有显式区分 streaming / static mode。
-- Code Block 还没有 Yakable 稳定 Contract。
+- Code Renderer 已进入实现：`@streamdown/code` + Shiki 已接入。
+- `Markdown` 已显式支持 `streaming / static` mode，Streaming Assistant 已接线。
+- Code Block 已关闭 Streamdown 默认纵向 max-height，保留 Conversation 单一纵向滚动。
+- PR3 仍需完成 unknown language / safety / performance Acceptance。
 - Mermaid / Math / Tool / Reasoning / Artifact 不属于当前实现。
 
 ## Purpose
@@ -112,7 +112,7 @@ V1 不修改 Backend Message schema：
 content: string
 ```
 
-计划给共享 Markdown 增加：
+共享 Markdown 已增加：
 
 ```ts
 mode: 'streaming' | 'static'
@@ -132,7 +132,7 @@ java / python / javascript / typescript / html / css / json / sql / bash / ...
 
 Language 是数据，不创建 `JavaCodeBlock`、`PythonCodeBlock` 之类组件。
 
-计划使用 `@streamdown/code` + Shiki。
+当前使用 `@streamdown/code` + Shiki。
 
 Code Contract：
 

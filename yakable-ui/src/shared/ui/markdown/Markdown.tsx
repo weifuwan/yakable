@@ -1,18 +1,28 @@
+import { code } from '@streamdown/code';
 import { memo } from 'react';
 import { Streamdown } from 'streamdown';
 
 import { cx } from '../cx';
 
+export type MarkdownMode = 'streaming' | 'static';
+
 export interface MarkdownProps {
   content: string;
   className?: string;
+  mode?: MarkdownMode;
 }
+
+const markdownPlugins = { code };
 
 /**
  * Yakable 统一 Markdown Renderer。
  */
-export const Markdown = memo(({ content, className }: MarkdownProps) => (
+export const Markdown = memo(({ content, className, mode = 'static' }: MarkdownProps) => (
   <Streamdown
+    codeBlockMaxHeight={0}
+    isAnimating={mode === 'streaming'}
+    mode={mode}
+    plugins={markdownPlugins}
     className={cx(
       'min-w-0 text-[15px] leading-7 text-foreground',
       '[&_p]:my-0 [&_p+p]:mt-3',
