@@ -9,6 +9,8 @@ Depends On:
 
 Related:
 - [Send Message](../conversation/send-message.md)
+- [Stop](../conversation/stop.md)
+- [Recovery](../conversation/recovery.md)
 
 Frontend:
 - No new frontend entry in V1
@@ -20,10 +22,13 @@ Backend:
 Data:
 - Project
 - Project Files
+- Turn
+- Message
 
 Shared Rules:
 - PROJ-001
 - PROJ-004
+- PROJ-007
 
 Scenarios:
 - PROJ-S03
@@ -39,14 +44,19 @@ V1 只打通第一次代码生成，不负责后续代码修改。
 
 ## Contract
 
-- 每个 Project 拥有独立的项目目录。
-- 代码生成使用 Project 创建时的 Prompt 和已选择模型。
-- LLM 必须返回结构化的项目文件集合，而不是仅返回 Markdown 代码块。
-- 每个生成文件包含相对路径和完整文件内容。
-- 所有文件必须位于当前 Project 目录内。
-- 写文件前必须校验全部文件路径。
-- 任意文件路径非法时，本次生成不得写入 Project 目录。
-- 生成成功后，文件必须真实存在于 Project 目录。
+- Initial Code Generation 复用 Project 创建时已经建立的首个 Turn，不额外创建第二个生成 Turn。
+- 同一个 Initial Turn 同一时刻只能有一个有效的代码生成执行，不能因为 Project 创建和 Conversation 执行链分别触发两次模型调用。
+- 代码生成使用该 Initial Turn 已固定的 Prompt、provider 和 model。
+- Generation Result 包含用户可见的 Assistant 摘要和结构化项目文件集合；结构化文件数据不能直接作为 Assistant Message 展示。
+- 项目文件集合必须非空；每个生成文件必须包含相对路径和完整文件内容。
+- 文件路径必须为相对路径，normalize 后必须唯一，并且只能位于当前 Project Root 内。
+- 写文件前必须完成全部结果解析、路径校验和资源边界校验；任一校验失败时不得发布任何项目文件。
+- Generation Result 必须作为完整文件集合发布；发布失败不能向 Project 暴露部分生成结果。
+- Project Files 完整发布成功后，Initial Turn 才能进入 SUCCEEDED。
+- Generation Success 只表示结构化结果合法且项目文件已完整发布，不代表项目已经 build 通过、可以运行或视觉质量已经验证。
+- 同一个 Initial Turn 的 Retry / Recovery 必须安全且幂等；已经成功发布的项目文件不能因重复执行再次生成或被覆盖。
+- 未成功发布的 Initial Turn 可以通过原 Turn Recovery 重新执行，不创建替代 Turn。
+- Initial Turn 已进入 STOPPED / FAILED 后，后续迟到的模型结果不能再发布项目文件或把 Turn 改回成功。
 - 代码生成失败不能删除或回滚已经创建成功的 Project。
 - V1 不执行 npm install、build、preview 或自动修复。
 
@@ -55,31 +65,51 @@ V1 只打通第一次代码生成，不负责后续代码修改。
 ```text
 Create Project
     ↓
-Project / Session / Turn / USER Message 成立
+Project / Session / Initial Turn / USER Message 成立
     ↓
-读取初始 Prompt + Model
+Execute Initial Turn
     ↓
-LLM Generate Project Files
+读取 Initial Turn Prompt + Provider + Model
     ↓
-Parse Generated Files
+LLM Generate
     ↓
-Validate All File Paths
+Parse Assistant Summary + Project Files
     ↓
-Create Project Directory
+Validate Complete Result
     ↓
-Write Files
+Publish Complete Project Files
     ↓
-Generation Complete
+Persist Assistant Summary
+    ↓
+Initial Turn → SUCCEEDED
+```
+
+Failure / Stop:
+
+```text
+Parse / Validate / Publish Failure
+    ↓
+Do Not Expose Partial Project Files
+    ↓
+Initial Turn → FAILED
+
+Explicit Stop
+    ↓
+Initial Turn → STOPPED
+    ↓
+Reject Late File Publication
 ```
 
 ## Boundary
 
 Owns:
 - 第一次项目代码生成。
-- LLM 输出到项目文件的转换。
+- Initial Turn 到 Generation Result 的业务语义。
+- LLM 输出到 Assistant 摘要和项目文件的转换。
 - Project 工作目录创建。
-- 文件路径安全校验。
-- 项目文件写入。
+- 文件路径与资源边界校验。
+- 项目文件完整发布。
+- Initial Code Generation 的 Retry / Recovery 幂等边界。
 
 Does Not Own:
 - 后续 Prompt 修改已有代码。
