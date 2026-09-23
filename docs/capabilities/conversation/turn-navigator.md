@@ -1,6 +1,6 @@
 # Turn Navigator
 
-Status: Implementing
+Status: Review
 Domain: Conversation
 
 Depends On:
@@ -21,6 +21,7 @@ Frontend:
 - Interaction State Machine: `yakable-ui/src/features/session/components/turn-navigator/useTurnNavigatorInteraction.ts`
 - Navigation State / Jump Focus: `yakable-ui/src/features/session/components/turn-navigator/useTurnNavigator.ts`
 - Conversation + Rail Geometry: `yakable-ui/src/features/session/components/turn-navigator/turn-navigation.ts`
+- Heavy DOM Windowing: `yakable-ui/src/features/session/hooks/useTurnWindowing.ts`
 - Existing host: `yakable-ui/src/features/session/components/SessionWorkspace.tsx`
 
 Backend:
@@ -52,8 +53,8 @@ Tests:
 - `yakable-ui/src/features/session/components/turn-navigator/__tests__/useTurnNavigator.test.tsx`
 - SessionWorkspace basic navigation integration
 - Navigator geometry / Drag / Fisheye / Focus / Keyboard regression tests
-- Planned: geometry-preserving windowing invariant regression tests
-- Planned: 500 Turn long-session test
+- `yakable-ui/src/features/session/hooks/__tests__/useTurnWindowing.test.tsx`
+- 500 Turn long-session windowing acceptance
 
 ## Purpose
 
@@ -98,6 +99,12 @@ Tests:
 - Terminus 与现有 Scroll-to-bottom 都恢复真正的 latest Message page，而不是只滚到当前历史窗口底部。
 - 在历史窗口发送新 Prompt 时，先取消未完成的历史 Jump、恢复 follow-latest，并异步恢复 latest page；Optimistic Turn 转正式 Turn 后只保留一个 USER 节点。
 - 用户停留历史窗口时，后台 Streaming 继续推进 Turn 状态与 Session latest sequence，但与当前历史 Turn 无关的新 Message 不注入当前 Message Window。
+- 长 Session Windowing 只卸载 Turn Anchor 内部的 Heavy Message / Markdown subtree；所有已加载 Turn Anchor 始终保留在 DOM 中。
+- Turn 首次真实渲染后通过 ResizeObserver 记录精确高度；off-window Turn 使用 exact-height placeholder，不能用估算高度替代已测量高度。
+- Windowing 默认保留 viewport 前后各 1.5 个 viewport 的 overscan；Current / Streaming / Optimistic / active Jump / Focused Turn 强制保持真实 DOM。
+- placeholder 保留 data-turn-id / data-turn-key / data-turn-user-loaded / tabIndex，因此 Current、Jump、Previous / Next 与 Focus 语义不因 Heavy DOM 卸载而改变。
+- Session viewport 宽度变化时旧高度缓存失效并重新测量，避免 Markdown 换行后继续使用过期高度。
+- 500 Turn 验收允许 500 个轻量 Anchor 常驻，但在高度已测量后 Heavy Turn DOM 必须受 viewport overscan + pinned Turn 集合约束。
 
 ## Frontend Design Invariants
 
@@ -150,10 +157,11 @@ Tests:
 
 ### 8. Windowing Must Preserve Geometry
 
-- 卸载远处复杂 Markdown 时必须保留 Turn Anchor 与已测量高度，不能让 scroll geometry 塌缩。
-- off-window Turn 使用 exact-height placeholder；目标进入 render window 后再挂载真实 TurnItem 并执行 final snap。
-- viewport / overscan / Streaming / Keyboard Focus / active Jump target 必须保持真实 DOM。
-- Windowing 优化只能减少 Heavy DOM，不能破坏 Current、Jump、Previous / Next 或 Rail 定位语义。
+- 已实现：卸载远处复杂 Markdown 时保留 Turn Anchor 与已测量高度，scroll geometry 不随 Heavy DOM 卸载塌缩。
+- 已实现：off-window Turn 使用 exact-height placeholder；未知高度 Turn 先真实渲染完成测量，不以估算值替代精确值。
+- 已实现：viewport + overscan、Streaming、Optimistic、Current、Keyboard Focus、active Jump target 保持真实 DOM。
+- 已实现：viewport 宽度变化会使高度缓存失效并重新测量。
+- Windowing 只减少 Heavy DOM，不能破坏 Current、Jump、Previous / Next、Focus 或 Rail 定位语义。
 
 ## Flow
 
