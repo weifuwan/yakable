@@ -10,7 +10,7 @@ import { TurnNavigator } from '../TurnNavigator';
 
 const scrollIntoViewMock = vi.fn();
 
-const items: SessionTurnNavigationItem[] = Array.from({ length: 7 }, (_, index) => ({
+const items: SessionTurnNavigationItem[] = Array.from({ length: 8 }, (_, index) => ({
   turnId: 'turn-' + (index + 1),
   userMessageId: 'message-' + (index * 2 + 1),
   userMessageSequence: index * 2 + 1,
@@ -56,42 +56,22 @@ describe('TurnNavigator', () => {
     expect(screen.queryByRole('complementary', { name: 'Turn navigator' })).toBeNull();
   });
 
-  it('renders only five nearby markers while the Prompt Overview stays collapsed', () => {
+  it('keeps Compact Rail markers one-to-one with Prompt Overview items', () => {
     renderNavigator();
 
     const rail = screen.getByRole('button', { name: 'Browse conversation turns' });
     const markers = screen.getAllByTestId('turn-navigator-marker');
 
     expect(rail.getAttribute('aria-expanded')).toBe('false');
-    expect(markers).toHaveLength(5);
-    expect(markers.map((marker) => marker.getAttribute('data-turn-id'))).toEqual([
-      'turn-2',
-      'turn-3',
-      'turn-4',
-      'turn-5',
-      'turn-6',
-    ]);
+    expect(markers).toHaveLength(items.length);
+    expect(markers.map((marker) => marker.getAttribute('data-nav-marker-turn-id'))).toEqual(
+      items.map((item) => item.turnId),
+    );
     expect(screen.queryByRole('navigation', { name: 'Conversation prompts' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Previous turn' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Next turn' })).toBeNull();
-  });
 
-  it('shifts the five-marker window at the Session boundaries', () => {
-    const { rerender, props } = renderNavigator({ currentTurnId: 'turn-1' });
+    fireEvent.pointerEnter(rail);
 
-    expect(
-      screen
-        .getAllByTestId('turn-navigator-marker')
-        .map((marker) => marker.getAttribute('data-turn-id')),
-    ).toEqual(['turn-1', 'turn-2', 'turn-3', 'turn-4', 'turn-5']);
-
-    rerender(<TurnNavigator {...props} currentTurnId="turn-7" />);
-
-    expect(
-      screen
-        .getAllByTestId('turn-navigator-marker')
-        .map((marker) => marker.getAttribute('data-turn-id')),
-    ).toEqual(['turn-3', 'turn-4', 'turn-5', 'turn-6', 'turn-7']);
+    expect(screen.getAllByRole('button', { name: /Go to turn/ })).toHaveLength(items.length);
   });
 
   it('opens one Prompt Overview on hover and marks the Current Prompt row', () => {
@@ -174,11 +154,11 @@ describe('TurnNavigator', () => {
     );
 
     await user.keyboard('{End}');
-    const last = screen.getByRole('button', { name: 'Go to turn 7: Prompt 7' });
+    const last = screen.getByRole('button', { name: 'Go to turn 8: Prompt 8' });
     expect(document.activeElement).toBe(last);
 
     await user.keyboard('{Enter}');
-    expect(onJumpTurn).toHaveBeenCalledWith(items[6], { focusTarget: true });
+    expect(onJumpTurn).toHaveBeenCalledWith(items[7], { focusTarget: true });
   });
 
   it('opens the Overview and focuses Current Prompt with Shift Alt M', async () => {

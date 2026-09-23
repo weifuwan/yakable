@@ -11,20 +11,7 @@ interface TurnNavigatorProps {
   onJumpTurn: (item: SessionTurnNavigationItem, options?: TurnJumpOptions) => void;
 }
 
-function compactItems(items: SessionTurnNavigationItem[], currentTurnId: string | null) {
-  const size = Math.min(5, items.length);
-  if (size === 0) return [];
-
-  const currentIndex = items.findIndex((item) => item.turnId === currentTurnId);
-  if (currentIndex < 0) return items.slice(items.length - size);
-
-  const centeredStart = Math.max(0, currentIndex - 2);
-  const start = Math.min(centeredStart, items.length - size);
-  return items.slice(start, start + size);
-}
-
 export function TurnNavigator({ items, currentTurnId, isJumping, onJumpTurn }: TurnNavigatorProps) {
-  const markers = compactItems(items, currentTurnId);
   const {
     surfaceRef,
     railRef,
@@ -75,14 +62,14 @@ export function TurnNavigator({ items, currentTurnId, isJumping, onJumpTurn }: T
           aria-label="Browse conversation turns"
           aria-expanded={isOpen}
           aria-controls={isOpen ? 'turn-navigator-overview' : undefined}
-          className="flex w-8 cursor-pointer flex-col items-end gap-1.5 rounded-md p-1.5 outline-none focus-visible:outline-2 focus-visible:outline-focus-ring"
+          className="flex max-h-56 w-8 cursor-pointer flex-col items-end gap-1.5 overflow-y-auto rounded-md p-1.5 outline-none focus-visible:outline-2 focus-visible:outline-focus-ring"
           onPointerEnter={onPointerEnter}
           onPointerLeave={onPointerLeave}
           onFocus={onRailFocus}
           onClick={onRailClick}
           onKeyDown={onRailKeyDown}
         >
-          {markers.map((item) => {
+          {items.map((item) => {
             const current = item.turnId === currentTurnId;
 
             return (
@@ -90,9 +77,9 @@ export function TurnNavigator({ items, currentTurnId, isJumping, onJumpTurn }: T
                 key={item.turnId}
                 aria-hidden="true"
                 data-testid="turn-navigator-marker"
-                data-turn-id={item.turnId}
+                data-nav-marker-turn-id={item.turnId}
                 className={cx(
-                  'h-0.5 rounded-full bg-current',
+                  'h-0.5 shrink-0 rounded-full bg-current',
                   current ? 'w-5 text-foreground' : 'w-4 text-icon-muted',
                 )}
               />
