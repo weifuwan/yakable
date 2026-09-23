@@ -9,6 +9,7 @@ import {
 import {
   currentTurnAtReadingAnchor,
   findTurnElement,
+  hasLoadedTurnStart,
   measureTurnLayout,
   targetScrollTop,
   visibleTurnIds,
@@ -35,7 +36,7 @@ function nextFrame() {
 async function waitForTurnAnchor(container: HTMLElement, turnId: string) {
   for (let attempt = 0; attempt < TURN_ANCHOR_WAIT_FRAMES; attempt += 1) {
     const anchor = findTurnElement(container, turnId);
-    if (anchor) return anchor;
+    if (anchor && hasLoadedTurnStart(anchor)) return anchor;
     await nextFrame();
   }
   return null;
@@ -131,7 +132,7 @@ export function useTurnNavigator({
       if (!container) return null;
 
       const existing = findTurnElement(container, item.turnId);
-      if (existing) return existing;
+      if (existing && hasLoadedTurnStart(existing)) return existing;
 
       const windowResult = await SessionService.queryMessageWindow(
         projectId,
