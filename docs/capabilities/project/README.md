@@ -10,12 +10,15 @@ Create Project
      ↓
 Project + initial Session
      ↓
+Initial Code Generation
+     ↓
 Recent Projects
 ```
 
 Capabilities:
 
 - [Create Project](./create.md)
+- [Project Code Generation](./code-generation.md)
 - [Recent Projects](./recent-projects.md)
 
 ## Shared Rules
@@ -67,3 +70,15 @@ Guarantees:
 - USER Message 持久化后更新 activity。
 - Recent Projects 可以立即反映最新活动。
 - Assistant Success / Failure 不再次改变 activity。
+
+### PROJ-S03 — Create → Initial Code Generation
+
+Involves:
+- Create Project
+- Project Code Generation
+
+Guarantees:
+- Project 先成立，再执行代码生成。
+- 每个 Project 的文件只能写入自己的项目目录。
+- Generation Failure 不删除已经成立的 Project。
+- Generation Success 后项目文件真实存在。
