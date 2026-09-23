@@ -163,6 +163,8 @@ export function useTurnNavigator({
 
         container.scrollTop = targetScrollTop(entry, container.clientHeight, container.scrollHeight);
         scheduleMeasure();
+      } catch {
+        // Navigation is optional; keep the current Message Window when a target load fails.
       } finally {
         setIsJumping(false);
       }
@@ -195,6 +197,8 @@ export function useTurnNavigator({
       await ensureTurnRendered(first);
       container.scrollTop = 0;
       scheduleMeasure();
+    } catch {
+      // Keep the current window when the origin target cannot be loaded.
     } finally {
       setIsJumping(false);
     }
@@ -219,6 +223,8 @@ export function useTurnNavigator({
       onFollowLatestChange(true);
       container.scrollTop = container.scrollHeight;
       scheduleMeasure();
+    } catch {
+      // Keep the current window when the latest target cannot be loaded.
     } finally {
       setIsJumping(false);
     }
