@@ -17,11 +17,7 @@ function entry(turnId: string, top: number, bottom: number): TurnLayoutEntry {
 }
 
 describe('turn-navigation', () => {
-  const layout = [
-    entry('turn-1', 0, 300),
-    entry('turn-2', 300, 700),
-    entry('turn-3', 700, 1100),
-  ];
+  const layout = [entry('turn-1', 0, 300), entry('turn-2', 300, 700), entry('turn-3', 700, 1100)];
 
   it('selects Current Turn using the 30 percent Reading Anchor', () => {
     expect(currentTurnAtReadingAnchor(layout, 0, 1000)).toBe('turn-2');
