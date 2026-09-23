@@ -61,6 +61,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Show acceptance oxfmt diff
+        shell: bash
+        run: |
+          npm run format
+          git diff -- src/features/session/components/turn-navigator/useTurnNavigator.ts
+          git diff -- src/features/session/hooks/useTurnWindowing.ts
+          git diff -- src/features/session/hooks/__tests__/useTurnWindowing.test.tsx
+          git checkout -- src
+
       - name: Check frontend
         run: npm run check
 
