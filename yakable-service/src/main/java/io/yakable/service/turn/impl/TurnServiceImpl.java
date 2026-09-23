@@ -5,6 +5,7 @@ import io.yakable.common.bean.vo.session.TurnExecutionVO;
 import io.yakable.common.bean.vo.session.TurnInvocationVO;
 import io.yakable.common.bean.vo.session.TurnVO;
 import io.yakable.common.enums.session.TurnStatusEnum;
+import io.yakable.common.enums.session.TurnTypeEnum;
 import io.yakable.common.utils.ConverUtils;
 import io.yakable.dao.entity.TurnEntity;
 import io.yakable.dao.repository.TurnRepository;
@@ -24,11 +25,12 @@ public class TurnServiceImpl implements TurnService {
     private TurnRepository turnRepository;
 
     @Override
-    public TurnVO addTurn(String sessionId, String provider, String model, String requestId) {
+    public TurnVO addTurn(String sessionId, TurnTypeEnum turnType, String provider, String model, String requestId) {
         TurnEntity entity = new TurnEntity();
         entity.initCreate();
         entity.setSessionId(sessionId);
         entity.setRequestId(requestId);
+        entity.setTurnType(turnType);
         entity.setProvider(provider);
         entity.setModel(model);
         entity.setStatus(TurnStatusEnum.PENDING);
