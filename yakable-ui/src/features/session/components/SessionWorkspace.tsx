@@ -461,6 +461,8 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
   });
 
   const turnKeys = useMemo(() => turnModels.map((turn) => turn.key), [turnModels]);
+  const currentNavigationTurnId = turnNavigator.currentTurnId;
+  const activeJumpTurnId = turnNavigator.activeJumpTurnId;
 
   const pinnedTurnKeys = useMemo(() => {
     const keys = new Set<string>();
@@ -468,15 +470,15 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
     if (optimisticTurn) keys.add(optimisticTurn.key);
     if (activeTurnId) keys.add('turn:' + activeTurnId);
     if (visibleStreamingTurnId) keys.add('turn:' + visibleStreamingTurnId);
-    if (turnNavigator.currentTurnId) keys.add('turn:' + turnNavigator.currentTurnId);
-    if (turnNavigator.activeJumpTurnId) keys.add('turn:' + turnNavigator.activeJumpTurnId);
+    if (currentNavigationTurnId) keys.add('turn:' + currentNavigationTurnId);
+    if (activeJumpTurnId) keys.add('turn:' + activeJumpTurnId);
 
     return [...keys];
   }, [
+    activeJumpTurnId,
     activeTurnId,
+    currentNavigationTurnId,
     optimisticTurn,
-    turnNavigator.activeJumpTurnId,
-    turnNavigator.currentTurnId,
     visibleStreamingTurnId,
   ]);
 
