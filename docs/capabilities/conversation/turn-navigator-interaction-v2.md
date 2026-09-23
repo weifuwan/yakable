@@ -1,6 +1,6 @@
 # Turn Navigator Interaction V2
 
-Status: Done
+Status: Review
 Domain: Conversation
 
 Depends On:
@@ -124,6 +124,8 @@ Focus 也不在 Interaction Surface
 
 点击 Prompt Row：
 
+- 目标 Turn 对齐 top Reading Anchor，视觉上应明确落到被点击的 Prompt 对应 Turn，而不是停在上一 Turn。
+
 ```text
 Prompt Row
 → existing jumpToTurn(item)
@@ -162,7 +164,7 @@ V1 的状态关系保持不变：
 Current != Visible != Focused
 ```
 
-- Current 继续由 Session viewport 顶部向下 30% Reading Anchor 决定。
+- Current 继续由 Session viewport 顶部向下 48px（小 viewport 时最多为高度的 20%） Reading Anchor 决定。
 - Visible 继续表示当前 viewport 相交的 Turn。
 - Focused 表示用户正在 Prompt Overview 中操作的 Row。
 - Hover / Focus 不能反推 Current。

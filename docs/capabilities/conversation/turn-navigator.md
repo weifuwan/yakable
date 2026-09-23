@@ -1,6 +1,6 @@
 # Turn Navigator
 
-Status: Done
+Status: Review
 Domain: Conversation
 
 Depends On:
@@ -63,10 +63,10 @@ Tests:
 
 - Navigation Index 只返回正式 USER Message 对应的 Turn，按 Message Sequence 升序。
 - Preview 服务端收敛空白并限制为最多 160 个 Unicode code point。
-- Current Turn 使用固定 Reading Anchor，当前为 viewport 顶部向下 30%。
+- Current Turn 使用固定 Reading Anchor，当前为 viewport 顶部向下 48px（小 viewport 时最多为高度的 20%）。
 - Visible Turn 表示与 viewport 相交的 Turn；Current、Visible、Focused 是不同状态。
 - 完整 Navigation Index 不等于加载全部 Message 正文。
-- Jump 到当前 Message Window 中已完整加载的 Turn 时直接对齐 Reading Anchor。
+- Jump 到当前 Message Window 中已完整加载的 Turn 时直接对齐 top Reading Anchor；显式选择的 Turn 应靠近 viewport 顶部，不能让上一 Turn 占据定位位置。
 - Jump 到未加载历史时，先按 USER Message sequence 查询 Target Message Window，再渲染并对齐。
 - DOM 中存在 turnId 不代表 Turn 起点已经加载；只有 USER Message 已在当前 Window 时才能直接 Jump。
 - Target Message Window 最多 50 条 Message，并返回 hasOlder / hasNewer 与边界 cursor。
