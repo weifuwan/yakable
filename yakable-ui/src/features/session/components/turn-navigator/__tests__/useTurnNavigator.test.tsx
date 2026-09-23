@@ -93,6 +93,7 @@ describe('useTurnNavigator', () => {
 
     const replaceWindow = vi.fn(() => {
       container.replaceChildren();
+      container.scrollTop = 0;
       addTurn(container, 'turn-1', 300);
     });
     const onFollowLatestChange = vi.fn();
