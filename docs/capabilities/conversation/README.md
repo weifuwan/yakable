@@ -19,7 +19,10 @@ Streaming
 History ───── Context
 
 Turn Navigator
-→ long-session navigation only
+→ long-session navigation runtime
+    ↓
+Turn Navigator Interaction V2
+→ compact rail + prompt overview (Designing)
 ```
 
 Capabilities:
@@ -32,6 +35,7 @@ Capabilities:
 - [History](./history.md)
 - [Context](./context.md)
 - [Turn Navigator](./turn-navigator.md)
+- [Turn Navigator Interaction V2](./turn-navigator-interaction-v2.md)
 
 ## Shared Rules
 
