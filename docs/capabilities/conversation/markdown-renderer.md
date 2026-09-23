@@ -1,6 +1,6 @@
 # Markdown Renderer
 
-Status: Implementing
+Status: Review
 Domain: Conversation
 
 Depends On:
@@ -39,11 +39,8 @@ Tests:
 - Existing integration: `yakable-ui/src/features/session/components/__tests__/SessionWorkspace.test.tsx`
 
 Known Gaps:
-- Code Renderer 已进入实现：`@streamdown/code` + Shiki 已接入。
-- `Markdown` 已显式支持 `streaming / static` mode，Streaming Assistant 已接线。
-- Code Block 已关闭 Streamdown 默认纵向 max-height，保留 Conversation 单一纵向滚动。
-- PR3 仍需完成 unknown language / safety / performance Acceptance。
-- Mermaid / Math / Tool / Reasoning / Artifact 不属于当前实现。
+- PR3 Acceptance regression 已补齐，等待本 PR 最终 Frontend / Backend / Quality Gate。
+- Mermaid / Math / Tool / Reasoning / Artifact 不属于当前 Capability。
 
 ## Purpose
 
@@ -224,6 +221,24 @@ Turn terminal / History
 → persisted content
 → Markdown(static)
 ```
+
+## Acceptance
+
+Review evidence：
+
+- 已知 language 通过同一个 `@streamdown/code` + Shiki Renderer 处理。
+- unknown / streaming 中被截断的 language identifier 退化为可读 plain code，不让 Message 失败。
+- 未闭合 fenced code 在 `streaming` mode 下继续可见，Code actions 保持 disabled。
+- static code 的 Copy / Download 保持可用，Copy 复制 fenced code 原始文本。
+- raw HTML 继续经过 Streamdown 默认 sanitize / harden 边界；script、event handler 与危险 URL 不进入可执行 DOM。
+- fenced HTML / script source 只作为 code text 展示，不执行。
+- `markdownPlugins` 保持 module-level stable reference，不随每个 token render 重建 plugin 配置。
+- `@streamdown/code` 按需 lazy-load language grammar；Markdown 不引入第二套 history virtualization。
+- Code Block 关闭默认纵向 max-height，Conversation 保持单一纵向滚动 owner。
+- Markdown / Code controls 保留原生语义与可访问名称。
+- Backend Message schema、Streaming transport、History Window、Turn Windowing 均无变化。
+
+Final Acceptance 只有在本 PR 最终 Commit 的 Frontend Verification、Backend Verification 与 `Yakable / Quality Gate` 全部成功后才能恢复 `Status: Done`。
 
 ## Boundary
 
