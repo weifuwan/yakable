@@ -296,29 +296,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
     [cancelNavigationJump, restoreViewportLatestView],
   );
 
-  const runStreamingTurn = useCallback(
-    async (
-      content: string,
-      model: ModelSelection,
-      requestId: string,
-      controller: AbortController,
-      afterSequence: number,
-      onEstablished: () => void,
-      onRejected: () => void,
-    ) => {
-      let established = false;
-
-      try {
-        await SessionService.streamingTurn(
-          projectId,
-          sessionId,
-          content,
-          model,
-          requestId,
-          {
-            onStarted: (started) => {
-              established = true;
-       const handleSubmit = useCallback(
+  const handleSubmit = useCallback(
     (content: string) => {
       if (!selectedModel) return false;
 
