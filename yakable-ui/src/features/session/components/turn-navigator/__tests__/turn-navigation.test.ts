@@ -34,7 +34,6 @@ describe('turn-navigation', () => {
     expect(currentTurnAtReadingAnchor(layout, 250, 500)).toBe('turn-2');
   });
 
-
   it('measures rib hit targets in rail content coordinates', () => {
     const rail = document.createElement('div');
     Object.defineProperties(rail, {
