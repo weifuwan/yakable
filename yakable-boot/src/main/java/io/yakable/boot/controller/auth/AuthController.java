@@ -17,6 +17,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Duration;
@@ -29,6 +30,16 @@ public class AuthController {
 
     @Resource
     private AuthService authService;
+
+    @Operation(summary = "获取 CSRF Token")
+    @GetMapping("/csrf")
+    public Result<String> queryCsrfToken(HttpServletRequest request) {
+        CsrfToken csrfToken = (CsrfToken) request.getAttribute(CsrfToken.class.getName());
+        if (csrfToken == null) {
+            throw new IllegalStateException("CSRF token is unavailable");
+        }
+        return Result.success(csrfToken.getToken());
+    }
 
     @Operation(summary = "用户登录")
     @PostMapping("/login")
