@@ -124,6 +124,8 @@ Focus 也不在 Interaction Surface
 
 点击 Prompt Row：
 
+- 目标 Turn 对齐 top Reading Anchor，视觉上应明确落到被点击的 Prompt 对应 Turn，而不是停在上一 Turn。
+
 ```text
 Prompt Row
 → existing jumpToTurn(item)
@@ -162,7 +164,7 @@ V1 的状态关系保持不变：
 Current != Visible != Focused
 ```
 
-- Current 继续由 Session viewport 顶部向下 30% Reading Anchor 决定。
+- Current 继续由 Session viewport 顶部向下 48px（小 viewport 时最多为高度的 20%） Reading Anchor 决定。
 - Visible 继续表示当前 viewport 相交的 Turn。
 - Focused 表示用户正在 Prompt Overview 中操作的 Row。
 - Hover / Focus 不能反推 Current。
@@ -356,3 +358,11 @@ PR3 只删除已经被 V2 真实替代且无引用的旧 Drag / Fisheye 代码�
 V1 `Status: Done` 保持不变。
 
 V2 在代码、测试和 Acceptance 对齐前保持 `Status: Designing / Implementing / Review`，不能提前标记为 `Done`。
+
+
+## Top Anchor Fix Acceptance
+
+- 显式 Prompt Jump 与 Current Turn 使用同一 top Reading Anchor。
+- 默认距离 viewport 顶部 48px，小 viewport 时最多为高度的 20%。
+- 点击 Turn 2 后，Turn 2 成为主要定位内容，不再让 Turn 1 占据定位位置。
+- Review Commit 已通过 Frontend Verification、Backend Verification 与 Yakable / Quality Gate。

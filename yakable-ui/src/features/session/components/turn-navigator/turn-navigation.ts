@@ -1,4 +1,8 @@
-export const READING_ANCHOR_RATIO = 0.3;
+export const READING_ANCHOR_OFFSET_PX = 48;
+
+function readingAnchorOffset(viewportHeight: number) {
+  return Math.min(READING_ANCHOR_OFFSET_PX, viewportHeight * 0.2);
+}
 
 export interface TurnLayoutEntry {
   turnId: string;
@@ -36,7 +40,7 @@ export function currentTurnAtReadingAnchor(
 ) {
   if (layout.length === 0) return null;
 
-  const readingAnchor = scrollTop + viewportHeight * READING_ANCHOR_RATIO;
+  const readingAnchor = scrollTop + readingAnchorOffset(viewportHeight);
   let current = layout[0];
 
   for (const entry of layout) {
@@ -66,7 +70,7 @@ export function targetScrollTop(
   viewportHeight: number,
   scrollHeight: number,
 ) {
-  const target = entry.top - viewportHeight * READING_ANCHOR_RATIO;
+  const target = entry.top - readingAnchorOffset(viewportHeight);
   const maxScrollTop = Math.max(0, scrollHeight - viewportHeight);
   return Math.min(Math.max(0, target), maxScrollTop);
 }

@@ -129,7 +129,7 @@ describe('useTurnNavigator', () => {
     );
     expect(replaceWindow).toHaveBeenCalledWith(targetWindow);
     expect(onFollowLatestChange).toHaveBeenCalledWith(false);
-    expect(container.scrollTop).toBe(0);
+    expect(container.scrollTop).toBe(252);
     expect(document.activeElement?.getAttribute('data-turn-id')).toBe('turn-1');
   });
 
