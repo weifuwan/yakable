@@ -211,15 +211,41 @@ public class SessionServiceImpl implements SessionService {
         }
 
         String partialContent = cutoverSnapshot.orElse("");
-        int updated;
+        StopCommitResult commitResult;
         try {
-            updated = transactionTemplate.execute(status -> {
+            commitResult = transactionTemplate.execute(status -> {
+                TurnVO locked = turnService.queryTurnForUpdate(execution.getId())
+                        .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
+
+                if (TurnTypeEnum.PROJECT_GENERATION == execution.getTurnType()
+                        && isActiveTurn(locked)
+                        && projectFiles.isPublished(dto.projectId(), dto.turnId())) {
+                    TurnVO running = locked;
+                    if (TurnStatusEnum.PENDING.name().equals(locked.getStatus())) {
+                        running = turnService.updatePendingTurn(dto.turnId(), DateUtils.now()).orElse(null);
+                        if (running == null) {
+                            return StopCommitResult.UNCHANGED;
+                        }
+                    }
+
+                    messageService.addMessage(
+                            dto.sessionId(), dto.turnId(),
+                            MessageRoleEnum.ASSISTANT, RECOVERED_GENERATION_SUMMARY);
+                    int succeeded = turnService.updateTurnSucceeded(
+                            dto.turnId(), dto.sessionId(),
+                            null, null, null, null, "recovered", DateUtils.now());
+                    if (succeeded != 1) {
+                        throw new IllegalStateException("Turn is no longer RUNNING: " + dto.turnId());
+                    }
+                    return StopCommitResult.SUCCEEDED;
+                }
+
                 int stopped = turnService.updateTurnStopped(execution.getId(), dto.sessionId(), DateUtils.now());
                 if (stopped == 1 && !StringUtils.isBlank(partialContent)) {
                     messageService.addMessage(
                             dto.sessionId(), dto.turnId(), MessageRoleEnum.ASSISTANT, partialContent);
                 }
-                return stopped;
+                return stopped == 1 ? StopCommitResult.STOPPED : StopCommitResult.UNCHANGED;
             });
         } catch (RuntimeException exception) {
             stoppingTurns.remove(dto.turnId());
@@ -229,7 +255,7 @@ public class SessionServiceImpl implements SessionService {
             throw exception;
         }
 
-        if (updated == 1) {
+        if (commitResult == StopCommitResult.STOPPED) {
             conversationMetrics.turnTerminal("stopped");
             log.log(
                     System.Logger.Level.INFO,
@@ -243,11 +269,20 @@ public class SessionServiceImpl implements SessionService {
             }
             stoppingTurns.remove(dto.turnId());
             ThreadUtils.cancel(TURN_TASK_PREFIX + dto.turnId());
+        } else if (commitResult == StopCommitResult.SUCCEEDED) {
+            conversationMetrics.turnTerminal("succeeded");
+            if (cutoverSnapshot.isPresent()) {
+                turnStreamRuntime.cancelStopCutover(dto.turnId());
+            }
+            stoppingTurns.remove(dto.turnId());
+            turnStreamRuntime.complete(dto.turnId());
+            ThreadUtils.cancel(TURN_TASK_PREFIX + dto.turnId());
         } else {
             stoppingTurns.remove(dto.turnId());
             if (cutoverSnapshot.isPresent()) {
                 turnStreamRuntime.cancelStopCutover(dto.turnId());
             }
+            turnService.queryTurn(dto.turnId()).ifPresent(this::publishTerminalTurn);
         }
         return turnService.queryTurn(dto.turnId())
                 .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
@@ -1004,6 +1039,17 @@ public class SessionServiceImpl implements SessionService {
         }
     }
 
+
+    private static boolean isActiveTurn(TurnVO turn) {
+        return TurnStatusEnum.PENDING.name().equals(turn.getStatus())
+                || TurnStatusEnum.RUNNING.name().equals(turn.getStatus());
+    }
+
+    private enum StopCommitResult {
+        STOPPED,
+        SUCCEEDED,
+        UNCHANGED
+    }
 
     private static boolean notifyTerminalTurn(TurnVO turn, TurnStreamListener listener) {
         if (TurnStatusEnum.SUCCEEDED.name().equals(turn.getStatus())) {
