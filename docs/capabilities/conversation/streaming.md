@@ -21,7 +21,8 @@ Frontend:
 Backend:
 - `yakable-boot/src/main/java/io/yakable/boot/controller/session/SessionController.java`
 - `yakable-service/src/main/java/io/yakable/service/session/impl/SessionServiceImpl.java`
-- `yakable-service/src/main/java/io/yakable/service/session/TurnStreamListener.java`
+- `yakable-core/src/main/java/io/yakable/core/conversation/stream/TurnStreamRuntime.java`
+- `yakable-core/src/main/java/io/yakable/core/conversation/stream/TurnStreamListener.java`
 - `yakable-core/src/main/java/io/yakable/core/llm/LlmClient.java`
 - `yakable-core/src/main/java/io/yakable/core/llm/LlmStreamEvent.java`
 
@@ -61,6 +62,7 @@ Tests:
 - `yakable-ui/src/service/session/__tests__/SessionService.test.ts`
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
+- `yakable-core/src/test/java/io/yakable/core/conversation/stream/TurnStreamRuntimeTest.java`
 
 Review Notes:
 - GAP-06 已实现：TurnStreamState 增加 Stop cutover，并与 delta() 共用同一个 eventLock。
@@ -96,7 +98,7 @@ executeTurnAsync
 → LlmClient.streamingChat
 → LlmProvider
 → LlmStreamEvent
-→ TurnStreamState
+→ TurnStreamRuntime
 → watcher
 → SSE
 → SessionService.ts

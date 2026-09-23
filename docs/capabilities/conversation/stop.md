@@ -18,6 +18,7 @@ Frontend:
 Backend:
 - `yakable-boot/src/main/java/io/yakable/boot/controller/session/SessionController.java`
 - `yakable-service/src/main/java/io/yakable/service/session/impl/SessionServiceImpl.java`
+- `yakable-core/src/main/java/io/yakable/core/conversation/stream/TurnStreamRuntime.java`
 - `yakable-service/src/main/java/io/yakable/service/turn/TurnService.java`
 - `yakable-service/src/main/java/io/yakable/service/message/MessageService.java`
 
@@ -46,6 +47,7 @@ Tests:
 - `yakable-ui/src/features/session/components/__tests__/SessionWorkspace.test.tsx`
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
+- `yakable-core/src/test/java/io/yakable/core/conversation/stream/TurnStreamRuntimeTest.java`
 - `yakable-service/src/test/java/io/yakable/service/turn/impl/TurnServiceImplTest.java`
 
 Review Notes:
@@ -84,10 +86,11 @@ SessionWorkspace.handleStop
 → POST /turns/{turnId}/stop
 → SessionController
 → SessionServiceImpl.stopTurn
+→ TurnStreamRuntime.beginStopCutover
 → persist partial
 → TurnService.updateTurnStopped
 → cancel execution
-→ streamState.stopped
+→ TurnStreamRuntime.stopped
 ```
 
 ## Boundary

@@ -156,26 +156,13 @@ A runtime mechanism may hold bounded temporary state, but durable Session / Turn
 ## Current Facts
 
 - LLM runtime contracts live in `yakable-core/src/main/java/io/yakable/core/llm`.
+- Conversation Stream Runtime lives in `yakable-core/src/main/java/io/yakable/core/conversation/stream`.
 - Session business orchestration lives in `yakable-service/src/main/java/io/yakable/service/session`.
 - Turn and Message business persistence boundaries already have their own Services.
 - Conversation HTTP and SSE transport live in `yakable-boot`.
 - Model provider implementations adapt Core contracts through the plugin modules.
 
-## Known Ownership Gap
-
-Conversation Streaming already has a stable capability contract for:
-
-```text
-buffer
-snapshot / delta / terminal
-watcher subscription
-watcher isolation
-stop cutover
-```
-
-The current implementation of that runtime is still embedded inside `SessionServiceImpl`.
-
-This is an ownership gap, not a request to change Conversation behavior. A later migration must preserve the existing Capability Contracts, scenarios, tests, and transport behavior instead of rewriting the feature.
+Conversation Stream Runtime owns only bounded in-memory stream state, snapshot / delta / terminal ordering, watcher delivery and stop cutover. Stop business decisions, Turn state transitions and partial Message persistence remain in Service.
 
 ## Refactor Rule
 
