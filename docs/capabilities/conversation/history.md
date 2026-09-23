@@ -69,6 +69,8 @@ Review Notes:
 - prepend 更早历史后保持当前阅读位置。
 - 初始进入 Session 默认定位最新内容。
 - 用户离开 latest 阅读历史时，Streaming 不强制拉回底部；界面提供明确的回到最新位置入口。
+- 回到最新位置必须恢复 latest Message page，不能只滚动当前历史 Message Window 的底部。
+- 历史窗口与 Session latest sequence 分离；后台增量可以推进 Session 进度，但不能把无关最新 Message 注入当前历史窗口。
 - Message 按稳定 sequence 排序。
 - Streaming / Stop / Failure 最终通过持久化 Message 收敛到 History。
 - Session 切换时不能短暂显示上一 Session 历史。
