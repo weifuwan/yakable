@@ -299,6 +299,12 @@ describe('SessionWorkspace', () => {
       newerCursor: 2,
     });
 
+    const queryMessages = vi.spyOn(SessionService, 'queryMessages').mockResolvedValue({
+      messages: latest.messages,
+      nextBeforeSequence: null,
+      hasMore: false,
+    });
+
     render(<SessionWorkspace projectId="project-1" sessionId="session-1" />);
 
     expect(await screen.findByText('Latest answer')).toBeTruthy();
@@ -307,7 +313,12 @@ describe('SessionWorkspace', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Go to turn 1' }));
 
     await waitFor(() => {
-      expect(queryMessageWindow).toHaveBeenCalledWith('project-1', 'session-1', 1);
+      expect(queryMessageWindow).toHaveBeenCalledWith(
+        'project-1',
+        'session-1',
+        1,
+        expect.any(AbortSignal),
+      );
     });
     await waitFor(() => {
       const turn = document.querySelector('[data-turn-id="turn-1"]');
@@ -315,6 +326,19 @@ describe('SessionWorkspace', () => {
       expect(turn?.textContent).toContain('First answer');
     });
     expect(screen.queryByText('Latest answer')).toBeNull();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Scroll to bottom' }));
+
+    await waitFor(() => {
+      expect(queryMessages).toHaveBeenCalledWith(
+        'project-1',
+        'session-1',
+        undefined,
+        50,
+        undefined,
+      );
+    });
+    expect(await screen.findByText('Latest answer')).toBeTruthy();
   });
 
   it('hides stale content while switching to another session', async () => {
@@ -404,6 +428,11 @@ describe('SessionWorkspace', () => {
     await waitFor(() => {
       expect((input as HTMLTextAreaElement).value).toBe('');
     });
+    expect(
+      screen
+        .getAllByTestId('user-message-bubble')
+        .filter((item) => item.textContent?.includes('Tell me more')),
+    ).toHaveLength(1);
     expect(await screen.findByText('Streaming reply.')).toBeTruthy();
 
     await act(async () => {
