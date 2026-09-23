@@ -145,4 +145,3 @@ export function fisheyeScale(centerY: number, pointerY: number) {
   const influence = 1 - distance / FISHEYE_RADIUS_PX;
   return 1 + influence * (FISHEYE_MAX_SCALE - 1);
 }
-
