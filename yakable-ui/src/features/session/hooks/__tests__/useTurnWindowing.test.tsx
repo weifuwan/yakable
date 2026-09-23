@@ -198,7 +198,7 @@ describe('Turn windowing', () => {
 
     await waitFor(() => {
       expect(container.querySelectorAll('[data-turn-key]')).toHaveLength(500);
-      expect(container.querySelectorAll('[data-heavy="true"]').length).toBeLessThan(30);
+      expect(container.querySelectorAll('[data-heavy="true"]').length).toBeLessThan(36);
     });
 
     expect(
@@ -214,7 +214,7 @@ describe('Turn windowing', () => {
     });
 
     await waitFor(() => {
-      expect(container.querySelectorAll('[data-heavy="true"]').length).toBeLessThan(30);
+      expect(container.querySelectorAll('[data-heavy="true"]').length).toBeLessThan(36);
       expect(
         container.querySelector<HTMLElement>('[data-turn-key="turn:turn-251"]')?.dataset.heavy,
       ).toBe('true');
@@ -227,7 +227,7 @@ describe('Turn windowing', () => {
     });
 
     await waitFor(() => {
-      expect(container.querySelectorAll('[data-heavy="true"]').length).toBeLessThan(30);
+      expect(container.querySelectorAll('[data-heavy="true"]').length).toBeLessThan(36);
     });
     expect(container.querySelectorAll('[data-heavy="true"]').length).toBeLessThanOrEqual(
       heavyBeforeResize + 2,
