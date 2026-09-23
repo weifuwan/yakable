@@ -122,13 +122,7 @@ describe('useSessionMessageWindow', () => {
       await result.current.restoreLatest();
     });
 
-    expect(queryMessages).toHaveBeenCalledWith(
-      'project-1',
-      'session-1',
-      undefined,
-      50,
-      undefined,
-    );
+    expect(queryMessages).toHaveBeenCalledWith('project-1', 'session-1', undefined, 50, undefined);
     expect(result.current.messages.map((item) => item.sequence)).toEqual([150, 151, 200]);
     expect(result.current.hasNewer).toBe(false);
     expect(result.current.newerCursor).toBeNull();
