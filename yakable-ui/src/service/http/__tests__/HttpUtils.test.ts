@@ -54,6 +54,7 @@ describe('HttpUtils', () => {
   });
 
   it('sends JSON PUT requests through the shared transport', async () => {
+    document.cookie = 'XSRF-TOKEN=csrf-token; path=/';
     const fetchMock = vi.fn().mockResolvedValue(apiResponse(null));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -87,6 +88,42 @@ describe('HttpUtils', () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/auth/logout',
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'X-XSRF-TOKEN': 'csrf-token',
+        },
+      }),
+    );
+  });
+
+  it('bootstraps CSRF before an unsafe request when the cookie is missing', async () => {
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      if (url === '/api/auth/csrf') {
+        document.cookie = 'XSRF-TOKEN=csrf-token; path=/';
+        return apiResponse('csrf-token');
+      }
+      return apiResponse({ id: 'project-1' });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await HttpUtils.post('/api/projects', { prompt: 'Build a CRM' });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/api/auth/csrf',
+      expect.objectContaining({
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+        },
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/projects',
       expect.objectContaining({
         method: 'POST',
         headers: {
@@ -175,6 +212,7 @@ describe('HttpUtils', () => {
   });
 
   it('parses SSE events even when one event is split across chunks', async () => {
+    document.cookie = 'XSRF-TOKEN=csrf-token; path=/';
     const encoder = new TextEncoder();
     const chunks = [
       'event: delta\r\ndata: {"content":"Hel',
