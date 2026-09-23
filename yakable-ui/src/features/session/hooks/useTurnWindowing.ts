@@ -56,9 +56,8 @@ export function useTurnWindowing({
   const [mountedKeys, setMountedKeys] = useState<Set<string>>(() => new Set());
   const frameRef = useRef<number | null>(null);
   const containerWidthRef = useRef<number | null>(null);
-  const pinnedKey = pinnedTurnKeys.join('|');
   const turnKey = turnKeys.join('|');
-  const pinnedKeys = useMemo(() => new Set(pinnedTurnKeys), [pinnedKey, pinnedTurnKeys]);
+  const pinnedKeys = useMemo(() => new Set(pinnedTurnKeys), [pinnedTurnKeys]);
 
   const measureWindow = useCallback(() => {
     const container = scrollRef.current;
