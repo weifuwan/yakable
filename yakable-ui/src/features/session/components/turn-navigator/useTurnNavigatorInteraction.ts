@@ -53,6 +53,14 @@ export function useTurnNavigatorInteraction({
     );
   }, []);
 
+  const findRailMarker = useCallback((turnId: string) => {
+    return (
+      Array.from(
+        railRef.current?.querySelectorAll<HTMLElement>('[data-nav-marker-turn-id]') ?? [],
+      ).find((element) => element.dataset.navMarkerTurnId === turnId) ?? null
+    );
+  }, []);
+
   const cancelClose = useCallback(() => {
     if (closeTimerRef.current === null) return;
 
@@ -125,6 +133,26 @@ export function useTurnNavigatorInteraction({
     if (surfaceRef.current?.contains(document.activeElement)) return;
     setRovingTurnId(resolveCurrentTurnId());
   }, [resolveCurrentTurnId]);
+
+  useEffect(() => {
+    const rail = railRef.current;
+    const targetTurnId = resolveCurrentTurnId();
+    if (!rail || !targetTurnId) return;
+
+    const marker = findRailMarker(targetTurnId);
+    if (!marker) return;
+
+    const railRect = rail.getBoundingClientRect();
+    const markerRect = marker.getBoundingClientRect();
+    const top = rail.scrollTop + markerRect.top - railRect.top;
+    const bottom = top + markerRect.height;
+
+    if (top < rail.scrollTop) {
+      rail.scrollTop = top;
+    } else if (bottom > rail.scrollTop + rail.clientHeight) {
+      rail.scrollTop = bottom - rail.clientHeight;
+    }
+  }, [findRailMarker, resolveCurrentTurnId]);
 
   useEffect(() => {
     if (!isOpen) return;

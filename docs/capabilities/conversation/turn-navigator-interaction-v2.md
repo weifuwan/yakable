@@ -73,24 +73,13 @@ Collapsed 默认态：
 - 不再常驻边框、阴影和背景面板。
 - 不再常驻 Previous / Next 箭头。
 - 不再常驻 Origin / Terminus 圆点。
-- 只显示少量横线表达当前位置和可导航性。
-- Current 横线更深、更宽。
+- 每个正式 Turn 对应一条轻量 Marker，顺序与 Prompt Overview 完全一致。
+- Marker 数量与 Prompt Overview 的正式 Turn 数量一致，不能人为截断成固定 5 条。
+- Current Marker 更深、更宽。
+- Rail 高度受限；长 Session 超出高度后只在 Rail 内部滚动，不扩大 Conversation 布局。
+- Current Marker 随 Current Turn 自动保持在 Rail 可见范围。
 - Navigator 不改变 Conversation 内容宽度，不进入正常文档流。
 - 窄屏继续隐藏 Navigator。
-
-Compact Rail 最多显示 5 个邻近 Turn 的视觉位置：
-
-```text
-previous 2
-previous 1
-current
-next 1
-next 2
-```
-
-靠近 Session 起点或终点时窗口自然偏移。
-
-Compact Rail 不是完整 Session Map，不需要把所有 Turn 同时画成 Rib。
 
 ### Prompt Overview
 
@@ -234,10 +223,11 @@ UI 分层：
 
 ```text
 Collapsed
-→ at most 5 local markers
+→ one lightweight marker per formal Turn
+→ bounded rail viewport
 
 Expanded
-→ lightweight Prompt Rows
+→ one lightweight Prompt Row per formal Turn
 → bounded scroll container
 
 Conversation
@@ -292,7 +282,9 @@ PR3 Review 需要同时证明 V2 Surface 与 V1 Runtime 没有互相污染。
 
 Surface evidence：
 
-- Compact Rail 默认最多 5 个邻近 marker，并覆盖 Session 起点 / 中部 / 终点窗口。
+- Compact Rail 与 Prompt Overview 使用同一份 Navigation Index；Marker 与 Prompt Row 数量、顺序一一对应。
+- 8 个正式 Turn 必须表现为 8 个 Marker + 8 个 Prompt Row，不能出现 5 / 8 的 Surface mismatch。
+- 长 Session Rail 高度受限，Current Marker 自动保持可见。
 - Collapsed 时 Prompt List 不常驻 DOM。
 - Hover / Focus 打开唯一 Prompt Overview，Current Row 明确。
 - Overview 打开时 Current Row 自动进入可见范围。
@@ -309,13 +301,16 @@ Runtime evidence：
 - SessionWorkspace 历史 Jump、Streaming / History reading position 与返回 latest 行为继续由现有回归保护。
 - Backend API / DTO / persistence 无变化。
 
-Acceptance Review 已闭环：
+本次 Surface mismatch 已闭环：
 
-- V2 Surface 与 V1 Navigation Runtime ownership 已对齐。
-- 旧 Drag / Fisheye Surface 与无引用 Runtime API 已清理。
-- Surface、Jump、History、Streaming、Windowing 的回归证据完整。
+- Compact Rail 与 Prompt Overview 统一使用同一份 Navigation Index。
+- Marker 与 Prompt Row 数量、顺序一一对应。
+- 8 个正式 Turn 的回归用例明确保护 8 Marker + 8 Prompt Row。
+- 长 Session Rail 保持 bounded viewport，Current Marker 自动保持可见。
+- Review Commit 已通过 Frontend Verification、Backend Verification 与 `Yakable / Quality Gate`。
 - Known Gaps = none。
-- 最终 Done Commit 必须通过 Frontend Verification、Backend Verification 与 `Yakable / Quality Gate`；CI Evidence 记录在实现 PR。
+
+最终 `Status: Done` Commit 本身仍需再次通过完整 Quality Gate。
 
 ## Boundary
 
