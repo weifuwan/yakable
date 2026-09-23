@@ -48,6 +48,7 @@ function setBox(element: HTMLElement, top: number, height: number) {
 function addTurn(container: HTMLElement, turnId: string, top: number) {
   const turn = document.createElement('section');
   turn.dataset.turnId = turnId;
+  turn.dataset.turnUserLoaded = 'true';
   setBox(turn, top, 200);
   container.append(turn);
   return turn;
