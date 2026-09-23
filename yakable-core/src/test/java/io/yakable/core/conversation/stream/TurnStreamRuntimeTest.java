@@ -48,23 +48,30 @@ class TurnStreamRuntimeTest {
     void shouldResumeDeltaAfterCutoverCancellation() throws Exception {
         TurnStreamRuntime runtime = new TurnStreamRuntime(100);
         String turnId = "turn-rollback";
-        CountDownLatch deltasDelivered = new CountDownLatch(2);
+        CountDownLatch firstDeltaDelivered = new CountDownLatch(1);
+        CountDownLatch secondDeltaDelivered = new CountDownLatch(1);
         List<String> deltas = new CopyOnWriteArrayList<>();
 
         Runnable unsubscribe = runtime.watch(turnId, listener(
                 content -> {
                     deltas.add(content);
-                    deltasDelivered.countDown();
+                    if (deltas.size() == 1) {
+                        firstDeltaDelivered.countDown();
+                    } else if (deltas.size() == 2) {
+                        secondDeltaDelivered.countDown();
+                    }
                 },
                 () -> {
                 }));
 
         runtime.delta(turnId, "A");
+        assertThat(firstDeltaDelivered.await(2, TimeUnit.SECONDS)).isTrue();
+
         assertThat(runtime.beginStopCutover(turnId)).contains("A");
         runtime.cancelStopCutover(turnId);
         runtime.delta(turnId, "B");
 
-        assertThat(deltasDelivered.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(secondDeltaDelivered.await(2, TimeUnit.SECONDS)).isTrue();
         assertThat(deltas).containsExactly("A", "B");
         assertThat(runtime.snapshot(turnId)).isEqualTo("AB");
 
