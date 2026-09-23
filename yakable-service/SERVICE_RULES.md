@@ -4,6 +4,7 @@ Scope:
 - `yakable-service/**`
 
 Depends On:
+- `/ARCHITECTURE.md`
 - `/JAVA_RULES.md`
 - `/BACKEND_TEST_RULES.md`
 - `/yakable-common/COMMON_RULES.md`
@@ -11,10 +12,12 @@ Depends On:
 - 涉及 LLM / Runtime Contract 时加载 `/yakable-core/CORE_RULES.md`
 
 Owns:
-- 领域业务规则
-- 领域编排
-- 状态流转
+- 领域业务事实与规则
+- 领域状态流转
+- ownership / idempotency 等业务约束
 - 面向事务的业务流程
+- persistence-facing orchestration
+- Service 与 Core Runtime 的业务协作
 
 ## Must
 
@@ -35,6 +38,8 @@ Owns:
 - 已校验用户输入默认保持原值，不静默 `trim / strip`，除非产品 Contract 明确要求归一化。
 - LLM 调用依赖 Core 的 `LlmClient / LlmRequest / LlmResponse`。
 - 每个领域保持一套异常体系，具体业务原因使用稳定错误码。
+- 当某段逻辑已经形成独立、稳定且不依赖持久化业务事实的 Runtime 状态机 / 生命周期 / 并发机制时，优先依赖 Core capability，而不是继续嵌入 ServiceImpl。
+- 抽取 Runtime 前必须先确认 Capability / Architecture boundary；没有真实边界时继续使用当前 Service 私有实现。
 
 ## Must Not
 
@@ -47,11 +52,22 @@ Owns:
 - 用 `IllegalArgumentException / IllegalStateException` 表达业务错误。
 - 为纯转发、线程提交、异常包装拆独立组件。
 - 对已验证输入重复判空或重复转换。
+- 为了减少单个 Service 的行数，把业务事实、事务或持久化规则机械搬到 Core。
+- 为了架构对称拆出没有真实 ownership 的 Manager / Coordinator / Handler / Adapter。
 
 ## Tests
 
-业务规则、状态流转、失败分支和 Bug Fix 必须按 `BACKEND_TEST_RULES.md` 补回归测试。
+- 业务规则、状态流转、失败分支和 Bug Fix 必须按 `BACKEND_TEST_RULES.md` 补回归测试。
+- Runtime 能力迁入 Core 后，Service Test 继续保护跨层业务 Scenario；不要因为新增 Core Test 删除已有业务证据。
 
 ## Boundary
 
-Service 拥有业务行为；HTTP 属于 Controller；持久化机制属于 Repository；稳定 LLM 协议属于 Core。
+```text
+Controller / Boot
+       ↓
+    Service ─────→ Core Runtime
+       ↓
+      DAO
+```
+
+Service 决定并持久化业务事实；Core 提供稳定 Runtime mechanism；HTTP 属于 Boot；持久化机制属于 DAO。

@@ -18,6 +18,7 @@ Before changing engineering document structure or creating a new long-lived docu
 Any Java change starts with:
 
 ```text
+ARCHITECTURE.md
 JAVA_RULES.md
 ```
 
