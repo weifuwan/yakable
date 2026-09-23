@@ -62,7 +62,7 @@ export function TurnNavigator({ items, currentTurnId, isJumping, onJumpTurn }: T
           aria-label="Browse conversation turns"
           aria-expanded={isOpen}
           aria-controls={isOpen ? 'turn-navigator-overview' : undefined}
-          className="flex max-h-56 w-8 cursor-pointer flex-col items-end gap-1.5 overflow-y-auto rounded-md p-1.5 outline-none focus-visible:outline-2 focus-visible:outline-focus-ring"
+          className="flex max-h-56 w-8 cursor-pointer flex-col items-end gap-2 overflow-y-auto rounded-md p-1.5 outline-none focus-visible:outline-2 focus-visible:outline-focus-ring"
           onPointerEnter={onPointerEnter}
           onPointerLeave={onPointerLeave}
           onFocus={onRailFocus}
@@ -80,7 +80,7 @@ export function TurnNavigator({ items, currentTurnId, isJumping, onJumpTurn }: T
                 data-nav-marker-turn-id={item.turnId}
                 className={cx(
                   'h-0.5 shrink-0 rounded-full bg-current',
-                  current ? 'w-5 text-foreground' : 'w-4 text-icon-muted',
+                  current ? 'w-5 text-[#0D0D0D]' : 'w-4 text-[#BBBBBB]',
                 )}
               />
             );
