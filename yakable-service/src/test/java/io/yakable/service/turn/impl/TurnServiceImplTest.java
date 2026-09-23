@@ -68,6 +68,21 @@ class TurnServiceImplTest {
     }
 
     @Test
+    void shouldExposeLockedTurnForFinalization() {
+        TurnEntity entity = new TurnEntity();
+        entity.setId("turn-1");
+        entity.setSessionId("session-1");
+        entity.setStatus(TurnStatusEnum.RUNNING);
+        when(turnRepository.queryTurnForUpdate("turn-1")).thenReturn(Optional.of(entity));
+
+        TurnVO result = turnService.queryTurnForUpdate("turn-1").orElseThrow();
+
+        assertThat(result.getId()).isEqualTo("turn-1");
+        assertThat(result.getStatus()).isEqualTo(TurnStatusEnum.RUNNING.name());
+        verify(turnRepository).queryTurnForUpdate("turn-1");
+    }
+
+    @Test
     void shouldRecoverSpecificRunningTurnToPending() {
         when(turnRepository.updateRunningTurnPending("turn-1")).thenReturn(1);
 
