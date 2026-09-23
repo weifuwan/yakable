@@ -8,6 +8,7 @@ import io.yakable.common.bean.vo.project.ProjectListVO;
 import io.yakable.common.bean.vo.session.SessionInitVO;
 import io.yakable.common.bean.vo.session.SessionVO;
 import io.yakable.common.enums.common.CommonErrorCode;
+import io.yakable.common.enums.session.TurnTypeEnum;
 import io.yakable.common.exception.ProjectException;
 import io.yakable.common.utils.ConverUtils;
 import io.yakable.dao.entity.ProjectEntity;
@@ -73,6 +74,7 @@ public class ProjectServiceImpl implements ProjectService {
                                 project.getName(),
                                 dto.model().provider(),
                                 dto.model().model(),
+                                TurnTypeEnum.PROJECT_GENERATION,
                                 prompt,
                                 dto.requestId(),
                                 dto.userId()));

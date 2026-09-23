@@ -2,6 +2,7 @@ package io.yakable.dao.entity;
 
 import com.baomidou.mybatisplus.annotation.TableName;
 import io.yakable.common.enums.session.TurnStatusEnum;
+import io.yakable.common.enums.session.TurnTypeEnum;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -24,6 +25,11 @@ public class TurnEntity extends BaseEntity {
      * 客户端创建请求ID
      */
     private String requestId;
+
+    /**
+     * 执行轮次类型：0-普通会话，1-项目代码生成
+     */
+    private TurnTypeEnum turnType;
 
     /**
      * 执行轮次状态：0-待执行，1-执行中，2-成功，3-失败，4-已停止

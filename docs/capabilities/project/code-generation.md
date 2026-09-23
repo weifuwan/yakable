@@ -1,6 +1,6 @@
 # Project Code Generation
 
-Status: Designing
+Status: Implementing
 Domain: Project
 
 Depends On:
@@ -16,8 +16,13 @@ Frontend:
 - No new frontend entry in V1
 
 Backend:
-- Planned: Project code generation capability
-- Planned: Project file storage capability
+- `yakable-service/src/main/java/io/yakable/service/project/impl/ProjectServiceImpl.java`
+- `yakable-service/src/main/java/io/yakable/service/session/impl/SessionServiceImpl.java`
+- `yakable-service/src/main/java/io/yakable/service/turn/TurnService.java`
+- `yakable-service/src/main/java/io/yakable/service/turn/impl/TurnServiceImpl.java`
+- `yakable-dao/src/main/java/io/yakable/dao/entity/TurnEntity.java`
+- Planned: Project code generation Core capability
+- Planned: Project file publication Core capability
 
 Data:
 - Project
@@ -34,7 +39,13 @@ Scenarios:
 - PROJ-S03
 
 Tests:
-- Planned
+- `yakable-service/src/test/java/io/yakable/service/project/impl/ProjectServiceImplTest.java`
+- `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
+- `yakable-service/src/test/java/io/yakable/service/turn/impl/TurnServiceImplTest.java`
+
+Known Gaps:
+- PR1 only persists and propagates Initial Turn execution type.
+- Project generation, file publication and execution routing are not implemented yet.
 
 ## Purpose
 
@@ -50,7 +61,8 @@ V1 只打通第一次代码生成，不负责后续代码修改。
 - Generation Result 包含用户可见的 Assistant 摘要和结构化项目文件集合；结构化文件数据不能直接作为 Assistant Message 展示。
 - 项目文件集合必须非空；每个生成文件必须包含相对路径和完整文件内容。
 - 文件路径必须为相对路径，normalize 后必须唯一，并且只能位于当前 Project Root 内。
-- 文件数量、单文件内容大小和总生成内容大小必须有明确上限；任一超限时本次 Generation 失败。\n- 写文件前必须完成全部结果解析、路径校验和资源边界校验；任一校验失败时不得发布任何项目文件。
+- 文件数量、单文件内容大小和总生成内容大小必须有明确上限；任一超限时本次 Generation 失败。
+- 写文件前必须完成全部结果解析、路径校验和资源边界校验；任一校验失败时不得发布任何项目文件。
 - Generation Result 必须作为完整文件集合发布；发布失败不能向 Project 暴露部分生成结果。
 - Project Files 完整发布成功后，Initial Turn 才能进入 SUCCEEDED。
 - Generation Success 只表示结构化结果合法且项目文件已完整发布，不代表项目已经 build 通过、可以运行或视觉质量已经验证。
