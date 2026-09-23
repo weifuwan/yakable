@@ -17,6 +17,10 @@ import {
 
 const TURN_ANCHOR_WAIT_FRAMES = 8;
 
+function sameIds(left: string[], right: string[]) {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
 interface UseTurnNavigatorOptions {
   projectId: string;
   sessionId: string;
@@ -80,8 +84,15 @@ export function useTurnNavigator({
     if (!container) return;
 
     const layout = measureTurnLayout(container);
-    setCurrentTurnId(currentTurnAtReadingAnchor(layout, container.scrollTop, container.clientHeight));
-    setVisibleIds(visibleTurnIds(layout, container.scrollTop, container.clientHeight));
+    const nextCurrent = currentTurnAtReadingAnchor(
+      layout,
+      container.scrollTop,
+      container.clientHeight,
+    );
+    const nextVisible = visibleTurnIds(layout, container.scrollTop, container.clientHeight);
+
+    setCurrentTurnId(nextCurrent);
+    setVisibleIds((current) => (sameIds(current, nextVisible) ? current : nextVisible));
   }, [scrollRef]);
 
   const scheduleMeasure = useCallback(() => {
