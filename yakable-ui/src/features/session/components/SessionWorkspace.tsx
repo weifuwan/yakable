@@ -124,6 +124,12 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
   const messageCount = messages.length;
 
   useEffect(() => {
+    return () => {
+      streamAbortRef.current?.abort();
+    };
+  }, []);
+
+  useEffect(() => {
     if (!expanded) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
