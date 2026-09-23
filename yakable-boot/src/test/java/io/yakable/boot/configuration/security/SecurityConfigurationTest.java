@@ -22,7 +22,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({
         SecurityConfiguration.class,
         AuthSessionAuthenticationFilter.class,
-        CsrfCookieFilter.class
+        CsrfCookieFilter.class,
+        SecurityConfigurationTest.TestController.class
 })
 class SecurityConfigurationTest {
 
@@ -60,7 +61,7 @@ class SecurityConfigurationTest {
     }
 
     @RestController
-    static class TestController {
+    public static class TestController {
 
         @GetMapping("/test/security")
         String security() {
