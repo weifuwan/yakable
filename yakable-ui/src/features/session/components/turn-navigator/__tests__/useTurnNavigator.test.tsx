@@ -49,6 +49,7 @@ function addTurn(container: HTMLElement, turnId: string, top: number) {
   const turn = document.createElement('section');
   turn.dataset.turnId = turnId;
   turn.dataset.turnUserLoaded = 'true';
+  turn.tabIndex = -1;
   setBox(turn, top, 200);
   container.append(turn);
   return turn;
@@ -116,12 +117,13 @@ describe('useTurnNavigator', () => {
     });
 
     await act(async () => {
-      await result.current.jumpToTurn(navigation[0]);
+      await result.current.jumpToTurn(navigation[0], { focusTarget: true });
     });
 
     expect(queryMessageWindow).toHaveBeenCalledWith('project-1', 'session-1', 1);
     expect(replaceWindow).toHaveBeenCalledWith(targetWindow);
     expect(onFollowLatestChange).toHaveBeenCalledWith(false);
     expect(container.scrollTop).toBe(0);
+    expect(document.activeElement?.getAttribute('data-turn-id')).toBe('turn-1');
   });
 });
