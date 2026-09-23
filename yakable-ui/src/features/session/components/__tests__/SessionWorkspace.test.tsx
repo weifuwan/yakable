@@ -310,7 +310,11 @@ describe('SessionWorkspace', () => {
     expect(await screen.findByText('Latest answer')).toBeTruthy();
     expect(await screen.findByRole('complementary', { name: 'Turn navigator' })).toBeTruthy();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Go to turn 1' }));
+    const navigatorRail = screen.getByRole('button', { name: 'Browse conversation turns' });
+    await userEvent.hover(navigatorRail);
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Go to turn 1: First prompt' }),
+    );
 
     await waitFor(() => {
       expect(queryMessageWindow).toHaveBeenCalledWith(

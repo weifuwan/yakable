@@ -756,22 +756,9 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
           <TurnNavigator
             items={turnNavigator.items}
             currentTurnId={turnNavigator.currentTurnId}
-            visibleTurnIds={turnNavigator.visibleTurnIds}
-            previewItem={turnNavigator.previewItem}
             isJumping={turnNavigator.isJumping}
-            hasPrevious={turnNavigator.hasPrevious}
-            hasNext={turnNavigator.hasNext}
-            onPreviewTurnChange={turnNavigator.setPreviewTurnId}
             onJumpTurn={(item, options) => {
               void turnNavigator.jumpToTurn(item, options);
-            }}
-            onPrevious={turnNavigator.jumpPrevious}
-            onNext={turnNavigator.jumpNext}
-            onOrigin={(options) => {
-              void turnNavigator.jumpOrigin(options);
-            }}
-            onTerminus={(options) => {
-              void turnNavigator.jumpTerminus(options);
             }}
           />
         )}

@@ -1,49 +1,26 @@
 import type { ComponentProps } from 'react';
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { SessionTurnNavigationItem } from '@/service/session';
 
 import { TurnNavigator } from '../TurnNavigator';
 
-const items: SessionTurnNavigationItem[] = [
-  {
-    turnId: 'turn-1',
-    userMessageId: 'message-1',
-    userMessageSequence: 1,
-    preview: 'First prompt',
-  },
-  {
-    turnId: 'turn-2',
-    userMessageId: 'message-3',
-    userMessageSequence: 3,
-    preview: 'Second prompt',
-  },
-  {
-    turnId: 'turn-3',
-    userMessageId: 'message-5',
-    userMessageSequence: 5,
-    preview: 'Third prompt',
-  },
-];
+const items: SessionTurnNavigationItem[] = Array.from({ length: 7 }, (_, index) => ({
+  turnId: 'turn-' + (index + 1),
+  userMessageId: 'message-' + (index * 2 + 1),
+  userMessageSequence: index * 2 + 1,
+  preview: 'Prompt ' + (index + 1),
+}));
 
 function renderNavigator(overrides: Partial<ComponentProps<typeof TurnNavigator>> = {}) {
   const props: ComponentProps<typeof TurnNavigator> = {
     items,
-    currentTurnId: 'turn-2',
-    visibleTurnIds: ['turn-2', 'turn-3'],
-    previewItem: null,
+    currentTurnId: 'turn-4',
     isJumping: false,
-    hasPrevious: true,
-    hasNext: true,
-    onPreviewTurnChange: vi.fn(),
     onJumpTurn: vi.fn(),
-    onPrevious: vi.fn(),
-    onNext: vi.fn(),
-    onOrigin: vi.fn(),
-    onTerminus: vi.fn(),
     ...overrides,
   };
 
@@ -53,41 +30,16 @@ function renderNavigator(overrides: Partial<ComponentProps<typeof TurnNavigator>
   };
 }
 
-function setRect(element: HTMLElement, top: number, height: number) {
-  element.getBoundingClientRect = () =>
-    ({
-      x: 0,
-      y: top,
-      top,
-      right: 40,
-      bottom: top + height,
-      left: 0,
-      width: 40,
-      height,
-      toJSON: () => ({}),
-    }) as DOMRect;
-}
-
-function configureRailGeometry() {
-  const rail = screen.getByTestId('turn-navigator-rail');
-  Object.defineProperties(rail, {
-    scrollTop: { configurable: true, writable: true, value: 0 },
-    clientHeight: { configurable: true, value: 48 },
+beforeEach(() => {
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+    callback(0);
+    return 1;
   });
-  setRect(rail, 100, 48);
-
-  items.forEach((_, index) => {
-    setRect(
-      screen.getByRole('button', { name: 'Go to turn ' + (index + 1) }),
-      100 + index * 16,
-      16,
-    );
-  });
-
-  return rail;
-}
+  vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+});
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -97,216 +49,159 @@ describe('TurnNavigator', () => {
     expect(screen.queryByRole('complementary', { name: 'Turn navigator' })).toBeNull();
   });
 
-  it('marks Current and keeps one roving rib in the tab order', () => {
+  it('renders only five nearby markers while the Prompt Overview stays collapsed', () => {
     renderNavigator();
 
-    const first = screen.getByRole('button', { name: 'Go to turn 1' });
-    const current = screen.getByRole('button', { name: 'Go to turn 2' });
-    const third = screen.getByRole('button', { name: 'Go to turn 3' });
+    const rail = screen.getByRole('button', { name: 'Browse conversation turns' });
+    const markers = screen.getAllByTestId('turn-navigator-marker');
 
-    expect(first.tabIndex).toBe(-1);
-    expect(current.tabIndex).toBe(0);
-    expect(current.getAttribute('aria-current')).toBe('true');
-    expect(third.tabIndex).toBe(-1);
+    expect(rail.getAttribute('aria-expanded')).toBe('false');
+    expect(markers).toHaveLength(5);
+    expect(markers.map((marker) => marker.getAttribute('data-turn-id'))).toEqual([
+      'turn-2',
+      'turn-3',
+      'turn-4',
+      'turn-5',
+      'turn-6',
+    ]);
+    expect(screen.queryByRole('navigation', { name: 'Conversation prompts' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Previous turn' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Next turn' })).toBeNull();
   });
 
-  it('keeps Turn controls interactive while a previous Jump is pending', () => {
-    renderNavigator({ isJumping: true });
+  it('opens one Prompt Overview on hover and marks the Current Prompt row', () => {
+    renderNavigator();
+
+    const rail = screen.getByRole('button', { name: 'Browse conversation turns' });
+    fireEvent.pointerEnter(rail);
+
+    const overview = screen.getByRole('navigation', { name: 'Conversation prompts' });
+    const current = screen.getByRole('button', { name: 'Go to turn 4: Prompt 4' });
+
+    expect(rail.getAttribute('aria-expanded')).toBe('true');
+    expect(overview).toBeTruthy();
+    expect(screen.getAllByRole('button', { name: /Go to turn/ })).toHaveLength(7);
+    expect(current.getAttribute('aria-current')).toBe('true');
+  });
+
+  it('keeps Prompt rows interactive while an earlier Jump is pending', async () => {
+    const user = userEvent.setup();
+    const onJumpTurn = vi.fn();
+
+    renderNavigator({ isJumping: true, onJumpTurn });
+
+    const rail = screen.getByRole('button', { name: 'Browse conversation turns' });
+    fireEvent.pointerEnter(rail);
 
     expect(
       screen.getByRole('complementary', { name: 'Turn navigator' }).getAttribute('aria-busy'),
     ).toBe('true');
-    expect(screen.getByRole('button', { name: 'Go to turn 1' }).hasAttribute('disabled')).toBe(
-      false,
-    );
-    expect(
-      screen.getByRole('button', { name: 'Go to conversation start' }).hasAttribute('disabled'),
-    ).toBe(false);
-    expect(screen.getByRole('button', { name: 'Go to latest' }).hasAttribute('disabled')).toBe(
-      false,
-    );
+
+    const first = screen.getByRole('button', { name: 'Go to turn 1: Prompt 1' });
+    expect(first.hasAttribute('disabled')).toBe(false);
+
+    await user.click(first);
+    expect(onJumpTurn).toHaveBeenCalledWith(items[0], { focusTarget: false });
   });
 
-  it('uses one shared Prompt Preview surface', async () => {
-    const user = userEvent.setup();
-    const onPreviewTurnChange = vi.fn();
-
-    const { rerender, props } = renderNavigator({ onPreviewTurnChange });
-
-    await user.hover(screen.getByRole('button', { name: 'Go to turn 1' }));
-    expect(onPreviewTurnChange).toHaveBeenCalledWith('turn-1');
-
-    rerender(<TurnNavigator {...props} previewItem={items[0]} />);
-
-    expect(screen.getByRole('tooltip').textContent).toBe('First prompt');
-    expect(screen.getAllByRole('tooltip')).toHaveLength(1);
-  });
-
-  it('routes pointer navigation without requesting target focus', async () => {
-    const user = userEvent.setup();
-    const onJumpTurn = vi.fn();
-    const onPrevious = vi.fn();
-    const onNext = vi.fn();
-    const onOrigin = vi.fn();
-    const onTerminus = vi.fn();
-
-    renderNavigator({
-      onJumpTurn,
-      onPrevious,
-      onNext,
-      onOrigin,
-      onTerminus,
-    });
-
-    await user.click(screen.getByRole('button', { name: 'Go to turn 3' }));
-    await user.click(screen.getByRole('button', { name: 'Previous turn' }));
-    await user.click(screen.getByRole('button', { name: 'Next turn' }));
-    await user.click(screen.getByRole('button', { name: 'Go to conversation start' }));
-    await user.click(screen.getByRole('button', { name: 'Go to latest' }));
-
-    expect(onJumpTurn).toHaveBeenCalledWith(items[2], { focusTarget: false });
-    expect(onPrevious).toHaveBeenCalledWith({ focusTarget: false });
-    expect(onNext).toHaveBeenCalledWith({ focusTarget: false });
-    expect(onOrigin).toHaveBeenCalledWith({ focusTarget: false });
-    expect(onTerminus).toHaveBeenCalledWith({ focusTarget: false });
-  });
-
-  it('moves roving focus with Arrow Home and End, then keyboard-activates the Turn', async () => {
+  it('moves roving Prompt focus with Arrow Home and End, then keyboard-activates the Turn', async () => {
     const user = userEvent.setup();
     const onJumpTurn = vi.fn();
 
     renderNavigator({ onJumpTurn });
 
-    const current = screen.getByRole('button', { name: 'Go to turn 2' });
-    const third = screen.getByRole('button', { name: 'Go to turn 3' });
-    const first = screen.getByRole('button', { name: 'Go to turn 1' });
+    await user.tab();
 
-    current.focus();
+    const rail = screen.getByRole('button', { name: 'Browse conversation turns' });
+    expect(document.activeElement).toBe(rail);
+
+    const current = screen.getByRole('button', { name: 'Go to turn 4: Prompt 4' });
+    await user.tab();
+    expect(document.activeElement).toBe(current);
+
     await user.keyboard('{ArrowDown}');
-    expect(document.activeElement).toBe(third);
-    expect(third.tabIndex).toBe(0);
-    expect(current.tabIndex).toBe(-1);
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Go to turn 5: Prompt 5' }),
+    );
 
     await user.keyboard('{Home}');
-    expect(document.activeElement).toBe(first);
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Go to turn 1: Prompt 1' }),
+    );
 
     await user.keyboard('{End}');
-    expect(document.activeElement).toBe(third);
+    const last = screen.getByRole('button', { name: 'Go to turn 7: Prompt 7' });
+    expect(document.activeElement).toBe(last);
 
     await user.keyboard('{Enter}');
-    expect(onJumpTurn).toHaveBeenCalledWith(items[2], { focusTarget: true });
+    expect(onJumpTurn).toHaveBeenCalledWith(items[6], { focusTarget: true });
   });
 
-  it('returns focus to the Current rib with Shift Alt M', () => {
+  it('opens the Overview and focuses Current Prompt with Shift Alt M', async () => {
     renderNavigator();
 
-    const latest = screen.getByRole('button', { name: 'Go to latest' });
-    const current = screen.getByRole('button', { name: 'Go to turn 2' });
-
-    latest.focus();
     fireEvent.keyDown(window, {
       key: 'm',
       altKey: true,
       shiftKey: true,
     });
 
-    expect(document.activeElement).toBe(current);
+    await waitFor(() => {
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Go to turn 4: Prompt 4' }),
+      );
+    });
+    expect(screen.getByRole('navigation', { name: 'Conversation prompts' })).toBeTruthy();
   });
 
-  it('waits for drag release before jumping and suppresses the synthetic click', () => {
-    const onJumpTurn = vi.fn();
-    const onPreviewTurnChange = vi.fn();
-
-    renderNavigator({ onJumpTurn, onPreviewTurnChange });
-    const rail = configureRailGeometry();
-    const first = screen.getByRole('button', { name: 'Go to turn 1' });
-
-    fireEvent.pointerDown(first, {
-      pointerId: 7,
-      clientX: 10,
-      clientY: 108,
-    });
-    fireEvent.pointerMove(rail, {
-      pointerId: 7,
-      clientX: 10,
-      clientY: 110,
-    });
-    expect(onJumpTurn).not.toHaveBeenCalled();
-
-    fireEvent.pointerMove(rail, {
-      pointerId: 7,
-      clientX: 10,
-      clientY: 140,
-    });
-    expect(onPreviewTurnChange).toHaveBeenCalledWith('turn-3');
-    expect(onJumpTurn).not.toHaveBeenCalled();
-
-    fireEvent.pointerUp(rail, {
-      pointerId: 7,
-      clientX: 10,
-      clientY: 140,
-    });
-
-    expect(onJumpTurn).toHaveBeenCalledTimes(1);
-    expect(onJumpTurn).toHaveBeenCalledWith(items[2], { focusTarget: false });
-
-    fireEvent.click(first);
-    expect(onJumpTurn).toHaveBeenCalledTimes(1);
-  });
-
-  it('cancels an active Drag without jumping', () => {
-    const onJumpTurn = vi.fn();
-    const onPreviewTurnChange = vi.fn();
-
-    renderNavigator({ onJumpTurn, onPreviewTurnChange });
-    const rail = configureRailGeometry();
-    const first = screen.getByRole('button', { name: 'Go to turn 1' });
-
-    fireEvent.pointerDown(first, {
-      pointerId: 9,
-      clientX: 10,
-      clientY: 108,
-    });
-    fireEvent.pointerMove(rail, {
-      pointerId: 9,
-      clientX: 10,
-      clientY: 140,
-    });
-    fireEvent.pointerCancel(rail, {
-      pointerId: 9,
-      clientX: 10,
-      clientY: 140,
-    });
-
-    expect(onJumpTurn).not.toHaveBeenCalled();
-    expect(onPreviewTurnChange).toHaveBeenLastCalledWith(null);
-  });
-
-  it('applies Fisheye as transform-only visual scaling and resets on leave', () => {
-    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      callback(0);
-      return 1;
-    });
-    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+  it('closes the Overview with Escape and returns focus to the Compact Rail', async () => {
+    const user = userEvent.setup();
 
     renderNavigator();
-    const rail = configureRailGeometry();
-    const secondVisual = screen
-      .getByRole('button', { name: 'Go to turn 2' })
-      .querySelector<HTMLElement>('[data-rib-visual]');
 
-    expect(secondVisual).toBeTruthy();
-
-    fireEvent.pointerEnter(rail);
-    fireEvent.pointerMove(rail, {
-      pointerId: 3,
-      clientX: 10,
-      clientY: 124,
+    fireEvent.keyDown(window, {
+      key: 'm',
+      altKey: true,
+      shiftKey: true,
     });
 
-    expect(secondVisual?.style.transform).not.toBe('scaleX(1)');
+    await waitFor(() => {
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Go to turn 4: Prompt 4' }),
+      );
+    });
 
+    await user.keyboard('{Escape}');
+
+    expect(screen.queryByRole('navigation', { name: 'Conversation prompts' })).toBeNull();
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Browse conversation turns' }),
+    );
+  });
+
+  it('keeps the Overview open while the pointer crosses from Rail to Panel', () => {
+    vi.useFakeTimers();
+
+    renderNavigator();
+
+    const rail = screen.getByRole('button', { name: 'Browse conversation turns' });
+    fireEvent.pointerEnter(rail);
+
+    const overview = screen.getByRole('navigation', { name: 'Conversation prompts' });
     fireEvent.pointerLeave(rail);
-    expect(secondVisual?.style.transform).toBe('scaleX(1)');
+    fireEvent.pointerEnter(overview);
+
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+
+    expect(screen.getByRole('navigation', { name: 'Conversation prompts' })).toBeTruthy();
+
+    fireEvent.pointerLeave(overview);
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+
+    expect(screen.queryByRole('navigation', { name: 'Conversation prompts' })).toBeNull();
   });
 });

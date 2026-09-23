@@ -1,6 +1,6 @@
 # Turn Navigator Interaction V2
 
-Status: Designing
+Status: Implementing
 Domain: Conversation
 
 Depends On:
@@ -11,8 +11,8 @@ Related:
 - [Streaming](./streaming.md)
 
 Frontend:
-- Planned Surface: `yakable-ui/src/features/session/components/turn-navigator/TurnNavigator.tsx`
-- Planned Interaction: `yakable-ui/src/features/session/components/turn-navigator/useTurnNavigatorInteraction.ts`
+- Surface: `yakable-ui/src/features/session/components/turn-navigator/TurnNavigator.tsx`
+- Interaction: `yakable-ui/src/features/session/components/turn-navigator/useTurnNavigatorInteraction.ts`
 - Reuse Navigation Runtime: `yakable-ui/src/features/session/components/turn-navigator/useTurnNavigator.ts`
 - Reuse Conversation Geometry: `yakable-ui/src/features/session/components/turn-navigator/turn-navigation.ts`
 - Existing Host: `yakable-ui/src/features/session/components/SessionWorkspace.tsx`
@@ -34,17 +34,15 @@ Scenarios:
 - CONV-S06
 
 Tests:
-- Planned: `yakable-ui/src/features/session/components/turn-navigator/__tests__/TurnNavigator.test.tsx`
-- Planned: `yakable-ui/src/features/session/components/turn-navigator/__tests__/useTurnNavigator.test.tsx`
+- `yakable-ui/src/features/session/components/turn-navigator/__tests__/TurnNavigator.test.tsx`
+- `yakable-ui/src/features/session/components/turn-navigator/__tests__/useTurnNavigator.test.tsx`
 - Existing: `yakable-ui/src/features/session/components/turn-navigator/__tests__/turn-navigation.test.ts`
 - Existing: `yakable-ui/src/features/session/components/__tests__/SessionWorkspace.test.tsx`
 
 Known Gaps:
-- 当前运行的仍是 Turn Navigator V1 Surface。
-- Compact Rail 尚未实现。
-- Prompt Overview 尚未实现。
-- V1 Drag / Fisheye 仍在当前交互路径中。
-- V2 Acceptance 尚未执行。
+- Compact Rail + Prompt Overview 已进入实现，V2 Acceptance 尚未执行。
+- V1 Drag / Fisheye 专属 Geometry 与旧回归测试仍保留，等待 PR3 确认无引用后清理。
+- PR3 仍需完成 Interaction Cleanup + Capability Acceptance。
 
 ## Purpose
 
