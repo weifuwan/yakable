@@ -50,7 +50,26 @@ export function TurnNavigator({
   onTerminus,
 }: TurnNavigatorProps) {
   const visibleSet = new Set(visibleTurnIds);
-  const interaction = useTurnNavigatorInteraction({
+  const {
+    railRef,
+    rovingTurnId,
+    onRailPointerEnter,
+    onRailPointerLeave,
+    onRailPointerDown,
+    onRailPointerMove,
+    onRailPointerUp,
+    onRailPointerCancel,
+    onRailFocusCapture,
+    onRailBlurCapture,
+    onRailWheelCapture,
+    onRailScroll,
+    onRibMouseEnter,
+    onRibMouseLeave,
+    onRibFocus,
+    onRibBlur,
+    onRibKeyDown,
+    onRibClick,
+  } = useTurnNavigatorInteraction({
     items,
     currentTurnId,
     isJumping,
@@ -98,24 +117,24 @@ export function TurnNavigator({
         </button>
 
         <div
-          ref={interaction.railRef}
+          ref={railRef}
           data-testid="turn-navigator-rail"
           className="flex max-h-56 w-10 touch-none select-none flex-col items-center overflow-y-auto py-1"
-          onPointerEnter={interaction.onRailPointerEnter}
-          onPointerLeave={interaction.onRailPointerLeave}
-          onPointerDown={interaction.onRailPointerDown}
-          onPointerMove={interaction.onRailPointerMove}
-          onPointerUp={interaction.onRailPointerUp}
-          onPointerCancel={interaction.onRailPointerCancel}
-          onFocusCapture={interaction.onRailFocusCapture}
-          onBlurCapture={interaction.onRailBlurCapture}
-          onWheelCapture={interaction.onRailWheelCapture}
-          onScroll={interaction.onRailScroll}
+          onPointerEnter={onRailPointerEnter}
+          onPointerLeave={onRailPointerLeave}
+          onPointerDown={onRailPointerDown}
+          onPointerMove={onRailPointerMove}
+          onPointerUp={onRailPointerUp}
+          onPointerCancel={onRailPointerCancel}
+          onFocusCapture={onRailFocusCapture}
+          onBlurCapture={onRailBlurCapture}
+          onWheelCapture={onRailWheelCapture}
+          onScroll={onRailScroll}
         >
           {items.map((item, index) => {
             const current = item.turnId === currentTurnId;
             const visible = visibleSet.has(item.turnId);
-            const roving = item.turnId === interaction.rovingTurnId;
+            const roving = item.turnId === rovingTurnId;
             const previewed = item.turnId === previewItem?.turnId;
 
             return (
@@ -132,12 +151,12 @@ export function TurnNavigator({
                   'flex h-4 w-9 shrink-0 cursor-pointer items-center justify-center rounded-md outline-none focus-visible:outline-2 focus-visible:outline-focus-ring',
                   current ? 'text-foreground' : visible ? 'text-icon-secondary' : 'text-icon-muted',
                 )}
-                onMouseEnter={() => interaction.onRibMouseEnter(item)}
-                onMouseLeave={interaction.onRibMouseLeave}
-                onFocus={() => interaction.onRibFocus(item)}
-                onBlur={interaction.onRibBlur}
-                onKeyDown={(event) => interaction.onRibKeyDown(event, index)}
-                onClick={(event) => interaction.onRibClick(event, item)}
+                onMouseEnter={() => onRibMouseEnter(item)}
+                onMouseLeave={onRibMouseLeave}
+                onFocus={() => onRibFocus(item)}
+                onBlur={onRibBlur}
+                onKeyDown={(event) => onRibKeyDown(event, index)}
+                onClick={(event) => onRibClick(event, item)}
               >
                 <span
                   aria-hidden="true"
