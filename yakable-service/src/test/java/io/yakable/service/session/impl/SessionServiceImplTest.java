@@ -22,6 +22,8 @@ import io.yakable.common.enums.session.MessageRoleEnum;
 import io.yakable.common.enums.session.SessionErrorCode;
 import io.yakable.common.enums.session.TurnStatusEnum;
 import io.yakable.common.exception.SessionException;
+import io.yakable.core.conversation.stream.TurnStreamListener;
+import io.yakable.core.conversation.stream.TurnStreamRuntime;
 import io.yakable.core.llm.LlmClient;
 import io.yakable.core.llm.LlmMessage;
 import io.yakable.core.llm.LlmModelMetadata;
@@ -33,13 +35,13 @@ import io.yakable.dao.entity.SessionEntity;
 import io.yakable.dao.repository.SessionRepository;
 import io.yakable.service.message.MessageService;
 import io.yakable.service.observability.ConversationMetrics;
-import io.yakable.service.session.TurnStreamListener;
 import io.yakable.service.turn.TurnService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.TransactionStatus;
@@ -49,7 +51,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -94,6 +95,9 @@ class SessionServiceImplTest {
 
     @Mock
     private ConversationMetrics conversationMetrics;
+
+    @Spy
+    private TurnStreamRuntime turnStreamRuntime = new TurnStreamRuntime();
 
     @InjectMocks
     private SessionServiceImpl sessionService;
@@ -1064,8 +1068,6 @@ class SessionServiceImplTest {
 
     @Test
     void shouldReplayStreamingSnapshotWhenWatchingActiveTurn() throws Exception {
-        stubExecuteWithoutResultInline();
-
         String turnId = "turn-1";
         SessionEntity session = session("project-1", "session-1");
         TurnVO running = turn(turnId, TurnStatusEnum.RUNNING);
@@ -1081,11 +1083,6 @@ class SessionServiceImplTest {
                 List.of(message("m1", turnId, MessageRoleEnum.USER, "Hello", 1L)),
                 List.of(running));
         when(llmClient.modelMetadata("deepseek", "deepseek-flash")).thenReturn(new LlmModelMetadata(100_000L, 10_000L));
-        when(turnService.updateTurnSucceeded(
-                eq(turnId),
-                eq("session-1"),
-                any(), any(), any(), any(), any(), any(LocalDateTime.class)))
-                .thenReturn(1);
 
         CountDownLatch partialReady = new CountDownLatch(1);
         CountDownLatch finish = new CountDownLatch(1);
@@ -1275,14 +1272,7 @@ class SessionServiceImplTest {
                 new WatchTurnDTO("project-1", "session-1", turnId, "user-1"),
                 listener);
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> streamStates =
-                (Map<String, Object>) ReflectionTestUtils.getField(sessionService, "streamStates");
-        assertThat(streamStates).isNotNull();
-        Object streamState = streamStates.get(turnId);
-        assertThat(streamState).isNotNull();
-
-        ReflectionTestUtils.invokeMethod(streamState, "delta", "A");
+        turnStreamRuntime.delta(turnId, "A");
         assertThat(firstDeltaDelivered.await(2, TimeUnit.SECONDS)).isTrue();
 
         AtomicReference<TurnVO> stopResult = new AtomicReference<>();
@@ -1300,10 +1290,9 @@ class SessionServiceImplTest {
             stopThread.start();
             assertThat(stopUpdateEntered.await(2, TimeUnit.SECONDS)).isTrue();
 
-            ReflectionTestUtils.invokeMethod(streamState, "delta", "B");
+            turnStreamRuntime.delta(turnId, "B");
 
-            String cutoverSnapshot =
-                    ReflectionTestUtils.invokeMethod(streamState, "snapshot");
+            String cutoverSnapshot = turnStreamRuntime.snapshot(turnId);
             assertThat(cutoverSnapshot).isEqualTo("A");
             assertThat(events).doesNotContain("delta:B");
 
@@ -1374,14 +1363,7 @@ class SessionServiceImplTest {
                 new WatchTurnDTO("project-1", "session-1", turnId, "user-1"),
                 listener);
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> streamStates =
-                (Map<String, Object>) ReflectionTestUtils.getField(sessionService, "streamStates");
-        assertThat(streamStates).isNotNull();
-        Object streamState = streamStates.get(turnId);
-        assertThat(streamState).isNotNull();
-
-        ReflectionTestUtils.invokeMethod(streamState, "delta", "A");
+        turnStreamRuntime.delta(turnId, "A");
 
         assertThatThrownBy(() ->
                 sessionService.stopTurn(
@@ -1389,11 +1371,11 @@ class SessionServiceImplTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("stop persistence failed");
 
-        ReflectionTestUtils.invokeMethod(streamState, "delta", "B");
+        turnStreamRuntime.delta(turnId, "B");
 
         assertThat(deltasDelivered.await(2, TimeUnit.SECONDS)).isTrue();
         assertThat(deltas).containsExactly("A", "B");
-        String snapshot = ReflectionTestUtils.invokeMethod(streamState, "snapshot");
+        String snapshot = turnStreamRuntime.snapshot(turnId);
         assertThat(snapshot).isEqualTo("AB");
 
         unsubscribe.run();
@@ -1489,15 +1471,8 @@ class SessionServiceImplTest {
                 new WatchTurnDTO("project-1", "session-1", turnId, "user-1"),
                 fast);
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> streamStates =
-                (Map<String, Object>) ReflectionTestUtils.getField(sessionService, "streamStates");
-        assertThat(streamStates).isNotNull();
-        Object streamState = streamStates.get(turnId);
-        assertThat(streamState).isNotNull();
-
         Thread deltaThread = new Thread(() ->
-                ReflectionTestUtils.invokeMethod(streamState, "delta", "Partial"));
+                turnStreamRuntime.delta(turnId, "Partial"));
         AtomicReference<TurnVO> stopResult = new AtomicReference<>();
         AtomicReference<Throwable> stopFailure = new AtomicReference<>();
         Thread stopThread = new Thread(() -> {

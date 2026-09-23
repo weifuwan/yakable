@@ -17,6 +17,7 @@ Frontend:
 - Contract Types: `yakable-ui/src/service/session/types.ts`
 - Turn Boundary: `yakable-ui/src/features/session/components/TurnItem.tsx`
 - Message Window: `yakable-ui/src/features/session/hooks/useSessionMessageWindow.ts`
+- Viewport / Follow Latest: `yakable-ui/src/features/session/hooks/useSessionViewport.ts`
 - Interactive Rail: `yakable-ui/src/features/session/components/turn-navigator/TurnNavigator.tsx`
 - Interaction State Machine: `yakable-ui/src/features/session/components/turn-navigator/useTurnNavigatorInteraction.ts`
 - Navigation State / Jump Focus: `yakable-ui/src/features/session/components/turn-navigator/useTurnNavigator.ts`

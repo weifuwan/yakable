@@ -18,6 +18,7 @@ import io.yakable.common.bean.vo.session.SessionVO;
 import io.yakable.common.bean.vo.session.TurnNavigationItemVO;
 import io.yakable.common.bean.vo.session.TurnStartVO;
 import io.yakable.common.bean.vo.session.TurnVO;
+import io.yakable.core.conversation.stream.TurnStreamListener;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 

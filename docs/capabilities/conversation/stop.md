@@ -18,6 +18,7 @@ Frontend:
 Backend:
 - `yakable-boot/src/main/java/io/yakable/boot/controller/session/SessionController.java`
 - `yakable-service/src/main/java/io/yakable/service/session/impl/SessionServiceImpl.java`
+- `yakable-core/src/main/java/io/yakable/core/conversation/stream/TurnStreamRuntime.java`
 - `yakable-service/src/main/java/io/yakable/service/turn/TurnService.java`
 - `yakable-service/src/main/java/io/yakable/service/message/MessageService.java`
 
@@ -46,19 +47,22 @@ Tests:
 - `yakable-ui/src/features/session/components/__tests__/SessionWorkspace.test.tsx`
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
+- `yakable-core/src/test/java/io/yakable/core/conversation/stream/TurnStreamRuntimeTest.java`
 - `yakable-service/src/test/java/io/yakable/service/turn/impl/TurnServiceImplTest.java`
 
 Review Notes:
-- GAP-06 已实现：stopTurn 对已有 TurnStreamState 使用 beginStopCutover()，以同一个 eventLock 原子完成“冻结 delta + 截取 partial snapshot”。
-- STOPPED partial 只持久化 cutover snapshot；post-cutover delta 会在 state.delta() 内被拒绝。
+- Stream Runtime ownership 已迁移到 Core；stopTurn 通过 TurnStreamRuntime.beginStopCutover() 获取 cutover snapshot，Service 继续拥有 STOPPED 事务和 partial persistence。
+- GAP-06 已实现：TurnStreamRuntime 内部使用同一个 eventLock 原子完成“冻结 delta + 截取 partial snapshot”。
+- STOPPED partial 只持久化 cutover snapshot；post-cutover delta 会在 Core Runtime 内被拒绝。
 - Stop transaction 抛错或 updateTurnStopped 未成功时会 rollback 当前 cutover，允许原 Turn 继续接收 delta。
 - 并发 Stop 使用 cutover 计数，单个失败 Stop 不会误释放另一个仍有效的 cutover。
 - 已新增并发 Stop / Delta 竞态测试，以及 Stop 持久化失败后的 rollback 测试。
-- GAP-08 已实现：成功 Stop 在 streamState.stopped() 发布 terminal 后立即清理 stoppingTurns，不再依赖 execution thread finally 做正常成功路径清理。
+- GAP-08 已实现：成功 Stop 在 TurnStreamRuntime.stopped() 发布 terminal 后立即清理 stoppingTurns，不再依赖 execution thread finally 做正常成功路径清理。
 - execution thread finally 中的 remove 保留为幂等兜底。
 - 已新增 PENDING Turn + existing StreamState + Stop before execution 的回归测试。
 - Stop API、partial persistence schema、Turn terminal 状态机和 watcher delivery 均未修改。
-- 当前执行环境无法解析 github.com，目标 Maven 测试尚未实际执行；测试通过前保持 Review。
+- Architecture ownership acceptance 已完成；当前不再继续拆 SessionService / SessionWorkspace，除非后续出现新的独立生命周期或 Contract。
+- 本轮为 stacked PR，PR2 / PR3 / PR4 尚未获得基于 main 的完整 CI 执行证据；Capability 保持 Review，待 stack retarget 到 main 后通过现有 Yakable CI 再进入 Done。
 
 ## Purpose
 
@@ -84,10 +88,11 @@ SessionWorkspace.handleStop
 → POST /turns/{turnId}/stop
 → SessionController
 → SessionServiceImpl.stopTurn
+→ TurnStreamRuntime.beginStopCutover
 → persist partial
 → TurnService.updateTurnStopped
 → cancel execution
-→ streamState.stopped
+→ TurnStreamRuntime.stopped
 ```
 
 ## Boundary

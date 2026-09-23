@@ -17,6 +17,7 @@ Frontend:
 - `yakable-ui/src/features/session/components/SessionWorkspace.tsx`
 - `yakable-ui/src/features/session/components/MessageItem.tsx`
 - `yakable-ui/src/features/session/hooks/useSessionMessageWindow.ts`
+- `yakable-ui/src/features/session/hooks/useSessionViewport.ts`
 - `yakable-ui/src/features/session/hooks/useTurnWindowing.ts`
 - `yakable-ui/src/service/session/SessionService.ts`
 
@@ -50,12 +51,14 @@ Tests:
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 
 Review Notes:
+- History viewport ownership 已从 SessionWorkspace 收口到 useSessionViewport；Message Window 数据仍由 useSessionMessageWindow 拥有，Turn DOM windowing 仍由 useTurnWindowing 拥有。
 - GAP-05 已完成代码侧补强：生产行为未修改，只新增 CONV-S06 的前端回归测试。
 - 测试显式构造 scrollTop / scrollHeight / clientHeight，保护离开 latest 后 Streaming delta 不改变阅读位置。
 - 测试保护 Scroll to bottom 出现，点击后回到最新位置并恢复 follow output。
 - 测试再次增加 scrollHeight 并发送新的 Streaming delta，保护恢复 follow 后会继续自动滚到底部。
-- SessionWorkspace、SessionService、后端、API 和滚动算法均未修改。
-- 当前执行环境无法解析 github.com，目标 Vitest 尚未实际执行；测试通过前保持 Review。
+- SessionWorkspace 的 viewport ownership 已迁移，但 History Contract、SessionService API 和滚动行为不变。
+- Architecture ownership acceptance 已完成；当前不再继续拆 SessionService / SessionWorkspace，除非后续出现新的独立生命周期或 Contract。
+- 本轮为 stacked PR，PR2 / PR3 / PR4 尚未获得基于 main 的完整 CI 执行证据；Capability 保持 Review，待 stack retarget 到 main 后通过现有 Yakable CI 再进入 Done。
 
 ## Purpose
 

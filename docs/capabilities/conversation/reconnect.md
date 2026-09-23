@@ -13,12 +13,15 @@ Related:
 
 Frontend:
 - `yakable-ui/src/features/session/components/SessionWorkspace.tsx`
+- `yakable-ui/src/features/session/hooks/useTurnStream.ts`
 - `yakable-ui/src/service/session/SessionService.ts`
 
 Backend:
 - `yakable-boot/src/main/java/io/yakable/boot/controller/session/SessionController.java`
 - `yakable-service/src/main/java/io/yakable/service/session/SessionService.java`
 - `yakable-service/src/main/java/io/yakable/service/session/impl/SessionServiceImpl.java`
+- `yakable-core/src/main/java/io/yakable/core/conversation/stream/TurnStreamRuntime.java`
+- `yakable-core/src/main/java/io/yakable/core/conversation/stream/TurnStreamListener.java`
 
 Data:
 - Session
@@ -47,8 +50,10 @@ Tests:
 - `yakable-ui/src/service/session/__tests__/SessionService.test.ts`
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
+- `yakable-core/src/test/java/io/yakable/core/conversation/stream/TurnStreamRuntimeTest.java`
 
 Review Notes:
+- Browser watch / rewatch / polling fallback ownership 已收口到 useTurnStream；Reconnect 行为与 SessionService SSE Contract 未修改。
 - GAP-07 已实现：active Turn watcher 临时失败后保留当前 streamingContent，不再立即清空用户已经看到的 partial。
 - watcher failure 先通过 queryChanges 收敛持久化状态；只有 Turn 仍是 PENDING / RUNNING，或 changes 暂时不可用时，才在固定 1s 延迟后 rewatch 原 turnId。
 - queryChanges 已确认 SUCCEEDED / FAILED / STOPPED 时停止 rewatch，并由持久化结果替换 streaming partial。
@@ -57,7 +62,8 @@ Review Notes:
 - Session / Project 切换会通过 effect cleanup 取消旧 watcher 和 retry timer。
 - 已新增“临时断网后保留 partial 并 rewatch 同一 Turn”以及“终态后不继续 rewatch”两条前端回归测试。
 - SessionService SSE 协议、后端、数据库、Stop 和 GAP-08 均未修改。
-- 当前执行环境无法解析 github.com，目标 Vitest 尚未实际执行；测试通过前保持 Review。
+- Architecture ownership acceptance 已完成；当前不再继续拆 SessionService / SessionWorkspace，除非后续出现新的独立生命周期或 Contract。
+- 本轮为 stacked PR，PR2 / PR3 / PR4 尚未获得基于 main 的完整 CI 执行证据；Capability 保持 Review，待 stack retarget 到 main 后通过现有 Yakable CI 再进入 Done。
 
 ## Purpose
 

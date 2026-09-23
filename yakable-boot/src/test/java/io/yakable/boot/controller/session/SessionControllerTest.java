@@ -18,7 +18,7 @@ import io.yakable.common.enums.session.SessionErrorCode;
 import io.yakable.common.exception.SessionException;
 import io.yakable.service.auth.AuthService;
 import io.yakable.service.session.SessionService;
-import io.yakable.service.session.TurnStreamListener;
+import io.yakable.core.conversation.stream.TurnStreamListener;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

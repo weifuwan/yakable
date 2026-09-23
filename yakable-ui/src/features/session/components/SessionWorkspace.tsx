@@ -15,12 +15,9 @@ import { buildTurnRenderModels, type OptimisticTurnRenderInput, TurnItem } from 
 import { TurnNavigator } from './turn-navigator/TurnNavigator';
 import { useTurnNavigator } from './turn-navigator/useTurnNavigator';
 import { useSessionMessageWindow } from '../hooks/useSessionMessageWindow';
+import { useSessionViewport } from '../hooks/useSessionViewport';
+import { useTurnStream } from '../hooks/useTurnStream';
 import { useTurnWindowing } from '../hooks/useTurnWindowing';
-
-const SESSION_POLL_INTERVAL_MS = 1000;
-const ACTIVE_TURN_REWATCH_DELAY_MS = 1000;
-const SCROLL_BOTTOM_THRESHOLD_PX = 120;
-const HISTORY_LOAD_THRESHOLD_PX = 80;
 
 function hasActiveTurn(turns: SessionTurn[]) {
   return turns.some((turn) => turn.status === 'PENDING' || turn.status === 'RUNNING');
@@ -34,12 +31,6 @@ function latestActiveTurnId(turns: SessionTurn[]) {
     }
   }
   return null;
-}
-
-function isNearBottom(element: HTMLElement) {
-  return (
-    element.scrollHeight - element.scrollTop - element.clientHeight <= SCROLL_BOTTOM_THRESHOLD_PX
-  );
 }
 
 function mergeTurn(turns: SessionTurn[], next: SessionTurn) {
@@ -87,25 +78,11 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
   const [turns, setTurns] = useState<SessionTurn[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
-  const [streamingTurnId, setStreamingTurnId] = useState<string | null>(null);
-  const [watchedTurnId, setWatchedTurnId] = useState<string | null>(null);
-  const [watchRetryVersion, setWatchRetryVersion] = useState(0);
-  const [streamingContent, setStreamingContent] = useState('');
   const [optimisticTurn, setOptimisticTurn] = useState<OptimisticTurnRenderInput | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
   const [latestSequence, setLatestSequence] = useState(0);
   const [isSessionLoading, setIsSessionLoading] = useState(true);
-  const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [selectedModel, setSelectedModel] = useState<ModelSelection | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const streamAbortRef = useRef<AbortController | null>(null);
-  const currentTurnIdRef = useRef<string | null>(null);
-  const watchedTurnIdsRef = useRef(new Set<string>());
-  const stopRequestedRef = useRef(false);
-  const followOutputRef = useRef(true);
-  const initialScrollDoneRef = useRef(false);
-  const latestSequenceRef = useRef(0);
   const pendingRequestRef = useRef<{
     fingerprint: string;
     requestId: string;
@@ -125,12 +102,6 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
   const messageCount = messages.length;
 
   useEffect(() => {
-    return () => {
-      streamAbortRef.current?.abort();
-    };
-  }, []);
-
-  useEffect(() => {
     if (!expanded) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -145,69 +116,21 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
     };
   }, [expanded]);
 
-  const setFollowLatest = useCallback((followLatest: boolean) => {
-    followOutputRef.current = followLatest;
-    setShowScrollBottom(!followLatest);
-  }, []);
-
-  const scrollToBottom = useCallback(() => {
-    const element = scrollRef.current;
-    if (!element) return;
-
-    setFollowLatest(true);
-    element.scrollTop = element.scrollHeight;
-  }, [setFollowLatest]);
-
-  const loadOlderMessages = useCallback(async () => {
-    const element = scrollRef.current;
-    if (!element) return;
-
-    const previousScrollHeight = element.scrollHeight;
-
-    try {
-      const loaded = await loadOlder();
-      if (!loaded) return;
-
-      window.requestAnimationFrame(() => {
-        const currentElement = scrollRef.current;
-        if (!currentElement) return;
-        currentElement.scrollTop += currentElement.scrollHeight - previousScrollHeight;
-      });
-    } catch (requestError) {
-      setLoadError(
-        requestError instanceof Error ? requestError.message : 'Unable to load earlier messages.',
-      );
-    }
-  }, [loadOlder]);
-
-  const loadNewerMessages = useCallback(async () => {
-    try {
-      await loadNewer();
-    } catch (requestError) {
-      setLoadError(
-        requestError instanceof Error ? requestError.message : 'Unable to load newer messages.',
-      );
-    }
-  }, [loadNewer]);
-
-  const handleScroll = useCallback(() => {
-    const element = scrollRef.current;
-    if (!element) return;
-
-    const nearBottom = isNearBottom(element);
-    setFollowLatest(nearBottom);
-
-    if (element.scrollTop <= HISTORY_LOAD_THRESHOLD_PX) {
-      void loadOlderMessages();
-    }
-
-    if (
-      hasNewer &&
-      element.scrollHeight - element.scrollTop - element.clientHeight <= HISTORY_LOAD_THRESHOLD_PX
-    ) {
-      void loadNewerMessages();
-    }
-  }, [hasNewer, loadNewerMessages, loadOlderMessages, setFollowLatest]);
+  const {
+    scrollRef,
+    showScrollBottom,
+    setFollowLatest,
+    isFollowingLatest,
+    handleScroll,
+    syncToContent,
+    restoreLatestView: restoreViewportLatestView,
+  } = useSessionViewport({
+    hasNewer,
+    loadOlder,
+    loadNewer,
+    restoreLatest,
+    onError: setLoadError,
+  });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -235,29 +158,8 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
     };
   }, [initializeMessageWindow, projectId, sessionId]);
 
-  useEffect(() => {
-    if (!loadedSessionId) return;
-
-    if (!initialScrollDoneRef.current) {
-      initialScrollDoneRef.current = true;
-      scrollToBottom();
-      return;
-    }
-
-    if (followOutputRef.current) {
-      scrollToBottom();
-    }
-  }, [loadedSessionId, messageCount, optimisticTurn, scrollToBottom, streamingContent]);
-
   const activeTurn = hasActiveTurn(turns);
   const activeTurnId = latestActiveTurnId(turns);
-  const generating = isGenerating || activeTurn;
-  const visibleStreamingTurnId = streamingTurnId ?? watchedTurnId;
-
-  useEffect(() => {
-    latestSequenceRef.current = latestSequence;
-  }, [latestSequence]);
-
   const renderedTurnIdsRef = useRef(new Set<string>());
 
   const applyChanges = useCallback(
@@ -268,136 +170,33 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
       const affectsRenderedTurn = changes.messages.some((message) =>
         renderedTurnIdsRef.current.has(message.turnId),
       );
-      if (followOutputRef.current || affectsRenderedTurn) {
+      if (isFollowingLatest() || affectsRenderedTurn) {
         mergeMessages(changes.messages);
       }
     },
-    [mergeMessages],
+    [isFollowingLatest, mergeMessages],
   );
 
-  useEffect(() => {
-    if (!activeTurnId || streamAbortRef.current || watchedTurnIdsRef.current.has(activeTurnId)) {
-      return;
-    }
-
-    watchedTurnIdsRef.current.add(activeTurnId);
-    const controller = new AbortController();
-    let disposed = false;
-    let retryTimer: number | null = null;
-    const afterSequence = latestSequenceRef.current;
-
-    const scheduleRewatch = () => {
-      if (disposed || retryTimer !== null) return;
-
-      retryTimer = window.setTimeout(() => {
-        if (disposed) return;
-        retryTimer = null;
-        watchedTurnIdsRef.current.delete(activeTurnId);
-        setWatchRetryVersion((current) => current + 1);
-      }, ACTIVE_TURN_REWATCH_DELAY_MS);
-    };
-
-    setWatchedTurnId(activeTurnId);
-
-    void SessionService.watchTurn(
-      projectId,
-      sessionId,
-      activeTurnId,
-      {
-        onSnapshot: (content) => {
-          if (!disposed) setStreamingContent(content);
-        },
-        onDelta: (delta) => {
-          if (!disposed) {
-            setStreamingContent((current) => current + delta);
-          }
-        },
-      },
-      controller.signal,
-    )
-      .then(async () => {
-        if (disposed) return;
-        try {
-          const changes = await SessionService.queryChanges(projectId, sessionId, afterSequence);
-          if (disposed) return;
-          applyChanges(changes);
-          setStreamingContent('');
-          setLoadError(null);
-        } catch {
-          // terminal watcher 已结束；持久化状态暂不可读时由 polling 继续收敛。
-        }
-      })
-      .catch(async () => {
-        if (disposed || controller.signal.aborted) return;
-
-        let shouldRewatch = true;
-        try {
-          const changes = await SessionService.queryChanges(projectId, sessionId, afterSequence);
-          if (disposed) return;
-
-          applyChanges(changes);
-          setLoadError(null);
-
-          shouldRewatch =
-            changes.latestTurn.status === 'PENDING' || changes.latestTurn.status === 'RUNNING';
-          if (!shouldRewatch) {
-            setStreamingContent('');
-          }
-        } catch {
-          // 数据库状态也暂时不可读时保留现有 partial，并继续尝试同一 Turn。
-        }
-
-        if (shouldRewatch) {
-          scheduleRewatch();
-        }
-      })
-      .finally(() => {
-        if (disposed) return;
-        setWatchedTurnId(null);
-      });
-
-    return () => {
-      disposed = true;
-      controller.abort();
-      if (retryTimer !== null) {
-        window.clearTimeout(retryTimer);
-      }
-    };
-  }, [activeTurnId, applyChanges, projectId, sessionId, watchRetryVersion]);
-
-  useEffect(() => {
-    if (!activeTurn || streamingTurnId || watchedTurnId) return;
-
-    let disposed = false;
-
-    const timer = window.setInterval(() => {
-      void SessionService.queryChanges(projectId, sessionId, latestSequence)
-        .then((changes) => {
-          if (disposed) return;
-          applyChanges(changes);
-          setLoadError(null);
-        })
-        .catch((requestError: unknown) => {
-          if (disposed) return;
-          setLoadError(
-            requestError instanceof Error ? requestError.message : 'Unable to refresh session.',
-          );
-        });
-    }, SESSION_POLL_INTERVAL_MS);
-
-    return () => {
-      disposed = true;
-      window.clearInterval(timer);
-    };
-  }, [
-    activeTurn,
-    applyChanges,
-    latestSequence,
+  const {
+    streamingContent,
+    visibleStreamingTurnId,
+    generating,
+    startStreamingTurn,
+    stopStreamingTurn,
+  } = useTurnStream({
     projectId,
     sessionId,
-    streamingTurnId,
-    watchedTurnId,
-  ]);
+    activeTurn,
+    activeTurnId,
+    latestSequence,
+    applyChanges,
+    onLoadError: setLoadError,
+    onSendError: setSendError,
+  });
+
+  useEffect(() => {
+    syncToContent(loadedSessionId);
+  }, [loadedSessionId, messageCount, optimisticTurn?.key, streamingContent, syncToContent]);
 
   const latestTurn = useMemo(() => turns.at(-1) ?? null, [turns]);
 
@@ -492,112 +291,9 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
 
   const restoreLatestView = useCallback(
     (scrollAfterRestore: boolean) => {
-      cancelNavigationJump();
-      setFollowLatest(true);
-
-      if (!hasNewer) {
-        if (scrollAfterRestore) {
-          scrollToBottom();
-        }
-        return;
-      }
-
-      void restoreLatest()
-        .then((restored) => {
-          if (!restored || !scrollAfterRestore) return;
-
-          window.requestAnimationFrame(() => {
-            scrollToBottom();
-          });
-        })
-        .catch((requestError: unknown) => {
-          setLoadError(
-            requestError instanceof Error ? requestError.message : 'Unable to return to latest.',
-          );
-        });
+      restoreViewportLatestView(scrollAfterRestore, cancelNavigationJump);
     },
-    [hasNewer, restoreLatest, scrollToBottom, setFollowLatest, cancelNavigationJump],
-  );
-
-  const runStreamingTurn = useCallback(
-    async (
-      content: string,
-      model: ModelSelection,
-      requestId: string,
-      controller: AbortController,
-      afterSequence: number,
-      onEstablished: () => void,
-      onRejected: () => void,
-    ) => {
-      let established = false;
-
-      try {
-        await SessionService.streamingTurn(
-          projectId,
-          sessionId,
-          content,
-          model,
-          requestId,
-          {
-            onStarted: (started) => {
-              established = true;
-              onEstablished();
-              currentTurnIdRef.current = started.turn.id;
-              setStreamingTurnId(started.turn.id);
-              setOptimisticTurn(null);
-              onActivity?.(sessionId, started.userMessage.createdAt);
-              setSessionInfo((current) => (current ? { ...current, model } : current));
-              setTurns((current) => mergeTurn(current, started.turn));
-              setLatestSequence((current) => Math.max(current, started.userMessage.sequence));
-              mergeMessages([started.userMessage]);
-            },
-            onSnapshot: (content) => {
-              setStreamingContent(content);
-            },
-            onDelta: (delta) => {
-              setStreamingContent((current) => current + delta);
-            },
-          },
-          controller.signal,
-        );
-
-        const changes = await SessionService.queryChanges(projectId, sessionId, afterSequence);
-        applyChanges(changes);
-      } catch (requestError) {
-        if (!established) {
-          setOptimisticTurn(null);
-        }
-        if (controller.signal.aborted && stopRequestedRef.current) return;
-
-        try {
-          const changes = await SessionService.queryChanges(projectId, sessionId, afterSequence);
-          applyChanges(changes);
-        } catch {
-          // 保留原始流式错误。
-        }
-
-        if (!established) {
-          setSendError(
-            requestError instanceof Error ? requestError.message : 'Unable to stream turn.',
-          );
-        }
-      } finally {
-        if (!established) {
-          onRejected();
-        }
-        const stopped = controller.signal.aborted && stopRequestedRef.current;
-        if (streamAbortRef.current === controller) {
-          streamAbortRef.current = null;
-        }
-        currentTurnIdRef.current = null;
-        setIsGenerating(false);
-        if (!stopped) {
-          setStreamingTurnId(null);
-          setStreamingContent('');
-        }
-      }
-    },
-    [applyChanges, mergeMessages, onActivity, projectId, sessionId],
+    [cancelNavigationJump, restoreViewportLatestView],
   );
 
   const handleSubmit = useCallback(
@@ -618,10 +314,6 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
       pendingRequestRef.current = pendingRequest;
       const requestId = pendingRequest.requestId;
 
-      const controller = new AbortController();
-      streamAbortRef.current = controller;
-      currentTurnIdRef.current = null;
-      stopRequestedRef.current = false;
       setOptimisticTurn({
         key: 'optimistic:' + requestId,
         message: {
@@ -633,71 +325,44 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
           createdAt: new Date().toISOString(),
         },
       });
-      setIsGenerating(true);
-      setSendError(null);
-      setStreamingContent('');
 
-      return new Promise<boolean>((resolve) => {
-        let settled = false;
-        const settle = (accepted: boolean) => {
-          if (settled) return;
-          settled = true;
-          resolve(accepted);
-        };
-
-        void runStreamingTurn(
-          content,
-          selectedModel,
-          requestId,
-          controller,
-          latestSequence,
-          () => {
-            if (pendingRequestRef.current?.requestId === requestId) {
-              pendingRequestRef.current = null;
-            }
-            settle(true);
-          },
-          () => settle(false),
-        );
+      return startStreamingTurn({
+        content,
+        model: selectedModel,
+        requestId,
+        afterSequence: latestSequence,
+        onStarted: (started) => {
+          if (pendingRequestRef.current?.requestId === requestId) {
+            pendingRequestRef.current = null;
+          }
+          setOptimisticTurn(null);
+          onActivity?.(sessionId, started.userMessage.createdAt);
+          setSessionInfo((current) => (current ? { ...current, model: selectedModel } : current));
+          setTurns((current) => mergeTurn(current, started.turn));
+          setLatestSequence((current) => Math.max(current, started.userMessage.sequence));
+          mergeMessages([started.userMessage]);
+        },
+        onRejected: () => setOptimisticTurn(null),
       });
     },
-    [latestSequence, restoreLatestView, runStreamingTurn, selectedModel],
+    [
+      latestSequence,
+      mergeMessages,
+      onActivity,
+      restoreLatestView,
+      selectedModel,
+      sessionId,
+      startStreamingTurn,
+    ],
   );
 
   const handleStop = useCallback(() => {
-    const turnId = currentTurnIdRef.current ?? activeTurnId;
-    stopRequestedRef.current = true;
-    streamAbortRef.current?.abort();
-
-    if (!turnId) {
-      setOptimisticTurn(null);
-      setIsGenerating(false);
-      return;
-    }
-
-    void SessionService.stopTurn(projectId, sessionId, turnId)
-      .then(async (stopped) => {
-        setTurns((current) => mergeTurn(current, stopped));
-        setSendError(null);
-
-        try {
-          const changes = await SessionService.queryChanges(projectId, sessionId, latestSequence);
-          applyChanges(changes);
-          setStreamingTurnId(null);
-          setStreamingContent('');
-        } catch {
-          // 保留当前已生成内容，刷新页面后会从后端恢复。
-        }
-      })
-      .catch((requestError: unknown) => {
-        setSendError(
-          requestError instanceof Error ? requestError.message : 'Unable to stop generation.',
-        );
-      })
-      .finally(() => {
-        setIsGenerating(false);
-      });
-  }, [activeTurnId, applyChanges, latestSequence, projectId, sessionId]);
+    stopStreamingTurn(
+      activeTurnId,
+      (stopped) => setTurns((current) => mergeTurn(current, stopped)),
+      () => setOptimisticTurn(null),
+    );
+  }, [activeTurnId, stopStreamingTurn]);
 
   return (
     <div

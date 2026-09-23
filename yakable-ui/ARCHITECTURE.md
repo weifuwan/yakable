@@ -87,11 +87,34 @@ Features own product capabilities.
 
 Detailed feature constraints: [FEATURE_RULES.md](./src/features/FEATURE_RULES.md).
 
-`project` owns Dashboard project interactions and project-query state. `model` owns model identity and selection UI; its current catalog is local until a real model API exists. `conversation` owns project messages and the Project chat surface.
+`project` owns Dashboard project interactions and project-query state. `model` owns model identity and selection UI; its current catalog is local until a real model API exists. `session` owns the Conversation / Session workspace and message interaction.
 
 Add one feature at a time only after its ownership and contract are understood. The current product stage intentionally stops at conversation; Agent execution, planning, generated files, and Preview remain future work.
 
 Feature owns UI state, hooks and components. Backend API contracts and endpoint calls belong to `src/service`.
+
+Within `features/session`, ownership follows Conversation capabilities instead of accumulating in one workspace component:
+
+- `SessionWorkspace` composes Session state, optimistic USER turns, model selection, rendering and capability hooks.
+- `useSessionMessageWindow` owns the currently loaded persisted Message window.
+- `useSessionViewport` owns follow-latest, scroll position, older/newer paging interaction and return-to-latest behavior.
+- `useTurnStream` owns browser-side Streaming / watch / rewatch / polling fallback and active stream stop lifecycle.
+- `turn-navigator` owns long-session navigation.
+- `useTurnWindowing` owns heavy Turn DOM windowing.
+
+Do not introduce a global Session store only to reduce component line count; state stays at the smallest real owner.
+
+### Session architecture acceptance
+
+The current Session frontend ownership is accepted for V1.
+
+- `SessionWorkspace` remains the composition boundary even if it is not a tiny component; it owns Session-level composition rather than one isolated interaction.
+- `useTurnStream` stays as one lifecycle Hook. Watch / rewatch / polling fallback / active request / local Stop share the same AbortController, Turn identity and streaming state, so splitting them now would introduce coordination without a clearer owner.
+- `useSessionViewport`, `useSessionMessageWindow`, `useTurnNavigator` and `useTurnWindowing` already have distinct ownership and should not be merged back into Workspace.
+- Optimistic USER state, requestId reuse, model selection and Turn render composition stay in Workspace because they coordinate multiple Session capabilities.
+- Do not introduce Zustand, Context Provider, command/query Hooks or handler-only Hooks only to reduce file length.
+
+Re-open the boundary when a state owner becomes independently reusable or gains a contract that can be tested without coordinating the rest of Session.
 
 The Project page is conversation-first: user messages render on the right, assistant messages render on the left, and the shared PromptComposer stays fixed at the bottom. The browser never fabricates assistant replies; assistant messages appear only when the backend actually provides them.
 

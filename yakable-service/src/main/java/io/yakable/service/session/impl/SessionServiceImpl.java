@@ -22,7 +22,6 @@ import io.yakable.common.bean.vo.session.TurnInvocationVO;
 import io.yakable.common.bean.vo.session.TurnNavigationItemVO;
 import io.yakable.common.bean.vo.session.TurnStartVO;
 import io.yakable.common.bean.vo.session.TurnVO;
-import io.yakable.common.constant.MessageConstant;
 import io.yakable.common.enums.session.MessageRoleEnum;
 import io.yakable.common.enums.session.SessionErrorCode;
 import io.yakable.common.enums.session.TurnStatusEnum;
@@ -31,6 +30,8 @@ import io.yakable.common.utils.ConverUtils;
 import io.yakable.common.utils.DateUtils;
 import io.yakable.common.utils.StringUtils;
 import io.yakable.common.utils.ThreadUtils;
+import io.yakable.core.conversation.stream.TurnStreamListener;
+import io.yakable.core.conversation.stream.TurnStreamRuntime;
 import io.yakable.core.llm.LlmClient;
 import io.yakable.core.llm.LlmMessage;
 import io.yakable.core.llm.LlmModelMetadata;
@@ -43,7 +44,6 @@ import io.yakable.dao.repository.SessionRepository;
 import io.yakable.service.message.MessageService;
 import io.yakable.service.observability.ConversationMetrics;
 import io.yakable.service.session.SessionService;
-import io.yakable.service.session.TurnStreamListener;
 import io.yakable.service.turn.TurnService;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -56,10 +56,8 @@ import org.springframework.validation.annotation.Validated;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Deque;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -70,7 +68,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -82,8 +79,6 @@ public class SessionServiceImpl implements SessionService {
     private static final String SYSTEM_PROMPT = "You are Yakable, a concise and accurate assistant.";
     private static final String TURN_RECOVERY_TASK = "turn-recovery";
     private static final String TURN_TASK_PREFIX = "turn-";
-    private static final String WATCHER_DELIVERY_TASK_PREFIX = "turn-watcher-delivery-";
-    private static final AtomicLong WATCHER_DELIVERY_SEQUENCE = new AtomicLong();
     private static final int RECOVERY_BATCH_SIZE = 100;
     private static final int INITIAL_MESSAGE_PAGE_SIZE = 50;
     private static final int SESSION_CHANGE_MESSAGE_LIMIT = 100;
@@ -96,7 +91,6 @@ public class SessionServiceImpl implements SessionService {
     private static final int DEFAULT_MAX_CONCURRENT_EXECUTIONS = 16;
     private static final int DEFAULT_MAX_CONCURRENT_EXECUTIONS_PER_USER = 2;
 
-    private final Map<String, TurnStreamState> streamStates = new ConcurrentHashMap<>();
     private final Set<String> stoppingTurns = ConcurrentHashMap.newKeySet();
     private final Set<String> runningTurnIds = ConcurrentHashMap.newKeySet();
     private final Set<String> shutdownRecoveryTurnIds = ConcurrentHashMap.newKeySet();
@@ -115,6 +109,9 @@ public class SessionServiceImpl implements SessionService {
 
     @Resource
     private LlmClient llmClient;
+
+    @Resource
+    private TurnStreamRuntime turnStreamRuntime;
 
     @Resource
     private TransactionTemplate transactionTemplate;
@@ -197,12 +194,12 @@ public class SessionServiceImpl implements SessionService {
                 .filter(turn -> dto.sessionId().equals(turn.getSessionId()))
                 .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
 
-        TurnStreamState streamState = streamStates.get(dto.turnId());
-        if (streamState != null) {
+        Optional<String> cutoverSnapshot = turnStreamRuntime.beginStopCutover(dto.turnId());
+        if (cutoverSnapshot.isPresent()) {
             stoppingTurns.add(dto.turnId());
         }
 
-        String partialContent = streamState == null ? "" : streamState.beginStopCutover();
+        String partialContent = cutoverSnapshot.orElse("");
         int updated;
         try {
             updated = transactionTemplate.execute(status -> {
@@ -215,8 +212,8 @@ public class SessionServiceImpl implements SessionService {
             });
         } catch (RuntimeException exception) {
             stoppingTurns.remove(dto.turnId());
-            if (streamState != null) {
-                streamState.cancelStopCutover();
+            if (cutoverSnapshot.isPresent()) {
+                turnStreamRuntime.cancelStopCutover(dto.turnId());
             }
             throw exception;
         }
@@ -230,15 +227,15 @@ public class SessionServiceImpl implements SessionService {
                             + " sessionId=" + dto.sessionId()
                             + " turnId=" + dto.turnId()
                             + " requestId=" + execution.getRequestId());
-            if (streamState != null) {
-                streamState.stopped();
+            if (cutoverSnapshot.isPresent()) {
+                turnStreamRuntime.stopped(dto.turnId());
             }
             stoppingTurns.remove(dto.turnId());
             ThreadUtils.cancel(TURN_TASK_PREFIX + dto.turnId());
         } else {
             stoppingTurns.remove(dto.turnId());
-            if (streamState != null) {
-                streamState.cancelStopCutover();
+            if (cutoverSnapshot.isPresent()) {
+                turnStreamRuntime.cancelStopCutover(dto.turnId());
             }
         }
         return turnService.queryTurn(dto.turnId())
@@ -313,24 +310,22 @@ public class SessionServiceImpl implements SessionService {
             };
         }
 
-        TurnStreamState state = streamStates.computeIfAbsent(dto.turnId(), ignored -> new TurnStreamState());
-        state.add(listener);
+        Runnable runtimeUnsubscribe = turnStreamRuntime.watch(dto.turnId(), listener);
         conversationMetrics.watcherConnected();
         AtomicBoolean watcherClosed = new AtomicBoolean();
 
         TurnVO latest = turnService.queryTurn(dto.turnId())
                 .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
-        if (notifyTerminalTurn(latest, state)) {
-            removeStreamStateIfFinished(dto.turnId(), state);
+        if (publishTerminalTurn(latest)) {
+            turnStreamRuntime.cleanup(dto.turnId());
         }
 
         return () -> {
             if (!watcherClosed.compareAndSet(false, true)) {
                 return;
             }
-            state.remove(listener);
+            runtimeUnsubscribe.run();
             conversationMetrics.watcherDisconnected();
-            removeStreamStateIfFinished(dto.turnId(), state);
         };
     }
 
@@ -514,16 +509,14 @@ public class SessionServiceImpl implements SessionService {
         TurnVO running = turnService.updatePendingTurn(turnId, DateUtils.now()).orElse(null);
         if (running == null) {
             TurnVO current = turnService.queryTurn(turnId).orElse(null);
-            TurnStreamState existing = streamStates.get(turnId);
-            if (current != null && existing != null) {
-                notifyTerminalTurn(current, existing);
-                removeStreamStateIfFinished(turnId, existing);
+            if (current != null && publishTerminalTurn(current)) {
+                turnStreamRuntime.cleanup(turnId);
             }
             return;
         }
 
         runningTurnIds.add(turnId);
-        TurnStreamState state = streamStates.computeIfAbsent(turnId, ignored -> new TurnStreamState());
+        turnStreamRuntime.open(turnId);
         boolean[] completed = {false};
         Timer.Sample llmSample = null;
         AtomicReference<String> llmOutcome = new AtomicReference<>("failure");
@@ -536,7 +529,7 @@ public class SessionServiceImpl implements SessionService {
                     return;
                 }
                 if (event.type() == LlmStreamEvent.Type.DELTA) {
-                    state.delta(event.delta());
+                    publishDelta(turnId, event.delta());
                     return;
                 }
                 if (event.type() == LlmStreamEvent.Type.COMPLETE) {
@@ -554,7 +547,7 @@ public class SessionServiceImpl implements SessionService {
                                     + " provider=" + running.getInvocation().getProvider()
                                     + " model=" + running.getInvocation().getModel()
                                     + " attemptCount=" + running.getAttemptCount());
-                    state.complete();
+                    turnStreamRuntime.complete(turnId);
                 }
             });
 
@@ -580,10 +573,10 @@ public class SessionServiceImpl implements SessionService {
             }
             if (isStopped(turnId)) {
                 llmOutcome.set("stopped");
-                state.stopped();
+                turnStreamRuntime.stopped(turnId);
                 return;
             }
-            String partialContent = state.snapshot();
+            String partialContent = turnStreamRuntime.snapshot(turnId);
             boolean failed = persistFailure(session.getId(), running, partialContent, exception);
             if (failed) {
                 conversationMetrics.turnTerminal("failed");
@@ -599,7 +592,7 @@ public class SessionServiceImpl implements SessionService {
                                 + " attemptCount=" + running.getAttemptCount()
                                 + " error=" + failureMessage(exception));
             }
-            state.failed(failureMessage(exception));
+            turnStreamRuntime.failed(turnId, failureMessage(exception));
             throw exception;
         } finally {
             if (llmSample != null) {
@@ -608,7 +601,7 @@ public class SessionServiceImpl implements SessionService {
             }
             runningTurnIds.remove(turnId);
             stoppingTurns.remove(turnId);
-            removeStreamStateIfFinished(turnId, state);
+            turnStreamRuntime.cleanup(turnId);
         }
     }
 
@@ -864,349 +857,29 @@ public class SessionServiceImpl implements SessionService {
         return false;
     }
 
-    private static boolean notifyTerminalTurn(TurnVO turn, TurnStreamState state) {
+    private boolean publishTerminalTurn(TurnVO turn) {
         if (TurnStatusEnum.SUCCEEDED.name().equals(turn.getStatus())) {
-            state.complete();
+            turnStreamRuntime.complete(turn.getId());
             return true;
         }
         if (TurnStatusEnum.FAILED.name().equals(turn.getStatus())) {
-            state.failed(turn.getErrorMessage() == null ? "Turn failed." : turn.getErrorMessage());
+            turnStreamRuntime.failed(
+                    turn.getId(), turn.getErrorMessage() == null ? "Turn failed." : turn.getErrorMessage());
             return true;
         }
         if (TurnStatusEnum.STOPPED.name().equals(turn.getStatus())) {
-            state.stopped();
+            turnStreamRuntime.stopped(turn.getId());
             return true;
         }
         return false;
     }
 
-    private void removeStreamStateIfFinished(String turnId, TurnStreamState state) {
-        if (state.isTerminal() && state.isEmpty()) {
-            streamStates.remove(turnId, state);
+    private void publishDelta(String turnId, String delta) {
+        try {
+            turnStreamRuntime.delta(turnId, delta);
+        } catch (TurnStreamRuntime.BufferLimitExceededException exception) {
+            throw new SessionException(SessionErrorCode.MESSAGE_TOO_LARGE);
         }
-    }
-
-    private static final class TurnStreamState {
-
-        private final Object eventLock = new Object();
-        private final StringBuilder content = new StringBuilder();
-        private final List<WatcherSubscription> watchers = new ArrayList<>();
-        private final AtomicReference<TerminalEvent> terminal = new AtomicReference<>();
-
-        private int stopCutoverCount;
-
-        void add(TurnStreamListener listener) {
-            synchronized (eventLock) {
-                WatcherSubscription watcher = new WatcherSubscription(listener);
-                String snapshot = content.toString();
-                TerminalEvent current = terminal.get();
-
-                if (current == null) {
-                    watchers.add(watcher);
-                }
-                if (!snapshot.isBlank() && !watcher.enqueueSnapshot(snapshot)) {
-                    watchers.remove(watcher);
-                    return;
-                }
-                if (current != null) {
-                    watcher.enqueueTerminal(current);
-                }
-            }
-        }
-
-        void remove(TurnStreamListener listener) {
-            WatcherSubscription removed = null;
-            synchronized (eventLock) {
-                for (WatcherSubscription watcher : watchers) {
-                    if (watcher.matches(listener)) {
-                        removed = watcher;
-                        break;
-                    }
-                }
-                if (removed != null) {
-                    watchers.remove(removed);
-                }
-            }
-            if (removed != null) {
-                removed.close();
-            }
-        }
-
-        void delta(String value) {
-            synchronized (eventLock) {
-                if (terminal.get() != null || stopCutoverCount > 0) {
-                    return;
-                }
-                if ((long) content.length() + value.length() > MessageConstant.MAX_CONTENT_LENGTH) {
-                    throw new SessionException(SessionErrorCode.MESSAGE_TOO_LARGE);
-                }
-                content.append(value);
-                watchers.removeIf(watcher -> !watcher.enqueueDelta(value));
-            }
-        }
-
-        String snapshot() {
-            synchronized (eventLock) {
-                return content.toString();
-            }
-        }
-
-        String beginStopCutover() {
-            synchronized (eventLock) {
-                stopCutoverCount++;
-                return content.toString();
-            }
-        }
-
-        void cancelStopCutover() {
-            synchronized (eventLock) {
-                if (stopCutoverCount > 0) {
-                    stopCutoverCount--;
-                }
-            }
-        }
-
-        void complete() {
-            publishTerminal(new TerminalEvent(TerminalType.COMPLETE, null));
-        }
-
-        void failed(String message) {
-            publishTerminal(new TerminalEvent(TerminalType.FAILED, message));
-        }
-
-        void stopped() {
-            publishTerminal(new TerminalEvent(TerminalType.STOPPED, null));
-        }
-
-        boolean isTerminal() {
-            synchronized (eventLock) {
-                return terminal.get() != null;
-            }
-        }
-
-        boolean isEmpty() {
-            synchronized (eventLock) {
-                return watchers.isEmpty();
-            }
-        }
-
-        private void publishTerminal(TerminalEvent event) {
-            synchronized (eventLock) {
-                if (!terminal.compareAndSet(null, event)) {
-                    return;
-                }
-                watchers.removeIf(watcher -> !watcher.enqueueTerminal(event));
-            }
-        }
-    }
-
-    private static final class WatcherSubscription {
-
-        private final Object deliveryLock = new Object();
-        private final TurnStreamListener listener;
-        private final String taskName =
-                WATCHER_DELIVERY_TASK_PREFIX + WATCHER_DELIVERY_SEQUENCE.incrementAndGet();
-        private final Deque<WatcherDelivery> pending = new ArrayDeque<>();
-
-        private boolean draining;
-        private boolean closed;
-        private boolean terminalQueued;
-
-        private WatcherSubscription(TurnStreamListener listener) {
-            this.listener = listener;
-        }
-
-        boolean matches(TurnStreamListener candidate) {
-            return listener == candidate;
-        }
-
-        boolean enqueueSnapshot(String value) {
-            return enqueue(WatcherDelivery.snapshot(value));
-        }
-
-        boolean enqueueDelta(String value) {
-            boolean schedule;
-            synchronized (deliveryLock) {
-                if (closed || terminalQueued) {
-                    return false;
-                }
-
-                WatcherDelivery last = pending.peekLast();
-                if (last != null && last.type() == DeliveryType.DELTA) {
-                    last.append(value);
-                } else {
-                    pending.addLast(WatcherDelivery.delta(value));
-                }
-                schedule = markDraining();
-            }
-            return scheduleDrain(schedule);
-        }
-
-        boolean enqueueTerminal(TerminalEvent event) {
-            boolean schedule;
-            synchronized (deliveryLock) {
-                if (closed || terminalQueued) {
-                    return !closed;
-                }
-                terminalQueued = true;
-                pending.addLast(WatcherDelivery.terminal(event));
-                schedule = markDraining();
-            }
-            return scheduleDrain(schedule);
-        }
-
-        void close() {
-            boolean cancel;
-            synchronized (deliveryLock) {
-                if (closed) {
-                    return;
-                }
-                closed = true;
-                pending.clear();
-                cancel = draining;
-            }
-            if (cancel) {
-                ThreadUtils.cancel(taskName);
-            }
-        }
-
-        private boolean enqueue(WatcherDelivery delivery) {
-            boolean schedule;
-            synchronized (deliveryLock) {
-                if (closed || terminalQueued) {
-                    return false;
-                }
-                pending.addLast(delivery);
-                schedule = markDraining();
-            }
-            return scheduleDrain(schedule);
-        }
-
-        private boolean markDraining() {
-            if (draining) {
-                return false;
-            }
-            draining = true;
-            return true;
-        }
-
-        private boolean scheduleDrain(boolean schedule) {
-            if (!schedule) {
-                return true;
-            }
-            if (ThreadUtils.execute(taskName, this::drain)) {
-                return true;
-            }
-
-            synchronized (deliveryLock) {
-                closed = true;
-                pending.clear();
-                draining = false;
-            }
-            return false;
-        }
-
-        private void drain() {
-            while (true) {
-                WatcherDelivery delivery;
-                synchronized (deliveryLock) {
-                    if (closed) {
-                        pending.clear();
-                        draining = false;
-                        return;
-                    }
-                    delivery = pending.pollFirst();
-                    if (delivery == null) {
-                        draining = false;
-                        return;
-                    }
-                }
-                deliver(delivery);
-            }
-        }
-
-        private void deliver(WatcherDelivery delivery) {
-            switch (delivery.type()) {
-                case SNAPSHOT -> safeNotify(listener, item -> item.onSnapshot(delivery.content()));
-                case DELTA -> safeNotify(listener, item -> item.onDelta(delivery.content()));
-                case TERMINAL -> notifyTerminal(listener, delivery.terminal());
-            }
-        }
-
-        private static void notifyTerminal(TurnStreamListener listener, TerminalEvent event) {
-            switch (event.type()) {
-                case COMPLETE -> safeNotify(listener, TurnStreamListener::onComplete);
-                case FAILED -> safeNotify(listener, item -> item.onError(event.message()));
-                case STOPPED -> safeNotify(listener, TurnStreamListener::onStopped);
-            }
-        }
-
-        private static void safeNotify(
-                TurnStreamListener listener, java.util.function.Consumer<TurnStreamListener> callback) {
-            try {
-                callback.accept(listener);
-            } catch (RuntimeException ignored) {
-                // 客户端连接异常不能影响 Turn 后台执行。
-            }
-        }
-    }
-
-    private static final class WatcherDelivery {
-
-        private final DeliveryType type;
-        private final StringBuilder content;
-        private final TerminalEvent terminal;
-
-        private WatcherDelivery(DeliveryType type, String content, TerminalEvent terminal) {
-            this.type = type;
-            this.content = content == null ? null : new StringBuilder(content);
-            this.terminal = terminal;
-        }
-
-        static WatcherDelivery snapshot(String content) {
-            return new WatcherDelivery(DeliveryType.SNAPSHOT, content, null);
-        }
-
-        static WatcherDelivery delta(String content) {
-            return new WatcherDelivery(DeliveryType.DELTA, content, null);
-        }
-
-        static WatcherDelivery terminal(TerminalEvent event) {
-            return new WatcherDelivery(DeliveryType.TERMINAL, null, event);
-        }
-
-        DeliveryType type() {
-            return type;
-        }
-
-        String content() {
-            return content == null ? "" : content.toString();
-        }
-
-        TerminalEvent terminal() {
-            return terminal;
-        }
-
-        void append(String value) {
-            if (content != null) {
-                content.append(value);
-            }
-        }
-    }
-
-    private enum DeliveryType {
-        SNAPSHOT,
-        DELTA,
-        TERMINAL
-    }
-
-    private record TerminalEvent(TerminalType type, String message) {
-    }
-
-    private enum TerminalType {
-        COMPLETE,
-        FAILED,
-        STOPPED
     }
 
     private SessionEntity queryOwnedSession(String projectId, String sessionId, String userId) {
