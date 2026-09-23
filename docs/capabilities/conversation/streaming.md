@@ -15,6 +15,7 @@ Related:
 
 Frontend:
 - `yakable-ui/src/features/session/components/SessionWorkspace.tsx`
+- `yakable-ui/src/features/session/hooks/useTurnStream.ts`
 - `yakable-ui/src/features/session/components/MessageItem.tsx`
 - `yakable-ui/src/service/session/SessionService.ts`
 
@@ -65,6 +66,7 @@ Tests:
 - `yakable-core/src/test/java/io/yakable/core/conversation/stream/TurnStreamRuntimeTest.java`
 
 Review Notes:
+- 前端实时 Streaming / watch / rewatch / polling fallback 已从 SessionWorkspace 收口到 useTurnStream；Workspace 保留 Session 组合、Optimistic USER 与 Turn render。
 - Stream Runtime ownership 已迁移到 Core；SessionServiceImpl 只保留 Turn 业务状态、事务、持久化和 Runtime 协作。
 - GAP-06 已实现：Core TurnStreamRuntime 内部 TurnStreamState 增加 Stop cutover，并与 delta() 共用同一个 eventLock。
 - beginStopCutover() 在 eventLock 内一次性冻结后续 delta 并返回 cutover snapshot；cutover 后的 delta 不进入 content，也不进入 watcher mailbox。

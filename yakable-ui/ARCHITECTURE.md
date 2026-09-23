@@ -87,11 +87,22 @@ Features own product capabilities.
 
 Detailed feature constraints: [FEATURE_RULES.md](./src/features/FEATURE_RULES.md).
 
-`project` owns Dashboard project interactions and project-query state. `model` owns model identity and selection UI; its current catalog is local until a real model API exists. `conversation` owns project messages and the Project chat surface.
+`project` owns Dashboard project interactions and project-query state. `model` owns model identity and selection UI; its current catalog is local until a real model API exists. `session` owns the Conversation / Session workspace and message interaction.
 
 Add one feature at a time only after its ownership and contract are understood. The current product stage intentionally stops at conversation; Agent execution, planning, generated files, and Preview remain future work.
 
 Feature owns UI state, hooks and components. Backend API contracts and endpoint calls belong to `src/service`.
+
+Within `features/session`, ownership follows Conversation capabilities instead of accumulating in one workspace component:
+
+- `SessionWorkspace` composes Session state, optimistic USER turns, model selection, rendering and capability hooks.
+- `useSessionMessageWindow` owns the currently loaded persisted Message window.
+- `useSessionViewport` owns follow-latest, scroll position, older/newer paging interaction and return-to-latest behavior.
+- `useTurnStream` owns browser-side Streaming / watch / rewatch / polling fallback and active stream stop lifecycle.
+- `turn-navigator` owns long-session navigation.
+- `useTurnWindowing` owns heavy Turn DOM windowing.
+
+Do not introduce a global Session store only to reduce component line count; state stays at the smallest real owner.
 
 The Project page is conversation-first: user messages render on the right, assistant messages render on the left, and the shared PromptComposer stays fixed at the bottom. The browser never fabricates assistant replies; assistant messages appear only when the backend actually provides them.
 

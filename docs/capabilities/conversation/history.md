@@ -17,6 +17,7 @@ Frontend:
 - `yakable-ui/src/features/session/components/SessionWorkspace.tsx`
 - `yakable-ui/src/features/session/components/MessageItem.tsx`
 - `yakable-ui/src/features/session/hooks/useSessionMessageWindow.ts`
+- `yakable-ui/src/features/session/hooks/useSessionViewport.ts`
 - `yakable-ui/src/features/session/hooks/useTurnWindowing.ts`
 - `yakable-ui/src/service/session/SessionService.ts`
 
@@ -50,6 +51,7 @@ Tests:
 - `yakable-boot/src/test/java/io/yakable/boot/controller/session/SessionControllerTest.java`
 
 Review Notes:
+- History viewport ownership 已从 SessionWorkspace 收口到 useSessionViewport；Message Window 数据仍由 useSessionMessageWindow 拥有，Turn DOM windowing 仍由 useTurnWindowing 拥有。
 - GAP-05 已完成代码侧补强：生产行为未修改，只新增 CONV-S06 的前端回归测试。
 - 测试显式构造 scrollTop / scrollHeight / clientHeight，保护离开 latest 后 Streaming delta 不改变阅读位置。
 - 测试保护 Scroll to bottom 出现，点击后回到最新位置并恢复 follow output。
