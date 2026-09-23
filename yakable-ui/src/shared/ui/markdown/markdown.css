@@ -82,8 +82,8 @@
   padding: 1em;
   color: rgb(36, 41, 46);
   font-family:
-    "Roboto Mono Variable", "Roboto Mono", Menlo, Monaco, Consolas, "Andale Mono", "Ubuntu Mono",
-    "Courier New", monospace;
+    'Roboto Mono Variable', 'Roboto Mono', Menlo, Monaco, Consolas, 'Andale Mono', 'Ubuntu Mono',
+    'Courier New', monospace;
   font-size: 13px;
   line-height: 1.5;
 }
