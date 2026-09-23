@@ -40,6 +40,9 @@ import io.yakable.core.llm.LlmRequest;
 import io.yakable.core.llm.LlmResponse;
 import io.yakable.core.llm.LlmStreamEvent;
 import io.yakable.core.llm.LlmUsage;
+import io.yakable.core.project.files.ProjectFiles;
+import io.yakable.core.project.generation.ProjectCodeGenerationResult;
+import io.yakable.core.project.generation.ProjectCodeGenerator;
 import io.yakable.dao.entity.SessionEntity;
 import io.yakable.dao.repository.SessionRepository;
 import io.yakable.service.message.MessageService;
@@ -80,6 +83,7 @@ public class SessionServiceImpl implements SessionService {
     private static final String SYSTEM_PROMPT = "You are Yakable, a concise and accurate assistant.";
     private static final String TURN_RECOVERY_TASK = "turn-recovery";
     private static final String TURN_TASK_PREFIX = "turn-";
+    private static final String RECOVERED_GENERATION_SUMMARY = "Project generation completed.";
     private static final int RECOVERY_BATCH_SIZE = 100;
     private static final int INITIAL_MESSAGE_PAGE_SIZE = 50;
     private static final int SESSION_CHANGE_MESSAGE_LIMIT = 100;
@@ -113,6 +117,12 @@ public class SessionServiceImpl implements SessionService {
 
     @Resource
     private TurnStreamRuntime turnStreamRuntime;
+
+    @Resource
+    private ProjectCodeGenerator projectCodeGenerator;
+
+    @Resource
+    private ProjectFiles projectFiles;
 
     @Resource
     private TransactionTemplate transactionTemplate;
@@ -285,7 +295,11 @@ public class SessionServiceImpl implements SessionService {
                             + " provider=" + execution.getProvider()
                             + " model=" + execution.getModel());
             try {
-                executeTurnStreaming(turnId, session, execution.getRequestId());
+                if (TurnTypeEnum.PROJECT_GENERATION == execution.getTurnType()) {
+                    executeProjectGeneration(turnId, session, execution);
+                } else {
+                    executeTurnStreaming(turnId, session, execution.getRequestId());
+                }
             } finally {
                 conversationMetrics.executionFinished();
                 releaseExecutionSlot(session.getCreateBy());
@@ -504,6 +518,155 @@ public class SessionServiceImpl implements SessionService {
                 && Objects.equals(provider, invocation.getProvider())
                 && Objects.equals(model, invocation.getModel())
                 && Objects.equals(content, existing.getUserMessage().getContent());
+    }
+
+    private void executeProjectGeneration(
+            String turnId, SessionEntity session, TurnExecutionVO execution) {
+        TurnVO running = turnService.updatePendingTurn(turnId, DateUtils.now()).orElse(null);
+        if (running == null) {
+            TurnVO current = turnService.queryTurn(turnId).orElse(null);
+            if (current != null && publishTerminalTurn(current)) {
+                turnStreamRuntime.cleanup(turnId);
+            }
+            return;
+        }
+
+        runningTurnIds.add(turnId);
+        turnStreamRuntime.open(turnId);
+        Timer.Sample llmSample = null;
+        AtomicReference<String> llmOutcome = new AtomicReference<>("failure");
+
+        try {
+            if (projectFiles.isPublished(session.getProjectId(), turnId)) {
+                if (completePublishedGeneration(session, running)) {
+                    llmOutcome.set("recovered");
+                    publishGenerationSucceeded(session, running, execution.getRequestId());
+                }
+                return;
+            }
+
+            MessageVO userMessage = messageService.queryUserMessage(turnId)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "USER Message not found for Turn: " + turnId));
+
+            llmSample = conversationMetrics.startLlmCall();
+            ProjectCodeGenerationResult result = projectCodeGenerator.generate(
+                    execution.getProvider(), execution.getModel(), userMessage.getContent());
+
+            if (persistProjectGenerationSuccess(session, running, result)) {
+                llmOutcome.set("success");
+                publishGenerationSucceeded(session, running, execution.getRequestId());
+                return;
+            }
+
+            TurnVO current = turnService.queryTurn(turnId).orElse(null);
+            if (current != null) {
+                publishTerminalTurn(current);
+            }
+        } catch (RuntimeException exception) {
+            if (shuttingDown.get()) {
+                llmOutcome.set("shutdown");
+                shutdownRecoveryTurnIds.add(turnId);
+                return;
+            }
+            if (isStopped(turnId)) {
+                llmOutcome.set("stopped");
+                turnStreamRuntime.stopped(turnId);
+                return;
+            }
+            if (projectFiles.isPublished(session.getProjectId(), turnId)) {
+                llmOutcome.set("published_recovery");
+                int recovered = turnService.updateRunningTurnPending(turnId);
+                conversationMetrics.recovered("project_publication", recovered);
+                return;
+            }
+
+            boolean failed = persistFailure(session.getId(), running, "", exception);
+            if (failed) {
+                conversationMetrics.turnTerminal("failed");
+                log.log(
+                        System.Logger.Level.WARNING,
+                        "Project generation failed userId=" + session.getCreateBy()
+                                + " projectId=" + session.getProjectId()
+                                + " sessionId=" + session.getId()
+                                + " turnId=" + running.getId()
+                                + " requestId=" + execution.getRequestId()
+                                + " provider=" + execution.getProvider()
+                                + " model=" + execution.getModel()
+                                + " attemptCount=" + running.getAttemptCount()
+                                + " error=" + failureMessage(exception));
+            }
+            turnStreamRuntime.failed(turnId, failureMessage(exception));
+            throw exception;
+        } finally {
+            if (llmSample != null) {
+                conversationMetrics.finishLlmCall(llmSample, execution.getProvider(), llmOutcome.get());
+            }
+            runningTurnIds.remove(turnId);
+            stoppingTurns.remove(turnId);
+            turnStreamRuntime.cleanup(turnId);
+        }
+    }
+
+    private boolean persistProjectGenerationSuccess(
+            SessionEntity session, TurnVO running, ProjectCodeGenerationResult result) {
+        return Boolean.TRUE.equals(transactionTemplate.execute(status -> {
+            TurnVO locked = turnService.queryTurnForUpdate(running.getId()).orElse(null);
+            if (locked == null || !TurnStatusEnum.RUNNING.name().equals(locked.getStatus())) {
+                return false;
+            }
+
+            projectFiles.publish(session.getProjectId(), running.getId(), result.project().files());
+            messageService.addMessage(
+                    session.getId(), running.getId(), MessageRoleEnum.ASSISTANT, result.project().summary());
+
+            LlmUsage usage = result.usage();
+            int updated = turnService.updateTurnSucceeded(
+                    running.getId(), session.getId(),
+                    usage.inputTokens(), usage.outputTokens(), usage.totalTokens(),
+                    result.providerRequestId(), result.finishReason(), DateUtils.now());
+            if (updated != 1) {
+                throw new IllegalStateException("Turn is no longer RUNNING: " + running.getId());
+            }
+            return true;
+        }));
+    }
+
+    private boolean completePublishedGeneration(SessionEntity session, TurnVO running) {
+        return Boolean.TRUE.equals(transactionTemplate.execute(status -> {
+            TurnVO locked = turnService.queryTurnForUpdate(running.getId()).orElse(null);
+            if (locked == null || !TurnStatusEnum.RUNNING.name().equals(locked.getStatus())) {
+                return false;
+            }
+            if (!projectFiles.isPublished(session.getProjectId(), running.getId())) {
+                return false;
+            }
+
+            messageService.addMessage(
+                    session.getId(), running.getId(), MessageRoleEnum.ASSISTANT, RECOVERED_GENERATION_SUMMARY);
+            int updated = turnService.updateTurnSucceeded(
+                    running.getId(), session.getId(),
+                    null, null, null, null, "recovered", DateUtils.now());
+            if (updated != 1) {
+                throw new IllegalStateException("Turn is no longer RUNNING: " + running.getId());
+            }
+            return true;
+        }));
+    }
+
+    private void publishGenerationSucceeded(SessionEntity session, TurnVO running, String requestId) {
+        conversationMetrics.turnTerminal("succeeded");
+        log.log(
+                System.Logger.Level.INFO,
+                "Project generation succeeded userId=" + session.getCreateBy()
+                        + " projectId=" + session.getProjectId()
+                        + " sessionId=" + session.getId()
+                        + " turnId=" + running.getId()
+                        + " requestId=" + requestId
+                        + " provider=" + running.getInvocation().getProvider()
+                        + " model=" + running.getInvocation().getModel()
+                        + " attemptCount=" + running.getAttemptCount());
+        turnStreamRuntime.complete(running.getId());
     }
 
     private void executeTurnStreaming(String turnId, SessionEntity session, String requestId) {
