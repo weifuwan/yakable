@@ -56,6 +56,11 @@ public class TurnServiceImpl implements TurnService {
     }
 
     @Override
+    public Optional<TurnVO> queryTurnForUpdate(String turnId) {
+        return turnRepository.queryTurnForUpdate(turnId).map(TurnServiceImpl::toTurnVO);
+    }
+
+    @Override
     public long queryActiveTurnCount(String sessionId) {
         return turnRepository.queryActiveTurnCount(sessionId);
     }
