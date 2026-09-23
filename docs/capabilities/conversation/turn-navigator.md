@@ -18,6 +18,7 @@ Frontend:
 - Turn Boundary: `yakable-ui/src/features/session/components/TurnItem.tsx`
 - Message Window: `yakable-ui/src/features/session/hooks/useSessionMessageWindow.ts`
 - Interactive Rail: `yakable-ui/src/features/session/components/turn-navigator/TurnNavigator.tsx`
+- Interaction State Machine: `yakable-ui/src/features/session/components/turn-navigator/useTurnNavigatorInteraction.ts`
 - Navigation State / Jump Focus: `yakable-ui/src/features/session/components/turn-navigator/useTurnNavigator.ts`
 - Conversation + Rail Geometry: `yakable-ui/src/features/session/components/turn-navigator/turn-navigation.ts`
 - Existing host: `yakable-ui/src/features/session/components/SessionWorkspace.tsx`
