@@ -177,6 +177,12 @@ export function useTurnNavigator({
     setIsJumping(false);
   }, []);
 
+  const cancelJump = useCallback(() => {
+    activeJumpRef.current?.controller.abort();
+    activeJumpRef.current = null;
+    setIsJumping(false);
+  }, []);
+
   useEffect(
     () => () => {
       activeJumpRef.current?.controller.abort();
@@ -383,5 +389,6 @@ export function useTurnNavigator({
     jumpNext,
     jumpOrigin,
     jumpTerminus,
+    cancelJump,
   };
 }
