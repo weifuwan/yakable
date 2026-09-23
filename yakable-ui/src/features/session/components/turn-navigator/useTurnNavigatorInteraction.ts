@@ -1,224 +1,165 @@
 import {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
   type FocusEvent,
   type KeyboardEvent,
   type MouseEvent,
   type PointerEvent,
+  type WheelEvent,
 } from 'react';
 
 import type { SessionTurnNavigationItem } from '@/service/session';
 
-import {
-  DRAG_THRESHOLD_PX,
-  fisheyeScale,
-  hitTestRib,
-  measureRibLayout,
-  ribContentY,
-  type TurnJumpOptions,
-} from './turn-navigation';
+import type { TurnJumpOptions } from './turn-navigation';
 
-interface DragState {
-  pointerId: number;
-  startX: number;
-  startY: number;
-  dragging: boolean;
-  targetTurnId: string | null;
-}
+const CLOSE_GRACE_MS = 140;
 
 interface UseTurnNavigatorInteractionOptions {
   items: SessionTurnNavigationItem[];
   currentTurnId: string | null;
-  onPreviewTurnChange: (turnId: string | null) => void;
   onJumpTurn: (item: SessionTurnNavigationItem, options?: TurnJumpOptions) => void;
 }
 
 export function useTurnNavigatorInteraction({
   items,
   currentTurnId,
-  onPreviewTurnChange,
   onJumpTurn,
 }: UseTurnNavigatorInteractionOptions) {
-  const railRef = useRef<HTMLDivElement>(null);
+  const surfaceRef = useRef<HTMLDivElement>(null);
+  const railRef = useRef<HTMLButtonElement>(null);
+  const overviewRef = useRef<HTMLElement>(null);
   const pointerInsideRef = useRef(false);
-  const dragRef = useRef<DragState | null>(null);
-  const suppressClickRef = useRef(false);
-  const lastPointerClientYRef = useRef<number | null>(null);
-  const fisheyeFrameRef = useRef<number | null>(null);
-  const [interacting, setInteracting] = useState(false);
+  const closeTimerRef = useRef<number | null>(null);
+  const pendingFocusTurnIdRef = useRef<string | null>(null);
+  const suppressNextRailFocusOpenRef = useRef(false);
+  const userInteractingRef = useRef(false);
+  const [isOpen, setIsOpen] = useState(false);
   const [rovingTurnId, setRovingTurnId] = useState<string | null>(currentTurnId);
-  const itemById = useMemo(() => new Map(items.map((item) => [item.turnId, item])), [items]);
 
-  const findRibButton = useCallback((turnId: string) => {
-    const rail = railRef.current;
-    if (!rail) return null;
+  const resolveCurrentTurnId = useCallback(() => {
+    if (currentTurnId && items.some((item) => item.turnId === currentTurnId)) {
+      return currentTurnId;
+    }
+    return items[0]?.turnId ?? null;
+  }, [currentTurnId, items]);
 
+  const findPromptRow = useCallback((turnId: string) => {
     return (
-      Array.from(rail.querySelectorAll<HTMLButtonElement>('[data-nav-turn-id]')).find(
-        (element) => element.dataset.navTurnId === turnId,
-      ) ?? null
+      Array.from(
+        overviewRef.current?.querySelectorAll<HTMLButtonElement>('[data-nav-turn-id]') ?? [],
+      ).find((element) => element.dataset.navTurnId === turnId) ?? null
     );
   }, []);
 
-  const resetFisheye = useCallback(() => {
-    if (fisheyeFrameRef.current !== null) {
-      window.cancelAnimationFrame(fisheyeFrameRef.current);
-      fisheyeFrameRef.current = null;
-    }
+  const cancelClose = useCallback(() => {
+    if (closeTimerRef.current === null) return;
 
-    railRef.current?.querySelectorAll<HTMLElement>('[data-rib-visual]').forEach((element) => {
-      element.style.transform = 'scaleX(1)';
-    });
+    window.clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = null;
   }, []);
 
-  const applyFisheye = useCallback((clientY: number) => {
-    const rail = railRef.current;
-    if (!rail) return;
+  const openOverview = useCallback(() => {
+    cancelClose();
+    setIsOpen((current) => {
+      if (!current) {
+        userInteractingRef.current = false;
+      }
+      return true;
+    });
+  }, [cancelClose]);
 
-    if (fisheyeFrameRef.current !== null) {
-      window.cancelAnimationFrame(fisheyeFrameRef.current);
-    }
+  const closeOverview = useCallback(
+    (focusRail: boolean) => {
+      cancelClose();
+      pendingFocusTurnIdRef.current = null;
+      userInteractingRef.current = false;
+      setRovingTurnId(resolveCurrentTurnId());
+      setIsOpen(false);
 
-    fisheyeFrameRef.current = window.requestAnimationFrame(() => {
-      fisheyeFrameRef.current = null;
+      if (!focusRail) return;
 
-      const currentRail = railRef.current;
-      if (!currentRail) return;
-
-      const layout = measureRibLayout(currentRail);
-      const pointerY = ribContentY(currentRail, clientY);
-
-      layout.forEach((entry) => {
-        const visual = entry.element.querySelector<HTMLElement>('[data-rib-visual]');
-        if (!visual) return;
-
-        visual.style.transform = `scaleX(${fisheyeScale(entry.center, pointerY).toFixed(3)})`;
+      suppressNextRailFocusOpenRef.current = true;
+      window.requestAnimationFrame(() => {
+        railRef.current?.focus();
       });
-    });
-  }, []);
-
-  const updateDragTarget = useCallback(
-    (clientY: number) => {
-      const rail = railRef.current;
-      const drag = dragRef.current;
-      if (!rail || !drag?.dragging) return;
-
-      const target = hitTestRib(measureRibLayout(rail), ribContentY(rail, clientY));
-      const nextTurnId = target?.turnId ?? null;
-      if (nextTurnId === drag.targetTurnId) return;
-
-      drag.targetTurnId = nextTurnId;
-      onPreviewTurnChange(nextTurnId);
     },
-    [onPreviewTurnChange],
+    [cancelClose, resolveCurrentTurnId],
   );
 
-  const updatePointerEffects = useCallback(
-    (clientY: number) => {
-      lastPointerClientYRef.current = clientY;
-      applyFisheye(clientY);
-      updateDragTarget(clientY);
-    },
-    [applyFisheye, updateDragTarget],
-  );
+  const scheduleClose = useCallback(() => {
+    cancelClose();
+    closeTimerRef.current = window.setTimeout(() => {
+      closeTimerRef.current = null;
+      if (pointerInsideRef.current) return;
+      if (surfaceRef.current?.contains(document.activeElement)) return;
 
-  const releasePointerCapture = useCallback((pointerId: number) => {
-    const rail = railRef.current;
-    if (!rail?.hasPointerCapture?.(pointerId)) return;
+      pendingFocusTurnIdRef.current = null;
+      userInteractingRef.current = false;
+      setRovingTurnId(resolveCurrentTurnId());
+      setIsOpen(false);
+    }, CLOSE_GRACE_MS);
+  }, [cancelClose, resolveCurrentTurnId]);
 
-    rail.releasePointerCapture(pointerId);
-  }, []);
-
-  const finishDrag = useCallback(
-    (cancelled: boolean) => {
-      const drag = dragRef.current;
-      if (!drag) return;
-
-      releasePointerCapture(drag.pointerId);
-      dragRef.current = null;
-
-      if (drag.dragging) {
-        suppressClickRef.current = true;
-        window.setTimeout(() => {
-          suppressClickRef.current = false;
-        }, 0);
-      }
-
-      if (!cancelled && drag.dragging && drag.targetTurnId) {
-        const target = itemById.get(drag.targetTurnId);
-        if (target) {
-          onJumpTurn(target, { focusTarget: false });
-        }
-      }
-
-      if (cancelled || !pointerInsideRef.current) {
-        onPreviewTurnChange(null);
-      }
-
-      const rail = railRef.current;
-      if (!pointerInsideRef.current && !rail?.contains(document.activeElement)) {
-        setInteracting(false);
-        resetFisheye();
-      }
-    },
-    [itemById, onJumpTurn, onPreviewTurnChange, releasePointerCapture, resetFisheye],
-  );
-
-  const focusRib = useCallback(
+  const focusPromptRow = useCallback(
     (turnId: string) => {
-      const rib = findRibButton(turnId);
-      if (!rib) return;
-
       setRovingTurnId(turnId);
-      rib.focus();
+
+      if (!isOpen) {
+        pendingFocusTurnIdRef.current = turnId;
+        openOverview();
+        return;
+      }
+
+      const row = findPromptRow(turnId);
+      if (!row) return;
+
+      row.scrollIntoView?.({ block: 'nearest' });
+      row.focus();
     },
-    [findRibButton],
+    [findPromptRow, isOpen, openOverview],
   );
 
   useEffect(() => {
-    const rail = railRef.current;
-    if (rail?.contains(document.activeElement)) return;
-
-    const fallback = items[0]?.turnId ?? null;
-    setRovingTurnId(currentTurnId && itemById.has(currentTurnId) ? currentTurnId : fallback);
-  }, [currentTurnId, itemById, items]);
+    if (surfaceRef.current?.contains(document.activeElement)) return;
+    setRovingTurnId(resolveCurrentTurnId());
+  }, [resolveCurrentTurnId]);
 
   useEffect(() => {
-    if (interacting || !currentTurnId) return;
+    if (!isOpen) return;
 
-    const rail = railRef.current;
-    if (!rail) return;
+    const pendingTurnId = pendingFocusTurnIdRef.current;
+    if (!pendingTurnId) return;
 
-    const current = findRibButton(currentTurnId);
-    if (!current) return;
+    const frame = window.requestAnimationFrame(() => {
+      const row = findPromptRow(pendingTurnId);
+      if (!row) return;
 
-    const railRect = rail.getBoundingClientRect();
-    const currentRect = current.getBoundingClientRect();
-    const top = rail.scrollTop + currentRect.top - railRect.top;
-    const bottom = top + currentRect.height;
+      pendingFocusTurnIdRef.current = null;
+      row.scrollIntoView?.({ block: 'nearest' });
+      row.focus();
+    });
 
-    if (top < rail.scrollTop) {
-      rail.scrollTop = top;
-    } else if (bottom > rail.scrollTop + rail.clientHeight) {
-      rail.scrollTop = bottom - rail.clientHeight;
-    }
-  }, [currentTurnId, findRibButton, interacting]);
-
-  useEffect(() => {
-    const handleWindowBlur = () => {
-      finishDrag(true);
-      resetFisheye();
-      setInteracting(false);
-    };
-
-    window.addEventListener('blur', handleWindowBlur);
     return () => {
-      window.removeEventListener('blur', handleWindowBlur);
+      window.cancelAnimationFrame(frame);
     };
-  }, [finishDrag, resetFisheye]);
+  }, [findPromptRow, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || userInteractingRef.current) return;
+
+    const targetTurnId = resolveCurrentTurnId();
+    if (!targetTurnId) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      findPromptRow(targetTurnId)?.scrollIntoView?.({ block: 'nearest' });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [findPromptRow, isOpen, resolveCurrentTurnId]);
 
   useEffect(() => {
     const handleShortcut = (event: globalThis.KeyboardEvent) => {
@@ -233,168 +174,138 @@ export function useTurnNavigatorInteraction({
         return;
       }
 
-      const targetTurnId = currentTurnId ?? rovingTurnId ?? items[0]?.turnId;
+      const targetTurnId = resolveCurrentTurnId();
       if (!targetTurnId) return;
 
       event.preventDefault();
-      setInteracting(true);
-      focusRib(targetTurnId);
+      focusPromptRow(targetTurnId);
     };
 
     window.addEventListener('keydown', handleShortcut);
     return () => {
       window.removeEventListener('keydown', handleShortcut);
     };
-  }, [currentTurnId, focusRib, items, rovingTurnId]);
+  }, [focusPromptRow, items.length, resolveCurrentTurnId]);
 
   useEffect(
     () => () => {
-      resetFisheye();
+      cancelClose();
     },
-    [resetFisheye],
+    [cancelClose],
   );
 
-  const onRailPointerEnter = useCallback(() => {
-    pointerInsideRef.current = true;
-    setInteracting(true);
-  }, []);
+  const onSurfaceFocusCapture = useCallback(() => {
+    cancelClose();
+  }, [cancelClose]);
 
-  const onRailPointerLeave = useCallback(
-    (event: PointerEvent<HTMLDivElement>) => {
-      pointerInsideRef.current = false;
-      if (dragRef.current?.dragging) return;
-
-      resetFisheye();
-      onPreviewTurnChange(null);
-      if (!event.currentTarget.contains(document.activeElement)) {
-        setInteracting(false);
-      }
-    },
-    [onPreviewTurnChange, resetFisheye],
-  );
-
-  const onRailPointerDown = useCallback(
-    (event: PointerEvent<HTMLDivElement>) => {
-      if (!(event.target instanceof Element)) return;
-
-      const rib = event.target.closest<HTMLElement>('[data-nav-turn-id]');
-      if (!rib?.dataset.navTurnId) return;
-
-      dragRef.current = {
-        pointerId: event.pointerId,
-        startX: event.clientX,
-        startY: event.clientY,
-        dragging: false,
-        targetTurnId: rib.dataset.navTurnId,
-      };
-      lastPointerClientYRef.current = event.clientY;
-      setInteracting(true);
-      event.currentTarget.setPointerCapture?.(event.pointerId);
-      applyFisheye(event.clientY);
-    },
-    [applyFisheye],
-  );
-
-  const onRailPointerMove = useCallback(
-    (event: PointerEvent<HTMLDivElement>) => {
-      updatePointerEffects(event.clientY);
-
-      const drag = dragRef.current;
-      if (!drag || drag.pointerId !== event.pointerId) return;
-
-      if (!drag.dragging) {
-        const distance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
-        if (distance < DRAG_THRESHOLD_PX) return;
-
-        drag.dragging = true;
-        suppressClickRef.current = true;
-        setInteracting(true);
-        onPreviewTurnChange(drag.targetTurnId);
-      }
-
-      event.preventDefault();
-      updateDragTarget(event.clientY);
-    },
-    [onPreviewTurnChange, updateDragTarget, updatePointerEffects],
-  );
-
-  const onRailPointerUp = useCallback(
-    (event: PointerEvent<HTMLDivElement>) => {
-      const drag = dragRef.current;
-      if (!drag || drag.pointerId !== event.pointerId) return;
-      finishDrag(false);
-    },
-    [finishDrag],
-  );
-
-  const onRailPointerCancel = useCallback(
-    (event: PointerEvent<HTMLDivElement>) => {
-      const drag = dragRef.current;
-      if (!drag || drag.pointerId !== event.pointerId) return;
-      finishDrag(true);
-    },
-    [finishDrag],
-  );
-
-  const onRailFocusCapture = useCallback(() => {
-    setInteracting(true);
-  }, []);
-
-  const onRailBlurCapture = useCallback(
+  const onSurfaceBlurCapture = useCallback(
     (event: FocusEvent<HTMLDivElement>) => {
       const next = event.relatedTarget;
-      if (!(next instanceof Node) || !event.currentTarget.contains(next)) {
-        if (!pointerInsideRef.current && !dragRef.current?.dragging) {
-          setInteracting(false);
-          resetFisheye();
+      if (next instanceof Node && event.currentTarget.contains(next)) return;
+
+      scheduleClose();
+    },
+    [scheduleClose],
+  );
+
+  const onSurfacePointerMoveCapture = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    if (!(event.target instanceof Element)) return;
+    if (event.target.closest('[data-nav-turn-id]')) {
+      userInteractingRef.current = true;
+    }
+  }, []);
+
+  const onSurfacePointerDownCapture = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    if (!(event.target instanceof Element)) return;
+    if (event.target.closest('[data-nav-turn-id]')) {
+      userInteractingRef.current = true;
+    }
+  }, []);
+
+  const onSurfaceWheelCapture = useCallback((event: WheelEvent<HTMLDivElement>) => {
+    if (event.target instanceof Node && overviewRef.current?.contains(event.target)) {
+      userInteractingRef.current = true;
+    }
+  }, []);
+
+  const onPointerEnter = useCallback(() => {
+    pointerInsideRef.current = true;
+    cancelClose();
+    openOverview();
+  }, [cancelClose, openOverview]);
+
+  const onPointerLeave = useCallback(() => {
+    pointerInsideRef.current = false;
+    scheduleClose();
+  }, [scheduleClose]);
+
+  const onRailFocus = useCallback(() => {
+    cancelClose();
+
+    if (suppressNextRailFocusOpenRef.current) {
+      suppressNextRailFocusOpenRef.current = false;
+      return;
+    }
+
+    openOverview();
+  }, [cancelClose, openOverview]);
+
+  const onRailClick = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      openOverview();
+
+      if (event.detail === 0) {
+        const targetTurnId = resolveCurrentTurnId();
+        if (targetTurnId) {
+          focusPromptRow(targetTurnId);
         }
       }
     },
-    [resetFisheye],
+    [focusPromptRow, openOverview, resolveCurrentTurnId],
   );
 
-  const onRailWheelCapture = useCallback(() => {
-    setInteracting(true);
+  const onRailKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLButtonElement>) => {
+      if (event.key === 'Escape') {
+        if (isOpen) {
+          event.preventDefault();
+          closeOverview(true);
+        }
+        return;
+      }
+
+      if (event.key !== 'ArrowDown' && event.key !== 'Enter' && event.key !== ' ') return;
+
+      const targetTurnId = resolveCurrentTurnId();
+      if (!targetTurnId) return;
+
+      event.preventDefault();
+      focusPromptRow(targetTurnId);
+    },
+    [closeOverview, focusPromptRow, isOpen, resolveCurrentTurnId],
+  );
+
+  const onRowFocus = useCallback((item: SessionTurnNavigationItem) => {
+    userInteractingRef.current = true;
+    setRovingTurnId(item.turnId);
   }, []);
 
-  const onRailScroll = useCallback(() => {
-    const clientY = lastPointerClientYRef.current;
-    if (clientY !== null) {
-      updatePointerEffects(clientY);
-    }
-  }, [updatePointerEffects]);
+  const onRowKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLButtonElement>, index: number, item: SessionTurnNavigationItem) => {
+      userInteractingRef.current = true;
 
-  const onRibMouseEnter = useCallback(
-    (item: SessionTurnNavigationItem) => {
-      if (!dragRef.current?.dragging) {
-        onPreviewTurnChange(item.turnId);
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeOverview(true);
+        return;
       }
-    },
-    [onPreviewTurnChange],
-  );
 
-  const onRibMouseLeave = useCallback(() => {
-    if (!dragRef.current?.dragging) {
-      onPreviewTurnChange(null);
-    }
-  }, [onPreviewTurnChange]);
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        onJumpTurn(item, { focusTarget: true });
+        return;
+      }
 
-  const onRibFocus = useCallback(
-    (item: SessionTurnNavigationItem) => {
-      setRovingTurnId(item.turnId);
-      onPreviewTurnChange(item.turnId);
-    },
-    [onPreviewTurnChange],
-  );
-
-  const onRibBlur = useCallback(() => {
-    if (!dragRef.current?.dragging) {
-      onPreviewTurnChange(null);
-    }
-  }, [onPreviewTurnChange]);
-
-  const onRibKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
       let nextIndex: number | null = null;
 
       if (event.key === 'ArrowUp') {
@@ -412,44 +323,37 @@ export function useTurnNavigatorInteraction({
       event.preventDefault();
       const next = items[nextIndex];
       if (next) {
-        focusRib(next.turnId);
+        focusPromptRow(next.turnId);
       }
     },
-    [focusRib, items],
+    [closeOverview, focusPromptRow, items, onJumpTurn],
   );
 
-  const onRibClick = useCallback(
+  const onRowClick = useCallback(
     (event: MouseEvent<HTMLButtonElement>, item: SessionTurnNavigationItem) => {
-      if (suppressClickRef.current) {
-        event.preventDefault();
-        event.stopPropagation();
-        suppressClickRef.current = false;
-        return;
-      }
-
       onJumpTurn(item, { focusTarget: event.detail === 0 });
     },
     [onJumpTurn],
   );
 
   return {
+    surfaceRef,
     railRef,
+    overviewRef,
+    isOpen,
     rovingTurnId,
-    onRailPointerEnter,
-    onRailPointerLeave,
-    onRailPointerDown,
-    onRailPointerMove,
-    onRailPointerUp,
-    onRailPointerCancel,
-    onRailFocusCapture,
-    onRailBlurCapture,
-    onRailWheelCapture,
-    onRailScroll,
-    onRibMouseEnter,
-    onRibMouseLeave,
-    onRibFocus,
-    onRibBlur,
-    onRibKeyDown,
-    onRibClick,
+    onSurfaceFocusCapture,
+    onSurfaceBlurCapture,
+    onSurfacePointerMoveCapture,
+    onSurfacePointerDownCapture,
+    onSurfaceWheelCapture,
+    onPointerEnter,
+    onPointerLeave,
+    onRailFocus,
+    onRailClick,
+    onRailKeyDown,
+    onRowFocus,
+    onRowKeyDown,
+    onRowClick,
   };
 }
