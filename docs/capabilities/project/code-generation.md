@@ -48,7 +48,7 @@ Tests:
 - `yakable-service/src/test/java/io/yakable/service/turn/impl/TurnServiceImplTest.java`
 - `yakable-core/src/test/java/io/yakable/core/project/files/ProjectFilesTest.java`
 - `yakable-core/src/test/java/io/yakable/core/project/generation/ProjectCodeGeneratorTest.java`
-- `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
+- `yakable-boot/src/test/java/io/yakable/boot/integration/ConversationPersistenceIT.java`
 
 Review Notes:
 - Initial `PROJECT_GENERATION` Turn now routes through `ProjectCodeGenerator`.
