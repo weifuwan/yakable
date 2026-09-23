@@ -227,11 +227,7 @@ export function useTurnNavigator({
       const entry = layout.find((candidate) => candidate.turnId === item.turnId);
       if (!entry) return;
 
-      container.scrollTop = targetScrollTop(
-        entry,
-        container.clientHeight,
-        container.scrollHeight,
-      );
+      container.scrollTop = targetScrollTop(entry, container.clientHeight, container.scrollHeight);
       scheduleMeasure();
 
       if (options.focusTarget) {
@@ -260,14 +256,7 @@ export function useTurnNavigator({
         finishJump(jump);
       }
     },
-    [
-      alignTurn,
-      beginJump,
-      ensureTurnRendered,
-      finishJump,
-      onFollowLatestChange,
-      scrollRef,
-    ],
+    [alignTurn, beginJump, ensureTurnRendered, finishJump, onFollowLatestChange, scrollRef],
   );
 
   const currentIndex = items.findIndex((item) => item.turnId === currentTurnId);
