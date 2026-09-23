@@ -46,3 +46,33 @@
     text-shadow: none !important;
   }
 }
+
+@layer utilities {
+  .scrollbar-subtle::-webkit-scrollbar {
+    width: 8px;
+    background: transparent;
+  }
+
+  .scrollbar-subtle::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-subtle::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 9999px;
+    background: var(--foreground-soft);
+    background-clip: content-box;
+  }
+
+  .scrollbar-subtle::-webkit-scrollbar-thumb:hover {
+    background: var(--foreground-tertiary);
+    background-clip: content-box;
+  }
+
+  @supports not selector(::-webkit-scrollbar) {
+    .scrollbar-subtle {
+      scrollbar-color: var(--foreground-soft) transparent;
+      scrollbar-width: thin;
+    }
+  }
+}
