@@ -121,7 +121,12 @@ describe('useTurnNavigator', () => {
       await result.current.jumpToTurn(navigation[0], { focusTarget: true });
     });
 
-    expect(queryMessageWindow).toHaveBeenCalledWith('project-1', 'session-1', 1);
+    expect(queryMessageWindow).toHaveBeenCalledWith(
+      'project-1',
+      'session-1',
+      1,
+      expect.any(AbortSignal),
+    );
     expect(replaceWindow).toHaveBeenCalledWith(targetWindow);
     expect(onFollowLatestChange).toHaveBeenCalledWith(false);
     expect(container.scrollTop).toBe(0);
