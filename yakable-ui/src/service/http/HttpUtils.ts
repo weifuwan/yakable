@@ -207,6 +207,8 @@ export class HttpUtils {
     onEvent: (event: SseEvent) => void,
     options: HttpOptions = {},
   ) {
+    await HttpUtils.ensureCsrfToken('POST', options.signal);
+
     let response: Response;
     try {
       response = await fetch(url, {
@@ -258,6 +260,8 @@ export class HttpUtils {
   }
 
   private static async request<T>(url: string, init: RequestInit): Promise<T> {
+    await HttpUtils.ensureCsrfToken(init.method, init.signal);
+
     let response: Response;
     try {
       response = await fetch(url, {
@@ -278,6 +282,22 @@ export class HttpUtils {
 
     await requireOk(response);
     return parseResult<T>(response);
+  }
+
+  private static async ensureCsrfToken(method: string | undefined, signal?: AbortSignal | null) {
+    if (SAFE_METHODS.has((method ?? 'GET').toUpperCase()) || readCookie(CSRF_COOKIE)) {
+      return;
+    }
+
+    await HttpUtils.get<unknown>('/api/auth/csrf', {
+      signal: signal ?? undefined,
+    });
+
+    if (!readCookie(CSRF_COOKIE)) {
+      throw new ApiError('CSRF token cookie is unavailable.', {
+        kind: 'network',
+      });
+    }
   }
 }
 
