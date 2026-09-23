@@ -176,6 +176,7 @@ describe('HttpUtils', () => {
   });
 
   it('parses SSE events even when one event is split across chunks', async () => {
+    document.cookie = 'XSRF-TOKEN=csrf-token; path=/';
     const encoder = new TextEncoder();
     const chunks = [
       'event: delta\r\ndata: {"content":"Hel',
