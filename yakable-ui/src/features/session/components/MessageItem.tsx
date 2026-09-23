@@ -108,7 +108,9 @@ export function MessageItem({ message }: { message: SessionMessage }) {
   };
 
   return (
-    <div className="group flex w-full justify-end" aria-label="User message">
+    <div className="group relative flex w-full justify-end" aria-label="User message">
+      <span aria-hidden="true" className="absolute inset-x-0 top-full h-7" />
+
       <div className="relative max-w-[78%]">
         <div
           className="rounded-[22px] rounded-br-md border border-message-border bg-surface px-4 py-3"
@@ -118,7 +120,7 @@ export function MessageItem({ message }: { message: SessionMessage }) {
         </div>
 
         <div
-          className="pointer-events-none absolute right-0 top-full flex h-7 items-center gap-1.5 pt-1 opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
+          className="pointer-events-none absolute right-0 top-full z-10 flex h-7 items-center gap-1.5 pt-1 opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
           data-testid="user-message-actions"
         >
           <button
