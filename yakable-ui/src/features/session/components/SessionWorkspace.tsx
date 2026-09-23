@@ -15,6 +15,7 @@ import { buildTurnRenderModels, type OptimisticTurnRenderInput, TurnItem } from 
 import { TurnNavigator } from './turn-navigator/TurnNavigator';
 import { useTurnNavigator } from './turn-navigator/useTurnNavigator';
 import { useSessionMessageWindow } from '../hooks/useSessionMessageWindow';
+import { useTurnWindowing } from '../hooks/useTurnWindowing';
 
 const SESSION_POLL_INTERVAL_MS = 1000;
 const ACTIVE_TURN_REWATCH_DELAY_MS = 1000;
@@ -459,6 +460,32 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
     onFollowLatestChange: setFollowLatest,
   });
 
+  const turnKeys = useMemo(() => turnModels.map((turn) => turn.key), [turnModels]);
+
+  const pinnedTurnKeys = useMemo(() => {
+    const keys = new Set<string>();
+
+    if (optimisticTurn) keys.add(optimisticTurn.key);
+    if (activeTurnId) keys.add('turn:' + activeTurnId);
+    if (visibleStreamingTurnId) keys.add('turn:' + visibleStreamingTurnId);
+    if (turnNavigator.currentTurnId) keys.add('turn:' + turnNavigator.currentTurnId);
+    if (turnNavigator.activeJumpTurnId) keys.add('turn:' + turnNavigator.activeJumpTurnId);
+
+    return [...keys];
+  }, [
+    activeTurnId,
+    optimisticTurn,
+    turnNavigator.activeJumpTurnId,
+    turnNavigator.currentTurnId,
+    visibleStreamingTurnId,
+  ]);
+
+  const turnWindowing = useTurnWindowing({
+    scrollRef,
+    turnKeys,
+    pinnedTurnKeys,
+  });
+
   const cancelNavigationJump = turnNavigator.cancelJump;
 
   const restoreLatestView = useCallback(
@@ -711,7 +738,13 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
               )}
 
               {turnModels.map((turn) => (
-                <TurnItem key={turn.key} turn={turn} />
+                <TurnItem
+                  key={turn.key}
+                  turn={turn}
+                  mounted={turnWindowing.isTurnMounted(turn.key)}
+                  placeholderHeight={turnWindowing.measuredHeight(turn.key)}
+                  onMeasure={turnWindowing.reportTurnHeight}
+                />
               ))}
             </div>
           )}
