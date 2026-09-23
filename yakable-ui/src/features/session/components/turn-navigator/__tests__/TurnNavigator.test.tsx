@@ -4,11 +4,11 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const scrollIntoViewMock = vi.fn();
-
 import type { SessionTurnNavigationItem } from '@/service/session';
 
 import { TurnNavigator } from '../TurnNavigator';
+
+const scrollIntoViewMock = vi.fn();
 
 const items: SessionTurnNavigationItem[] = Array.from({ length: 7 }, (_, index) => ({
   turnId: 'turn-' + (index + 1),
