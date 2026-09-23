@@ -10,6 +10,7 @@ import {
   currentTurnAtReadingAnchor,
   findTurnElement,
   hasLoadedTurnStart,
+  hasMountedTurnContent,
   measureTurnLayout,
   targetScrollTop,
   type TurnJumpOptions,
@@ -49,12 +50,16 @@ async function waitForTurnAnchor(
   turnId: string,
   signal: AbortSignal,
   requireTurnStart = true,
+  requireMountedContent = false,
 ) {
   for (let attempt = 0; attempt < TURN_ANCHOR_WAIT_FRAMES; attempt += 1) {
     if (signal.aborted) return null;
 
     const anchor = findTurnElement(container, turnId);
-    if (anchor && (!requireTurnStart || hasLoadedTurnStart(anchor))) return anchor;
+    const hasRequiredStart = anchor && (!requireTurnStart || hasLoadedTurnStart(anchor));
+    const hasRequiredContent =
+      anchor && (!requireMountedContent || hasMountedTurnContent(anchor));
+    if (anchor && hasRequiredStart && hasRequiredContent) return anchor;
     await nextFrame();
   }
   return null;
@@ -201,7 +206,23 @@ export function useTurnNavigator({
       if (!container || !isActiveJump(jump)) return null;
 
       const existing = findTurnElement(container, item.turnId);
-      if (existing && hasLoadedTurnStart(existing)) return existing;
+      if (
+        existing &&
+        hasLoadedTurnStart(existing) &&
+        hasMountedTurnContent(existing)
+      ) {
+        return existing;
+      }
+
+      if (existing && hasLoadedTurnStart(existing)) {
+        return waitForTurnAnchor(
+          container,
+          item.turnId,
+          jump.controller.signal,
+          true,
+          true,
+        );
+      }
 
       const windowResult = await SessionService.queryMessageWindow(
         projectId,
@@ -212,7 +233,13 @@ export function useTurnNavigator({
       if (!isActiveJump(jump)) return null;
 
       replaceWindow(windowResult);
-      return waitForTurnAnchor(container, item.turnId, jump.controller.signal);
+      return waitForTurnAnchor(
+        container,
+        item.turnId,
+        jump.controller.signal,
+        true,
+        true,
+      );
     },
     [isActiveJump, projectId, replaceWindow, scrollRef, sessionId],
   );
@@ -335,6 +362,7 @@ export function useTurnNavigator({
           last.turnId,
           jump.controller.signal,
           false,
+          true,
         );
         if (!isActiveJump(jump)) return;
 
