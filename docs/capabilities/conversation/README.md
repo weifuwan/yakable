@@ -18,6 +18,10 @@ Streaming
 
 History ───── Context
 
+Streaming ─┐
+           ├→ Markdown Renderer
+History ───┘
+
 Turn Navigator
 → long-session navigation runtime
     ↓
@@ -34,6 +38,7 @@ Capabilities:
 - [Recovery](./recovery.md)
 - [History](./history.md)
 - [Context](./context.md)
+- [Markdown Renderer](./markdown-renderer.md)
 - [Turn Navigator](./turn-navigator.md)
 - [Turn Navigator Interaction V2](./turn-navigator-interaction-v2.md)
 
