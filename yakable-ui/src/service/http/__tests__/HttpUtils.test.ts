@@ -74,6 +74,7 @@ describe('HttpUtils', () => {
         headers: {
           Accept: 'application/json',
           'Content-Type': 'application/json',
+          'X-XSRF-TOKEN': 'csrf-token',
         },
       }),
     );
