@@ -1,6 +1,6 @@
 # Markdown Renderer
 
-Status: Review
+Status: Done
 Domain: Conversation
 
 Depends On:
@@ -246,8 +246,10 @@ Acceptance Review 已闭环：
 - Code Surface Typography Polish 已闭环：白色 Surface、13px 字号、1.5 行高、`1em` padding，以及 `Roboto Mono Variable / Roboto Mono → Menlo / Monaco / Consolas → monospace` fallback。
 - Review Commit `1d6cac52783635ee235a2438cba64688c2febb98` 已通过 Frontend Verification、Backend Verification 与 `Yakable / Quality Gate`。
 - Backend 首次运行命中已有 `SessionServiceImplTest.shouldResumeDeltaAfterStopCutoverRollsBack` 并发波动，原 Job rerun 后成功；本 PR 未修改 Backend。
-- 本次 Header Alignment Polish 重新进入 Review：移除 `</>` 装饰，并将 language 移到右侧紧邻 Copy。
-- 最终 Header Alignment Commit 通过完整 Quality Gate 后再恢复 `Status: Done`。
+- Header Alignment Polish 已闭环：移除 `</>` 装饰，language 与 Copy 在右侧同一行，language 紧邻 Copy 左侧。
+- Review Commit `d08f21e256b9c72c3b0a38a63fdcee85dd0ea721` 已通过 Frontend Verification、Backend Verification 与 `Yakable / Quality Gate`。
+- Known Gaps = none。
+- 最终 `Status: Done` Commit 本身仍需再次通过完整 Quality Gate。
 
 ## Boundary
 
