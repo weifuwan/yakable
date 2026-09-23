@@ -49,6 +49,7 @@ function addTurn(container: HTMLElement, turnId: string, top: number) {
   const turn = document.createElement('section');
   turn.dataset.turnId = turnId;
   turn.dataset.turnUserLoaded = 'true';
+  turn.dataset.turnWindow = 'mounted';
   turn.tabIndex = -1;
   setBox(turn, top, 200);
   container.append(turn);
@@ -131,6 +132,57 @@ describe('useTurnNavigator', () => {
     expect(onFollowLatestChange).toHaveBeenCalledWith(false);
     expect(container.scrollTop).toBe(0);
     expect(document.activeElement?.getAttribute('data-turn-id')).toBe('turn-1');
+  });
+
+  it('waits for a placeholder Jump target to remount before final focus', async () => {
+    vi.spyOn(SessionService, 'queryTurnNavigation').mockResolvedValue(navigation);
+    const queryMessageWindow = vi.spyOn(SessionService, 'queryMessageWindow');
+
+    const container = document.createElement('div');
+    setBox(container, 0, 1000);
+    Object.defineProperties(container, {
+      clientHeight: { configurable: true, value: 1000 },
+      scrollHeight: { configurable: true, value: 2200 },
+      scrollTop: { configurable: true, writable: true, value: 0 },
+    });
+    document.body.append(container);
+
+    const { result } = renderHook(() =>
+      useTurnNavigator({
+        projectId: 'project-1',
+        sessionId: 'session-1',
+        scrollRef: { current: container },
+        renderedTurnIds: ['turn-2'],
+        navigationRefreshKey: 1,
+        replaceWindow: vi.fn(),
+        restoreLatestWindow: vi.fn().mockResolvedValue(true),
+        onFollowLatestChange: vi.fn(),
+      }),
+    );
+
+    await waitFor(() => {
+      expect(result.current.items).toHaveLength(3);
+    });
+
+    const target = addTurn(container, 'turn-2', 600);
+    target.dataset.turnWindow = 'placeholder';
+
+    let frame = 0;
+    vi.mocked(window.requestAnimationFrame).mockImplementation((callback) => {
+      frame += 1;
+      target.dataset.turnWindow = 'mounted';
+      callback(0);
+      return frame;
+    });
+
+    await act(async () => {
+      await result.current.jumpToTurn(navigation[1], { focusTarget: true });
+    });
+
+    expect(queryMessageWindow).not.toHaveBeenCalled();
+    expect(target.dataset.turnWindow).toBe('mounted');
+    expect(document.activeElement).toBe(target);
+    expect(result.current.activeJumpTurnId).toBeNull();
   });
 
   it('keeps only the latest requested Jump when target-window requests overlap', async () => {
