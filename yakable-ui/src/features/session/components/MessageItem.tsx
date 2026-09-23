@@ -108,8 +108,8 @@ export function MessageItem({ message }: { message: SessionMessage }) {
   };
 
   return (
-    <div className="flex justify-end" aria-label="User message">
-      <div className="group relative max-w-[78%]">
+    <div className="group flex w-full justify-end" aria-label="User message">
+      <div className="relative max-w-[78%]">
         <div
           className="rounded-[22px] rounded-br-md border border-message-border bg-surface px-4 py-3"
           data-testid="user-message-bubble"
