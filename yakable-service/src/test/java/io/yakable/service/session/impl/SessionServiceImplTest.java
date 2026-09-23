@@ -1068,8 +1068,6 @@ class SessionServiceImplTest {
 
     @Test
     void shouldReplayStreamingSnapshotWhenWatchingActiveTurn() throws Exception {
-        stubExecuteWithoutResultInline();
-
         String turnId = "turn-1";
         SessionEntity session = session("project-1", "session-1");
         TurnVO running = turn(turnId, TurnStatusEnum.RUNNING);
@@ -1085,11 +1083,6 @@ class SessionServiceImplTest {
                 List.of(message("m1", turnId, MessageRoleEnum.USER, "Hello", 1L)),
                 List.of(running));
         when(llmClient.modelMetadata("deepseek", "deepseek-flash")).thenReturn(new LlmModelMetadata(100_000L, 10_000L));
-        when(turnService.updateTurnSucceeded(
-                eq(turnId),
-                eq("session-1"),
-                any(), any(), any(), any(), any(), any(LocalDateTime.class)))
-                .thenReturn(1);
 
         CountDownLatch partialReady = new CountDownLatch(1);
         CountDownLatch finish = new CountDownLatch(1);
