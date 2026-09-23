@@ -8,9 +8,11 @@ Product:
 ```text
 Create Project
      ↓
-Project + initial Session
+Project + initial Session / Turn
      ↓
 Initial Code Generation
+     ↓
+Project Files + Turn Terminal
      ↓
 Recent Projects
 ```
@@ -47,6 +49,10 @@ Project 最近活动由新的 USER Message 成立驱动，不等待 Assistant �
 
 V1 一个 Project 只有一个 Session。
 
+### PROJ-007 — File Isolation
+
+一个 Project 的文件操作只能发生在自己的 Project Root 内；Project ID、文件路径或生成内容都不能访问其他 Project 或 Project Root 之外的文件。
+
 ## Cross-Capability Scenarios
 
 ### PROJ-S01 — Create → Initial Conversation
@@ -76,9 +82,15 @@ Guarantees:
 Involves:
 - Create Project
 - Project Code Generation
+- Conversation / Stop
+- Conversation / Recovery
 
 Guarantees:
-- Project 先成立，再执行代码生成。
-- 每个 Project 的文件只能写入自己的项目目录。
-- Generation Failure 不删除已经成立的 Project。
-- Generation Success 后项目文件真实存在。
+- Project 创建时已经建立的首个 Turn 同时作为 Initial Code Generation Turn，不创建第二个生成 Turn。
+- 同一个 Initial Turn 不能由两条执行链重复触发两个有效的代码生成执行。
+- Project 先成立，再执行代码生成；Generation Failure / Stop 不删除已经成立的 Project。
+- 每个 Project 的文件只能发布到自己的 Project Root。
+- Generation Result 只有完整解析、校验并发布后才对 Project 生效，失败不能留下可见的部分项目文件。
+- Project Files 完整发布成功后，Initial Turn 才能进入 SUCCEEDED。
+- Initial Turn Retry / Recovery 复用原 Turn；已成功发布的结果不能被重复生成覆盖。
+- Initial Turn 进入 STOPPED / FAILED 后，迟到结果不能继续发布项目文件。
