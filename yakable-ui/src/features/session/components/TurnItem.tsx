@@ -157,7 +157,7 @@ export function TurnItem({
             <MessageItem key={message.id} message={message} />
           ))}
 
-          {turn.streamingMessage && <MessageItem message={turn.streamingMessage} />}
+          {turn.streamingMessage && <MessageItem message={turn.streamingMessage} streaming />}
 
           {turn.isThinking && (
             <output className="block px-1 text-sm text-foreground-subtle">Thinking...</output>
