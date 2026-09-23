@@ -56,13 +56,7 @@ function turnModel(index: number): TurnRenderModel {
   };
 }
 
-function WindowingHarness({
-  count,
-  pinnedTurnKeys,
-}: {
-  count: number;
-  pinnedTurnKeys: string[];
-}) {
+function WindowingHarness({ count, pinnedTurnKeys }: { count: number; pinnedTurnKeys: string[] }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const turnKeys = useMemo(
     () => Array.from({ length: count }, (_, index) => 'turn:turn-' + (index + 1)),
@@ -198,12 +192,7 @@ describe('Turn windowing', () => {
   });
 
   it('runs the 500 Turn lifecycle without unbounding Heavy DOM after scroll or resize', async () => {
-    render(
-      <WindowingHarness
-        count={500}
-        pinnedTurnKeys={['turn:turn-1', 'turn:turn-500']}
-      />,
-    );
+    render(<WindowingHarness count={500} pinnedTurnKeys={['turn:turn-1', 'turn:turn-500']} />);
 
     const container = screen.getByTestId('window-container');
 
