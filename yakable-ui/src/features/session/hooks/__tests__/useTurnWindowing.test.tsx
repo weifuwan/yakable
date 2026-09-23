@@ -68,7 +68,7 @@ function WindowingHarness({
     () => Array.from({ length: count }, (_, index) => 'turn:turn-' + (index + 1)),
     [count],
   );
-  const windowing = useTurnWindowing({
+  const { isTurnMounted, measuredHeight, reportTurnHeight } = useTurnWindowing({
     scrollRef,
     turnKeys,
     pinnedTurnKeys,
@@ -111,16 +111,16 @@ function WindowingHarness({
             toJSON: () => ({}),
           } as DOMRect;
         };
-        windowing.reportTurnHeight(turnKeys[index], 100);
+        reportTurnHeight(turnKeys[index], 100);
       },
     );
-  }, [turnKeys, windowing.reportTurnHeight]);
+  }, [reportTurnHeight, turnKeys]);
 
   return (
     <div ref={scrollRef} data-testid="window-container">
       {turnKeys.map((key) => {
-        const mounted = windowing.isTurnMounted(key);
-        const height = windowing.measuredHeight(key);
+        const mounted = isTurnMounted(key);
+        const height = measuredHeight(key);
 
         return (
           <div
