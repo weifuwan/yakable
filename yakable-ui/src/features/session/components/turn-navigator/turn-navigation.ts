@@ -83,6 +83,10 @@ export function hasLoadedTurnStart(element: HTMLElement) {
   return element.dataset.turnUserLoaded === 'true';
 }
 
+export function hasMountedTurnContent(element: HTMLElement) {
+  return element.dataset.turnWindow !== 'placeholder';
+}
+
 export const DRAG_THRESHOLD_PX = 4;
 export const FISHEYE_RADIUS_PX = 36;
 export const FISHEYE_MAX_SCALE = 1.75;
