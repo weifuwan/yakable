@@ -300,6 +300,7 @@ export function useTurnNavigatorInteraction({
 
         drag.dragging = true;
         suppressClickRef.current = true;
+        setInteracting(true);
         onPreviewTurnChange(drag.targetTurnId);
       }
 
