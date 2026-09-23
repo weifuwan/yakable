@@ -52,9 +52,9 @@ export function TurnNavigator({
     const rail = railRef.current;
     if (!rail) return;
 
-    const current = Array.from(
-      rail.querySelectorAll<HTMLElement>('[data-nav-turn-id]'),
-    ).find((element) => element.dataset.navTurnId === currentTurnId);
+    const current = Array.from(rail.querySelectorAll<HTMLElement>('[data-nav-turn-id]')).find(
+      (element) => element.dataset.navTurnId === currentTurnId,
+    );
     if (!current) return;
 
     const railRect = rail.getBoundingClientRect();
@@ -139,11 +139,7 @@ export function TurnNavigator({
                 disabled={isJumping}
                 className={cx(
                   'flex h-4 w-9 shrink-0 cursor-pointer items-center justify-center rounded-md outline-none focus-visible:outline-2 focus-visible:outline-focus-ring',
-                  current
-                    ? 'text-foreground'
-                    : visible
-                      ? 'text-icon-secondary'
-                      : 'text-icon-muted',
+                  current ? 'text-foreground' : visible ? 'text-icon-secondary' : 'text-icon-muted',
                 )}
                 onMouseEnter={() => onPreviewTurnChange(item.turnId)}
                 onMouseLeave={() => onPreviewTurnChange(null)}
