@@ -1,6 +1,6 @@
 # Turn Navigator
 
-Status: Review
+Status: Done
 Domain: Conversation
 
 Depends On:
@@ -172,3 +172,11 @@ Does Not Own:
 - Message editing
 - Turn execution
 - Context selection
+
+
+## Top Anchor Fix Acceptance
+
+- 显式 Prompt Jump 与 Current Turn 使用同一 top Reading Anchor。
+- 默认距离 viewport 顶部 48px，小 viewport 时最多为高度的 20%。
+- 点击 Turn 2 后，Turn 2 成为主要定位内容，不再让 Turn 1 占据定位位置。
+- Review Commit 已通过 Frontend Verification、Backend Verification 与 Yakable / Quality Gate。
