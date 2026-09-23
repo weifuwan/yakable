@@ -54,10 +54,12 @@ export function useTurnWindowing({
 }: UseTurnWindowingOptions) {
   const [measuredHeights, setMeasuredHeights] = useState<Map<string, number>>(() => new Map());
   const [mountedKeys, setMountedKeys] = useState<Set<string>>(() => new Set());
+  const measuredHeightsRef = useRef(new Map<string, number>());
+  const pinnedKeysRef = useRef(new Set<string>());
   const frameRef = useRef<number | null>(null);
-  const containerWidthRef = useRef<number | null>(null);
   const turnKey = turnKeys.join('|');
-  const pinnedKeys = useMemo(() => new Set(pinnedTurnKeys), [pinnedTurnKeys]);
+  const pinnedKey = pinnedTurnKeys.join('|');
+  const pinnedKeys = useMemo(() => new Set(pinnedTurnKeys), [pinnedKey]);
 
   const measureWindow = useCallback(() => {
     const container = scrollRef.current;
@@ -65,7 +67,7 @@ export function useTurnWindowing({
 
     const containerRect = container.getBoundingClientRect();
     const activeElement = document.activeElement;
-    const nextPinned = new Set(pinnedKeys);
+    const nextPinned = new Set(pinnedKeysRef.current);
 
     const layout = Array.from(container.querySelectorAll<HTMLElement>('[data-turn-key]'))
       .map((element): TurnWindowLayoutEntry | null => {
@@ -83,7 +85,7 @@ export function useTurnWindowing({
           key,
           top,
           bottom: top + rect.height,
-          measured: measuredHeights.has(key),
+          measured: measuredHeightsRef.current.has(key),
         };
       })
       .filter((entry): entry is TurnWindowLayoutEntry => entry !== null);
@@ -95,7 +97,7 @@ export function useTurnWindowing({
       nextPinned,
     );
     setMountedKeys((current) => (sameKeys(current, nextMounted) ? current : nextMounted));
-  }, [measuredHeights, pinnedKeys, scrollRef]);
+  }, [scrollRef]);
 
   const scheduleMeasure = useCallback(() => {
     if (frameRef.current !== null) {
@@ -118,6 +120,7 @@ export function useTurnWindowing({
 
         const next = new Map(current);
         next.set(key, height);
+        measuredHeightsRef.current = next;
         return next;
       });
       scheduleMeasure();
@@ -126,32 +129,31 @@ export function useTurnWindowing({
   );
 
   useEffect(() => {
+    pinnedKeysRef.current = pinnedKeys;
+    scheduleMeasure();
+  }, [pinnedKey, pinnedKeys, scheduleMeasure]);
+
+  useEffect(() => {
+    scheduleMeasure();
+  }, [scheduleMeasure, turnKey]);
+
+  useEffect(() => {
     const container = scrollRef.current;
     if (!container) return;
 
-    const handleScroll = () => scheduleMeasure();
+    const handleGeometryChange = () => scheduleMeasure();
     const resizeObserver =
-      typeof ResizeObserver === 'undefined'
-        ? null
-        : new ResizeObserver(() => {
-            const width = container.getBoundingClientRect().width;
-            const previousWidth = containerWidthRef.current;
-            containerWidthRef.current = width;
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(handleGeometryChange);
 
-            if (previousWidth !== null && Math.abs(previousWidth - width) >= 1) {
-              setMeasuredHeights(new Map());
-              setMountedKeys(new Set());
-            }
-            scheduleMeasure();
-          });
-
-    containerWidthRef.current = container.getBoundingClientRect().width;
-    container.addEventListener('scroll', handleScroll, { passive: true });
+    container.addEventListener('scroll', handleGeometryChange, { passive: true });
+    container.addEventListener('focusin', handleGeometryChange);
+    container.addEventListener('focusout', handleGeometryChange);
     resizeObserver?.observe(container);
-    scheduleMeasure();
 
     return () => {
-      container.removeEventListener('scroll', handleScroll);
+      container.removeEventListener('scroll', handleGeometryChange);
+      container.removeEventListener('focusin', handleGeometryChange);
+      container.removeEventListener('focusout', handleGeometryChange);
       resizeObserver?.disconnect();
 
       if (frameRef.current !== null) {
@@ -159,7 +161,7 @@ export function useTurnWindowing({
         frameRef.current = null;
       }
     };
-  }, [scheduleMeasure, scrollRef, turnKey]);
+  }, [scheduleMeasure, scrollRef]);
 
   const isTurnMounted = useCallback(
     (key: string) => !measuredHeights.has(key) || mountedKeys.has(key) || pinnedKeys.has(key),
