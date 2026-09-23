@@ -75,6 +75,7 @@ export function useTurnNavigator({
   const [visibleIds, setVisibleIds] = useState<string[]>([]);
   const [previewTurnId, setPreviewTurnId] = useState<string | null>(null);
   const [isJumping, setIsJumping] = useState(false);
+  const [activeJumpTurnId, setActiveJumpTurnId] = useState<string | null>(null);
   const frameRef = useRef<number | null>(null);
   const jumpSequenceRef = useRef(0);
   const activeJumpRef = useRef<ActiveJump | null>(null);
@@ -154,7 +155,7 @@ export function useTurnNavigator({
     };
   }, [renderedTurnKey, scheduleMeasure, scrollRef]);
 
-  const beginJump = useCallback(() => {
+  const beginJump = useCallback((turnId: string) => {
     activeJumpRef.current?.controller.abort();
 
     const jump: ActiveJump = {
@@ -162,6 +163,7 @@ export function useTurnNavigator({
       controller: new AbortController(),
     };
     activeJumpRef.current = jump;
+    setActiveJumpTurnId(turnId);
     setIsJumping(true);
     return jump;
   }, []);
@@ -174,12 +176,14 @@ export function useTurnNavigator({
     if (activeJumpRef.current?.id !== jump.id) return;
 
     activeJumpRef.current = null;
+    setActiveJumpTurnId(null);
     setIsJumping(false);
   }, []);
 
   const cancelJump = useCallback(() => {
     activeJumpRef.current?.controller.abort();
     activeJumpRef.current = null;
+    setActiveJumpTurnId(null);
     setIsJumping(false);
   }, []);
 
@@ -242,7 +246,7 @@ export function useTurnNavigator({
       const container = scrollRef.current;
       if (!container) return;
 
-      const jump = beginJump();
+      const jump = beginJump(item.turnId);
       onFollowLatestChange(false);
 
       try {
@@ -284,7 +288,7 @@ export function useTurnNavigator({
       const first = items[0];
       if (!container || !first) return;
 
-      const jump = beginJump();
+      const jump = beginJump(first.turnId);
       onFollowLatestChange(false);
 
       try {
@@ -320,7 +324,7 @@ export function useTurnNavigator({
       const last = items.at(-1);
       if (!container || !last) return;
 
-      const jump = beginJump();
+      const jump = beginJump(last.turnId);
 
       try {
         const restored = await restoreLatestWindow(jump.controller.signal);
@@ -370,6 +374,7 @@ export function useTurnNavigator({
     visibleTurnIds: visibleIds,
     previewItem,
     isJumping,
+    activeJumpTurnId,
     hasPrevious: previousItem !== null,
     hasNext: nextItem !== null,
     setPreviewTurnId,
