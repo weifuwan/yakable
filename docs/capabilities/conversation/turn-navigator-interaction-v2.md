@@ -1,6 +1,6 @@
 # Turn Navigator Interaction V2
 
-Status: Implementing
+Status: Review
 Domain: Conversation
 
 Depends On:
@@ -40,9 +40,7 @@ Tests:
 - Existing: `yakable-ui/src/features/session/components/__tests__/SessionWorkspace.test.tsx`
 
 Known Gaps:
-- Compact Rail + Prompt Overview 已进入实现，V2 Acceptance 尚未执行。
-- V1 Drag / Fisheye 专属 Geometry 与旧回归测试仍保留，等待 PR3 确认无引用后清理。
-- PR3 仍需完成 Interaction Cleanup + Capability Acceptance。
+- PR3 已完成旧 Interaction Surface 代码清理，等待最终 Acceptance Review 与 Final Commit Quality Gate。
 
 ## Purpose
 
@@ -290,6 +288,31 @@ user reads history
 user returns latest
 → existing follow-latest semantics
 ```
+
+## Acceptance
+
+PR3 Review 需要同时证明 V2 Surface 与 V1 Runtime 没有互相污染。
+
+Surface evidence：
+
+- Compact Rail 默认最多 5 个邻近 marker，并覆盖 Session 起点 / 中部 / 终点窗口。
+- Collapsed 时 Prompt List 不常驻 DOM。
+- Hover / Focus 打开唯一 Prompt Overview，Current Row 明确。
+- Overview 打开时 Current Row 自动进入可见范围。
+- 用户开始 Pointer / Wheel / Keyboard 操作 Overview 后，Current 更新不再抢走列表位置。
+- Rail → Panel 跨越 grace period 不闪退。
+- Arrow / Home / End / Enter / Space / Escape 与 `Shift + Alt + M` 已有行为回归。
+- Jump pending 时仍可选择新 Prompt。
+
+Runtime evidence：
+
+- V1 Drag / Fisheye 专属 Geometry 与测试已经删除。
+- `useTurnNavigator` 不再暴露 Preview / Previous / Next / Origin / Terminus 等旧 Surface API。
+- unloaded Turn、placeholder remount、last-wins、Reading Anchor、Visible 与 Windowing 继续保留。
+- SessionWorkspace 历史 Jump、Streaming / History reading position 与返回 latest 行为继续由现有回归保护。
+- Backend API / DTO / persistence 无变化。
+
+Final Acceptance 只有在本 PR 最终 Commit 的 Frontend Verification、Backend Verification 与 `Yakable / Quality Gate` 全部成功后才能将 Status 改为 `Done`。
 
 ## Boundary
 

@@ -109,7 +109,6 @@ describe('useTurnNavigator', () => {
         renderedTurnIds: ['turn-3'],
         navigationRefreshKey: 1,
         replaceWindow,
-        restoreLatestWindow: vi.fn().mockResolvedValue(true),
         onFollowLatestChange,
       }),
     );
@@ -155,7 +154,6 @@ describe('useTurnNavigator', () => {
         renderedTurnIds: ['turn-2'],
         navigationRefreshKey: 1,
         replaceWindow: vi.fn(),
-        restoreLatestWindow: vi.fn().mockResolvedValue(true),
         onFollowLatestChange: vi.fn(),
       }),
     );
@@ -229,7 +227,6 @@ describe('useTurnNavigator', () => {
         renderedTurnIds: [],
         navigationRefreshKey: 1,
         replaceWindow,
-        restoreLatestWindow: vi.fn().mockResolvedValue(true),
         onFollowLatestChange: vi.fn(),
       }),
     );
@@ -297,48 +294,4 @@ describe('useTurnNavigator', () => {
     expect(replaceWindow.mock.calls[0][0].messages[0]?.turnId).toBe('turn-2');
   });
 
-  it('restores the real latest Message Window before Terminus scrolls to bottom', async () => {
-    vi.spyOn(SessionService, 'queryTurnNavigation').mockResolvedValue(navigation);
-    const container = document.createElement('div');
-    setBox(container, 0, 1000);
-    Object.defineProperties(container, {
-      clientHeight: { configurable: true, value: 1000 },
-      scrollHeight: { configurable: true, value: 2400 },
-      scrollTop: { configurable: true, writable: true, value: 300 },
-    });
-    addTurn(container, 'turn-1', 0);
-    document.body.append(container);
-
-    const restoreLatestWindow = vi.fn(async () => {
-      container.replaceChildren();
-      addTurn(container, 'turn-3', 1200);
-      return true;
-    });
-    const onFollowLatestChange = vi.fn();
-
-    const { result } = renderHook(() =>
-      useTurnNavigator({
-        projectId: 'project-1',
-        sessionId: 'session-1',
-        scrollRef: { current: container },
-        renderedTurnIds: ['turn-1'],
-        navigationRefreshKey: 1,
-        replaceWindow: vi.fn(),
-        restoreLatestWindow,
-        onFollowLatestChange,
-      }),
-    );
-
-    await waitFor(() => {
-      expect(result.current.items).toHaveLength(3);
-    });
-
-    await act(async () => {
-      await result.current.jumpTerminus();
-    });
-
-    expect(restoreLatestWindow).toHaveBeenCalledTimes(1);
-    expect(onFollowLatestChange).toHaveBeenCalledWith(true);
-    expect(container.scrollTop).toBe(2400);
-  });
 });

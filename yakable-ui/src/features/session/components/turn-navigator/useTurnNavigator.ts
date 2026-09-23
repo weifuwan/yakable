@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 
 import {
   SessionService,
@@ -35,7 +35,6 @@ interface UseTurnNavigatorOptions {
   renderedTurnIds: string[];
   navigationRefreshKey: number;
   replaceWindow: (window: SessionMessageWindow) => void;
-  restoreLatestWindow: (signal?: AbortSignal) => Promise<boolean>;
   onFollowLatestChange: (followLatest: boolean) => void;
 }
 
@@ -71,13 +70,11 @@ export function useTurnNavigator({
   renderedTurnIds,
   navigationRefreshKey,
   replaceWindow,
-  restoreLatestWindow,
   onFollowLatestChange,
 }: UseTurnNavigatorOptions) {
   const [items, setItems] = useState<SessionTurnNavigationItem[]>([]);
   const [currentTurnId, setCurrentTurnId] = useState<string | null>(null);
   const [visibleIds, setVisibleIds] = useState<string[]>([]);
-  const [previewTurnId, setPreviewTurnId] = useState<string | null>(null);
   const [isJumping, setIsJumping] = useState(false);
   const [activeJumpTurnId, setActiveJumpTurnId] = useState<string | null>(null);
   const frameRef = useRef<number | null>(null);
@@ -273,127 +270,13 @@ export function useTurnNavigator({
     [alignTurn, beginJump, ensureTurnRendered, finishJump, onFollowLatestChange, scrollRef],
   );
 
-  const currentIndex = items.findIndex((item) => item.turnId === currentTurnId);
-  const previousItem = currentIndex > 0 ? items[currentIndex - 1] : null;
-  const nextItem =
-    currentIndex >= 0 && currentIndex < items.length - 1 ? items[currentIndex + 1] : null;
-
-  const jumpPrevious = useCallback(
-    (options: TurnJumpOptions = {}) => {
-      if (previousItem) void jumpToTurn(previousItem, options);
-    },
-    [jumpToTurn, previousItem],
-  );
-
-  const jumpNext = useCallback(
-    (options: TurnJumpOptions = {}) => {
-      if (nextItem) void jumpToTurn(nextItem, options);
-    },
-    [jumpToTurn, nextItem],
-  );
-
-  const jumpOrigin = useCallback(
-    async (options: TurnJumpOptions = {}) => {
-      const container = scrollRef.current;
-      const first = items[0];
-      if (!container || !first) return;
-
-      const jump = beginJump(first.turnId);
-      onFollowLatestChange(false);
-
-      try {
-        const anchor = await ensureTurnRendered(first, jump);
-        if (!anchor || !isActiveJump(jump)) return;
-
-        container.scrollTop = 0;
-        scheduleMeasure();
-        if (options.focusTarget) {
-          anchor.focus({ preventScroll: true });
-        }
-      } catch {
-        // A superseded or failed origin navigation keeps the committed window.
-      } finally {
-        finishJump(jump);
-      }
-    },
-    [
-      beginJump,
-      ensureTurnRendered,
-      finishJump,
-      isActiveJump,
-      items,
-      onFollowLatestChange,
-      scheduleMeasure,
-      scrollRef,
-    ],
-  );
-
-  const jumpTerminus = useCallback(
-    async (options: TurnJumpOptions = {}) => {
-      const container = scrollRef.current;
-      const last = items.at(-1);
-      if (!container || !last) return;
-
-      const jump = beginJump(last.turnId);
-
-      try {
-        const restored = await restoreLatestWindow(jump.controller.signal);
-        if (!restored || !isActiveJump(jump)) return;
-
-        const anchor = await waitForTurnAnchor(
-          container,
-          last.turnId,
-          jump.controller.signal,
-          false,
-          true,
-        );
-        if (!isActiveJump(jump)) return;
-
-        onFollowLatestChange(true);
-        container.scrollTop = container.scrollHeight;
-        scheduleMeasure();
-
-        if (anchor && options.focusTarget) {
-          anchor.focus({ preventScroll: true });
-        }
-      } catch {
-        // A superseded or failed latest navigation keeps the committed window.
-      } finally {
-        finishJump(jump);
-      }
-    },
-    [
-      beginJump,
-      finishJump,
-      isActiveJump,
-      items,
-      onFollowLatestChange,
-      restoreLatestWindow,
-      scheduleMeasure,
-      scrollRef,
-    ],
-  );
-
-  const previewItem = useMemo(
-    () => items.find((item) => item.turnId === previewTurnId) ?? null,
-    [items, previewTurnId],
-  );
-
   return {
     items,
     currentTurnId,
     visibleTurnIds: visibleIds,
-    previewItem,
     isJumping,
     activeJumpTurnId,
-    hasPrevious: previousItem !== null,
-    hasNext: nextItem !== null,
-    setPreviewTurnId,
     jumpToTurn,
-    jumpPrevious,
-    jumpNext,
-    jumpOrigin,
-    jumpTerminus,
     cancelJump,
   };
 }
