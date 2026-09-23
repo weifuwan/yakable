@@ -85,7 +85,7 @@ describe('TurnNavigator', () => {
 
     expect(rail.getAttribute('aria-expanded')).toBe('true');
     expect(overview).toBeTruthy();
-    expect(screen.getAllByRole('button', { name: /Go to turn/ })).toHaveLength(7);
+    expect(screen.getAllByRole('button', { name: /Go to turn/ })).toHaveLength(items.length);
     expect(current.getAttribute('aria-current')).toBe('true');
     expect(scrollIntoViewMock).toHaveBeenCalled();
   });
