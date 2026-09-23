@@ -32,6 +32,11 @@ import io.yakable.core.llm.LlmRequest;
 import io.yakable.core.llm.LlmResponse;
 import io.yakable.core.llm.LlmStreamEvent;
 import io.yakable.core.llm.LlmUsage;
+import io.yakable.core.project.files.ProjectFile;
+import io.yakable.core.project.files.ProjectFiles;
+import io.yakable.core.project.generation.GeneratedProject;
+import io.yakable.core.project.generation.ProjectCodeGenerationResult;
+import io.yakable.core.project.generation.ProjectCodeGenerator;
 import io.yakable.dao.entity.SessionEntity;
 import io.yakable.dao.repository.SessionRepository;
 import io.yakable.service.message.MessageService;
@@ -90,6 +95,12 @@ class SessionServiceImplTest {
 
     @Mock
     private LlmClient llmClient;
+
+    @Mock
+    private ProjectCodeGenerator projectCodeGenerator;
+
+    @Mock
+    private ProjectFiles projectFiles;
 
     @Mock
     private TransactionTemplate transactionTemplate;
@@ -487,6 +498,148 @@ class SessionServiceImplTest {
         assertThat(result.getMessages()).hasSize(100);
         assertThat(result.getLatestSequence()).isEqualTo(150L);
         verify(messageService).queryMessageAfter("session-1", 0L, 100);
+    }
+
+    @Test
+    void shouldExecuteInitialProjectGenerationAndPublishCompleteFiles() {
+        stubExecuteInline();
+
+        String turnId = "turn-generation";
+        SessionEntity session = session("project-1", "session-1");
+        TurnExecutionVO execution = execution(turnId, "session-1");
+        execution.setTurnType(TurnTypeEnum.PROJECT_GENERATION);
+        TurnVO running = turn(turnId, TurnStatusEnum.RUNNING, "deepseek", "deepseek-flash");
+        MessageVO user = message("message-1", turnId, MessageRoleEnum.USER, "Build a Todo app", 1L);
+        ProjectCodeGenerationResult generation = generationResult("Generated Todo app");
+
+        when(turnService.queryTurnExecution(turnId)).thenReturn(Optional.of(execution));
+        when(sessionRepository.queryById("session-1")).thenReturn(Optional.of(session));
+        when(turnService.updatePendingTurn(eq(turnId), any(LocalDateTime.class)))
+                .thenReturn(Optional.of(running));
+        when(projectFiles.isPublished("project-1", turnId)).thenReturn(false);
+        when(messageService.queryUserMessage(turnId)).thenReturn(Optional.of(user));
+        when(projectCodeGenerator.generate("deepseek", "deepseek-flash", "Build a Todo app"))
+                .thenReturn(generation);
+        when(turnService.queryTurnForUpdate(turnId)).thenReturn(Optional.of(running));
+        when(projectFiles.publish("project-1", turnId, generation.project().files()))
+                .thenReturn(ProjectFiles.PublicationResult.PUBLISHED);
+        when(turnService.updateTurnSucceeded(
+                eq(turnId), eq("session-1"),
+                eq(10L), eq(5L), eq(15L),
+                eq("generation-request"), eq("stop"), any(LocalDateTime.class)))
+                .thenReturn(1);
+
+        sessionService.executeTurnAsync(turnId);
+
+        verify(projectCodeGenerator, timeout(2000))
+                .generate("deepseek", "deepseek-flash", "Build a Todo app");
+        verify(projectFiles, timeout(2000))
+                .publish("project-1", turnId, generation.project().files());
+        verify(messageService, timeout(2000))
+                .addMessage("session-1", turnId, MessageRoleEnum.ASSISTANT, "Generated Todo app");
+        verify(turnService, timeout(2000)).updateTurnSucceeded(
+                eq(turnId), eq("session-1"),
+                eq(10L), eq(5L), eq(15L),
+                eq("generation-request"), eq("stop"), any(LocalDateTime.class));
+        verify(llmClient, never()).streamingChat(any(LlmRequest.class), any());
+    }
+
+    @Test
+    void shouldRecoverPublishedProjectWithoutCallingModelAgain() {
+        stubExecuteInline();
+
+        String turnId = "turn-published";
+        SessionEntity session = session("project-1", "session-1");
+        TurnExecutionVO execution = execution(turnId, "session-1");
+        execution.setTurnType(TurnTypeEnum.PROJECT_GENERATION);
+        TurnVO running = turn(turnId, TurnStatusEnum.RUNNING);
+
+        when(turnService.queryTurnExecution(turnId)).thenReturn(Optional.of(execution));
+        when(sessionRepository.queryById("session-1")).thenReturn(Optional.of(session));
+        when(turnService.updatePendingTurn(eq(turnId), any(LocalDateTime.class)))
+                .thenReturn(Optional.of(running));
+        when(projectFiles.isPublished("project-1", turnId)).thenReturn(true);
+        when(turnService.queryTurnForUpdate(turnId)).thenReturn(Optional.of(running));
+        when(turnService.updateTurnSucceeded(
+                eq(turnId), eq("session-1"),
+                eq(null), eq(null), eq(null),
+                eq(null), eq("recovered"), any(LocalDateTime.class)))
+                .thenReturn(1);
+
+        sessionService.executeTurnAsync(turnId);
+
+        verify(messageService, timeout(2000)).addMessage(
+                "session-1", turnId, MessageRoleEnum.ASSISTANT, "Project generation completed.");
+        verify(turnService, timeout(2000)).updateTurnSucceeded(
+                eq(turnId), eq("session-1"),
+                eq(null), eq(null), eq(null),
+                eq(null), eq("recovered"), any(LocalDateTime.class));
+        verifyNoInteractions(projectCodeGenerator);
+        verify(projectFiles, never()).publish(any(), any(), any());
+    }
+
+    @Test
+    void shouldCompletePublishedGenerationInsteadOfStoppingIt() {
+        stubExecuteInline();
+
+        String turnId = "turn-published-stop";
+        SessionEntity session = session("project-1", "session-1");
+        TurnExecutionVO execution = execution(turnId, "session-1");
+        execution.setTurnType(TurnTypeEnum.PROJECT_GENERATION);
+        TurnVO running = turn(turnId, TurnStatusEnum.RUNNING);
+        TurnVO succeeded = turn(turnId, TurnStatusEnum.SUCCEEDED);
+
+        when(sessionRepository.querySession("project-1", "session-1", "user-1"))
+                .thenReturn(Optional.of(session));
+        when(turnService.queryTurnExecution(turnId)).thenReturn(Optional.of(execution));
+        when(turnService.queryTurnForUpdate(turnId)).thenReturn(Optional.of(running));
+        when(projectFiles.isPublished("project-1", turnId)).thenReturn(true);
+        when(turnService.updateTurnSucceeded(
+                eq(turnId), eq("session-1"),
+                eq(null), eq(null), eq(null),
+                eq(null), eq("recovered"), any(LocalDateTime.class)))
+                .thenReturn(1);
+        when(turnService.queryTurn(turnId)).thenReturn(Optional.of(succeeded));
+
+        TurnVO result = sessionService.stopTurn(
+                new StopTurnDTO("project-1", "session-1", turnId, "user-1"));
+
+        assertThat(result.getStatus()).isEqualTo(TurnStatusEnum.SUCCEEDED.name());
+        verify(turnService, never()).updateTurnStopped(any(), any(), any());
+        verify(messageService).addMessage(
+                "session-1", turnId, MessageRoleEnum.ASSISTANT, "Project generation completed.");
+        verify(conversationMetrics).turnTerminal("succeeded");
+    }
+
+    @Test
+    void shouldFailGenerationWithoutPublishingWhenGeneratorFails() {
+        stubExecuteWithoutResultInline();
+
+        String turnId = "turn-generation-failed";
+        SessionEntity session = session("project-1", "session-1");
+        TurnExecutionVO execution = execution(turnId, "session-1");
+        execution.setTurnType(TurnTypeEnum.PROJECT_GENERATION);
+        TurnVO running = turn(turnId, TurnStatusEnum.RUNNING);
+        MessageVO user = message("message-1", turnId, MessageRoleEnum.USER, "Build app", 1L);
+
+        when(turnService.queryTurnExecution(turnId)).thenReturn(Optional.of(execution));
+        when(sessionRepository.queryById("session-1")).thenReturn(Optional.of(session));
+        when(turnService.updatePendingTurn(eq(turnId), any(LocalDateTime.class)))
+                .thenReturn(Optional.of(running));
+        when(projectFiles.isPublished("project-1", turnId)).thenReturn(false);
+        when(messageService.queryUserMessage(turnId)).thenReturn(Optional.of(user));
+        when(projectCodeGenerator.generate("deepseek", "deepseek-flash", "Build app"))
+                .thenThrow(new RuntimeException("generation failed"));
+        when(turnService.queryTurn(turnId)).thenReturn(Optional.of(running));
+        when(turnService.updateTurnFailed(
+                eq(turnId), eq("session-1"), eq("generation failed"), any(LocalDateTime.class)))
+                .thenReturn(1);
+
+        sessionService.executeTurnAsync(turnId);
+
+        verify(turnService, timeout(2000)).updateTurnFailed(
+                eq(turnId), eq("session-1"), eq("generation failed"), any(LocalDateTime.class));
+        verify(projectFiles, never()).publish(any(), any(), any());
     }
 
     @Test
@@ -1782,6 +1935,18 @@ class SessionServiceImplTest {
         turn.setAttemptCount(1);
         turn.setInvocation(invocation);
         return turn;
+    }
+
+    private static ProjectCodeGenerationResult generationResult(String summary) {
+        return new ProjectCodeGenerationResult(
+                new GeneratedProject(
+                        summary,
+                        List.of(
+                                new ProjectFile("package.json", "{}"),
+                                new ProjectFile("src/App.tsx", "export default function App() {}"))),
+                new LlmUsage(10L, 5L, 15L),
+                "generation-request",
+                "stop");
     }
 
     private static LlmResponse response(String provider, String model, String content) {
