@@ -7,6 +7,7 @@ import io.yakable.common.bean.dto.session.AddSessionDTO;
 import io.yakable.common.bean.vo.project.ProjectListVO;
 import io.yakable.common.bean.vo.session.SessionInitVO;
 import io.yakable.common.bean.vo.session.SessionVO;
+import io.yakable.common.enums.session.TurnTypeEnum;
 import io.yakable.dao.entity.ProjectEntity;
 import io.yakable.dao.repository.ProjectRepository;
 import io.yakable.service.observability.ConversationMetrics;
@@ -87,6 +88,7 @@ class ProjectServiceImplTest {
         assertThat(sessionCaptor.getValue().userId()).isEqualTo("user-1");
         assertThat(sessionCaptor.getValue().title()).isEqualTo("Build a CRM dashboard");
         assertThat(sessionCaptor.getValue().requestId()).isEqualTo("project-request-1");
+        assertThat(sessionCaptor.getValue().turnType()).isEqualTo(TurnTypeEnum.PROJECT_GENERATION);
 
         verify(sessionService).executeTurnAsync("turn-1");
         assertThat(result.getId()).isEqualTo(savedProject.getId());
