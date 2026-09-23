@@ -139,7 +139,7 @@ Code Contract：
 - 默认允许横向滚动。
 - 默认不创建独立纵向滚动容器；长代码参与 Conversation 正常纵向流。
 - Code Block 只保留一层白色 Surface；Header / Body 不再各自套 border / background。
-- Header 不展示额外 Code 图标；language 与 Copy 一起右对齐，language 紧邻 Copy 左侧。
+- Header 不展示额外 Code 图标；language 与 Copy 一起右对齐，language 紧邻 Copy 左侧，并共享同一条视觉基线。
 - Code typography 使用 13px / 1.5 line-height，优先 `Roboto Mono Variable / Roboto Mono`，再回退到 Menlo / Monaco / Consolas 等 monospace。
 - Code controls 必须有 accessible name。
 
@@ -248,6 +248,9 @@ Acceptance Review 已闭环：
 - Backend 首次运行命中已有 `SessionServiceImplTest.shouldResumeDeltaAfterStopCutoverRollsBack` 并发波动，原 Job rerun 后成功；本 PR 未修改 Backend。
 - Header Alignment Polish 已闭环：移除 `</>` 装饰，language 与 Copy 在右侧同一行，language 紧邻 Copy 左侧。
 - Review Commit `d08f21e256b9c72c3b0a38a63fdcee85dd0ea721` 已通过 Frontend Verification、Backend Verification 与 `Yakable / Quality Gate`。
+- Header Layout Fix 已闭环：Code Block 容器统一定位 action wrapper，language / Copy 虽然仍是 Streamdown sibling div，但不再各自参与同一行的 flex flow。
+- 移除 sticky + negative-margin 补偿，改为 relative container + absolute action wrapper，Header 与 Copy 共用同一 top / height 基线。
+- Review Commit `22e18661c352e980f6564fbca9d90a9cf56955f9` 已通过 Frontend Verification、Backend Verification 与 `Yakable / Quality Gate`。
 - Known Gaps = none。
 - 最终 `Status: Done` Commit 本身仍需再次通过完整 Quality Gate。
 

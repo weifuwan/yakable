@@ -1,4 +1,5 @@
 .yakable-markdown [data-streamdown='code-block'] {
+  position: relative;
   gap: 0;
   margin-block: 14px;
   overflow: hidden;
@@ -22,9 +23,12 @@
 }
 
 .yakable-markdown [data-streamdown='code-block-header'] + div {
+  position: absolute;
   top: 14px;
+  right: 16px;
+  z-index: 10;
   height: 28px;
-  margin-top: -28px;
+  margin-top: 0;
 }
 
 .yakable-markdown [data-streamdown='code-block-actions'] {
