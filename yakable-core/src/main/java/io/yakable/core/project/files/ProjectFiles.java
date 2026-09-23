@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
@@ -65,13 +66,16 @@ public class ProjectFiles {
         if (publicationMatches(projectRoot, publication)) {
             return PublicationResult.ALREADY_PUBLISHED;
         }
-        if (Files.exists(projectRoot)) {
+        if (Files.exists(projectRoot, LinkOption.NOFOLLOW_LINKS)) {
             throw new ProjectFilesException("Project files already exist for project: " + projectId);
         }
 
         Path stage = null;
         try {
             Files.createDirectories(stagingRoot);
+            if (Files.isSymbolicLink(stagingRoot) || !Files.isDirectory(stagingRoot, LinkOption.NOFOLLOW_LINKS)) {
+                throw new ProjectFilesException("Project staging root must be a real directory");
+            }
             stage = Files.createTempDirectory(stagingRoot, "publish-");
             writeStage(stage, publication, validated);
             try {
@@ -80,7 +84,7 @@ public class ProjectFiles {
                 if (publicationMatches(projectRoot, publication)) {
                     return PublicationResult.ALREADY_PUBLISHED;
                 }
-                if (Files.exists(projectRoot)) {
+                if (Files.exists(projectRoot, LinkOption.NOFOLLOW_LINKS)) {
                     throw new ProjectFilesException("Project files already published by another publication: " + projectId, moveFailure);
                 }
                 throw moveFailure;
@@ -209,7 +213,8 @@ public class ProjectFiles {
 
     private boolean publicationMatches(Path projectRoot, String publicationId) {
         Path marker = projectRoot.resolve(METADATA_DIRECTORY).resolve(PUBLICATION_FILE);
-        if (!Files.isDirectory(projectRoot) || !Files.isRegularFile(marker)) {
+        if (!Files.isDirectory(projectRoot, LinkOption.NOFOLLOW_LINKS)
+                || !Files.isRegularFile(marker, LinkOption.NOFOLLOW_LINKS)) {
             return false;
         }
         try {
@@ -220,7 +225,7 @@ public class ProjectFiles {
     }
 
     private void deleteStageQuietly(Path stage) {
-        if (stage == null || !Files.exists(stage)) {
+        if (stage == null || !Files.exists(stage, LinkOption.NOFOLLOW_LINKS)) {
             return;
         }
         try (Stream<Path> paths = Files.walk(stage)) {
