@@ -1,6 +1,6 @@
 # Markdown Renderer
 
-Status: Review
+Status: Done
 Domain: Conversation
 
 Depends On:
@@ -243,8 +243,11 @@ Acceptance Review 已闭环：
 - unknown language、incomplete streaming fence、raw HTML / dangerous URL、fenced script source 都已有回归保护。
 - `streaming / static`、Code controls、Shiki lazy language、module-level plugin config 与 Turn Windowing ownership 已完成 Review。
 - Review Commit `9caf87e0358281edff020a5f2fb43fc0bc4f88e9` 已通过 Frontend Verification、Backend Verification 与 `Yakable / Quality Gate`。
-- 本次 Code Surface Typography Polish 重新进入 Review：背景改为白色，并收口 monospace 字体、13px 字号、1.5 行高与 `1em` code padding。
-- 最终 Typography Polish Commit 通过完整 Quality Gate 后再恢复 `Status: Done`。
+- Code Surface Typography Polish 已闭环：白色 Surface、13px 字号、1.5 行高、`1em` padding，以及 `Roboto Mono Variable / Roboto Mono → Menlo / Monaco / Consolas → monospace` fallback。
+- Review Commit `1d6cac52783635ee235a2438cba64688c2febb98` 已通过 Frontend Verification、Backend Verification 与 `Yakable / Quality Gate`。
+- Backend 首次运行命中已有 `SessionServiceImplTest.shouldResumeDeltaAfterStopCutoverRollsBack` 并发波动，原 Job rerun 后成功；本 PR 未修改 Backend。
+- Known Gaps = none。
+- 最终 `Status: Done` Commit 本身仍需再次通过完整 Quality Gate。
 
 ## Boundary
 
