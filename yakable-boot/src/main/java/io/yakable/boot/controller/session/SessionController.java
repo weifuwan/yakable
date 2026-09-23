@@ -21,7 +21,7 @@ import io.yakable.common.bean.vo.session.TurnStartVO;
 import io.yakable.common.bean.vo.session.TurnVO;
 import io.yakable.common.bean.vo.user.CurrentUserVO;
 import io.yakable.common.utils.StringUtils;
-import io.yakable.service.session.TurnStreamListener;
+import io.yakable.core.conversation.stream.TurnStreamListener;
 import io.yakable.service.session.SessionService;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletResponse;
