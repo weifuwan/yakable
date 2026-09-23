@@ -150,14 +150,7 @@ export function useTurnStream({
         window.clearTimeout(retryTimer);
       }
     };
-  }, [
-    activeTurnId,
-    applyChanges,
-    onLoadError,
-    projectId,
-    sessionId,
-    watchRetryVersion,
-  ]);
+  }, [activeTurnId, applyChanges, onLoadError, projectId, sessionId, watchRetryVersion]);
 
   useEffect(() => {
     if (!activeTurn || streamingTurnId || watchedTurnId) return;
@@ -244,11 +237,7 @@ export function useTurnStream({
           controller.signal,
         )
           .then(async () => {
-            const changes = await SessionService.queryChanges(
-              projectId,
-              sessionId,
-              afterSequence,
-            );
+            const changes = await SessionService.queryChanges(projectId, sessionId, afterSequence);
             applyChanges(changes);
           })
           .catch(async (requestError) => {
@@ -314,11 +303,7 @@ export function useTurnStream({
           onSendError(null);
 
           try {
-            const changes = await SessionService.queryChanges(
-              projectId,
-              sessionId,
-              latestSequence,
-            );
+            const changes = await SessionService.queryChanges(projectId, sessionId, latestSequence);
             applyChanges(changes);
             setStreamingTurnId(null);
             setStreamingContent('');
