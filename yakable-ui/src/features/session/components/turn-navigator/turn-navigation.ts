@@ -78,3 +78,7 @@ export function findTurnElement(container: HTMLElement, turnId: string) {
     ) ?? null
   );
 }
+
+export function hasLoadedTurnStart(element: HTMLElement) {
+  return element.dataset.turnUserLoaded === 'true';
+}
