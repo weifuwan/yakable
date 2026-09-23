@@ -214,30 +214,29 @@ public class SessionServiceImpl implements SessionService {
         StopCommitResult commitResult;
         try {
             commitResult = transactionTemplate.execute(status -> {
-                TurnVO locked = turnService.queryTurnForUpdate(execution.getId())
-                        .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
-
-                if (TurnTypeEnum.PROJECT_GENERATION == execution.getTurnType()
-                        && isActiveTurn(locked)
-                        && projectFiles.isPublished(dto.projectId(), dto.turnId())) {
-                    TurnVO running = locked;
-                    if (TurnStatusEnum.PENDING.name().equals(locked.getStatus())) {
-                        running = turnService.updatePendingTurn(dto.turnId(), DateUtils.now()).orElse(null);
-                        if (running == null) {
-                            return StopCommitResult.UNCHANGED;
+                if (TurnTypeEnum.PROJECT_GENERATION == execution.getTurnType()) {
+                    TurnVO locked = turnService.queryTurnForUpdate(execution.getId())
+                            .orElseThrow(() -> new SessionException(SessionErrorCode.NOT_FOUND));
+                    if (isActiveTurn(locked) && projectFiles.isPublished(dto.projectId(), dto.turnId())) {
+                        TurnVO running = locked;
+                        if (TurnStatusEnum.PENDING.name().equals(locked.getStatus())) {
+                            running = turnService.updatePendingTurn(dto.turnId(), DateUtils.now()).orElse(null);
+                            if (running == null) {
+                                return StopCommitResult.UNCHANGED;
+                            }
                         }
-                    }
 
-                    messageService.addMessage(
-                            dto.sessionId(), dto.turnId(),
-                            MessageRoleEnum.ASSISTANT, RECOVERED_GENERATION_SUMMARY);
-                    int succeeded = turnService.updateTurnSucceeded(
-                            dto.turnId(), dto.sessionId(),
-                            null, null, null, null, "recovered", DateUtils.now());
-                    if (succeeded != 1) {
-                        throw new IllegalStateException("Turn is no longer RUNNING: " + dto.turnId());
+                        messageService.addMessage(
+                                dto.sessionId(), dto.turnId(),
+                                MessageRoleEnum.ASSISTANT, RECOVERED_GENERATION_SUMMARY);
+                        int succeeded = turnService.updateTurnSucceeded(
+                                dto.turnId(), dto.sessionId(),
+                                null, null, null, null, "recovered", DateUtils.now());
+                        if (succeeded != 1) {
+                            throw new IllegalStateException("Turn is no longer RUNNING: " + dto.turnId());
+                        }
+                        return StopCommitResult.SUCCEEDED;
                     }
-                    return StopCommitResult.SUCCEEDED;
                 }
 
                 int stopped = turnService.updateTurnStopped(execution.getId(), dto.sessionId(), DateUtils.now());
