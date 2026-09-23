@@ -18,6 +18,15 @@ class ProjectFilesTest {
     Path tempDir;
 
     @Test
+    void shouldRejectEmptyProjectFiles() {
+        ProjectFiles projectFiles = new ProjectFiles(tempDir);
+
+        assertThatThrownBy(() -> projectFiles.publish("project-1", "turn-1", List.of()))
+                .isInstanceOf(ProjectFiles.ProjectFilesException.class)
+                .hasMessageContaining("must not be empty");
+    }
+
+    @Test
     void shouldPublishCompleteProjectAndRememberPublication() throws Exception {
         ProjectFiles projectFiles = new ProjectFiles(tempDir);
 
