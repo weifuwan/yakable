@@ -1,6 +1,6 @@
 # Markdown Renderer
 
-Status: Review
+Status: Done
 Domain: Conversation
 
 Depends On:
@@ -37,10 +37,6 @@ Scenarios:
 Tests:
 - `yakable-ui/src/shared/ui/markdown/__tests__/Markdown.test.tsx`
 - Existing integration: `yakable-ui/src/features/session/components/__tests__/SessionWorkspace.test.tsx`
-
-Known Gaps:
-- PR3 Acceptance regression 已补齐，等待本 PR 最终 Frontend / Backend / Quality Gate。
-- Mermaid / Math / Tool / Reasoning / Artifact 不属于当前 Capability。
 
 ## Purpose
 
@@ -238,7 +234,13 @@ Review evidence：
 - Markdown / Code controls 保留原生语义与可访问名称。
 - Backend Message schema、Streaming transport、History Window、Turn Windowing 均无变化。
 
-Final Acceptance 只有在本 PR 最终 Commit 的 Frontend Verification、Backend Verification 与 `Yakable / Quality Gate` 全部成功后才能恢复 `Status: Done`。
+Acceptance Review 已闭环：
+
+- unknown language、incomplete streaming fence、raw HTML / dangerous URL、fenced script source 都已有回归保护。
+- `streaming / static`、Code controls、Shiki lazy language、module-level plugin config 与 Turn Windowing ownership 已完成 Review。
+- Review Commit `9caf87e0358281edff020a5f2fb43fc0bc4f88e9` 已通过 Frontend Verification、Backend Verification 与 `Yakable / Quality Gate`。
+- Known Gaps = none。
+- 最终 `Status: Done` Commit 本身仍需再次通过完整 Quality Gate。
 
 ## Boundary
 
