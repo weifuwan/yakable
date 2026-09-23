@@ -205,8 +205,14 @@ describe('SessionWorkspace', () => {
       resolveSession(createSnapshot());
     });
 
-    expect(await screen.findByText('Who are you?')).toBeTruthy();
-    expect(screen.getByText('I am Yakable.')).toBeTruthy();
+    const userMessage = await screen.findByText('Who are you?');
+    const assistantMessage = screen.getByText('I am Yakable.');
+    const turnAnchor = userMessage.closest('[data-turn-id="turn-1"]');
+
+    expect(turnAnchor).toBeTruthy();
+    expect(turnAnchor?.getAttribute('data-turn-key')).toBe('turn:turn-1');
+    expect(turnAnchor?.contains(assistantMessage)).toBe(true);
+
     const modelTrigger = screen.getByRole('button', {
       name: 'Select model',
     });
@@ -472,8 +478,12 @@ describe('SessionWorkspace', () => {
     await waitFor(() => {
       expect(queryMessages).toHaveBeenCalledWith('project-1', 'session-1', 51, 50);
     });
-    expect(await screen.findByText('Older user message')).toBeTruthy();
-    expect(screen.getByText('Older assistant message')).toBeTruthy();
+    const olderUser = await screen.findByText('Older user message');
+    const olderAssistant = screen.getByText('Older assistant message');
+    const olderTurn = olderUser.closest('[data-turn-id="turn-old"]');
+
+    expect(olderTurn).toBeTruthy();
+    expect(olderTurn?.contains(olderAssistant)).toBe(true);
   });
 
   it('keeps the Prompt when streaming fails before started', async () => {

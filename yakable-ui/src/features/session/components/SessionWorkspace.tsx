@@ -5,30 +5,32 @@ import { ProjectHeader } from '@/features/project';
 import {
   SessionService,
   type SessionChanges,
+  type SessionInfo,
   type SessionMessage,
-  type SessionSnapshot,
+  type SessionTurn,
 } from '@/service/session';
 import { cx, Icon, IconButton, PromptComposer, PromptComposerSkeleton } from '@/shared/ui';
 
-import { MessageItem } from './MessageItem';
+import { buildTurnRenderModels, type OptimisticTurnRenderInput, TurnItem } from './TurnItem';
+import { useSessionMessageWindow } from '../hooks/useSessionMessageWindow';
 
 const SESSION_POLL_INTERVAL_MS = 1000;
 const ACTIVE_TURN_REWATCH_DELAY_MS = 1000;
 const SCROLL_BOTTOM_THRESHOLD_PX = 120;
 const HISTORY_LOAD_THRESHOLD_PX = 80;
-const MESSAGE_PAGE_SIZE = 50;
 
-function hasActiveTurn(snapshot: SessionSnapshot | null) {
-  return Boolean(
-    snapshot?.turns.some((turn) => turn.status === 'PENDING' || turn.status === 'RUNNING'),
-  );
+function hasActiveTurn(turns: SessionTurn[]) {
+  return turns.some((turn) => turn.status === 'PENDING' || turn.status === 'RUNNING');
 }
 
-function latestActiveTurnId(snapshot: SessionSnapshot | null) {
-  return (
-    snapshot?.turns.filter((turn) => turn.status === 'PENDING' || turn.status === 'RUNNING').at(-1)
-      ?.id ?? null
-  );
+function latestActiveTurnId(turns: SessionTurn[]) {
+  for (let index = turns.length - 1; index >= 0; index -= 1) {
+    const turn = turns[index];
+    if (turn.status === 'PENDING' || turn.status === 'RUNNING') {
+      return turn.id;
+    }
+  }
+  return null;
 }
 
 function isNearBottom(element: HTMLElement) {
@@ -37,24 +39,10 @@ function isNearBottom(element: HTMLElement) {
   );
 }
 
-function mergeChanges(snapshot: SessionSnapshot, changes: SessionChanges): SessionSnapshot {
-  const hasLatestTurn = snapshot.turns.some((turn) => turn.id === changes.latestTurn.id);
-
-  const turns = hasLatestTurn
-    ? snapshot.turns.map((turn) => (turn.id === changes.latestTurn.id ? changes.latestTurn : turn))
-    : [...snapshot.turns, changes.latestTurn];
-
-  const existingSequences = new Set(snapshot.messages.map((message) => message.sequence));
-  const messages = [
-    ...snapshot.messages,
-    ...changes.messages.filter((message) => !existingSequences.has(message.sequence)),
-  ].sort((left, right) => left.sequence - right.sequence);
-
-  return {
-    ...snapshot,
-    turns,
-    messages,
-  };
+function mergeTurn(turns: SessionTurn[], next: SessionTurn) {
+  return turns.some((turn) => turn.id === next.id)
+    ? turns.map((turn) => (turn.id === next.id ? next : turn))
+    : [...turns, next];
 }
 
 function SessionLoadingIndicator() {
@@ -92,23 +80,22 @@ export function SessionWorkspace(props: SessionWorkspaceProps) {
 }
 
 function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWorkspaceProps) {
-  const [snapshot, setSnapshot] = useState<SessionSnapshot | null>(null);
+  const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
+  const [turns, setTurns] = useState<SessionTurn[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const [streamingTurnId, setStreamingTurnId] = useState<string | null>(null);
   const [watchedTurnId, setWatchedTurnId] = useState<string | null>(null);
   const [watchRetryVersion, setWatchRetryVersion] = useState(0);
   const [streamingContent, setStreamingContent] = useState('');
-  const [optimisticMessage, setOptimisticMessage] = useState<SessionMessage | null>(null);
+  const [optimisticTurn, setOptimisticTurn] = useState<OptimisticTurnRenderInput | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [isSessionLoading, setIsSessionLoading] = useState(true);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [selectedModel, setSelectedModel] = useState<ModelSelection | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const streamAbortRef = useRef<AbortController | null>(null);
-  const loadingOlderRef = useRef(false);
   const currentTurnIdRef = useRef<string | null>(null);
   const watchedTurnIdsRef = useRef(new Set<string>());
   const stopRequestedRef = useRef(false);
@@ -119,8 +106,17 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
     fingerprint: string;
     requestId: string;
   } | null>(null);
-  const loadedSessionId = snapshot?.session.id ?? null;
-  const messageCount = snapshot?.messages.length ?? 0;
+  const {
+    messages,
+    hasNewer,
+    isLoadingOlder,
+    initialize: initializeMessageWindow,
+    mergeMessages,
+    loadOlder,
+    loadNewer,
+  } = useSessionMessageWindow(projectId, sessionId);
+  const loadedSessionId = sessionInfo?.id ?? null;
+  const messageCount = messages.length;
 
   useEffect(() => {
     if (!expanded) return;
@@ -147,43 +143,14 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
   }, []);
 
   const loadOlderMessages = useCallback(async () => {
-    const current = snapshot;
     const element = scrollRef.current;
-    if (
-      !current ||
-      !element ||
-      !current.hasMoreMessages ||
-      current.nextBeforeSequence === null ||
-      loadingOlderRef.current
-    ) {
-      return;
-    }
+    if (!element) return;
 
-    loadingOlderRef.current = true;
-    setIsLoadingOlder(true);
     const previousScrollHeight = element.scrollHeight;
 
     try {
-      const page = await SessionService.queryMessages(
-        projectId,
-        sessionId,
-        current.nextBeforeSequence,
-        MESSAGE_PAGE_SIZE,
-      );
-
-      setSnapshot((latest) => {
-        if (!latest) return latest;
-
-        const existingSequences = new Set(latest.messages.map((message) => message.sequence));
-        const older = page.messages.filter((message) => !existingSequences.has(message.sequence));
-
-        return {
-          ...latest,
-          messages: [...older, ...latest.messages],
-          nextBeforeSequence: page.nextBeforeSequence,
-          hasMoreMessages: page.hasMore,
-        };
-      });
+      const loaded = await loadOlder();
+      if (!loaded) return;
 
       window.requestAnimationFrame(() => {
         const currentElement = scrollRef.current;
@@ -194,11 +161,18 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
       setLoadError(
         requestError instanceof Error ? requestError.message : 'Unable to load earlier messages.',
       );
-    } finally {
-      loadingOlderRef.current = false;
-      setIsLoadingOlder(false);
     }
-  }, [projectId, sessionId, snapshot]);
+  }, [loadOlder]);
+
+  const loadNewerMessages = useCallback(async () => {
+    try {
+      await loadNewer();
+    } catch (requestError) {
+      setLoadError(
+        requestError instanceof Error ? requestError.message : 'Unable to load newer messages.',
+      );
+    }
+  }, [loadNewer]);
 
   const handleScroll = useCallback(() => {
     const element = scrollRef.current;
@@ -211,7 +185,14 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
     if (element.scrollTop <= HISTORY_LOAD_THRESHOLD_PX) {
       void loadOlderMessages();
     }
-  }, [loadOlderMessages]);
+
+    if (
+      hasNewer &&
+      element.scrollHeight - element.scrollTop - element.clientHeight <= HISTORY_LOAD_THRESHOLD_PX
+    ) {
+      void loadNewerMessages();
+    }
+  }, [hasNewer, loadNewerMessages, loadOlderMessages]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -219,7 +200,9 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
     void SessionService.querySession(projectId, sessionId, controller.signal)
       .then((result) => {
         if (controller.signal.aborted) return;
-        setSnapshot(result);
+        setSessionInfo(result.session);
+        setTurns(result.turns);
+        initializeMessageWindow(result);
         setSelectedModel(result.session.model);
         setIsSessionLoading(false);
       })
@@ -234,7 +217,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
     return () => {
       controller.abort();
     };
-  }, [projectId, sessionId]);
+  }, [initializeMessageWindow, projectId, sessionId]);
 
   useEffect(() => {
     if (!loadedSessionId) return;
@@ -248,17 +231,25 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
     if (followOutputRef.current) {
       scrollToBottom();
     }
-  }, [loadedSessionId, messageCount, optimisticMessage, scrollToBottom, streamingContent]);
+  }, [loadedSessionId, messageCount, optimisticTurn, scrollToBottom, streamingContent]);
 
-  const activeTurn = hasActiveTurn(snapshot);
-  const activeTurnId = latestActiveTurnId(snapshot);
+  const activeTurn = hasActiveTurn(turns);
+  const activeTurnId = latestActiveTurnId(turns);
   const generating = isGenerating || activeTurn;
-  const latestSequence = snapshot?.messages.at(-1)?.sequence ?? 0;
+  const latestSequence = messages.at(-1)?.sequence ?? 0;
   const visibleStreamingTurnId = streamingTurnId ?? watchedTurnId;
 
   useEffect(() => {
     latestSequenceRef.current = latestSequence;
   }, [latestSequence]);
+
+  const applyChanges = useCallback(
+    (changes: SessionChanges) => {
+      setTurns((current) => mergeTurn(current, changes.latestTurn));
+      mergeMessages(changes.messages);
+    },
+    [mergeMessages],
+  );
 
   useEffect(() => {
     if (!activeTurnId || streamAbortRef.current || watchedTurnIdsRef.current.has(activeTurnId)) {
@@ -305,7 +296,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
         try {
           const changes = await SessionService.queryChanges(projectId, sessionId, afterSequence);
           if (disposed) return;
-          setSnapshot((current) => (current ? mergeChanges(current, changes) : current));
+          applyChanges(changes);
           setStreamingContent('');
           setLoadError(null);
         } catch {
@@ -320,7 +311,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
           const changes = await SessionService.queryChanges(projectId, sessionId, afterSequence);
           if (disposed) return;
 
-          setSnapshot((current) => (current ? mergeChanges(current, changes) : current));
+          applyChanges(changes);
           setLoadError(null);
 
           shouldRewatch =
@@ -348,7 +339,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
         window.clearTimeout(retryTimer);
       }
     };
-  }, [activeTurnId, projectId, sessionId, watchRetryVersion]);
+  }, [activeTurnId, applyChanges, projectId, sessionId, watchRetryVersion]);
 
   useEffect(() => {
     if (!activeTurn || streamingTurnId || watchedTurnId) return;
@@ -359,7 +350,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
       void SessionService.queryChanges(projectId, sessionId, latestSequence)
         .then((changes) => {
           if (disposed) return;
-          setSnapshot((current) => (current ? mergeChanges(current, changes) : current));
+          applyChanges(changes);
           setLoadError(null);
         })
         .catch((requestError: unknown) => {
@@ -374,21 +365,55 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
       disposed = true;
       window.clearInterval(timer);
     };
-  }, [activeTurn, latestSequence, projectId, sessionId, streamingTurnId, watchedTurnId]);
+  }, [
+    activeTurn,
+    applyChanges,
+    latestSequence,
+    projectId,
+    sessionId,
+    streamingTurnId,
+    watchedTurnId,
+  ]);
 
-  const latestTurn = useMemo(() => snapshot?.turns.at(-1) ?? null, [snapshot]);
+  const latestTurn = useMemo(() => turns.at(-1) ?? null, [turns]);
 
-  const streamingMessage: SessionMessage | null =
-    visibleStreamingTurnId && streamingContent
-      ? {
-          id: 'stream-' + visibleStreamingTurnId,
-          turnId: visibleStreamingTurnId,
-          role: 'ASSISTANT',
-          content: streamingContent,
-          sequence: Number.MAX_SAFE_INTEGER,
-          createdAt: new Date().toISOString(),
-        }
-      : null;
+  const streamingMessage = useMemo<SessionMessage | null>(
+    () =>
+      visibleStreamingTurnId && streamingContent
+        ? {
+            id: 'stream-' + visibleStreamingTurnId,
+            turnId: visibleStreamingTurnId,
+            role: 'ASSISTANT',
+            content: streamingContent,
+            sequence: Number.MAX_SAFE_INTEGER,
+            createdAt: new Date().toISOString(),
+          }
+        : null,
+    [streamingContent, visibleStreamingTurnId],
+  );
+
+  const turnModels = useMemo(
+    () =>
+      buildTurnRenderModels({
+        messages,
+        turns,
+        optimisticTurn,
+        streamingMessage,
+        activeTurnId,
+        latestTurnId: latestTurn?.id ?? null,
+        showThinking: generating && !streamingContent,
+      }),
+    [
+      activeTurnId,
+      generating,
+      latestTurn?.id,
+      messages,
+      optimisticTurn,
+      streamingContent,
+      streamingMessage,
+      turns,
+    ],
+  );
 
   const runStreamingTurn = useCallback(
     async (
@@ -415,20 +440,11 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
               onEstablished();
               currentTurnIdRef.current = started.turn.id;
               setStreamingTurnId(started.turn.id);
-              setOptimisticMessage(null);
+              setOptimisticTurn(null);
               onActivity?.(sessionId, started.userMessage.createdAt);
-              setSnapshot((current) => {
-                if (!current) return current;
-                return {
-                  ...current,
-                  session: {
-                    ...current.session,
-                    model,
-                  },
-                  turns: [...current.turns, started.turn],
-                  messages: [...current.messages, started.userMessage],
-                };
-              });
+              setSessionInfo((current) => (current ? { ...current, model } : current));
+              setTurns((current) => mergeTurn(current, started.turn));
+              mergeMessages([started.userMessage]);
             },
             onSnapshot: (content) => {
               setStreamingContent(content);
@@ -441,16 +457,16 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
         );
 
         const changes = await SessionService.queryChanges(projectId, sessionId, afterSequence);
-        setSnapshot((current) => (current ? mergeChanges(current, changes) : current));
+        applyChanges(changes);
       } catch (requestError) {
         if (!established) {
-          setOptimisticMessage(null);
+          setOptimisticTurn(null);
         }
         if (controller.signal.aborted && stopRequestedRef.current) return;
 
         try {
           const changes = await SessionService.queryChanges(projectId, sessionId, afterSequence);
-          setSnapshot((current) => (current ? mergeChanges(current, changes) : current));
+          applyChanges(changes);
         } catch {
           // 保留原始流式错误。
         }
@@ -476,7 +492,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
         }
       }
     },
-    [onActivity, projectId, sessionId],
+    [applyChanges, mergeMessages, onActivity, projectId, sessionId],
   );
 
   const handleSubmit = useCallback(
@@ -499,13 +515,16 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
       streamAbortRef.current = controller;
       currentTurnIdRef.current = null;
       stopRequestedRef.current = false;
-      setOptimisticMessage({
-        id: 'optimistic-user-' + Date.now(),
-        turnId: 'optimistic',
-        role: 'USER',
-        content,
-        sequence: latestSequence + 1,
-        createdAt: new Date().toISOString(),
+      setOptimisticTurn({
+        key: 'optimistic:' + requestId,
+        message: {
+          id: 'optimistic-user-' + requestId,
+          turnId: 'optimistic',
+          role: 'USER',
+          content,
+          sequence: latestSequence + 1,
+          createdAt: new Date().toISOString(),
+        },
       });
       setIsGenerating(true);
       setSendError(null);
@@ -544,25 +563,19 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
     streamAbortRef.current?.abort();
 
     if (!turnId) {
-      setOptimisticMessage(null);
+      setOptimisticTurn(null);
       setIsGenerating(false);
       return;
     }
 
     void SessionService.stopTurn(projectId, sessionId, turnId)
       .then(async (stopped) => {
-        setSnapshot((current) => {
-          if (!current) return current;
-          return {
-            ...current,
-            turns: current.turns.map((turn) => (turn.id === stopped.id ? stopped : turn)),
-          };
-        });
+        setTurns((current) => mergeTurn(current, stopped));
         setSendError(null);
 
         try {
           const changes = await SessionService.queryChanges(projectId, sessionId, latestSequence);
-          setSnapshot((current) => (current ? mergeChanges(current, changes) : current));
+          applyChanges(changes);
           setStreamingTurnId(null);
           setStreamingContent('');
         } catch {
@@ -577,7 +590,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
       .finally(() => {
         setIsGenerating(false);
       });
-  }, [activeTurnId, latestSequence, projectId, sessionId]);
+  }, [activeTurnId, applyChanges, latestSequence, projectId, sessionId]);
 
   return (
     <div
@@ -587,7 +600,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
       )}
     >
       <ProjectHeader
-        title={snapshot?.session.title ?? 'Project'}
+        title={sessionInfo?.title ?? 'Project'}
         loading={isSessionLoading}
         expanded={expanded}
         onToggleExpanded={() => setExpanded((current) => !current)}
@@ -619,30 +632,9 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
                 </output>
               )}
 
-              {snapshot?.messages.map((message) => (
-                <MessageItem key={message.id} message={message} />
+              {turnModels.map((turn) => (
+                <TurnItem key={turn.key} turn={turn} />
               ))}
-
-              {optimisticMessage && (
-                <MessageItem key={optimisticMessage.id} message={optimisticMessage} />
-              )}
-
-              {streamingMessage && (
-                <MessageItem key={streamingMessage.id} message={streamingMessage} />
-              )}
-
-              {generating && !streamingContent && (
-                <output className="block px-1 text-sm text-foreground-subtle">Thinking...</output>
-              )}
-
-              {latestTurn?.status === 'FAILED' && (
-                <div
-                  className="rounded-xl border border-danger-border-subtle bg-danger-surface px-4 py-3 text-sm text-danger-foreground"
-                  role="alert"
-                >
-                  {latestTurn.errorMessage ?? 'Turn failed.'}
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -700,13 +692,13 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
               placeholder="Ask Yakable..."
               submitLabel="Send message"
               submitTooltip="Send prompt"
-              disabled={!snapshot}
+              disabled={!sessionInfo}
               running={generating}
               trailingActions={
                 selectedModel ? (
                   <ModelSelector
                     surface="chassis"
-                    disabled={!snapshot}
+                    disabled={!sessionInfo}
                     value={selectedModel}
                     onValueChange={setSelectedModel}
                   />

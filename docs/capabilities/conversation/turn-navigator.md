@@ -15,7 +15,8 @@ Related:
 Frontend:
 - Contract: `yakable-ui/src/service/session/SessionService.ts`
 - Contract Types: `yakable-ui/src/service/session/types.ts`
-- Planned: `yakable-ui/src/features/session/components/TurnItem.tsx`
+- Turn Boundary: `yakable-ui/src/features/session/components/TurnItem.tsx`
+- Message Window: `yakable-ui/src/features/session/hooks/useSessionMessageWindow.ts`
 - Planned: `yakable-ui/src/features/session/components/turn-navigator/TurnNavigator.tsx`
 - Planned: `yakable-ui/src/features/session/components/turn-navigator/useTurnNavigator.ts`
 - Planned: `yakable-ui/src/features/session/components/turn-navigator/turn-navigation.ts`
@@ -42,6 +43,9 @@ Scenarios:
 - CONV-S06
 
 Tests:
+- `yakable-ui/src/features/session/components/__tests__/TurnItem.test.tsx`
+- `yakable-ui/src/features/session/hooks/__tests__/useSessionMessageWindow.test.ts`
+- `yakable-ui/src/features/session/components/__tests__/SessionWorkspace.test.tsx`
 - Planned: TurnNavigator component tests
 - Planned: SessionWorkspace navigation integration tests
 - Planned: Navigator geometry / drag / focus / windowing invariant regression tests
@@ -69,6 +73,9 @@ Tests:
 - 窄屏 V1 隐藏 Navigator。
 - Navigation Index 只返回正式 USER Message 对应的 Turn 节点，按 Message Sequence 升序；Preview 服务端收敛空白并限制为最多 160 个 Unicode code point。
 - Target Message Window 固定最多 50 条 Message，目标 anchor 必须存在且包含在窗口内；返回 hasOlder / hasNewer 与对应边界 cursor。
+- Message Window 状态由 `useSessionMessageWindow` 单独拥有；SessionWorkspace 不再维护第二份 Message 数组。
+- 每个已渲染 Turn 使用一个 `TurnItem` 顶层 Anchor；同一 Turn 的 USER / ASSISTANT / Streaming / Thinking / Failure 必须落在同一边界内。
+- Message Window 切换或历史 prepend 后必须重新按 turnId 聚合，不能把一个 Turn 拆成多个 DOM Anchor。
 
 ## Frontend Design Invariants
 
