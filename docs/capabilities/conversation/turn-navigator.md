@@ -1,6 +1,6 @@
 # Turn Navigator
 
-Status: Review
+Status: Done
 Domain: Conversation
 
 Depends On:
@@ -168,15 +168,18 @@ Tests:
 
 ## Acceptance
 
-当前状态保持 `Review`，直到本 Acceptance Fix 的完整 CI 同时满足：
+Turn Navigator V1 已完成 PR1～PR6 Capability Acceptance。
 
-```text
-Frontend Verification ✅
-Backend Verification  ✅
-Yakable / Quality Gate ✅
-```
+验收证据：
 
-验收通过后，本 Capability 才更新为 `Status: Done`。
+- Navigation Data Contract、Turn Render Boundary、Current / Visible、Basic Navigator、Drag / Fisheye / Accessibility、Streaming / History Jump 均已有回归保护。
+- 500 Turn Windowing 不再只验证 selector；已覆盖真实 Hook lifecycle、scroll、resize 与 bounded Heavy DOM。
+- placeholder active Jump 已覆盖：目标先 pin，真实 Turn subtree remount 后才执行最终 scroll / focus。
+- viewport resize 不再清空全部高度导致全量 Heavy DOM remount；远处 placeholder 保留最近测量几何并在进入 window 后渐进重测。
+- 正式 CI 已移除临时 formatter 诊断步骤。
+- Acceptance Fix 已通过完整 Frontend Verification、Backend Verification 与 Quality Gate。
+
+`Status: Done` 表示上述 Contract 与 V1 Acceptance 已闭环；后续新增能力需要新的 Capability / Contract，不继续向 V1 范围叠加。
 
 ## Flow
 
@@ -213,4 +216,4 @@ Does Not Own:
 - Turn execution
 - Context selection
 
-Design must be reviewed against current SessionWorkspace before implementation starts.
+V1 implementation and acceptance are complete.
