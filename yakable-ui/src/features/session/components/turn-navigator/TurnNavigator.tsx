@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent,
+} from 'react';
 
 import type { SessionTurnNavigationItem } from '@/service/session';
 import { cx, Icon, IconButton } from '@/shared/ui';
@@ -44,7 +51,7 @@ function NavigatorArrow({ direction }: { direction: 'up' | 'down' }) {
   );
 }
 
-function keyboardActivated(event: React.MouseEvent<HTMLElement>) {
+function keyboardActivated(event: MouseEvent<HTMLElement>) {
   return event.detail === 0;
 }
 
@@ -318,6 +325,7 @@ export function TurnNavigator({
 
         <div
           ref={railRef}
+          data-testid="turn-navigator-rail"
           className="flex max-h-56 w-10 touch-none select-none flex-col items-center overflow-y-auto py-1"
           onPointerEnter={() => {
             pointerInsideRef.current = true;
