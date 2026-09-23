@@ -54,6 +54,7 @@ describe('HttpUtils', () => {
   });
 
   it('sends JSON PUT requests through the shared transport', async () => {
+    document.cookie = 'XSRF-TOKEN=csrf-token; path=/';
     const fetchMock = vi.fn().mockResolvedValue(apiResponse(null));
     vi.stubGlobal('fetch', fetchMock);
 
