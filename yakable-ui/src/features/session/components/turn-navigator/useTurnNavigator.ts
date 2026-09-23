@@ -212,51 +212,57 @@ export function useTurnNavigator({
     [jumpToTurn, nextItem],
   );
 
-  const jumpOrigin = useCallback(async (options: TurnJumpOptions = {}) => {
-    const container = scrollRef.current;
-    const first = items[0];
-    if (!container || !first || isJumping) return;
+  const jumpOrigin = useCallback(
+    async (options: TurnJumpOptions = {}) => {
+      const container = scrollRef.current;
+      const first = items[0];
+      if (!container || !first || isJumping) return;
 
-    setIsJumping(true);
-    onFollowLatestChange(false);
+      setIsJumping(true);
+      onFollowLatestChange(false);
 
-    try {
-      const anchor = await ensureTurnRendered(first);
-      container.scrollTop = 0;
-      scheduleMeasure();
+      try {
+        const anchor = await ensureTurnRendered(first);
+        container.scrollTop = 0;
+        scheduleMeasure();
 
-      if (anchor && options.focusTarget) {
-        anchor.focus({ preventScroll: true });
+        if (anchor && options.focusTarget) {
+          anchor.focus({ preventScroll: true });
+        }
+      } catch {
+        // Keep the current window when the origin target cannot be loaded.
+      } finally {
+        setIsJumping(false);
       }
-    } catch {
-      // Keep the current window when the origin target cannot be loaded.
-    } finally {
-      setIsJumping(false);
-    }
-  }, [ensureTurnRendered, isJumping, items, onFollowLatestChange, scheduleMeasure, scrollRef]);
+    },
+    [ensureTurnRendered, isJumping, items, onFollowLatestChange, scheduleMeasure, scrollRef],
+  );
 
-  const jumpTerminus = useCallback(async (options: TurnJumpOptions = {}) => {
-    const container = scrollRef.current;
-    const last = items.at(-1);
-    if (!container || !last || isJumping) return;
+  const jumpTerminus = useCallback(
+    async (options: TurnJumpOptions = {}) => {
+      const container = scrollRef.current;
+      const last = items.at(-1);
+      if (!container || !last || isJumping) return;
 
-    setIsJumping(true);
+      setIsJumping(true);
 
-    try {
-      const anchor = await ensureTurnRendered(last);
-      onFollowLatestChange(true);
-      container.scrollTop = container.scrollHeight;
-      scheduleMeasure();
+      try {
+        const anchor = await ensureTurnRendered(last);
+        onFollowLatestChange(true);
+        container.scrollTop = container.scrollHeight;
+        scheduleMeasure();
 
-      if (anchor && options.focusTarget) {
-        anchor.focus({ preventScroll: true });
+        if (anchor && options.focusTarget) {
+          anchor.focus({ preventScroll: true });
+        }
+      } catch {
+        // Keep the current window when the latest target cannot be loaded.
+      } finally {
+        setIsJumping(false);
       }
-    } catch {
-      // Keep the current window when the latest target cannot be loaded.
-    } finally {
-      setIsJumping(false);
-    }
-  }, [ensureTurnRendered, isJumping, items, onFollowLatestChange, scheduleMeasure, scrollRef]);
+    },
+    [ensureTurnRendered, isJumping, items, onFollowLatestChange, scheduleMeasure, scrollRef],
+  );
 
   const previewItem = useMemo(
     () => items.find((item) => item.turnId === previewTurnId) ?? null,
