@@ -71,11 +71,9 @@ export function useTurnNavigatorInteraction({
       fisheyeFrameRef.current = null;
     }
 
-    railRef.current
-      ?.querySelectorAll<HTMLElement>('[data-rib-visual]')
-      .forEach((element) => {
-        element.style.transform = 'scaleX(1)';
-      });
+    railRef.current?.querySelectorAll<HTMLElement>('[data-rib-visual]').forEach((element) => {
+      element.style.transform = 'scaleX(1)';
+    });
   }, []);
 
   const applyFisheye = useCallback((clientY: number) => {
@@ -224,12 +222,7 @@ export function useTurnNavigatorInteraction({
 
   useEffect(() => {
     const handleShortcut = (event: globalThis.KeyboardEvent) => {
-      if (
-        items.length < 3 ||
-        !event.altKey ||
-        !event.shiftKey ||
-        event.key.toLowerCase() !== 'm'
-      ) {
+      if (items.length < 3 || !event.altKey || !event.shiftKey || event.key.toLowerCase() !== 'm') {
         return;
       }
 
