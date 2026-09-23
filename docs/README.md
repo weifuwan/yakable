@@ -188,8 +188,9 @@ Done          文档描述当前真实实现
 
 ## Engineering Rules
 
-代码规范仍放在离代码最近的位置：
+后端结构与代码规范：
 
+- [后端架构](../ARCHITECTURE.md)
 - [Java 全局规则](../JAVA_RULES.md)
 - [后端测试规则](../BACKEND_TEST_RULES.md)
 - [Controller 规则](../yakable-boot/CONTROLLER_RULES.md)
