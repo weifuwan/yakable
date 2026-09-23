@@ -828,6 +828,40 @@ describe('SessionWorkspace', () => {
     expect(watchTurn).toHaveBeenCalledTimes(1);
   });
 
+  it('aborts the active stream when the workspace unmounts without stopping the Turn', async () => {
+    const user = userEvent.setup();
+    let streamSignal: AbortSignal | undefined;
+
+    vi.spyOn(SessionService, 'querySession').mockResolvedValue(createSnapshot());
+    const stopTurn = vi.spyOn(SessionService, 'stopTurn');
+    vi.spyOn(SessionService, 'streamingTurn').mockImplementation(
+      async (_projectId, _sessionId, _content, _model, _requestId, handlers, signal) => {
+        streamSignal = signal;
+        handlers.onStarted(started);
+        await new Promise<void>(() => {});
+      },
+    );
+
+    const { unmount } = render(
+      <SessionWorkspace projectId="project-1" sessionId="session-1" />,
+    );
+
+    const input = await screen.findByRole('textbox', {
+      name: 'Send a message',
+    });
+    await user.type(input, 'Keep running');
+    await user.keyboard('{Enter}');
+
+    await waitFor(() => {
+      expect(streamSignal).toBeDefined();
+    });
+
+    unmount();
+
+    expect(streamSignal?.aborted).toBe(true);
+    expect(stopTurn).not.toHaveBeenCalled();
+  });
+
   it('stops an active turn and keeps the partial answer visible', async () => {
     const user = userEvent.setup();
     const stopTurn = vi.spyOn(SessionService, 'stopTurn').mockResolvedValue(stoppedTurn);
