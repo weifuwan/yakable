@@ -17,6 +17,7 @@ Frontend:
 - `yakable-ui/src/features/session/components/SessionWorkspace.tsx`
 - `yakable-ui/src/features/session/components/MessageItem.tsx`
 - `yakable-ui/src/features/session/hooks/useSessionMessageWindow.ts`
+- `yakable-ui/src/features/session/hooks/useTurnWindowing.ts`
 - `yakable-ui/src/service/session/SessionService.ts`
 
 Backend:
@@ -73,6 +74,7 @@ Review Notes:
 - 历史窗口与 Session latest sequence 分离；后台增量可以推进 Session 进度，但不能把无关最新 Message 注入当前历史窗口。
 - Message 按稳定 sequence 排序。
 - Streaming / Stop / Failure 最终通过持久化 Message 收敛到 History。
+- 长历史允许卸载远处 Heavy Message DOM，但必须保留 exact-height Turn placeholder 与导航 Anchor。
 - Session 切换时不能短暂显示上一 Session 历史。
 
 ## Flow
