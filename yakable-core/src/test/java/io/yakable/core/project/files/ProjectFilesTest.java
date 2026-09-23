@@ -75,6 +75,18 @@ class ProjectFilesTest {
     }
 
     @Test
+    void shouldRejectAbsolutePath() {
+        ProjectFiles projectFiles = new ProjectFiles(tempDir);
+
+        assertThatThrownBy(() -> projectFiles.publish(
+                "project-1", "turn-1", List.of(new ProjectFile("/tmp/outside.txt", "invalid"))))
+                .isInstanceOf(ProjectFiles.ProjectFilesException.class)
+                .hasMessageContaining("must be relative");
+
+        assertThat(Files.exists(tempDir.resolve("project-1"))).isFalse();
+    }
+
+    @Test
     void shouldRejectDuplicateAndFileDirectoryPathConflicts() {
         ProjectFiles projectFiles = new ProjectFiles(tempDir);
 
