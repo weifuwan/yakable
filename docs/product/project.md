@@ -21,8 +21,6 @@ V1 中：
 - 一个 Project 当前只有一个 Session。
 - Project 列表按最近用户活动展示。
 - 新 USER Message 成立后更新 Project 的最近活动，不等待 Assistant 完成。
-- Project 可以拥有独立的项目文件工作目录。
-- 用户的 Prompt 可以产生持久化到该目录中的项目代码。
 
 ## Boundary
 
