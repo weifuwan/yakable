@@ -49,6 +49,59 @@ describe('Markdown', () => {
     });
   });
 
+  it('falls back to readable plain code for an unknown fenced language', async () => {
+    const content = ['```yakable-unknown', 'some unknown syntax', '```'].join('\n');
+    const { container } = render(<Markdown content={content} />);
+
+    expect(await screen.findByText('yakable-unknown')).toBeTruthy();
+
+    const codeBlock = container.querySelector('[data-streamdown="code-block"]');
+    expect(codeBlock?.textContent).toContain('some unknown syntax');
+    expect(screen.getByRole('button', { name: 'Copy Code' })).toBeTruthy();
+  });
+
+  it('keeps an incomplete fenced code block visible while streaming', async () => {
+    const content = ['```typescript', 'const answer = 42;'].join('\n');
+    const { container } = render(<Markdown content={content} mode="streaming" />);
+
+    expect(await screen.findByText('typescript')).toBeTruthy();
+
+    const codeBlock = container.querySelector('[data-streamdown="code-block"]');
+    expect(codeBlock?.textContent).toContain('const answer = 42;');
+    expect((screen.getByRole('button', { name: 'Copy Code' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+  });
+
+  it('sanitizes dangerous raw HTML and URL attributes', () => {
+    const content = [
+      '<script>window.yakableXss = true</script>',
+      '<a href="javascript:alert(1)" onclick="alert(1)">unsafe link</a>',
+      '<strong>safe text</strong>',
+    ].join('\n');
+
+    const { container } = render(<Markdown content={content} />);
+
+    expect(container.querySelector('script')).toBeNull();
+    expect(container.querySelector('[onclick]')).toBeNull();
+
+    expect(container.querySelector('a[href^="javascript:"]')).toBeNull();
+    expect(container.textContent).toContain('unsafe link');
+    expect(screen.getByText('safe text')).toBeTruthy();
+  });
+
+  it('renders script-looking fenced code as text instead of executable HTML', async () => {
+    const source = '<script>alert("xss")</script>';
+    const content = ['```html', source, '```'].join('\n');
+    const { container } = render(<Markdown content={content} />);
+
+    await screen.findByText('html');
+
+    const codeBlock = container.querySelector('[data-streamdown="code-block"]');
+    expect(codeBlock?.querySelector('script')).toBeNull();
+    expect(codeBlock?.textContent).toContain(source);
+  });
+
   it('disables code actions while Assistant content is streaming', async () => {
     render(<Markdown content={javaMarkdown} mode="streaming" />);
 
