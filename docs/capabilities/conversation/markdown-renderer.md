@@ -1,6 +1,6 @@
 # Markdown Renderer
 
-Status: Done
+Status: Review
 Domain: Conversation
 
 Depends On:
@@ -133,10 +133,13 @@ Code Contract：
 - language alias 交给统一 code engine，不在业务组件堆 `if / switch`。
 - 未知 language 退化为 plain text code，不能让整个 Message 失败。
 - Copy 复制原始 code text。
-- Download 只导出原始文本，不执行代码。
+- Conversation 默认只展示 Copy；Download 不出现在聊天 Code Block Surface。
 - Code 只展示，不拥有 execution 语义。
+- 默认不展示 line number，避免聊天回答出现 IDE 式视觉噪声。
 - 默认允许横向滚动。
 - 默认不创建独立纵向滚动容器；长代码参与 Conversation 正常纵向流。
+- Code Block 只保留一层 Surface，背景固定使用 `#F3F3F3`；Header / Body 不再各自套 border / background。
+- Header 左侧展示轻量 Code 标识 + language，右侧只保留 Copy。
 - Code controls 必须有 accessible name。
 
 ### Streaming
@@ -225,13 +228,13 @@ Review evidence：
 - 已知 language 通过同一个 `@streamdown/code` + Shiki Renderer 处理。
 - unknown / streaming 中被截断的 language identifier 退化为可读 plain code，不让 Message 失败。
 - 未闭合 fenced code 在 `streaming` mode 下继续可见，Code actions 保持 disabled。
-- static code 的 Copy / Download 保持可用，Copy 复制 fenced code 原始文本。
+- static code 的 Copy 保持可用，Copy 复制 fenced code 原始文本；Conversation 默认隐藏 Download。
 - raw HTML 继续经过 Streamdown 默认 sanitize / harden 边界；script、event handler 与危险 URL 不进入可执行 DOM。
 - fenced HTML / script source 只作为 code text 展示，不执行。
 - `markdownPlugins` 保持 module-level stable reference，不随每个 token render 重建 plugin 配置。
 - `@streamdown/code` 按需 lazy-load language grammar；Markdown 不引入第二套 history virtualization。
 - Code Block 关闭默认纵向 max-height，Conversation 保持单一纵向滚动 owner。
-- Markdown / Code controls 保留原生语义与可访问名称。
+- Markdown / Code controls 保留原生语义与可访问名称；Code Surface 使用单层 `#F3F3F3` 背景、无 line number。
 - Backend Message schema、Streaming transport、History Window、Turn Windowing 均无变化。
 
 Acceptance Review 已闭环：
@@ -239,8 +242,8 @@ Acceptance Review 已闭环：
 - unknown language、incomplete streaming fence、raw HTML / dangerous URL、fenced script source 都已有回归保护。
 - `streaming / static`、Code controls、Shiki lazy language、module-level plugin config 与 Turn Windowing ownership 已完成 Review。
 - Review Commit `9caf87e0358281edff020a5f2fb43fc0bc4f88e9` 已通过 Frontend Verification、Backend Verification 与 `Yakable / Quality Gate`。
-- Known Gaps = none。
-- 最终 `Status: Done` Commit 本身仍需再次通过完整 Quality Gate。
+- 本次 Code Surface Visual Polish 重新进入 Review：单层 `#F3F3F3` Surface、隐藏 Download、关闭 line number。
+- 最终 Visual Polish Commit 通过完整 Quality Gate 后再恢复 `Status: Done`。
 
 ## Boundary
 

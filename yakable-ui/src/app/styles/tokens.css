@@ -97,6 +97,7 @@
   --surface-soft: rgb(0 0 0 / 6%);
   --surface-selected: rgb(0 0 0 / 7%);
   --surface-skeleton: rgb(0 0 0 / 8%);
+  --code-block-background: #f3f3f3;
 
   --border: rgb(0 0 0 / 10%);
   --border-control: rgb(0 0 0 / 12%);
