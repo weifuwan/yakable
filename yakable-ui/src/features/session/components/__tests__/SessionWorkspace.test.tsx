@@ -309,8 +309,11 @@ describe('SessionWorkspace', () => {
     await waitFor(() => {
       expect(queryMessageWindow).toHaveBeenCalledWith('project-1', 'session-1', 1);
     });
-    expect(await screen.findByText('First prompt')).toBeTruthy();
-    expect(screen.getByText('First answer')).toBeTruthy();
+    await waitFor(() => {
+      const turn = document.querySelector('[data-turn-id="turn-1"]');
+      expect(turn?.textContent).toContain('First prompt');
+      expect(turn?.textContent).toContain('First answer');
+    });
     expect(screen.queryByText('Latest answer')).toBeNull();
   });
 
