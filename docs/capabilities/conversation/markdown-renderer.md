@@ -138,8 +138,9 @@ Code Contract：
 - 默认不展示 line number，避免聊天回答出现 IDE 式视觉噪声。
 - 默认允许横向滚动。
 - 默认不创建独立纵向滚动容器；长代码参与 Conversation 正常纵向流。
-- Code Block 只保留一层 Surface，背景固定使用 `#F3F3F3`；Header / Body 不再各自套 border / background。
+- Code Block 只保留一层白色 Surface；Header / Body 不再各自套 border / background。
 - Header 左侧展示轻量 Code 标识 + language，右侧只保留 Copy。
+- Code typography 使用 13px / 1.5 line-height，优先 `Roboto Mono Variable / Roboto Mono`，再回退到 Menlo / Monaco / Consolas 等 monospace。
 - Code controls 必须有 accessible name。
 
 ### Streaming
@@ -242,8 +243,9 @@ Acceptance Review 已闭环：
 - unknown language、incomplete streaming fence、raw HTML / dangerous URL、fenced script source 都已有回归保护。
 - `streaming / static`、Code controls、Shiki lazy language、module-level plugin config 与 Turn Windowing ownership 已完成 Review。
 - Review Commit `9caf87e0358281edff020a5f2fb43fc0bc4f88e9` 已通过 Frontend Verification、Backend Verification 与 `Yakable / Quality Gate`。
-- Code Surface Visual Polish 已闭环：单层 `#F3F3F3` Surface、隐藏 Download、关闭 line number、Header 使用轻量 Code 标识。
-- Review Commit `96efa13565e7c9916e33c79ae0a7349514e6c789` 已通过 Frontend Verification、Backend Verification 与 `Yakable / Quality Gate`。
+- Code Surface Typography Polish 已闭环：白色 Surface、13px 字号、1.5 行高、`1em` padding，以及 `Roboto Mono Variable / Roboto Mono → Menlo / Monaco / Consolas → monospace` fallback。
+- Review Commit `1d6cac52783635ee235a2438cba64688c2febb98` 已通过 Frontend Verification、Backend Verification 与 `Yakable / Quality Gate`。
+- Backend 首次运行命中已有 `SessionServiceImplTest.shouldResumeDeltaAfterStopCutoverRollsBack` 并发波动，原 Job rerun 后成功；本 PR 未修改 Backend。
 - Known Gaps = none。
 - 最终 `Status: Done` Commit 本身仍需再次通过完整 Quality Gate。
 

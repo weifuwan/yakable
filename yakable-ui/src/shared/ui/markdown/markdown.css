@@ -71,19 +71,28 @@
   border: 0;
   border-radius: 0;
   background: transparent;
-  padding: 8px 4px 2px;
-  font-size: 13px;
-  line-height: 1.7;
+  padding: 0;
 }
 
 .yakable-markdown [data-streamdown='code-block-body'] pre {
   margin: 0;
+  overflow: auto;
   border-radius: 0;
   background: transparent !important;
-  padding: 0;
+  padding: 1em;
+  color: rgb(36, 41, 46);
+  font-family:
+    'Roboto Mono Variable', 'Roboto Mono', Menlo, Monaco, Consolas, 'Andale Mono', 'Ubuntu Mono',
+    'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .yakable-markdown [data-streamdown='code-block-body'] code {
   background: transparent;
   padding: 0;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
 }
