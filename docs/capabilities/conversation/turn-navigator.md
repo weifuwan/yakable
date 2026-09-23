@@ -81,6 +81,7 @@ Tests:
 - Current Turn 已按 viewport 顶部向下 30% Reading Anchor 实现；Visible Turn 由 viewport intersection geometry 独立计算。
 - Basic Navigator 在少于 3 个正式 Turn 时不显示，窄屏隐藏；Rail 提供 Current / Visible 状态、共享 Prompt Preview、Click、Previous / Next、Origin / Terminus。
 - Jump 已统一支持当前窗口与未加载历史：未加载 Turn 先按 USER Message sequence 查询 Target Message Window，再对齐 Reading Anchor。
+- 当前 DOM 中存在 turnId 不代表 Turn 起点已加载；只有该 Turn 的 USER Message 已在 Message Window 中时才能直接 Jump，否则仍需加载 Target Message Window。
 - Origin / Terminus 固定在可滚动 rib column 外；Origin 定位 Session start，Terminus 定位 latest 并恢复 follow latest。
 - 当前显示 Message Window 与 Session 最新 sequence 分离；跳到历史窗口不得让 Streaming / Reconnect 的 afterSequence 回退。
 
