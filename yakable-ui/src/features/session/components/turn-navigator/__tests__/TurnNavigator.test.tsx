@@ -233,6 +233,34 @@ describe('TurnNavigator', () => {
     expect(onJumpTurn).toHaveBeenCalledTimes(1);
   });
 
+  it('cancels an active Drag without jumping', () => {
+    const onJumpTurn = vi.fn();
+    const onPreviewTurnChange = vi.fn();
+
+    renderNavigator({ onJumpTurn, onPreviewTurnChange });
+    const rail = configureRailGeometry();
+    const first = screen.getByRole('button', { name: 'Go to turn 1' });
+
+    fireEvent.pointerDown(first, {
+      pointerId: 9,
+      clientX: 10,
+      clientY: 108,
+    });
+    fireEvent.pointerMove(rail, {
+      pointerId: 9,
+      clientX: 10,
+      clientY: 140,
+    });
+    fireEvent.pointerCancel(rail, {
+      pointerId: 9,
+      clientX: 10,
+      clientY: 140,
+    });
+
+    expect(onJumpTurn).not.toHaveBeenCalled();
+    expect(onPreviewTurnChange).toHaveBeenLastCalledWith(null);
+  });
+
   it('applies Fisheye as transform-only visual scaling and resets on leave', () => {
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       callback(0);
