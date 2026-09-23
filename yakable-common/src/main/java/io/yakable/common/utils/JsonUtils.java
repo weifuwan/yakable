@@ -1,6 +1,7 @@
 package io.yakable.common.utils;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.experimental.UtilityClass;
@@ -30,6 +31,19 @@ public class JsonUtils {
     public JsonNode parseTree(String value) {
         try {
             return OBJECT_MAPPER.readTree(value);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalArgumentException("Invalid JSON.", exception);
+        }
+    }
+
+    /**
+     * 严格解析单个 JSON 值，拒绝尾随额外内容。
+     */
+    public JsonNode parseTreeStrict(String value) {
+        try {
+            return OBJECT_MAPPER.reader()
+                    .with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                    .readTree(value);
         } catch (JsonProcessingException exception) {
             throw new IllegalArgumentException("Invalid JSON.", exception);
         }
