@@ -22,7 +22,7 @@ Turn Navigator
 → long-session navigation runtime
     ↓
 Turn Navigator Interaction V2
-→ compact rail + prompt overview (Designing)
+→ compact rail + prompt overview
 ```
 
 Capabilities:

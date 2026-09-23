@@ -255,7 +255,6 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
     renderedTurnIds,
     navigationRefreshKey: turns.length,
     replaceWindow,
-    restoreLatestWindow: restoreLatest,
     onFollowLatestChange: setFollowLatest,
   });
 

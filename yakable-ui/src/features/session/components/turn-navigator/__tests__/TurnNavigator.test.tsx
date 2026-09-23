@@ -8,6 +8,8 @@ import type { SessionTurnNavigationItem } from '@/service/session';
 
 import { TurnNavigator } from '../TurnNavigator';
 
+const scrollIntoViewMock = vi.fn();
+
 const items: SessionTurnNavigationItem[] = Array.from({ length: 7 }, (_, index) => ({
   turnId: 'turn-' + (index + 1),
   userMessageId: 'message-' + (index * 2 + 1),
@@ -31,6 +33,11 @@ function renderNavigator(overrides: Partial<ComponentProps<typeof TurnNavigator>
 }
 
 beforeEach(() => {
+  scrollIntoViewMock.mockClear();
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+    configurable: true,
+    value: scrollIntoViewMock,
+  });
   vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
     callback(0);
     return 1;
@@ -69,6 +76,24 @@ describe('TurnNavigator', () => {
     expect(screen.queryByRole('button', { name: 'Next turn' })).toBeNull();
   });
 
+  it('shifts the five-marker window at the Session boundaries', () => {
+    const { rerender, props } = renderNavigator({ currentTurnId: 'turn-1' });
+
+    expect(
+      screen
+        .getAllByTestId('turn-navigator-marker')
+        .map((marker) => marker.getAttribute('data-turn-id')),
+    ).toEqual(['turn-1', 'turn-2', 'turn-3', 'turn-4', 'turn-5']);
+
+    rerender(<TurnNavigator {...props} currentTurnId="turn-7" />);
+
+    expect(
+      screen
+        .getAllByTestId('turn-navigator-marker')
+        .map((marker) => marker.getAttribute('data-turn-id')),
+    ).toEqual(['turn-3', 'turn-4', 'turn-5', 'turn-6', 'turn-7']);
+  });
+
   it('opens one Prompt Overview on hover and marks the Current Prompt row', () => {
     renderNavigator();
 
@@ -82,6 +107,25 @@ describe('TurnNavigator', () => {
     expect(overview).toBeTruthy();
     expect(screen.getAllByRole('button', { name: /Go to turn/ })).toHaveLength(7);
     expect(current.getAttribute('aria-current')).toBe('true');
+    expect(scrollIntoViewMock).toHaveBeenCalled();
+  });
+
+  it('stops Current auto-follow after the user starts operating the Overview', async () => {
+    const { rerender, props } = renderNavigator();
+
+    fireEvent.pointerEnter(screen.getByRole('button', { name: 'Browse conversation turns' }));
+
+    await waitFor(() => {
+      expect(scrollIntoViewMock).toHaveBeenCalled();
+    });
+    scrollIntoViewMock.mockClear();
+
+    fireEvent.pointerMove(screen.getByRole('button', { name: 'Go to turn 2: Prompt 2' }));
+    rerender(<TurnNavigator {...props} currentTurnId="turn-5" />);
+
+    const nextCurrent = screen.getByRole('button', { name: 'Go to turn 5: Prompt 5' });
+    expect(nextCurrent.getAttribute('aria-current')).toBe('true');
+    expect(scrollIntoViewMock).not.toHaveBeenCalled();
   });
 
   it('keeps Prompt rows interactive while an earlier Jump is pending', async () => {
