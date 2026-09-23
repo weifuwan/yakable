@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.yakable.common.Result;
 import io.yakable.common.enums.auth.AuthErrorCode;
 import jakarta.annotation.Resource;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -57,6 +58,8 @@ public class SecurityConfiguration {
                 .logout(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR)
+                        .permitAll()
                         .requestMatchers(
                                 "/api/auth/login",
                                 "/api/auth/logout",

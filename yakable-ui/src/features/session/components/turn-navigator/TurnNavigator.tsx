@@ -110,7 +110,7 @@ export function TurnNavigator({
           type="button"
           aria-label="Go to conversation start"
           className="flex h-4 w-9 cursor-pointer items-center justify-center rounded-md text-icon-muted outline-none hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus-ring"
-                    onClick={(event) => onOrigin({ focusTarget: keyboardActivated(event) })}
+          onClick={(event) => onOrigin({ focusTarget: keyboardActivated(event) })}
         >
           <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
         </button>
@@ -145,7 +145,7 @@ export function TurnNavigator({
                 aria-current={current ? 'true' : undefined}
                 aria-describedby={previewed ? 'turn-navigator-preview' : undefined}
                 tabIndex={roving ? 0 : -1}
-                                className={cx(
+                className={cx(
                   'flex h-4 w-9 shrink-0 cursor-pointer items-center justify-center rounded-md outline-none focus-visible:outline-2 focus-visible:outline-focus-ring',
                   current ? 'text-foreground' : visible ? 'text-icon-secondary' : 'text-icon-muted',
                 )}
@@ -173,7 +173,7 @@ export function TurnNavigator({
           type="button"
           aria-label="Go to latest"
           className="flex h-4 w-9 cursor-pointer items-center justify-center rounded-md text-icon-muted outline-none hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus-ring"
-                    onClick={(event) => onTerminus({ focusTarget: keyboardActivated(event) })}
+          onClick={(event) => onTerminus({ focusTarget: keyboardActivated(event) })}
         >
           <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
         </button>

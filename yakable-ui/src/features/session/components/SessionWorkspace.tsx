@@ -124,6 +124,12 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
   const messageCount = messages.length;
 
   useEffect(() => {
+    return () => {
+      streamAbortRef.current?.abort();
+    };
+  }, []);
+
+  useEffect(() => {
     if (!expanded) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -481,13 +487,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
           );
         });
     },
-    [
-      hasNewer,
-      restoreLatest,
-      scrollToBottom,
-      setFollowLatest,
-      cancelNavigationJump,
-    ],
+    [hasNewer, restoreLatest, scrollToBottom, setFollowLatest, cancelNavigationJump],
   );
 
   const runStreamingTurn = useCallback(
