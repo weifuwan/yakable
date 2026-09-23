@@ -1,5 +1,7 @@
-import { render } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { useLayoutEffect, useMemo, useRef } from 'react';
+
+import { act, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { SessionMessage } from '@/service/session';
 
@@ -7,7 +9,22 @@ import { TurnItem, type TurnRenderModel } from '../../components/TurnItem';
 import {
   selectMountedTurnKeys,
   type TurnWindowLayoutEntry,
+  useTurnWindowing,
 } from '../useTurnWindowing';
+
+let resizeCallback: ResizeObserverCallback | null = null;
+
+class TestResizeObserver implements ResizeObserver {
+  constructor(callback: ResizeObserverCallback) {
+    resizeCallback = callback;
+  }
+
+  observe() {}
+
+  unobserve() {}
+
+  disconnect() {}
+}
 
 function turnModel(index: number): TurnRenderModel {
   const userMessage: SessionMessage = {
@@ -38,6 +55,101 @@ function turnModel(index: number): TurnRenderModel {
     failureMessage: null,
   };
 }
+
+function WindowingHarness({
+  count,
+  pinnedTurnKeys,
+}: {
+  count: number;
+  pinnedTurnKeys: string[];
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const turnKeys = useMemo(
+    () => Array.from({ length: count }, (_, index) => 'turn:turn-' + (index + 1)),
+    [count],
+  );
+  const windowing = useTurnWindowing({
+    scrollRef,
+    turnKeys,
+    pinnedTurnKeys,
+  });
+
+  useLayoutEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+
+    Object.defineProperties(container, {
+      clientHeight: { configurable: true, value: 800 },
+      scrollTop: { configurable: true, writable: true, value: 0 },
+    });
+    container.getBoundingClientRect = () =>
+      ({
+        x: 0,
+        y: 0,
+        top: 0,
+        right: 800,
+        bottom: 800,
+        left: 0,
+        width: 800,
+        height: 800,
+        toJSON: () => ({}),
+      }) as DOMRect;
+
+    Array.from(container.querySelectorAll<HTMLElement>('[data-turn-key]')).forEach(
+      (element, index) => {
+        element.getBoundingClientRect = () => {
+          const top = index * 100 - container.scrollTop;
+          return {
+            x: 0,
+            y: top,
+            top,
+            right: 800,
+            bottom: top + 100,
+            left: 0,
+            width: 800,
+            height: 100,
+            toJSON: () => ({}),
+          } as DOMRect;
+        };
+        windowing.reportTurnHeight(turnKeys[index], 100);
+      },
+    );
+  }, [turnKeys, windowing.reportTurnHeight]);
+
+  return (
+    <div ref={scrollRef} data-testid="window-container">
+      {turnKeys.map((key) => {
+        const mounted = windowing.isTurnMounted(key);
+        const height = windowing.measuredHeight(key);
+
+        return (
+          <div
+            key={key}
+            data-turn-key={key}
+            data-heavy={mounted ? 'true' : 'false'}
+            style={!mounted && height !== null ? { height } : undefined}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+beforeEach(() => {
+  resizeCallback = null;
+  vi.stubGlobal('ResizeObserver', TestResizeObserver);
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) =>
+    window.setTimeout(() => callback(0), 0),
+  );
+  vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => {
+    window.clearTimeout(id);
+  });
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe('Turn windowing', () => {
   it('keeps 500 Turn anchors while bounding Heavy DOM to viewport overscan and pins', () => {
@@ -79,12 +191,58 @@ describe('Turn windowing', () => {
       mounted.size,
     );
 
-    const placeholder = container.querySelector<HTMLElement>(
-      '[data-turn-window="placeholder"]',
-    );
+    const placeholder = container.querySelector<HTMLElement>('[data-turn-window="placeholder"]');
     expect(placeholder?.style.height).toBe('240px');
     expect(placeholder?.getAttribute('data-turn-id')).toBeTruthy();
     expect(placeholder?.tabIndex).toBe(-1);
+  });
+
+  it('runs the 500 Turn lifecycle without unbounding Heavy DOM after scroll or resize', async () => {
+    render(
+      <WindowingHarness
+        count={500}
+        pinnedTurnKeys={['turn:turn-1', 'turn:turn-500']}
+      />,
+    );
+
+    const container = screen.getByTestId('window-container');
+
+    await waitFor(() => {
+      expect(container.querySelectorAll('[data-turn-key]')).toHaveLength(500);
+      expect(container.querySelectorAll('[data-heavy="true"]').length).toBeLessThan(30);
+    });
+
+    expect(
+      container.querySelector<HTMLElement>('[data-turn-key="turn:turn-1"]')?.dataset.heavy,
+    ).toBe('true');
+    expect(
+      container.querySelector<HTMLElement>('[data-turn-key="turn:turn-500"]')?.dataset.heavy,
+    ).toBe('true');
+
+    act(() => {
+      container.scrollTop = 25_000;
+      container.dispatchEvent(new Event('scroll'));
+    });
+
+    await waitFor(() => {
+      expect(container.querySelectorAll('[data-heavy="true"]').length).toBeLessThan(30);
+      expect(
+        container.querySelector<HTMLElement>('[data-turn-key="turn:turn-251"]')?.dataset.heavy,
+      ).toBe('true');
+    });
+
+    const heavyBeforeResize = container.querySelectorAll('[data-heavy="true"]').length;
+
+    act(() => {
+      resizeCallback?.([], {} as ResizeObserver);
+    });
+
+    await waitFor(() => {
+      expect(container.querySelectorAll('[data-heavy="true"]').length).toBeLessThan(30);
+    });
+    expect(container.querySelectorAll('[data-heavy="true"]').length).toBeLessThanOrEqual(
+      heavyBeforeResize + 2,
+    );
   });
 
   it('keeps unmeasured and explicitly pinned Turns mounted', () => {
