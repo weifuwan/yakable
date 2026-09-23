@@ -164,6 +164,27 @@ A runtime mechanism may hold bounded temporary state, but durable Session / Turn
 
 Conversation Stream Runtime owns only bounded in-memory stream state, snapshot / delta / terminal ordering, watcher delivery and stop cutover. Stop business decisions, Turn state transitions and partial Message persistence remain in Service.
 
+## Conversation / Session Architecture Acceptance
+
+The current Conversation / Session backend ownership is accepted as the V1 architecture.
+
+Accepted boundaries:
+
+- `SessionService` remains the Conversation domain facade. Its API spans several Conversation capabilities, but those methods still share Session ownership, Turn / Message business facts and transaction orchestration.
+- `SessionServiceImpl` may remain a larger orchestration class when its remaining code is cohesive business policy. File length alone is not a reason to split it.
+- `TurnStreamRuntime` is Core because buffer, watcher delivery, terminal ordering and stop cutover form an independent JVM runtime state machine.
+- Turn establishment, request idempotency, ownership checks, STOPPED / FAILED / SUCCEEDED persistence, partial Message persistence, Context eligibility and Recovery remain Service responsibilities.
+- `executeTurnAsync` / execution concurrency remain in Service for V1. Moving them into Core would currently require persistence / business ports without creating a clearer independent Runtime Contract.
+- `TurnService` and `MessageService` remain the persistence-facing business boundaries for their own facts.
+
+Current non-goals:
+
+- no `SessionCommandService / SessionQueryService` split only for interface size
+- no `TurnExecutionRuntime` extraction only for line count
+- no new Manager / Coordinator / Handler / Adapter layer between Session Service and existing owners
+
+Re-open this architecture only when a new capability creates a real independent lifecycle or when the current owner can no longer express its behavior without unrelated coordination.
+
 ## Refactor Rule
 
 Architecture refactors migrate existing facts; they do not recreate them.
