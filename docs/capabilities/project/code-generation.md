@@ -22,7 +22,8 @@ Backend:
 - `yakable-service/src/main/java/io/yakable/service/turn/impl/TurnServiceImpl.java`
 - `yakable-dao/src/main/java/io/yakable/dao/entity/TurnEntity.java`
 - Planned: Project code generation Core capability
-- Planned: Project file publication Core capability
+- `yakable-core/src/main/java/io/yakable/core/project/files/ProjectFile.java`
+- `yakable-core/src/main/java/io/yakable/core/project/files/ProjectFiles.java`
 
 Data:
 - Project
@@ -42,10 +43,12 @@ Tests:
 - `yakable-service/src/test/java/io/yakable/service/project/impl/ProjectServiceImplTest.java`
 - `yakable-service/src/test/java/io/yakable/service/session/impl/SessionServiceImplTest.java`
 - `yakable-service/src/test/java/io/yakable/service/turn/impl/TurnServiceImplTest.java`
+- `yakable-core/src/test/java/io/yakable/core/project/files/ProjectFilesTest.java`
 
 Known Gaps:
-- PR1 only persists and propagates Initial Turn execution type.
-- Project generation, file publication and execution routing are not implemented yet.
+- Project code generation is not implemented yet.
+- Initial Turn execution routing to Project Code Generation is not implemented yet.
+- Project Files Core is not assembled into the application until generation execution is connected.
 
 ## Purpose
 
