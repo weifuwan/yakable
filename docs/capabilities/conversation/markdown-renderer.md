@@ -1,6 +1,6 @@
 # Markdown Renderer
 
-Status: Review
+Status: Done
 Domain: Conversation
 
 Depends On:
@@ -242,8 +242,10 @@ Acceptance Review 已闭环：
 - unknown language、incomplete streaming fence、raw HTML / dangerous URL、fenced script source 都已有回归保护。
 - `streaming / static`、Code controls、Shiki lazy language、module-level plugin config 与 Turn Windowing ownership 已完成 Review。
 - Review Commit `9caf87e0358281edff020a5f2fb43fc0bc4f88e9` 已通过 Frontend Verification、Backend Verification 与 `Yakable / Quality Gate`。
-- 本次 Code Surface Visual Polish 重新进入 Review：单层 `#F3F3F3` Surface、隐藏 Download、关闭 line number。
-- 最终 Visual Polish Commit 通过完整 Quality Gate 后再恢复 `Status: Done`。
+- Code Surface Visual Polish 已闭环：单层 `#F3F3F3` Surface、隐藏 Download、关闭 line number、Header 使用轻量 Code 标识。
+- Review Commit `96efa13565e7c9916e33c79ae0a7349514e6c789` 已通过 Frontend Verification、Backend Verification 与 `Yakable / Quality Gate`。
+- Known Gaps = none。
+- 最终 `Status: Done` Commit 本身仍需再次通过完整 Quality Gate。
 
 ## Boundary
 
