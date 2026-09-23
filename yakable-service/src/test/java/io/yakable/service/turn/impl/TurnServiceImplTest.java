@@ -3,6 +3,7 @@ package io.yakable.service.turn.impl;
 import io.yakable.common.bean.vo.session.TurnExecutionVO;
 import io.yakable.common.bean.vo.session.TurnVO;
 import io.yakable.common.enums.session.TurnStatusEnum;
+import io.yakable.common.enums.session.TurnTypeEnum;
 import io.yakable.dao.entity.TurnEntity;
 import io.yakable.dao.repository.TurnRepository;
 import org.junit.jupiter.api.Test;
@@ -29,8 +30,9 @@ class TurnServiceImplTest {
     private TurnServiceImpl turnService;
 
     @Test
-    void shouldCreatePendingTurnWithModelIdentity() {
-        TurnVO result = turnService.addTurn("session-1", "kimi", "kimi-k3", "request-1");
+    void shouldCreatePendingTurnWithExecutionTypeAndModelIdentity() {
+        TurnVO result = turnService.addTurn(
+                "session-1", TurnTypeEnum.PROJECT_GENERATION, "kimi", "kimi-k3", "request-1");
 
         ArgumentCaptor<TurnEntity> captor = ArgumentCaptor.forClass(TurnEntity.class);
         verify(turnRepository).add(captor.capture());
@@ -38,6 +40,7 @@ class TurnServiceImplTest {
         TurnEntity saved = captor.getValue();
         assertThat(saved.getSessionId()).isEqualTo("session-1");
         assertThat(saved.getRequestId()).isEqualTo("request-1");
+        assertThat(saved.getTurnType()).isEqualTo(TurnTypeEnum.PROJECT_GENERATION);
         assertThat(saved.getProvider()).isEqualTo("kimi");
         assertThat(saved.getModel()).isEqualTo("kimi-k3");
         assertThat(saved.getStatus()).isEqualTo(TurnStatusEnum.PENDING);
@@ -51,6 +54,7 @@ class TurnServiceImplTest {
         entity.setId("turn-1");
         entity.setSessionId("session-1");
         entity.setRequestId("request-1");
+        entity.setTurnType(TurnTypeEnum.PROJECT_GENERATION);
         entity.setProvider("deepseek");
         entity.setModel("deepseek-flash");
         when(turnRepository.queryById("turn-1")).thenReturn(Optional.of(entity));
@@ -58,6 +62,7 @@ class TurnServiceImplTest {
         TurnExecutionVO result = turnService.queryTurnExecution("turn-1").orElseThrow();
 
         assertThat(result.getRequestId()).isEqualTo("request-1");
+        assertThat(result.getTurnType()).isEqualTo(TurnTypeEnum.PROJECT_GENERATION);
         assertThat(result.getProvider()).isEqualTo("deepseek");
         assertThat(result.getModel()).isEqualTo("deepseek-flash");
     }
