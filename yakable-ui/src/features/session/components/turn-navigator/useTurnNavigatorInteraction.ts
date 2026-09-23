@@ -272,7 +272,7 @@ export function useTurnNavigatorInteraction({
         setInteracting(false);
       }
     },
-    [resetFisheye],
+    [onPreviewTurnChange, resetFisheye],
   );
 
   const onRailPointerDown = useCallback(
