@@ -149,6 +149,7 @@ describe('TurnItem', () => {
     const anchor = container.querySelector('[data-turn-id="turn-1"]');
     expect(anchor).toBeTruthy();
     expect(anchor?.getAttribute('data-turn-key')).toBe('turn:turn-1');
+    expect(anchor?.getAttribute('data-turn-user-loaded')).toBe('true');
     expect((anchor as HTMLElement).tabIndex).toBe(-1);
     expect(anchor?.contains(screen.getByText('First prompt'))).toBe(true);
     expect(anchor?.contains(screen.getByText('First answer'))).toBe(true);

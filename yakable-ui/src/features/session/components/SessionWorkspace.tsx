@@ -12,6 +12,8 @@ import {
 import { cx, Icon, IconButton, PromptComposer, PromptComposerSkeleton } from '@/shared/ui';
 
 import { buildTurnRenderModels, type OptimisticTurnRenderInput, TurnItem } from './TurnItem';
+import { TurnNavigator } from './turn-navigator/TurnNavigator';
+import { useTurnNavigator } from './turn-navigator/useTurnNavigator';
 import { useSessionMessageWindow } from '../hooks/useSessionMessageWindow';
 
 const SESSION_POLL_INTERVAL_MS = 1000;
@@ -90,6 +92,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
   const [streamingContent, setStreamingContent] = useState('');
   const [optimisticTurn, setOptimisticTurn] = useState<OptimisticTurnRenderInput | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [latestSequence, setLatestSequence] = useState(0);
   const [isSessionLoading, setIsSessionLoading] = useState(true);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -111,6 +114,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
     hasNewer,
     isLoadingOlder,
     initialize: initializeMessageWindow,
+    replaceWindow,
     mergeMessages,
     loadOlder,
     loadNewer,
@@ -133,14 +137,18 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
     };
   }, [expanded]);
 
+  const setFollowLatest = useCallback((followLatest: boolean) => {
+    followOutputRef.current = followLatest;
+    setShowScrollBottom(!followLatest);
+  }, []);
+
   const scrollToBottom = useCallback(() => {
     const element = scrollRef.current;
     if (!element) return;
 
-    followOutputRef.current = true;
-    setShowScrollBottom(false);
+    setFollowLatest(true);
     element.scrollTop = element.scrollHeight;
-  }, []);
+  }, [setFollowLatest]);
 
   const loadOlderMessages = useCallback(async () => {
     const element = scrollRef.current;
@@ -179,8 +187,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
     if (!element) return;
 
     const nearBottom = isNearBottom(element);
-    followOutputRef.current = nearBottom;
-    setShowScrollBottom(!nearBottom);
+    setFollowLatest(nearBottom);
 
     if (element.scrollTop <= HISTORY_LOAD_THRESHOLD_PX) {
       void loadOlderMessages();
@@ -192,7 +199,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
     ) {
       void loadNewerMessages();
     }
-  }, [hasNewer, loadNewerMessages, loadOlderMessages]);
+  }, [hasNewer, loadNewerMessages, loadOlderMessages, setFollowLatest]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -203,6 +210,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
         setSessionInfo(result.session);
         setTurns(result.turns);
         initializeMessageWindow(result);
+        setLatestSequence(result.messages.at(-1)?.sequence ?? 0);
         setSelectedModel(result.session.model);
         setIsSessionLoading(false);
       })
@@ -236,17 +244,25 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
   const activeTurn = hasActiveTurn(turns);
   const activeTurnId = latestActiveTurnId(turns);
   const generating = isGenerating || activeTurn;
-  const latestSequence = messages.at(-1)?.sequence ?? 0;
   const visibleStreamingTurnId = streamingTurnId ?? watchedTurnId;
 
   useEffect(() => {
     latestSequenceRef.current = latestSequence;
   }, [latestSequence]);
 
+  const renderedTurnIdsRef = useRef(new Set<string>());
+
   const applyChanges = useCallback(
     (changes: SessionChanges) => {
       setTurns((current) => mergeTurn(current, changes.latestTurn));
-      mergeMessages(changes.messages);
+      setLatestSequence((current) => Math.max(current, changes.latestSequence));
+
+      const affectsRenderedTurn = changes.messages.some((message) =>
+        renderedTurnIdsRef.current.has(message.turnId),
+      );
+      if (followOutputRef.current || affectsRenderedTurn) {
+        mergeMessages(changes.messages);
+      }
     },
     [mergeMessages],
   );
@@ -377,20 +393,21 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
 
   const latestTurn = useMemo(() => turns.at(-1) ?? null, [turns]);
 
-  const streamingMessage = useMemo<SessionMessage | null>(
-    () =>
-      visibleStreamingTurnId && streamingContent
-        ? {
-            id: 'stream-' + visibleStreamingTurnId,
-            turnId: visibleStreamingTurnId,
-            role: 'ASSISTANT',
-            content: streamingContent,
-            sequence: Number.MAX_SAFE_INTEGER,
-            createdAt: new Date().toISOString(),
-          }
-        : null,
-    [streamingContent, visibleStreamingTurnId],
-  );
+  const streamingMessage = useMemo<SessionMessage | null>(() => {
+    if (!visibleStreamingTurnId || !streamingContent) return null;
+
+    const turnIsRendered = messages.some((message) => message.turnId === visibleStreamingTurnId);
+    if (!turnIsRendered) return null;
+
+    return {
+      id: 'stream-' + visibleStreamingTurnId,
+      turnId: visibleStreamingTurnId,
+      role: 'ASSISTANT',
+      content: streamingContent,
+      sequence: Number.MAX_SAFE_INTEGER,
+      createdAt: new Date().toISOString(),
+    };
+  }, [messages, streamingContent, visibleStreamingTurnId]);
 
   const turnModels = useMemo(
     () =>
@@ -414,6 +431,25 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
       turns,
     ],
   );
+
+  const renderedTurnIds = useMemo(
+    () => turnModels.flatMap((turn) => (turn.turnId ? [turn.turnId] : [])),
+    [turnModels],
+  );
+
+  useEffect(() => {
+    renderedTurnIdsRef.current = new Set(renderedTurnIds);
+  }, [renderedTurnIds]);
+
+  const turnNavigator = useTurnNavigator({
+    projectId,
+    sessionId,
+    scrollRef,
+    renderedTurnIds,
+    navigationRefreshKey: turns.length,
+    replaceWindow,
+    onFollowLatestChange: setFollowLatest,
+  });
 
   const runStreamingTurn = useCallback(
     async (
@@ -444,6 +480,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
               onActivity?.(sessionId, started.userMessage.createdAt);
               setSessionInfo((current) => (current ? { ...current, model } : current));
               setTurns((current) => mergeTurn(current, started.turn));
+              setLatestSequence((current) => Math.max(current, started.userMessage.sequence));
               mergeMessages([started.userMessage]);
             },
             onSnapshot: (content) => {
@@ -638,6 +675,30 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
             </div>
           )}
         </div>
+
+        {!isSessionLoading && (
+          <TurnNavigator
+            items={turnNavigator.items}
+            currentTurnId={turnNavigator.currentTurnId}
+            visibleTurnIds={turnNavigator.visibleTurnIds}
+            previewItem={turnNavigator.previewItem}
+            isJumping={turnNavigator.isJumping}
+            hasPrevious={turnNavigator.hasPrevious}
+            hasNext={turnNavigator.hasNext}
+            onPreviewTurnChange={turnNavigator.setPreviewTurnId}
+            onJumpTurn={(item) => {
+              void turnNavigator.jumpToTurn(item);
+            }}
+            onPrevious={turnNavigator.jumpPrevious}
+            onNext={turnNavigator.jumpNext}
+            onOrigin={() => {
+              void turnNavigator.jumpOrigin();
+            }}
+            onTerminus={() => {
+              void turnNavigator.jumpTerminus();
+            }}
+          />
+        )}
 
         <div
           aria-hidden="true"

@@ -109,6 +109,7 @@ export function TurnItem({ turn }: { turn: TurnRenderModel }) {
     <section
       data-turn-id={turn.turnId ?? undefined}
       data-turn-key={turn.key}
+      data-turn-user-loaded={turn.userMessage ? 'true' : 'false'}
       tabIndex={-1}
       className="flex flex-col gap-6 outline-none focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-focus-ring"
     >

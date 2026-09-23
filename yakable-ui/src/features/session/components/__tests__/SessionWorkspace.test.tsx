@@ -182,6 +182,7 @@ const stoppedChanges: SessionChanges = {
 
 beforeEach(() => {
   vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue('00000000-0000-4000-8000-000000000002');
+  vi.spyOn(SessionService, 'queryTurnNavigation').mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -223,6 +224,97 @@ describe('SessionWorkspace', () => {
       screen.getByRole('textbox', { name: 'Send a message' }).getAttribute('placeholder'),
     ).toBe('Ask Yakable...');
     expect(screen.queryByRole('status', { name: 'Loading session' })).toBeNull();
+  });
+
+  it('loads an unloaded Turn through the Navigator without changing Session latest progress', async () => {
+    const latest = createSnapshot();
+    latest.turns = [
+      {
+        ...succeededTurn,
+        id: 'turn-3',
+      },
+    ];
+    latest.messages = [
+      {
+        id: 'message-5',
+        turnId: 'turn-3',
+        role: 'USER',
+        content: 'Latest prompt',
+        sequence: 5,
+        createdAt: '2026-09-21T00:00:04Z',
+      },
+      {
+        id: 'message-6',
+        turnId: 'turn-3',
+        role: 'ASSISTANT',
+        content: 'Latest answer',
+        sequence: 6,
+        createdAt: '2026-09-21T00:00:05Z',
+      },
+    ];
+
+    vi.spyOn(SessionService, 'querySession').mockResolvedValue(latest);
+    vi.mocked(SessionService.queryTurnNavigation).mockResolvedValue([
+      {
+        turnId: 'turn-1',
+        userMessageId: 'message-1',
+        userMessageSequence: 1,
+        preview: 'First prompt',
+      },
+      {
+        turnId: 'turn-2',
+        userMessageId: 'message-3',
+        userMessageSequence: 3,
+        preview: 'Second prompt',
+      },
+      {
+        turnId: 'turn-3',
+        userMessageId: 'message-5',
+        userMessageSequence: 5,
+        preview: 'Latest prompt',
+      },
+    ]);
+    const queryMessageWindow = vi.spyOn(SessionService, 'queryMessageWindow').mockResolvedValue({
+      messages: [
+        {
+          id: 'message-1',
+          turnId: 'turn-1',
+          role: 'USER',
+          content: 'First prompt',
+          sequence: 1,
+          createdAt: '2026-09-21T00:00:00Z',
+        },
+        {
+          id: 'message-2',
+          turnId: 'turn-1',
+          role: 'ASSISTANT',
+          content: 'First answer',
+          sequence: 2,
+          createdAt: '2026-09-21T00:00:01Z',
+        },
+      ],
+      hasOlder: false,
+      hasNewer: true,
+      olderCursor: null,
+      newerCursor: 2,
+    });
+
+    render(<SessionWorkspace projectId="project-1" sessionId="session-1" />);
+
+    expect(await screen.findByText('Latest answer')).toBeTruthy();
+    expect(await screen.findByRole('complementary', { name: 'Turn navigator' })).toBeTruthy();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Go to turn 1' }));
+
+    await waitFor(() => {
+      expect(queryMessageWindow).toHaveBeenCalledWith('project-1', 'session-1', 1);
+    });
+    await waitFor(() => {
+      const turn = document.querySelector('[data-turn-id="turn-1"]');
+      expect(turn?.textContent).toContain('First prompt');
+      expect(turn?.textContent).toContain('First answer');
+    });
+    expect(screen.queryByText('Latest answer')).toBeNull();
   });
 
   it('hides stale content while switching to another session', async () => {

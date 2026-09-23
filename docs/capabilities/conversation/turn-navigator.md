@@ -17,9 +17,9 @@ Frontend:
 - Contract Types: `yakable-ui/src/service/session/types.ts`
 - Turn Boundary: `yakable-ui/src/features/session/components/TurnItem.tsx`
 - Message Window: `yakable-ui/src/features/session/hooks/useSessionMessageWindow.ts`
-- Planned: `yakable-ui/src/features/session/components/turn-navigator/TurnNavigator.tsx`
-- Planned: `yakable-ui/src/features/session/components/turn-navigator/useTurnNavigator.ts`
-- Planned: `yakable-ui/src/features/session/components/turn-navigator/turn-navigation.ts`
+- Basic Rail: `yakable-ui/src/features/session/components/turn-navigator/TurnNavigator.tsx`
+- Navigation State: `yakable-ui/src/features/session/components/turn-navigator/useTurnNavigator.ts`
+- Geometry: `yakable-ui/src/features/session/components/turn-navigator/turn-navigation.ts`
 - Existing host: `yakable-ui/src/features/session/components/SessionWorkspace.tsx`
 
 Backend:
@@ -46,8 +46,10 @@ Tests:
 - `yakable-ui/src/features/session/components/__tests__/TurnItem.test.tsx`
 - `yakable-ui/src/features/session/hooks/__tests__/useSessionMessageWindow.test.ts`
 - `yakable-ui/src/features/session/components/__tests__/SessionWorkspace.test.tsx`
-- Planned: TurnNavigator component tests
-- Planned: SessionWorkspace navigation integration tests
+- `yakable-ui/src/features/session/components/turn-navigator/__tests__/turn-navigation.test.ts`
+- `yakable-ui/src/features/session/components/turn-navigator/__tests__/TurnNavigator.test.tsx`
+- `yakable-ui/src/features/session/components/turn-navigator/__tests__/useTurnNavigator.test.tsx`
+- SessionWorkspace basic navigation integration
 - Planned: Navigator geometry / drag / focus / windowing invariant regression tests
 - Planned: 500 Turn long-session test
 
@@ -76,6 +78,12 @@ Tests:
 - Message Window 状态由 `useSessionMessageWindow` 单独拥有；SessionWorkspace 不再维护第二份 Message 数组。
 - 每个已渲染 Turn 使用一个 `TurnItem` 顶层 Anchor；同一 Turn 的 USER / ASSISTANT / Streaming / Thinking / Failure 必须落在同一边界内。
 - Message Window 切换或历史 prepend 后必须重新按 turnId 聚合，不能把一个 Turn 拆成多个 DOM Anchor。
+- Current Turn 已按 viewport 顶部向下 30% Reading Anchor 实现；Visible Turn 由 viewport intersection geometry 独立计算。
+- Basic Navigator 在少于 3 个正式 Turn 时不显示，窄屏隐藏；Rail 提供 Current / Visible 状态、共享 Prompt Preview、Click、Previous / Next、Origin / Terminus。
+- Jump 已统一支持当前窗口与未加载历史：未加载 Turn 先按 USER Message sequence 查询 Target Message Window，再对齐 Reading Anchor。
+- 当前 DOM 中存在 turnId 不代表 Turn 起点已加载；只有该 Turn 的 USER Message 已在 Message Window 中时才能直接 Jump，否则仍需加载 Target Message Window。
+- Origin / Terminus 固定在可滚动 rib column 外；Origin 定位 Session start，Terminus 定位 latest 并恢复 follow latest。
+- 当前显示 Message Window 与 Session 最新 sequence 分离；跳到历史窗口不得让 Streaming / Reconnect 的 afterSequence 回退。
 
 ## Frontend Design Invariants
 
