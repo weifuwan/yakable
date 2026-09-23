@@ -3,6 +3,7 @@ package io.yakable.boot.integration;
 import io.yakable.boot.YakableApplication;
 import io.yakable.common.enums.session.MessageRoleEnum;
 import io.yakable.common.enums.session.TurnStatusEnum;
+import io.yakable.common.enums.session.TurnTypeEnum;
 import io.yakable.dao.entity.MessageEntity;
 import io.yakable.dao.entity.TurnEntity;
 import io.yakable.dao.repository.MessageRepository;
@@ -85,7 +86,7 @@ class ConversationPersistenceIT {
                 Integer.class);
 
         assertThat(contentType).isEqualTo("mediumtext");
-        assertThat(latestVersion).isEqualTo(1);
+        assertThat(latestVersion).isEqualTo(2);
     }
 
     @Test
@@ -295,12 +296,12 @@ class ConversationPersistenceIT {
         jdbcTemplate.update(
                 """
                 INSERT INTO yak_turn (
-                    id, session_id, request_id, status, attempt_count,
+                    id, session_id, request_id, turn_type, status, attempt_count,
                     provider, model, started_at,
                     create_time, update_time, create_by, update_by
                 )
                 VALUES (
-                    ?, ?, ?, ?, 1,
+                    ?, ?, ?, ?, ?, 1,
                     'deepseek', 'deepseek-flash', ?,
                     CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6), 'user-1', 'user-1'
                 )
@@ -308,6 +309,7 @@ class ConversationPersistenceIT {
                 turnId,
                 sessionId,
                 requestId,
+                TurnTypeEnum.CHAT.getValue(),
                 status.getValue(),
                 startedAt);
     }
