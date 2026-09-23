@@ -18,6 +18,11 @@ import {
 
 const TURN_ANCHOR_WAIT_FRAMES = 8;
 
+interface ActiveJump {
+  id: number;
+  controller: AbortController;
+}
+
 function sameIds(left: string[], right: string[]) {
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
@@ -29,6 +34,7 @@ interface UseTurnNavigatorOptions {
   renderedTurnIds: string[];
   navigationRefreshKey: number;
   replaceWindow: (window: SessionMessageWindow) => void;
+  restoreLatestWindow: (signal?: AbortSignal) => Promise<boolean>;
   onFollowLatestChange: (followLatest: boolean) => void;
 }
 
@@ -38,10 +44,17 @@ function nextFrame() {
   });
 }
 
-async function waitForTurnAnchor(container: HTMLElement, turnId: string) {
+async function waitForTurnAnchor(
+  container: HTMLElement,
+  turnId: string,
+  signal: AbortSignal,
+  requireTurnStart = true,
+) {
   for (let attempt = 0; attempt < TURN_ANCHOR_WAIT_FRAMES; attempt += 1) {
+    if (signal.aborted) return null;
+
     const anchor = findTurnElement(container, turnId);
-    if (anchor && hasLoadedTurnStart(anchor)) return anchor;
+    if (anchor && (!requireTurnStart || hasLoadedTurnStart(anchor))) return anchor;
     await nextFrame();
   }
   return null;
@@ -54,6 +67,7 @@ export function useTurnNavigator({
   renderedTurnIds,
   navigationRefreshKey,
   replaceWindow,
+  restoreLatestWindow,
   onFollowLatestChange,
 }: UseTurnNavigatorOptions) {
   const [items, setItems] = useState<SessionTurnNavigationItem[]>([]);
@@ -62,6 +76,8 @@ export function useTurnNavigator({
   const [previewTurnId, setPreviewTurnId] = useState<string | null>(null);
   const [isJumping, setIsJumping] = useState(false);
   const frameRef = useRef<number | null>(null);
+  const jumpSequenceRef = useRef(0);
+  const activeJumpRef = useRef<ActiveJump | null>(null);
   const renderedTurnKey = renderedTurnIds.join('|');
 
   useEffect(() => {
@@ -138,10 +154,47 @@ export function useTurnNavigator({
     };
   }, [renderedTurnKey, scheduleMeasure, scrollRef]);
 
+  const beginJump = useCallback(() => {
+    activeJumpRef.current?.controller.abort();
+
+    const jump: ActiveJump = {
+      id: ++jumpSequenceRef.current,
+      controller: new AbortController(),
+    };
+    activeJumpRef.current = jump;
+    setIsJumping(true);
+    return jump;
+  }, []);
+
+  const isActiveJump = useCallback((jump: ActiveJump) => {
+    return activeJumpRef.current?.id === jump.id && !jump.controller.signal.aborted;
+  }, []);
+
+  const finishJump = useCallback((jump: ActiveJump) => {
+    if (activeJumpRef.current?.id !== jump.id) return;
+
+    activeJumpRef.current = null;
+    setIsJumping(false);
+  }, []);
+
+  const cancelJump = useCallback(() => {
+    activeJumpRef.current?.controller.abort();
+    activeJumpRef.current = null;
+    setIsJumping(false);
+  }, []);
+
+  useEffect(
+    () => () => {
+      activeJumpRef.current?.controller.abort();
+      activeJumpRef.current = null;
+    },
+    [],
+  );
+
   const ensureTurnRendered = useCallback(
-    async (item: SessionTurnNavigationItem) => {
+    async (item: SessionTurnNavigationItem, jump: ActiveJump) => {
       const container = scrollRef.current;
-      if (!container) return null;
+      if (!container || !isActiveJump(jump)) return null;
 
       const existing = findTurnElement(container, item.turnId);
       if (existing && hasLoadedTurnStart(existing)) return existing;
@@ -150,47 +203,71 @@ export function useTurnNavigator({
         projectId,
         sessionId,
         item.userMessageSequence,
+        jump.controller.signal,
       );
-      replaceWindow(windowResult);
+      if (!isActiveJump(jump)) return null;
 
-      return waitForTurnAnchor(container, item.turnId);
+      replaceWindow(windowResult);
+      return waitForTurnAnchor(container, item.turnId, jump.controller.signal);
     },
-    [projectId, replaceWindow, scrollRef, sessionId],
+    [isActiveJump, projectId, replaceWindow, scrollRef, sessionId],
+  );
+
+  const alignTurn = useCallback(
+    (
+      container: HTMLElement,
+      item: SessionTurnNavigationItem,
+      anchor: HTMLElement,
+      options: TurnJumpOptions,
+      jump: ActiveJump,
+    ) => {
+      if (!isActiveJump(jump)) return;
+
+      const layout = measureTurnLayout(container);
+      const entry = layout.find((candidate) => candidate.turnId === item.turnId);
+      if (!entry) return;
+
+      container.scrollTop = targetScrollTop(
+        entry,
+        container.clientHeight,
+        container.scrollHeight,
+      );
+      scheduleMeasure();
+
+      if (options.focusTarget) {
+        anchor.focus({ preventScroll: true });
+      }
+    },
+    [isActiveJump, scheduleMeasure],
   );
 
   const jumpToTurn = useCallback(
     async (item: SessionTurnNavigationItem, options: TurnJumpOptions = {}) => {
       const container = scrollRef.current;
-      if (!container || isJumping) return;
+      if (!container) return;
 
-      setIsJumping(true);
+      const jump = beginJump();
       onFollowLatestChange(false);
 
       try {
-        const anchor = await ensureTurnRendered(item);
+        const anchor = await ensureTurnRendered(item, jump);
         if (!anchor) return;
 
-        const layout = measureTurnLayout(container);
-        const entry = layout.find((candidate) => candidate.turnId === item.turnId);
-        if (!entry) return;
-
-        container.scrollTop = targetScrollTop(
-          entry,
-          container.clientHeight,
-          container.scrollHeight,
-        );
-        scheduleMeasure();
-
-        if (options.focusTarget) {
-          anchor.focus({ preventScroll: true });
-        }
+        alignTurn(container, item, anchor, options, jump);
       } catch {
-        // Navigation is optional; keep the current Message Window when a target load fails.
+        // A superseded or failed navigation keeps the last committed Message Window.
       } finally {
-        setIsJumping(false);
+        finishJump(jump);
       }
     },
-    [ensureTurnRendered, isJumping, onFollowLatestChange, scheduleMeasure, scrollRef],
+    [
+      alignTurn,
+      beginJump,
+      ensureTurnRendered,
+      finishJump,
+      onFollowLatestChange,
+      scrollRef,
+    ],
   );
 
   const currentIndex = items.findIndex((item) => item.turnId === currentTurnId);
@@ -216,38 +293,58 @@ export function useTurnNavigator({
     async (options: TurnJumpOptions = {}) => {
       const container = scrollRef.current;
       const first = items[0];
-      if (!container || !first || isJumping) return;
+      if (!container || !first) return;
 
-      setIsJumping(true);
+      const jump = beginJump();
       onFollowLatestChange(false);
 
       try {
-        const anchor = await ensureTurnRendered(first);
+        const anchor = await ensureTurnRendered(first, jump);
+        if (!anchor || !isActiveJump(jump)) return;
+
         container.scrollTop = 0;
         scheduleMeasure();
-
-        if (anchor && options.focusTarget) {
+        if (options.focusTarget) {
           anchor.focus({ preventScroll: true });
         }
       } catch {
-        // Keep the current window when the origin target cannot be loaded.
+        // A superseded or failed origin navigation keeps the committed window.
       } finally {
-        setIsJumping(false);
+        finishJump(jump);
       }
     },
-    [ensureTurnRendered, isJumping, items, onFollowLatestChange, scheduleMeasure, scrollRef],
+    [
+      beginJump,
+      ensureTurnRendered,
+      finishJump,
+      isActiveJump,
+      items,
+      onFollowLatestChange,
+      scheduleMeasure,
+      scrollRef,
+    ],
   );
 
   const jumpTerminus = useCallback(
     async (options: TurnJumpOptions = {}) => {
       const container = scrollRef.current;
       const last = items.at(-1);
-      if (!container || !last || isJumping) return;
+      if (!container || !last) return;
 
-      setIsJumping(true);
+      const jump = beginJump();
 
       try {
-        const anchor = await ensureTurnRendered(last);
+        const restored = await restoreLatestWindow(jump.controller.signal);
+        if (!restored || !isActiveJump(jump)) return;
+
+        const anchor = await waitForTurnAnchor(
+          container,
+          last.turnId,
+          jump.controller.signal,
+          false,
+        );
+        if (!isActiveJump(jump)) return;
+
         onFollowLatestChange(true);
         container.scrollTop = container.scrollHeight;
         scheduleMeasure();
@@ -256,12 +353,21 @@ export function useTurnNavigator({
           anchor.focus({ preventScroll: true });
         }
       } catch {
-        // Keep the current window when the latest target cannot be loaded.
+        // A superseded or failed latest navigation keeps the committed window.
       } finally {
-        setIsJumping(false);
+        finishJump(jump);
       }
     },
-    [ensureTurnRendered, isJumping, items, onFollowLatestChange, scheduleMeasure, scrollRef],
+    [
+      beginJump,
+      finishJump,
+      isActiveJump,
+      items,
+      onFollowLatestChange,
+      restoreLatestWindow,
+      scheduleMeasure,
+      scrollRef,
+    ],
   );
 
   const previewItem = useMemo(
@@ -283,5 +389,6 @@ export function useTurnNavigator({
     jumpNext,
     jumpOrigin,
     jumpTerminus,
+    cancelJump,
   };
 }

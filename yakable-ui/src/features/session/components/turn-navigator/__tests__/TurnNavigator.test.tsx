@@ -110,6 +110,23 @@ describe('TurnNavigator', () => {
     expect(third.tabIndex).toBe(-1);
   });
 
+  it('keeps Turn controls interactive while a previous Jump is pending', () => {
+    renderNavigator({ isJumping: true });
+
+    expect(
+      screen.getByRole('complementary', { name: 'Turn navigator' }).getAttribute('aria-busy'),
+    ).toBe('true');
+    expect(screen.getByRole('button', { name: 'Go to turn 1' }).hasAttribute('disabled')).toBe(
+      false,
+    );
+    expect(
+      screen.getByRole('button', { name: 'Go to conversation start' }).hasAttribute('disabled'),
+    ).toBe(false);
+    expect(screen.getByRole('button', { name: 'Go to latest' }).hasAttribute('disabled')).toBe(
+      false,
+    );
+  });
+
   it('uses one shared Prompt Preview surface', async () => {
     const user = userEvent.setup();
     const onPreviewTurnChange = vi.fn();

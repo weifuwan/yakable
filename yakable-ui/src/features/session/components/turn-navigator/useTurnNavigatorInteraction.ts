@@ -32,7 +32,6 @@ interface DragState {
 interface UseTurnNavigatorInteractionOptions {
   items: SessionTurnNavigationItem[];
   currentTurnId: string | null;
-  isJumping: boolean;
   onPreviewTurnChange: (turnId: string | null) => void;
   onJumpTurn: (item: SessionTurnNavigationItem, options?: TurnJumpOptions) => void;
 }
@@ -40,7 +39,6 @@ interface UseTurnNavigatorInteractionOptions {
 export function useTurnNavigatorInteraction({
   items,
   currentTurnId,
-  isJumping,
   onPreviewTurnChange,
   onJumpTurn,
 }: UseTurnNavigatorInteractionOptions) {
@@ -277,7 +275,7 @@ export function useTurnNavigatorInteraction({
 
   const onRailPointerDown = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
-      if (isJumping || !(event.target instanceof Element)) return;
+      if (!(event.target instanceof Element)) return;
 
       const rib = event.target.closest<HTMLElement>('[data-nav-turn-id]');
       if (!rib?.dataset.navTurnId) return;
@@ -294,7 +292,7 @@ export function useTurnNavigatorInteraction({
       event.currentTarget.setPointerCapture?.(event.pointerId);
       applyFisheye(event.clientY);
     },
-    [applyFisheye, isJumping],
+    [applyFisheye],
   );
 
   const onRailPointerMove = useCallback(

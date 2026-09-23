@@ -93,6 +93,11 @@ Tests:
 - 键盘激活 Jump 后 Focus 进入目标 TurnItem；Pointer Click / Drag 不额外抢夺目标 Focus。
 - `Shift + Alt + M` 将 Focus 返回 Current rib；Hover / Focus / Drag 继续共用一个 Prompt Preview。
 - 用户 Pointer / Focus / Drag 操作 Rail 时暂停 Current 自动跟随；Rail hit-test 与 Fisheye 在 rail content space 中统一计算。
+- Jump 请求使用 last-wins 语义；新的 Click / Keyboard / Drag / Origin / Terminus 会取消旧的未完成 Target Window 请求，只有当前 Jump 可以 replace Message Window、scroll 或 focus。
+- Navigator 在 Jump pending 期间保持可交互，用于允许用户替换慢网络下的旧目标；isJumping 只作为 busy 状态，不作为目标切换锁。
+- Terminus 与现有 Scroll-to-bottom 都恢复真正的 latest Message page，而不是只滚到当前历史窗口底部。
+- 在历史窗口发送新 Prompt 时，先取消未完成的历史 Jump、恢复 follow-latest，并异步恢复 latest page；Optimistic Turn 转正式 Turn 后只保留一个 USER 节点。
+- 用户停留历史窗口时，后台 Streaming 继续推进 Turn 状态与 Session latest sequence，但与当前历史 Turn 无关的新 Message 不注入当前 Message Window。
 
 ## Frontend Design Invariants
 

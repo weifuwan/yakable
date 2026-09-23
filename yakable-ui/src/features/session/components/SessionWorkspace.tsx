@@ -116,6 +116,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
     initialize: initializeMessageWindow,
     replaceWindow,
     mergeMessages,
+    restoreLatest,
     loadOlder,
     loadNewer,
   } = useSessionMessageWindow(projectId, sessionId);
@@ -448,8 +449,46 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
     renderedTurnIds,
     navigationRefreshKey: turns.length,
     replaceWindow,
+    restoreLatestWindow: restoreLatest,
     onFollowLatestChange: setFollowLatest,
   });
+
+  const cancelNavigationJump = turnNavigator.cancelJump;
+
+  const restoreLatestView = useCallback(
+    (scrollAfterRestore: boolean) => {
+      cancelNavigationJump();
+      setFollowLatest(true);
+
+      if (!hasNewer) {
+        if (scrollAfterRestore) {
+          scrollToBottom();
+        }
+        return;
+      }
+
+      void restoreLatest()
+        .then((restored) => {
+          if (!restored || !scrollAfterRestore) return;
+
+          window.requestAnimationFrame(() => {
+            scrollToBottom();
+          });
+        })
+        .catch((requestError: unknown) => {
+          setLoadError(
+            requestError instanceof Error ? requestError.message : 'Unable to return to latest.',
+          );
+        });
+    },
+    [
+      hasNewer,
+      restoreLatest,
+      scrollToBottom,
+      setFollowLatest,
+      cancelNavigationJump,
+    ],
+  );
 
   const runStreamingTurn = useCallback(
     async (
@@ -536,6 +575,8 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
     (content: string) => {
       if (!selectedModel) return false;
 
+      restoreLatestView(false);
+
       const fingerprint = [selectedModel.provider, selectedModel.model, content].join('\n');
       const currentRequest = pendingRequestRef.current;
       const pendingRequest =
@@ -591,7 +632,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
         );
       });
     },
-    [latestSequence, runStreamingTurn, selectedModel],
+    [latestSequence, restoreLatestView, runStreamingTurn, selectedModel],
   );
 
   const handleStop = useCallback(() => {
@@ -725,7 +766,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
             data-allow-shadow="true"
             className="absolute bottom-3 left-1/2 z-20 -translate-x-1/2 cursor-pointer hover:shadow-md"
             style={{ borderRadius: '50%', backgroundColor: 'var(--surface)' }}
-            onClick={scrollToBottom}
+            onClick={() => restoreLatestView(true)}
           >
             {generating ? (
               <span aria-hidden="true" className="flex items-center gap-1">

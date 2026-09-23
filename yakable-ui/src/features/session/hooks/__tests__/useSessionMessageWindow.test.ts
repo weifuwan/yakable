@@ -98,6 +98,42 @@ describe('useSessionMessageWindow', () => {
     expect(result.current.newerCursor).toBeNull();
   });
 
+  it('restores the latest page and preserves locally newer persisted messages', async () => {
+    const queryMessages = vi.spyOn(SessionService, 'queryMessages').mockResolvedValue({
+      messages: [message(150), message(151, 'ASSISTANT')],
+      nextBeforeSequence: 150,
+      hasMore: true,
+    });
+
+    const { result } = renderHook(() => useSessionMessageWindow('project-1', 'session-1'));
+
+    act(() => {
+      result.current.replaceWindow({
+        messages: [message(50), message(51, 'ASSISTANT')],
+        hasOlder: true,
+        hasNewer: true,
+        olderCursor: 50,
+        newerCursor: 51,
+      });
+      result.current.mergeMessages([message(200)]);
+    });
+
+    await act(async () => {
+      await result.current.restoreLatest();
+    });
+
+    expect(queryMessages).toHaveBeenCalledWith(
+      'project-1',
+      'session-1',
+      undefined,
+      50,
+      undefined,
+    );
+    expect(result.current.messages.map((item) => item.sequence)).toEqual([150, 151, 200]);
+    expect(result.current.hasNewer).toBe(false);
+    expect(result.current.newerCursor).toBeNull();
+  });
+
   it('merges persisted changes by Message sequence without duplicates', () => {
     const { result } = renderHook(() => useSessionMessageWindow('project-1', 'session-1'));
 

@@ -83,6 +83,8 @@ Assistant 内容生成一部分就展示一部分，不等待完整回答。
 - terminal 发布前，应该持久化的 Assistant 内容必须先完成持久化。
 - Stop / Failure 时非空 partial Assistant 保留。
 - 用户阅读历史时，Streaming 继续执行但不能强制抢回阅读位置。
+- 用户阅读历史时，Streaming 仍推进 Turn 状态与 Session latest sequence；除非 Streaming Turn 已在当前窗口，否则其新 Message 不注入历史 Message Window。
+- 用户从历史位置发送新 Prompt 时切回 follow-latest；Optimistic USER Message 与正式 USER Message 必须 reconcile 为单一 Turn 节点。
 - Stream Buffer 有明确大小边界。
 - 当前 Stream State 是 JVM 本地状态。
 
