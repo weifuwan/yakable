@@ -47,11 +47,7 @@ interface UseTurnWindowingOptions {
   pinnedTurnKeys: string[];
 }
 
-export function useTurnWindowing({
-  scrollRef,
-  turnKeys,
-  pinnedTurnKeys,
-}: UseTurnWindowingOptions) {
+export function useTurnWindowing({ scrollRef, turnKeys, pinnedTurnKeys }: UseTurnWindowingOptions) {
   const [measuredHeights, setMeasuredHeights] = useState<Map<string, number>>(() => new Map());
   const [mountedKeys, setMountedKeys] = useState<Set<string>>(() => new Set());
   const measuredHeightsRef = useRef(new Map<string, number>());
