@@ -1,6 +1,6 @@
 # Turn Navigator Interaction V2
 
-Status: Review
+Status: Done
 Domain: Conversation
 
 Depends On:
@@ -38,9 +38,6 @@ Tests:
 - `yakable-ui/src/features/session/components/turn-navigator/__tests__/useTurnNavigator.test.tsx`
 - Existing: `yakable-ui/src/features/session/components/turn-navigator/__tests__/turn-navigation.test.ts`
 - Existing: `yakable-ui/src/features/session/components/__tests__/SessionWorkspace.test.tsx`
-
-Known Gaps:
-- PR3 已完成旧 Interaction Surface 代码清理，等待最终 Acceptance Review 与 Final Commit Quality Gate。
 
 ## Purpose
 
@@ -312,7 +309,13 @@ Runtime evidence：
 - SessionWorkspace 历史 Jump、Streaming / History reading position 与返回 latest 行为继续由现有回归保护。
 - Backend API / DTO / persistence 无变化。
 
-Final Acceptance 只有在本 PR 最终 Commit 的 Frontend Verification、Backend Verification 与 `Yakable / Quality Gate` 全部成功后才能将 Status 改为 `Done`。
+Acceptance Review 已闭环：
+
+- V2 Surface 与 V1 Navigation Runtime ownership 已对齐。
+- 旧 Drag / Fisheye Surface 与无引用 Runtime API 已清理。
+- Surface、Jump、History、Streaming、Windowing 的回归证据完整。
+- Known Gaps = none。
+- 最终 Done Commit 必须通过 Frontend Verification、Backend Verification 与 `Yakable / Quality Gate`；CI Evidence 记录在实现 PR。
 
 ## Boundary
 
