@@ -1,6 +1,6 @@
 # Markdown Renderer
 
-Status: Done
+Status: Review
 Domain: Conversation
 
 Depends On:
@@ -139,7 +139,7 @@ Code Contract：
 - 默认允许横向滚动。
 - 默认不创建独立纵向滚动容器；长代码参与 Conversation 正常纵向流。
 - Code Block 只保留一层白色 Surface；Header / Body 不再各自套 border / background。
-- Header 左侧展示轻量 Code 标识 + language，右侧只保留 Copy。
+- Header 不展示额外 Code 图标；language 与 Copy 一起右对齐，language 紧邻 Copy 左侧。
 - Code typography 使用 13px / 1.5 line-height，优先 `Roboto Mono Variable / Roboto Mono`，再回退到 Menlo / Monaco / Consolas 等 monospace。
 - Code controls 必须有 accessible name。
 
@@ -235,7 +235,7 @@ Review evidence：
 - `markdownPlugins` 保持 module-level stable reference，不随每个 token render 重建 plugin 配置。
 - `@streamdown/code` 按需 lazy-load language grammar；Markdown 不引入第二套 history virtualization。
 - Code Block 关闭默认纵向 max-height，Conversation 保持单一纵向滚动 owner。
-- Markdown / Code controls 保留原生语义与可访问名称；Code Surface 使用单层 `#F3F3F3` 背景、无 line number。
+- Markdown / Code controls 保留原生语义与可访问名称；Code Surface 使用单层白色背景、无 line number。
 - Backend Message schema、Streaming transport、History Window、Turn Windowing 均无变化。
 
 Acceptance Review 已闭环：
@@ -246,8 +246,8 @@ Acceptance Review 已闭环：
 - Code Surface Typography Polish 已闭环：白色 Surface、13px 字号、1.5 行高、`1em` padding，以及 `Roboto Mono Variable / Roboto Mono → Menlo / Monaco / Consolas → monospace` fallback。
 - Review Commit `1d6cac52783635ee235a2438cba64688c2febb98` 已通过 Frontend Verification、Backend Verification 与 `Yakable / Quality Gate`。
 - Backend 首次运行命中已有 `SessionServiceImplTest.shouldResumeDeltaAfterStopCutoverRollsBack` 并发波动，原 Job rerun 后成功；本 PR 未修改 Backend。
-- Known Gaps = none。
-- 最终 `Status: Done` Commit 本身仍需再次通过完整 Quality Gate。
+- 本次 Header Alignment Polish 重新进入 Review：移除 `</>` 装饰，并将 language 移到右侧紧邻 Copy。
+- 最终 Header Alignment Commit 通过完整 Quality Gate 后再恢复 `Status: Done`。
 
 ## Boundary
 

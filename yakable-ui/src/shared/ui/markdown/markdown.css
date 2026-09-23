@@ -10,30 +10,15 @@
 
 .yakable-markdown [data-streamdown='code-block-header'] {
   height: 28px;
-  gap: 7px;
+  justify-content: flex-end;
+  padding-right: 34px;
   color: var(--foreground-muted);
   font-size: 12px;
-}
-
-.yakable-markdown [data-streamdown='code-block-header']::before {
-  display: inline-flex;
-  width: 22px;
-  height: 16px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--border-control);
-  border-radius: 5px;
-  color: var(--foreground-soft);
-  content: '</>';
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 9px;
-  line-height: 1;
 }
 
 .yakable-markdown [data-streamdown='code-block-header'] > span {
   margin-left: 0;
   font-family: inherit;
-  text-transform: capitalize;
 }
 
 .yakable-markdown [data-streamdown='code-block-header'] + div {
