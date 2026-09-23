@@ -62,7 +62,8 @@ Review Notes:
 - Session / Project 切换会通过 effect cleanup 取消旧 watcher 和 retry timer。
 - 已新增“临时断网后保留 partial 并 rewatch 同一 Turn”以及“终态后不继续 rewatch”两条前端回归测试。
 - SessionService SSE 协议、后端、数据库、Stop 和 GAP-08 均未修改。
-- 当前执行环境无法解析 github.com，目标 Vitest 尚未实际执行；测试通过前保持 Review。
+- Architecture ownership acceptance 已完成；当前不再继续拆 SessionService / SessionWorkspace，除非后续出现新的独立生命周期或 Contract。
+- 本轮为 stacked PR，PR2 / PR3 / PR4 尚未获得基于 main 的完整 CI 执行证据；Capability 保持 Review，待 stack retarget 到 main 后通过现有 Yakable CI 再进入 Done。
 
 ## Purpose
 

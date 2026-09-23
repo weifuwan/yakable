@@ -104,6 +104,18 @@ Within `features/session`, ownership follows Conversation capabilities instead o
 
 Do not introduce a global Session store only to reduce component line count; state stays at the smallest real owner.
 
+### Session architecture acceptance
+
+The current Session frontend ownership is accepted for V1.
+
+- `SessionWorkspace` remains the composition boundary even if it is not a tiny component; it owns Session-level composition rather than one isolated interaction.
+- `useTurnStream` stays as one lifecycle Hook. Watch / rewatch / polling fallback / active request / local Stop share the same AbortController, Turn identity and streaming state, so splitting them now would introduce coordination without a clearer owner.
+- `useSessionViewport`, `useSessionMessageWindow`, `useTurnNavigator` and `useTurnWindowing` already have distinct ownership and should not be merged back into Workspace.
+- Optimistic USER state, requestId reuse, model selection and Turn render composition stay in Workspace because they coordinate multiple Session capabilities.
+- Do not introduce Zustand, Context Provider, command/query Hooks or handler-only Hooks only to reduce file length.
+
+Re-open the boundary when a state owner becomes independently reusable or gains a contract that can be tested without coordinating the rest of Session.
+
 The Project page is conversation-first: user messages render on the right, assistant messages render on the left, and the shared PromptComposer stays fixed at the bottom. The browser never fabricates assistant replies; assistant messages appear only when the backend actually provides them.
 
 The current Project backend persists through a repository port with a Boot-owned in-memory adapter. This is a development persistence boundary, not durable storage; replacing it with a database must not require changing Project command/query services.

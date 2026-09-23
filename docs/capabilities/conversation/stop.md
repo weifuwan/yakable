@@ -61,7 +61,8 @@ Review Notes:
 - execution thread finally 中的 remove 保留为幂等兜底。
 - 已新增 PENDING Turn + existing StreamState + Stop before execution 的回归测试。
 - Stop API、partial persistence schema、Turn terminal 状态机和 watcher delivery 均未修改。
-- 当前执行环境无法解析 github.com，目标 Maven 测试尚未实际执行；测试通过前保持 Review。
+- Architecture ownership acceptance 已完成；当前不再继续拆 SessionService / SessionWorkspace，除非后续出现新的独立生命周期或 Contract。
+- 本轮为 stacked PR，PR2 / PR3 / PR4 尚未获得基于 main 的完整 CI 执行证据；Capability 保持 Review，待 stack retarget 到 main 后通过现有 Yakable CI 再进入 Done。
 
 ## Purpose
 
