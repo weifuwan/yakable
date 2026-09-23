@@ -1,6 +1,6 @@
 # Turn Navigator Interaction V2
 
-Status: Review
+Status: Done
 Domain: Conversation
 
 Depends On:
@@ -301,9 +301,16 @@ Runtime evidence：
 - SessionWorkspace 历史 Jump、Streaming / History reading position 与返回 latest 行为继续由现有回归保护。
 - Backend API / DTO / persistence 无变化。
 
-Acceptance Review 在本修复中重新打开，用于修复 Compact Rail 与 Prompt Overview 数量不一致的问题。
+本次 Surface mismatch 已闭环：
 
-Final Commit 通过 Frontend Verification、Backend Verification 与 `Yakable / Quality Gate` 后再恢复 `Status: Done`。
+- Compact Rail 与 Prompt Overview 统一使用同一份 Navigation Index。
+- Marker 与 Prompt Row 数量、顺序一一对应。
+- 8 个正式 Turn 的回归用例明确保护 8 Marker + 8 Prompt Row。
+- 长 Session Rail 保持 bounded viewport，Current Marker 自动保持可见。
+- Review Commit 已通过 Frontend Verification、Backend Verification 与 `Yakable / Quality Gate`。
+- Known Gaps = none。
+
+最终 `Status: Done` Commit 本身仍需再次通过完整 Quality Gate。
 
 ## Boundary
 
