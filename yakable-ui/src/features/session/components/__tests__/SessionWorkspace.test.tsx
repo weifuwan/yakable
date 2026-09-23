@@ -842,9 +842,7 @@ describe('SessionWorkspace', () => {
       },
     );
 
-    const { unmount } = render(
-      <SessionWorkspace projectId="project-1" sessionId="session-1" />,
-    );
+    const { unmount } = render(<SessionWorkspace projectId="project-1" sessionId="session-1" />);
 
     const input = await screen.findByRole('textbox', {
       name: 'Send a message',
