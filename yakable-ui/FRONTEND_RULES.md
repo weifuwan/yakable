@@ -21,6 +21,7 @@ Owns:
 
 - 代码按 ownership 放置，依赖方向遵循 `ARCHITECTURE.md`。
 - Page 只组合产品能力；Feature 拥有产品能力；Shared 只放无业务 owner 的复用能力。
+- 产品 UI Primitive 统一从 `@/shared/ui` 使用；Page / Feature / App 不直接依赖 `@base-ui/react`。
 - 优先使用原生 HTML 语义，并保留键盘、焦点和 disabled 行为。
 - 所有支持鼠标点击的交互元素必须有明确 pointer cursor；Tailwind 使用 `cursor-pointer`。
 - 状态按事实来源放置：URL 已表达的状态归 URL；服务端业务状态以 Service 返回的真实数据为准；只有当前交互边界拥有的可变 UI 状态才使用 `useState`。
@@ -41,6 +42,7 @@ Owns:
 
 - 违反 `app → pages → features → service/shared` 的依赖方向。
 - 在 Page / Component / Hook 直接调用 `fetch`。
+- 在 Page / Feature / App 直接导入 `@base-ui/react`，绕过 `shared/ui` 的 Yak UI Contract。
 - 为简单前端调用增加 interface / impl / adapter 等 Java 风格层级。
 - 在 Shared 引入 Project、Session、Model、Agent 等产品业务语义。
 - 为未来能力预创建空 Feature、状态层或菜单入口。
