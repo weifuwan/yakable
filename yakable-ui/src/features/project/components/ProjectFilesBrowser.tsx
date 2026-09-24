@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { ProjectService, type ProjectFile } from '@/service/project';
 
@@ -13,7 +13,11 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
-export function ProjectFilesBrowser({ projectId }: ProjectFilesBrowserProps) {
+export function ProjectFilesBrowser(props: ProjectFilesBrowserProps) {
+  return <ProjectFilesBrowserContent key={props.projectId} {...props} />;
+}
+
+function ProjectFilesBrowserContent({ projectId }: ProjectFilesBrowserProps) {
   const [files, setFiles] = useState<string[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [file, setFile] = useState<ProjectFile | null>(null);
@@ -21,16 +25,10 @@ export function ProjectFilesBrowser({ projectId }: ProjectFilesBrowserProps) {
   const [listError, setListError] = useState<string | null>(null);
   const [fileLoading, setFileLoading] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
+  const fileRequestRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
-
-    setFiles([]);
-    setSelectedPath(null);
-    setFile(null);
-    setListError(null);
-    setFileError(null);
-    setListLoading(true);
 
     ProjectService.queryProjectFiles(projectId, controller.signal)
       .then((result) => setFiles(result.files))
@@ -46,22 +44,27 @@ export function ProjectFilesBrowser({ projectId }: ProjectFilesBrowserProps) {
     return () => controller.abort();
   }, [projectId]);
 
-  useEffect(() => {
-    if (!selectedPath) {
-      setFile(null);
-      setFileError(null);
-      setFileLoading(false);
-      return;
-    }
+  useEffect(
+    () => () => {
+      fileRequestRef.current?.abort();
+    },
+    [],
+  );
 
+  function selectFile(path: string) {
+    fileRequestRef.current?.abort();
     const controller = new AbortController();
+    fileRequestRef.current = controller;
 
+    setSelectedPath(path);
     setFile(null);
     setFileError(null);
     setFileLoading(true);
 
-    ProjectService.queryProjectFile(projectId, selectedPath, controller.signal)
-      .then(setFile)
+    ProjectService.queryProjectFile(projectId, path, controller.signal)
+      .then((result) => {
+        if (!controller.signal.aborted) setFile(result);
+      })
       .catch((error: unknown) => {
         if (!controller.signal.aborted) {
           setFileError(errorMessage(error, 'Failed to load project file.'));
@@ -70,9 +73,7 @@ export function ProjectFilesBrowser({ projectId }: ProjectFilesBrowserProps) {
       .finally(() => {
         if (!controller.signal.aborted) setFileLoading(false);
       });
-
-    return () => controller.abort();
-  }, [projectId, selectedPath]);
+  }
 
   return (
     <section
@@ -88,7 +89,10 @@ export function ProjectFilesBrowser({ projectId }: ProjectFilesBrowserProps) {
           Loading files...
         </output>
       ) : listError ? (
-        <div className="m-4 rounded-xl border border-danger-border-subtle bg-danger-surface px-4 py-3 text-sm text-danger-foreground" role="alert">
+        <div
+          className="m-4 rounded-xl border border-danger-border-subtle bg-danger-surface px-4 py-3 text-sm text-danger-foreground"
+          role="alert"
+        >
           {listError}
         </div>
       ) : files.length === 0 ? (
@@ -97,11 +101,11 @@ export function ProjectFilesBrowser({ projectId }: ProjectFilesBrowserProps) {
         </div>
       ) : (
         <div className="flex min-h-0 flex-1">
-          <div className="flex w-52 shrink-0 min-h-0 flex-col border-r border-border">
+          <div className="flex min-h-0 w-52 shrink-0 flex-col border-r border-border">
             <ProjectFilesTree
               files={files}
               selectedPath={selectedPath}
-              onSelect={setSelectedPath}
+              onSelect={selectFile}
             />
           </div>
 
