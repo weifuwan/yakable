@@ -29,7 +29,11 @@ function isProjectSummary(value: unknown): value is ProjectSummary {
 }
 
 function isProjectFiles(value: unknown): value is ProjectFiles {
-  return isRecord(value) && Array.isArray(value.files) && value.files.every((file) => typeof file === 'string');
+  return (
+    isRecord(value) &&
+    Array.isArray(value.files) &&
+    value.files.every((file) => typeof file === 'string')
+  );
 }
 
 function isProjectFile(value: unknown): value is ProjectFile {
