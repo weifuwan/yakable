@@ -1,6 +1,6 @@
 # Project Files Browse
 
-Status: Implementing
+Status: Review
 Domain: Project
 
 Depends On:
@@ -12,8 +12,9 @@ Related:
 
 Frontend:
 - `yakable-ui/src/pages/project/index.tsx`
-- `yakable-ui/src/features/project/components/ProjectFilesTree.tsx` (planned)
-- `yakable-ui/src/features/project/components/ProjectFileViewer.tsx` (planned)
+- `yakable-ui/src/features/project/components/ProjectFilesBrowser.tsx`
+- `yakable-ui/src/features/project/components/ProjectFilesTree.tsx`
+- `yakable-ui/src/features/project/components/ProjectFileViewer.tsx`
 - `yakable-ui/src/service/project/ProjectService.ts`
 - `yakable-ui/src/service/project/types.ts`
 
@@ -40,8 +41,10 @@ Scenarios:
 - PROJ-S04
 
 Tests:
-- `yakable-ui/src/features/project/components/__tests__/ProjectFilesTree.test.tsx` (planned)
-- `yakable-ui/src/features/project/components/__tests__/ProjectFileViewer.test.tsx` (planned)
+- `yakable-ui/src/features/project/components/__tests__/ProjectFilesBrowser.test.tsx`
+- `yakable-ui/src/features/project/components/__tests__/ProjectFilesTree.test.tsx`
+- `yakable-ui/src/features/project/components/__tests__/ProjectFileViewer.test.tsx`
+- `yakable-ui/src/pages/project/__tests__/ProjectPage.test.tsx`
 - `yakable-ui/src/service/project/__tests__/ProjectService.test.ts`
 - `yakable-boot/src/test/java/io/yakable/boot/controller/project/ProjectControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/project/impl/ProjectServiceImplTest.java`
