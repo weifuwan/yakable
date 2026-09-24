@@ -7,6 +7,7 @@ import { ProjectFileViewer } from './ProjectFileViewer';
 
 interface ProjectFilesBrowserProps {
   projectId: string;
+  refreshKey?: number;
 }
 
 function errorMessage(error: unknown, fallback: string) {
@@ -17,7 +18,7 @@ export function ProjectFilesBrowser(props: ProjectFilesBrowserProps) {
   return <ProjectFilesBrowserContent key={props.projectId} {...props} />;
 }
 
-function ProjectFilesBrowserContent({ projectId }: ProjectFilesBrowserProps) {
+function ProjectFilesBrowserContent({ projectId, refreshKey = 0 }: ProjectFilesBrowserProps) {
   const [files, setFiles] = useState<string[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [file, setFile] = useState<ProjectFile | null>(null);
@@ -31,18 +32,20 @@ function ProjectFilesBrowserContent({ projectId }: ProjectFilesBrowserProps) {
     const controller = new AbortController();
 
     ProjectService.queryProjectFiles(projectId, controller.signal)
-      .then((result) => setFiles(result.files))
-      .catch((error: unknown) => {
-        if (!controller.signal.aborted) {
-          setListError(errorMessage(error, 'Failed to load project files.'));
-        }
+      .then((result) => {
+        if (controller.signal.aborted) return;
+        setFiles(result.files);
+        setListError(null);
+        setListLoading(false);
       })
-      .finally(() => {
-        if (!controller.signal.aborted) setListLoading(false);
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        setListError(errorMessage(error, 'Failed to load project files.'));
+        setListLoading(false);
       });
 
     return () => controller.abort();
-  }, [projectId]);
+  }, [projectId, refreshKey]);
 
   useEffect(
     () => () => {
