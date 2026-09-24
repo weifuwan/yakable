@@ -15,6 +15,7 @@ Frontend:
 - `yakable-ui/src/features/project/components/ProjectFilesTree.tsx` (planned)
 - `yakable-ui/src/features/project/components/ProjectFileViewer.tsx` (planned)
 - `yakable-ui/src/service/project/ProjectService.ts`
+- `yakable-ui/src/service/project/types.ts`
 
 Backend:
 - `yakable-boot/src/main/java/io/yakable/boot/controller/project/ProjectController.java`
@@ -22,6 +23,10 @@ Backend:
 - `yakable-service/src/main/java/io/yakable/service/project/impl/ProjectServiceImpl.java`
 - `yakable-core/src/main/java/io/yakable/core/project/files/ProjectFiles.java`
 - `yakable-core/src/main/java/io/yakable/core/project/files/ProjectFile.java`
+- `yakable-common/src/main/java/io/yakable/common/bean/dto/project/QueryProjectFilesDTO.java`
+- `yakable-common/src/main/java/io/yakable/common/bean/dto/project/QueryProjectFileDTO.java`
+- `yakable-common/src/main/java/io/yakable/common/bean/vo/project/ProjectFilesVO.java`
+- `yakable-common/src/main/java/io/yakable/common/bean/vo/project/ProjectFileVO.java`
 
 Data:
 - Project
@@ -37,9 +42,9 @@ Scenarios:
 Tests:
 - `yakable-ui/src/features/project/components/__tests__/ProjectFilesTree.test.tsx` (planned)
 - `yakable-ui/src/features/project/components/__tests__/ProjectFileViewer.test.tsx` (planned)
-- `yakable-ui/src/service/project/__tests__/ProjectService.test.ts` (planned)
-- `yakable-boot/src/test/java/io/yakable/boot/controller/project/ProjectControllerTest.java` (planned extension)
-- `yakable-service/src/test/java/io/yakable/service/project/impl/ProjectServiceImplTest.java` (planned extension)
+- `yakable-ui/src/service/project/__tests__/ProjectService.test.ts`
+- `yakable-boot/src/test/java/io/yakable/boot/controller/project/ProjectControllerTest.java`
+- `yakable-service/src/test/java/io/yakable/service/project/impl/ProjectServiceImplTest.java`
 - `yakable-core/src/test/java/io/yakable/core/project/files/ProjectFilesTest.java`
 
 ## Purpose

@@ -2,12 +2,19 @@ package io.yakable.service.project.impl;
 
 import io.yakable.common.bean.PageData;
 import io.yakable.common.bean.dto.project.AddProjectDTO;
+import io.yakable.common.bean.dto.project.QueryProjectFileDTO;
+import io.yakable.common.bean.dto.project.QueryProjectFilesDTO;
 import io.yakable.common.bean.dto.project.QueryProjectPageDTO;
 import io.yakable.common.bean.dto.session.AddSessionDTO;
+import io.yakable.common.bean.vo.project.ProjectFileVO;
+import io.yakable.common.bean.vo.project.ProjectFilesVO;
 import io.yakable.common.bean.vo.project.ProjectListVO;
 import io.yakable.common.bean.vo.session.SessionInitVO;
 import io.yakable.common.bean.vo.session.SessionVO;
 import io.yakable.common.enums.session.TurnTypeEnum;
+import io.yakable.common.exception.ProjectException;
+import io.yakable.core.project.files.ProjectFile;
+import io.yakable.core.project.files.ProjectFiles;
 import io.yakable.dao.entity.ProjectEntity;
 import io.yakable.dao.repository.ProjectRepository;
 import io.yakable.service.observability.ConversationMetrics;
@@ -28,6 +35,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -43,6 +51,9 @@ class ProjectServiceImplTest {
 
     @Mock
     private SessionService sessionService;
+
+    @Mock
+    private ProjectFiles projectFiles;
 
     @Mock
     private TransactionTemplate transactionTemplate;
@@ -222,6 +233,73 @@ class ProjectServiceImplTest {
         assertThat(result.records().getFirst().getLatestSessionId()).isEqualTo("session-recent");
         assertThat(result.records().getFirst().getUpdatedAt())
                 .isEqualTo(LocalDateTime.of(2026, 9, 21, 12, 0));
+    }
+
+    @Test
+    void shouldListPublishedFilesForOwnedProject() {
+        ProjectEntity owned = project("project-1", "Owned");
+        when(projectRepository.queryById("project-1")).thenReturn(Optional.of(owned));
+        when(projectFiles.listPublished("project-1")).thenReturn(List.of("package.json", "src/App.tsx"));
+
+        ProjectFilesVO result = projectService.queryProjectFiles(new QueryProjectFilesDTO("project-1", "user-1"));
+
+        assertThat(result.files()).containsExactly("package.json", "src/App.tsx");
+        verify(projectFiles).listPublished("project-1");
+    }
+
+    @Test
+    void shouldRejectFileListWhenProjectBelongsToAnotherUser() {
+        ProjectEntity other = project("project-1", "Other");
+        other.setCreateBy("user-2");
+        when(projectRepository.queryById("project-1")).thenReturn(Optional.of(other));
+
+        assertThatThrownBy(() -> projectService.queryProjectFiles(new QueryProjectFilesDTO("project-1", "user-1")))
+                .isInstanceOf(ProjectException.class)
+                .hasMessage("Resource not found");
+
+        verify(projectFiles, never()).listPublished(any());
+    }
+
+    @Test
+    void shouldReadPublishedFileForOwnedProject() {
+        ProjectEntity owned = project("project-1", "Owned");
+        when(projectRepository.queryById("project-1")).thenReturn(Optional.of(owned));
+        when(projectFiles.readPublished("project-1", "src/App.tsx"))
+                .thenReturn(new ProjectFile("src/App.tsx", "export default function App() {}"));
+
+        ProjectFileVO result = projectService.queryProjectFile(
+                new QueryProjectFileDTO("project-1", "src/App.tsx", "user-1"));
+
+        assertThat(result.path()).isEqualTo("src/App.tsx");
+        assertThat(result.content()).isEqualTo("export default function App() {}");
+        verify(projectFiles).readPublished("project-1", "src/App.tsx");
+    }
+
+    @Test
+    void shouldCheckOwnershipAgainForFileContent() {
+        ProjectEntity other = project("project-1", "Other");
+        other.setCreateBy("user-2");
+        when(projectRepository.queryById("project-1")).thenReturn(Optional.of(other));
+
+        assertThatThrownBy(() -> projectService.queryProjectFile(
+                new QueryProjectFileDTO("project-1", "src/App.tsx", "user-1")))
+                .isInstanceOf(ProjectException.class)
+                .hasMessage("Resource not found");
+
+        verify(projectFiles, never()).readPublished(any(), any());
+    }
+
+    @Test
+    void shouldExposeUnreadableProjectFileAsMissingResource() {
+        ProjectEntity owned = project("project-1", "Owned");
+        when(projectRepository.queryById("project-1")).thenReturn(Optional.of(owned));
+        when(projectFiles.readPublished("project-1", "missing.txt"))
+                .thenThrow(new ProjectFiles.ProjectFilesException("Published project file not found: missing.txt"));
+
+        assertThatThrownBy(() -> projectService.queryProjectFile(
+                new QueryProjectFileDTO("project-1", "missing.txt", "user-1")))
+                .isInstanceOf(ProjectException.class)
+                .hasMessage("Resource not found");
     }
 
     private static ProjectEntity project(String id, String name) {

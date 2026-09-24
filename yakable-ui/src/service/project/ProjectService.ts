@@ -1,5 +1,5 @@
 import { ApiError, HttpUtils } from '../http';
-import type { CreateProjectInput, ProjectSummary } from './types';
+import type { CreateProjectInput, ProjectFile, ProjectFiles, ProjectSummary } from './types';
 
 interface PageData<T> {
   records: T[];
@@ -26,6 +26,18 @@ function isProjectSummary(value: unknown): value is ProjectSummary {
     typeof value.latestSessionId === 'string' &&
     typeof value.updatedAt === 'string'
   );
+}
+
+function isProjectFiles(value: unknown): value is ProjectFiles {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.files) &&
+    value.files.every((file) => typeof file === 'string')
+  );
+}
+
+function isProjectFile(value: unknown): value is ProjectFile {
+  return isRecord(value) && typeof value.path === 'string' && typeof value.content === 'string';
 }
 
 function isProjectPageData(value: unknown): value is PageData<ProjectSummary> {
@@ -58,6 +70,31 @@ async function queryProject(
     : invalidResponse('Project API returned invalid PageData.', data);
 }
 
+async function queryProjectFiles(projectId: string, signal?: AbortSignal): Promise<ProjectFiles> {
+  const data = await HttpUtils.get<unknown>(
+    '/api/projects/' + encodeURIComponent(projectId) + '/files',
+    { signal },
+  );
+  return isProjectFiles(data)
+    ? data
+    : invalidResponse('Project Files API returned an invalid file list.', data);
+}
+
+async function queryProjectFile(
+  projectId: string,
+  path: string,
+  signal?: AbortSignal,
+): Promise<ProjectFile> {
+  const params = new URLSearchParams({ path });
+  const data = await HttpUtils.get<unknown>(
+    '/api/projects/' + encodeURIComponent(projectId) + '/files/content?' + params.toString(),
+    { signal },
+  );
+  return isProjectFile(data)
+    ? data
+    : invalidResponse('Project Files API returned invalid file content.', data);
+}
+
 async function addProject(input: CreateProjectInput, signal?: AbortSignal) {
   const data = await HttpUtils.post<unknown>('/api/projects', input, { signal });
   return isProjectSummary(data)
@@ -67,5 +104,7 @@ async function addProject(input: CreateProjectInput, signal?: AbortSignal) {
 
 export const ProjectService = {
   queryProject,
+  queryProjectFiles,
+  queryProjectFile,
   addProject,
 };

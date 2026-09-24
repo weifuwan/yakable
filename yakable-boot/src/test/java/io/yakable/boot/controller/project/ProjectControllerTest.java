@@ -3,10 +3,16 @@ package io.yakable.boot.controller.project;
 import io.yakable.boot.configuration.exception.GlobalExceptionHandler;
 import io.yakable.common.bean.PageData;
 import io.yakable.common.bean.dto.project.AddProjectDTO;
+import io.yakable.common.bean.dto.project.QueryProjectFileDTO;
+import io.yakable.common.bean.dto.project.QueryProjectFilesDTO;
 import io.yakable.common.bean.dto.project.QueryProjectPageDTO;
+import io.yakable.common.bean.vo.project.ProjectFileVO;
+import io.yakable.common.bean.vo.project.ProjectFilesVO;
 import io.yakable.common.bean.vo.project.ProjectListVO;
 import io.yakable.common.bean.vo.user.CurrentUserVO;
 import io.yakable.common.constant.MessageConstant;
+import io.yakable.common.enums.common.CommonErrorCode;
+import io.yakable.common.exception.ProjectException;
 import io.yakable.service.auth.AuthService;
 import io.yakable.service.project.ProjectService;
 import org.junit.jupiter.api.AfterEach;
@@ -118,6 +124,52 @@ class ProjectControllerTest {
         assertThat(captor.getValue().getUserId()).isEqualTo("user-1");
         assertThat(captor.getValue().getCurrent()).isEqualTo(1);
         assertThat(captor.getValue().getPageSize()).isEqualTo(20);
+    }
+
+    @Test
+    void shouldListProjectFilesForCurrentUser() throws Exception {
+        when(projectService.queryProjectFiles(any(QueryProjectFilesDTO.class)))
+                .thenReturn(new ProjectFilesVO(List.of("package.json", "src/App.tsx")));
+
+        mockMvc.perform(get("/api/projects/project-1/files"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.files[0]").value("package.json"))
+                .andExpect(jsonPath("$.data.files[1]").value("src/App.tsx"));
+
+        ArgumentCaptor<QueryProjectFilesDTO> captor = ArgumentCaptor.forClass(QueryProjectFilesDTO.class);
+        verify(projectService).queryProjectFiles(captor.capture());
+        assertThat(captor.getValue().projectId()).isEqualTo("project-1");
+        assertThat(captor.getValue().userId()).isEqualTo("user-1");
+    }
+
+    @Test
+    void shouldReadProjectFileForCurrentUser() throws Exception {
+        when(projectService.queryProjectFile(any(QueryProjectFileDTO.class)))
+                .thenReturn(new ProjectFileVO("src/App.tsx", "export default function App() {}"));
+
+        mockMvc.perform(get("/api/projects/project-1/files/content")
+                        .param("path", "src/App.tsx"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.path").value("src/App.tsx"))
+                .andExpect(jsonPath("$.data.content").value("export default function App() {}"));
+
+        ArgumentCaptor<QueryProjectFileDTO> captor = ArgumentCaptor.forClass(QueryProjectFileDTO.class);
+        verify(projectService).queryProjectFile(captor.capture());
+        assertThat(captor.getValue().projectId()).isEqualTo("project-1");
+        assertThat(captor.getValue().path()).isEqualTo("src/App.tsx");
+        assertThat(captor.getValue().userId()).isEqualTo("user-1");
+    }
+
+    @Test
+    void shouldReturnNotFoundWhenProjectFilesAreNotAccessible() throws Exception {
+        when(projectService.queryProjectFiles(any(QueryProjectFilesDTO.class)))
+                .thenThrow(new ProjectException(CommonErrorCode.RESOURCE_NOT_EXISTS));
+
+        mockMvc.perform(get("/api/projects/project-1/files"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(40400));
     }
 
     @Test
