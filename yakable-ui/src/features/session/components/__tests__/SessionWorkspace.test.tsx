@@ -728,6 +728,7 @@ describe('SessionWorkspace', () => {
   it('rewatches the same active Turn after a transient disconnect without clearing partial content', async () => {
     let firstHandlers: Parameters<typeof SessionService.watchTurn>[3] | undefined;
     let secondHandlers: Parameters<typeof SessionService.watchTurn>[3] | undefined;
+    let rejectFirstWatch!: (error: Error) => void;
     let resolveSecondWatch!: () => void;
     let secondWatchCompleted = false;
 
@@ -755,7 +756,9 @@ describe('SessionWorkspace', () => {
       .mockImplementationOnce(async (_projectId, _sessionId, _turnId, handlers) => {
         firstHandlers = handlers;
         handlers.onSnapshot('Partial');
-        throw new Error('temporary disconnect');
+        await new Promise<void>((_resolve, reject) => {
+          rejectFirstWatch = reject;
+        });
       })
       .mockImplementationOnce(async (_projectId, _sessionId, _turnId, handlers) => {
         secondHandlers = handlers;
@@ -771,6 +774,10 @@ describe('SessionWorkspace', () => {
 
     expect(await screen.findByText('Partial')).toBeTruthy();
     expect(firstHandlers).toBeTruthy();
+
+    await act(async () => {
+      rejectFirstWatch(new Error('temporary disconnect'));
+    });
 
     await waitFor(
       () => {

@@ -18,6 +18,11 @@ public interface TurnRepository extends BaseRepository<TurnEntity> {
     Optional<TurnEntity> queryByRequestId(String sessionId, String requestId);
 
     /**
+     * 锁定并查询指定 Turn。
+     */
+    Optional<TurnEntity> queryTurnForUpdate(String turnId);
+
+    /**
      * 查询 Session 当前活跃 Turn 数量。
      */
     long queryActiveTurnCount(String sessionId);

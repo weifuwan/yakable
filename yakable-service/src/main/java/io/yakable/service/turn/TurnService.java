@@ -34,6 +34,11 @@ public interface TurnService {
     Optional<TurnExecutionVO> queryTurnExecution(String turnId);
 
     /**
+     * 锁定并查询指定 Turn。
+     */
+    Optional<TurnVO> queryTurnForUpdate(String turnId);
+
+    /**
      * 查询 Session 当前活跃 Turn 数量。
      */
     long queryActiveTurnCount(String sessionId);

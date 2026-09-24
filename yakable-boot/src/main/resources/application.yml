@@ -21,6 +21,8 @@ yakable:
     shutdown-timeout: ${YAKABLE_SHUTDOWN_TIMEOUT:30s}
   sse:
     timeout: ${YAKABLE_SSE_TIMEOUT:10m}
+  project:
+    files-root: ${YAKABLE_PROJECT_FILES_ROOT:./data/projects}
   turn-execution:
     recovery-interval: 5s
     running-timeout: 10m

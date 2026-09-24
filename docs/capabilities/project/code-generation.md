@@ -1,6 +1,6 @@
 # Project Code Generation
 
-Status: Implementing
+Status: Review
 Domain: Project
 
 Depends On:
@@ -21,6 +21,7 @@ Backend:
 - `yakable-service/src/main/java/io/yakable/service/turn/TurnService.java`
 - `yakable-service/src/main/java/io/yakable/service/turn/impl/TurnServiceImpl.java`
 - `yakable-dao/src/main/java/io/yakable/dao/entity/TurnEntity.java`
+- `yakable-boot/src/main/java/io/yakable/boot/configuration/runtime/ProjectFilesConfiguration.java`
 - `yakable-core/src/main/java/io/yakable/core/project/generation/ProjectCodeGenerator.java`
 - `yakable-core/src/main/java/io/yakable/core/project/generation/GeneratedProject.java`
 - `yakable-core/src/main/java/io/yakable/core/project/generation/ProjectCodeGenerationResult.java`
@@ -47,10 +48,14 @@ Tests:
 - `yakable-service/src/test/java/io/yakable/service/turn/impl/TurnServiceImplTest.java`
 - `yakable-core/src/test/java/io/yakable/core/project/files/ProjectFilesTest.java`
 - `yakable-core/src/test/java/io/yakable/core/project/generation/ProjectCodeGeneratorTest.java`
+- `yakable-boot/src/test/java/io/yakable/boot/integration/ConversationPersistenceIT.java`
 
-Known Gaps:
-- Initial Turn execution routing to Project Code Generation is not implemented yet.
-- Project Code Generator and Project Files Core are not yet connected into one Turn execution flow.
+Review Notes:
+- Initial `PROJECT_GENERATION` Turn now routes through `ProjectCodeGenerator`.
+- Generated files are published through `ProjectFiles` before Assistant summary and SUCCEEDED persistence.
+- Project publication and Stop serialize on the Turn row during final commit.
+- Recovery detects an existing publication by `turnId` and completes the original Turn without another model call.
+- Build / preview / automatic repair remain outside V1 by Contract.
 
 ## Purpose
 
