@@ -1,2 +1,8 @@
 export { ProjectService } from './ProjectService';
-export type { CreateProjectInput, ProjectModel, ProjectSummary } from './types';
+export type {
+  CreateProjectInput,
+  ProjectFile,
+  ProjectFiles,
+  ProjectModel,
+  ProjectSummary,
+} from './types';
