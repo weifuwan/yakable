@@ -50,6 +50,12 @@ Tests:
 - `yakable-service/src/test/java/io/yakable/service/project/impl/ProjectServiceImplTest.java`
 - `yakable-core/src/test/java/io/yakable/core/project/files/ProjectFilesTest.java`
 
+Review Notes:
+- PR1 已完成 Project Files Read Core：publication 可见性、路径隔离、metadata / Symbolic Link 隔离和按需读取由 `ProjectFiles` 统一负责。
+- PR2 已完成 Project Files API：文件列表与文件内容查询分别执行 Project ownership 校验，Controller / Service 不直接访问工作目录。
+- PR3 已完成 Project Files Browse UI：页面只先加载文件路径，用户选择文件后才加载完整内容；Browse 不解释 Generation / Turn 状态。
+- 2026-09-24 Acceptance Review 发现一个端到端 Blocker：Create Project 成功后会立即进入 Project 页面，而 Initial Code Generation 异步执行；如果 Browse 在 publication 前首次得到空列表，当前页面不会在 publication 后重新加载，用户必须手动刷新或重新进入 Project 才能看到文件。
+
 ## Purpose
 
 让用户在 Initial Code Generation 完成后，可以看到当前 Project 已经正式发布了哪些文件，并查看任意文本文件的完整内容。
@@ -73,7 +79,8 @@ V1 只解决“生成了什么”这个问题。
 - 文件枚举和文件内容读取都不得跟随 Symbolic Link；Symbolic Link 不属于 V1 可浏览 Project File，也不能借此访问 Project Root 之外的内容。
 - 文件内容读取必须重新执行 Project Root 边界校验；绝对路径、`..` 或任何 Project Root 外访问都必须拒绝。
 - Project 尚未形成有效 publication 时，Browse 返回明确的空结果；不能通过扫描 Project Root、staging 或其他目录推断部分生成结果。
-- Browse 不推导、不返回 Generation / Turn 状态。未发布只表示当前没有可浏览的 Published Project Files；前端如需区分 RUNNING / FAILED / STOPPED，继续使用已有 Turn 状态。
+- 当 Project 页面在首次 publication 前已经打开并显示空结果时，publication 完成后必须能够在不要求用户手动刷新整个页面的情况下重新加载 Published Project Files。
+- Publication 后的重新加载触发机制不能让 Browse 自己推导或返回 Generation / Turn 状态；前端如需区分 RUNNING / FAILED / STOPPED，继续使用已有 Turn 状态。
 - Initial Code Generation 完整发布成功后，页面刷新、重新进入 Project 或切换 Session 都可以重新加载相同的已发布文件集合。
 - V1 支持查看文本文件完整内容和基础代码高亮，不承诺二进制文件预览。
 - 单个文件读取失败只影响当前文件展示，不能改变其他文件或 Project 状态。
@@ -165,3 +172,34 @@ Does Not Own:
 - Git。
 - Agent / Tool。
 - 二进制文件预览。
+
+## Acceptance Review
+
+Date: 2026-09-24
+
+Result: Blocked
+
+Passed:
+- 已发布文件必须由有效 publication metadata 决定，Project Root 存在本身不能绕过 publication。
+- `.yakable`、`.yakable-staging`、内部 metadata、Symbolic Link 和未发布结果不会进入 Browse。
+- 文件列表与单文件内容查询分别执行 Project ownership 校验。
+- 文件列表只返回相对路径，完整文件内容按用户选择单独加载。
+- 路径 normalize、绝对路径、parent traversal、Symbolic Link 和资源边界已有 Core Test 保护。
+- File Tree 可以从相对路径恢复目录层级，并使用完整相对路径选择文件。
+- File Viewer 为只读展示，并复用现有 Markdown / Code renderer 提供基础代码高亮。
+- 未发布时 UI 使用中性空态，不推导 RUNNING / FAILED / STOPPED。
+- 单文件读取错误只落在 File Viewer 边界，不改变 Project Files 或 Turn 状态。
+- PR1 / PR2 / PR3 的最终 CI 均通过 Backend Verification、Frontend Verification 和 Yakable Quality Gate。
+
+Blocker:
+- Create Project 返回后会立即导航到 Project 页面，但 Initial Code Generation 在事务提交后异步执行。
+- `ProjectFilesBrowser` 当前只在挂载时查询一次文件列表。
+- 如果第一次查询发生在 publication 之前，UI 会进入 `No published files yet.`，后续 publication 成功不会触发重新查询。
+- 因此正常 Create → Initial Code Generation → Files Browse 流程仍依赖用户手动刷新或重新进入 Project，V1 端到端闭环尚未成立。
+
+Exit Criteria:
+- publication 在页面已打开后完成时，Project Files Browser 可以自动重新加载已发布文件。
+- Browse 本身仍不拥有或推导 Generation / Turn 状态。
+- 增加前端回归测试，证明“首次空列表 → publication 完成 → 文件树出现”不需要整页手动刷新。
+- 增加前端回归测试，证明单文件读取失败后仍可选择并成功读取其他文件。
+- 完整 CI 通过后，Status 才能从 `Review` 更新为 `Done`。
