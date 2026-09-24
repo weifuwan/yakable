@@ -39,8 +39,8 @@ function mergeTurn(turns: SessionTurn[], next: SessionTurn) {
     : [...turns, next];
 }
 
-function isTerminalTurn(turn: SessionTurn) {
-  return turn.status === 'SUCCEEDED' || turn.status === 'FAILED' || turn.status === 'STOPPED';
+function isSucceededTurn(turn: SessionTurn) {
+  return turn.status === 'SUCCEEDED';
 }
 
 function SessionLoadingIndicator() {
@@ -71,7 +71,7 @@ interface SessionWorkspaceProps {
   projectId: string;
   sessionId: string;
   onActivity?: (sessionId: string, updatedAt: string) => void;
-  onTurnTerminal?: () => void;
+  onTurnSucceeded?: () => void;
 }
 
 export function SessionWorkspace(props: SessionWorkspaceProps) {
@@ -82,7 +82,7 @@ function SessionWorkspaceContent({
   projectId,
   sessionId,
   onActivity,
-  onTurnTerminal,
+  onTurnSucceeded,
 }: SessionWorkspaceProps) {
   const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
   const [turns, setTurns] = useState<SessionTurn[]>([]);
@@ -97,7 +97,7 @@ function SessionWorkspaceContent({
     fingerprint: string;
     requestId: string;
   } | null>(null);
-  const terminalTurnIdsRef = useRef(new Set<string>());
+  const succeededTurnIdsRef = useRef(new Set<string>());
   const {
     messages,
     hasNewer,
@@ -127,14 +127,14 @@ function SessionWorkspaceContent({
     };
   }, [expanded]);
 
-  const notifyTerminalTurn = useCallback(
+  const notifySucceededTurn = useCallback(
     (turn: SessionTurn | undefined) => {
-      if (!turn || !isTerminalTurn(turn) || terminalTurnIdsRef.current.has(turn.id)) return;
+      if (!turn || !isSucceededTurn(turn) || succeededTurnIdsRef.current.has(turn.id)) return;
 
-      terminalTurnIdsRef.current.add(turn.id);
-      onTurnTerminal?.();
+      succeededTurnIdsRef.current.add(turn.id);
+      onTurnSucceeded?.();
     },
-    [onTurnTerminal],
+    [onTurnSucceeded],
   );
 
   const {
@@ -164,7 +164,7 @@ function SessionWorkspaceContent({
         initializeMessageWindow(result);
         setLatestSequence(result.messages.at(-1)?.sequence ?? 0);
         setSelectedModel(result.session.model);
-        notifyTerminalTurn(result.turns.at(-1));
+        notifySucceededTurn(result.turns.at(-1));
         setIsSessionLoading(false);
       })
       .catch((requestError: unknown) => {
@@ -178,7 +178,7 @@ function SessionWorkspaceContent({
     return () => {
       controller.abort();
     };
-  }, [initializeMessageWindow, notifyTerminalTurn, projectId, sessionId]);
+  }, [initializeMessageWindow, notifySucceededTurn, projectId, sessionId]);
 
   const activeTurn = hasActiveTurn(turns);
   const activeTurnId = latestActiveTurnId(turns);
@@ -188,7 +188,7 @@ function SessionWorkspaceContent({
     (changes: SessionChanges) => {
       setTurns((current) => mergeTurn(current, changes.latestTurn));
       setLatestSequence((current) => Math.max(current, changes.latestSequence));
-      notifyTerminalTurn(changes.latestTurn);
+      notifySucceededTurn(changes.latestTurn);
 
       const affectsRenderedTurn = changes.messages.some((message) =>
         renderedTurnIdsRef.current.has(message.turnId),
@@ -197,7 +197,7 @@ function SessionWorkspaceContent({
         mergeMessages(changes.messages);
       }
     },
-    [isFollowingLatest, mergeMessages, notifyTerminalTurn],
+    [isFollowingLatest, mergeMessages, notifySucceededTurn],
   );
 
   const {
