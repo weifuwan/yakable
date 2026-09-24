@@ -1,11 +1,12 @@
-import * as React from 'react';
-import { Slot } from '@radix-ui/react-slot';
+import type { Button as BaseButtonNS } from '@base-ui/react/button';
+import { Button as BaseButton } from '@base-ui/react/button';
 import { cva, type VariantProps } from 'class-variance-authority';
+import { forwardRef } from 'react';
 
 import { cx } from '../cx';
 
 export const buttonVariants = cva(
-  'inline-flex shrink-0 items-center justify-center gap-2 font-medium outline-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring-strong disabled:pointer-events-none',
+  'inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 font-medium outline-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring-strong data-disabled:cursor-not-allowed',
   {
     variants: {
       variant: {
@@ -39,21 +40,24 @@ export const buttonVariants = cva(
   },
 );
 
-export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
-  asChild?: boolean;
-}
+type BaseButtonProps = Omit<
+  BaseButtonNS.Props,
+  'className' | 'nativeButton' | 'ref' | 'render'
+>;
 
-export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { asChild = false, className, type = 'button', variant, size, shape, ...props },
+export type ButtonProps = BaseButtonProps &
+  VariantProps<typeof buttonVariants> & {
+    className?: string;
+  };
+
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { className, type = 'button', variant, size, shape, ...props },
   ref,
 ) {
-  const Comp = asChild ? Slot : 'button';
-
   return (
-    <Comp
+    <BaseButton
       ref={ref}
-      type={asChild ? undefined : type}
+      type={type}
       className={cx(buttonVariants({ variant, size, shape }), className)}
       {...props}
     />
