@@ -67,7 +67,8 @@ public class GlobalExceptionHandler {
         if (errorCode == AuthErrorCode.ACCOUNT_DISABLED || errorCode == AuthErrorCode.FORBIDDEN) {
             return HttpStatus.FORBIDDEN;
         }
-        if (errorCode == UserErrorCode.NOT_FOUND
+        if (errorCode == CommonErrorCode.RESOURCE_NOT_EXISTS
+                || errorCode == UserErrorCode.NOT_FOUND
                 || errorCode == SessionErrorCode.NOT_FOUND) {
             return HttpStatus.NOT_FOUND;
         }
