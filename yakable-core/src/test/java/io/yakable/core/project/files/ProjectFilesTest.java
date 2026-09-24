@@ -45,6 +45,118 @@ class ProjectFilesTest {
     }
 
     @Test
+    void shouldListAndReadPublishedProjectFiles() {
+        ProjectFiles projectFiles = new ProjectFiles(tempDir);
+        projectFiles.publish(
+                "project-1",
+                "turn-1",
+                List.of(
+                        new ProjectFile("src/main.tsx", "main"),
+                        new ProjectFile("package.json", "{}"),
+                        new ProjectFile("src/App.tsx", "app")));
+
+        assertThat(projectFiles.listPublished("project-1"))
+                .containsExactly("package.json", "src/App.tsx", "src/main.tsx");
+        assertThat(projectFiles.readPublished("project-1", "src/./App.tsx"))
+                .isEqualTo(new ProjectFile("src/App.tsx", "app"));
+    }
+
+    @Test
+    void shouldReturnEmptyListAndRejectReadWithoutValidPublication() throws Exception {
+        ProjectFiles projectFiles = new ProjectFiles(tempDir);
+        Path projectRoot = Files.createDirectories(tempDir.resolve("project-1"));
+        Files.writeString(projectRoot.resolve("App.txt"), "not published");
+
+        assertThat(projectFiles.listPublished("project-1")).isEmpty();
+        assertThatThrownBy(() -> projectFiles.readPublished("project-1", "App.txt"))
+                .isInstanceOf(ProjectFiles.ProjectFilesException.class)
+                .hasMessageContaining("not published");
+    }
+
+    @Test
+    void shouldTreatSymlinkedPublicationMarkerAsUnpublished() throws Exception {
+        ProjectFiles projectFiles = new ProjectFiles(tempDir);
+        projectFiles.publish("project-1", "turn-1", List.of(new ProjectFile("App.txt", "published")));
+
+        Path marker = tempDir.resolve("project-1/.yakable/publication-id");
+        Path outsideMarker = tempDir.resolve("outside-publication-id");
+        Files.writeString(outsideMarker, "turn-1");
+        Files.delete(marker);
+        Files.createSymbolicLink(marker, outsideMarker);
+
+        assertThat(projectFiles.isPublished("project-1", "turn-1")).isFalse();
+        assertThat(projectFiles.listPublished("project-1")).isEmpty();
+        assertThatThrownBy(() -> projectFiles.readPublished("project-1", "App.txt"))
+                .isInstanceOf(ProjectFiles.ProjectFilesException.class)
+                .hasMessageContaining("not published");
+    }
+
+    @Test
+    void shouldHideInternalMetadataAndRejectInternalReads() {
+        ProjectFiles projectFiles = new ProjectFiles(tempDir);
+        projectFiles.publish("project-1", "turn-1", List.of(new ProjectFile("App.txt", "published")));
+
+        assertThat(projectFiles.listPublished("project-1")).containsExactly("App.txt");
+        assertThatThrownBy(() -> projectFiles.readPublished("project-1", ".yakable/publication-id"))
+                .isInstanceOf(ProjectFiles.ProjectFilesException.class)
+                .hasMessageContaining("reserved");
+    }
+
+    @Test
+    void shouldIgnoreAndRejectSymbolicLinks() throws Exception {
+        ProjectFiles projectFiles = new ProjectFiles(tempDir);
+        projectFiles.publish("project-1", "turn-1", List.of(new ProjectFile("App.txt", "published")));
+
+        Path outsideFile = tempDir.resolve("outside.txt");
+        Files.writeString(outsideFile, "secret");
+        Path projectRoot = tempDir.resolve("project-1");
+        Files.createSymbolicLink(projectRoot.resolve("link.txt"), outsideFile);
+
+        Path outsideDirectory = Files.createDirectories(tempDir.resolve("outside-dir"));
+        Files.writeString(outsideDirectory.resolve("secret.txt"), "secret");
+        Files.createSymbolicLink(projectRoot.resolve("link-dir"), outsideDirectory);
+
+        assertThat(projectFiles.listPublished("project-1")).containsExactly("App.txt");
+        assertThatThrownBy(() -> projectFiles.readPublished("project-1", "link.txt"))
+                .isInstanceOf(ProjectFiles.ProjectFilesException.class)
+                .hasMessageContaining("symbolic links");
+        assertThatThrownBy(() -> projectFiles.readPublished("project-1", "link-dir/secret.txt"))
+                .isInstanceOf(ProjectFiles.ProjectFilesException.class)
+                .hasMessageContaining("symbolic links");
+    }
+
+    @Test
+    void shouldRejectUnsafeReadPaths() {
+        ProjectFiles projectFiles = new ProjectFiles(tempDir);
+        projectFiles.publish("project-1", "turn-1", List.of(new ProjectFile("App.txt", "published")));
+
+        assertThatThrownBy(() -> projectFiles.readPublished("project-1", "../outside.txt"))
+                .isInstanceOf(ProjectFiles.ProjectFilesException.class)
+                .hasMessageContaining("parent traversal");
+        assertThatThrownBy(() -> projectFiles.readPublished("project-1", tempDir.resolve("outside.txt").toAbsolutePath().toString()))
+                .isInstanceOf(ProjectFiles.ProjectFilesException.class)
+                .hasMessageContaining("must be relative");
+    }
+
+    @Test
+    void shouldEnforceReadFileAndListCountLimitsAfterExternalMutation() throws Exception {
+        ProjectFiles projectFiles = new ProjectFiles(tempDir, 1, 3, 20);
+        projectFiles.publish("project-1", "turn-1", List.of(new ProjectFile("a.txt", "123")));
+
+        Path projectRoot = tempDir.resolve("project-1");
+        Files.writeString(projectRoot.resolve("a.txt"), "1234");
+
+        assertThatThrownBy(() -> projectFiles.readPublished("project-1", "a.txt"))
+                .isInstanceOf(ProjectFiles.ProjectFilesException.class)
+                .hasMessageContaining("byte limit");
+
+        Files.writeString(projectRoot.resolve("b.txt"), "b");
+        assertThatThrownBy(() -> projectFiles.listPublished("project-1"))
+                .isInstanceOf(ProjectFiles.ProjectFilesException.class)
+                .hasMessageContaining("count exceeds limit");
+    }
+
+    @Test
     void shouldReturnAlreadyPublishedWithoutOverwritingFiles() throws Exception {
         ProjectFiles projectFiles = new ProjectFiles(tempDir);
         projectFiles.publish("project-1", "turn-1", List.of(new ProjectFile("src/App.tsx", "first")));
@@ -115,11 +227,15 @@ class ProjectFilesTest {
     }
 
     @Test
-    void shouldProtectInternalMetadataPath() {
+    void shouldProtectInternalPaths() {
         ProjectFiles projectFiles = new ProjectFiles(tempDir);
 
         assertThatThrownBy(() -> projectFiles.publish(
                 "project-1", "turn-1", List.of(new ProjectFile(".yakable/publication-id", "fake"))))
+                .isInstanceOf(ProjectFiles.ProjectFilesException.class)
+                .hasMessageContaining("reserved");
+        assertThatThrownBy(() -> projectFiles.publish(
+                "project-2", "turn-2", List.of(new ProjectFile(".yakable-staging/file.txt", "fake"))))
                 .isInstanceOf(ProjectFiles.ProjectFilesException.class)
                 .hasMessageContaining("reserved");
     }
