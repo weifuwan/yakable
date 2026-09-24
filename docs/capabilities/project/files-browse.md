@@ -37,6 +37,7 @@ Scenarios:
 Tests:
 - `yakable-ui/src/features/project/components/__tests__/ProjectFilesTree.test.tsx` (planned)
 - `yakable-ui/src/features/project/components/__tests__/ProjectFileViewer.test.tsx` (planned)
+- `yakable-ui/src/service/project/__tests__/ProjectService.test.ts` (planned)
 - `yakable-boot/src/test/java/io/yakable/boot/controller/project/ProjectControllerTest.java` (planned extension)
 - `yakable-service/src/test/java/io/yakable/service/project/impl/ProjectServiceImplTest.java` (planned extension)
 - `yakable-core/src/test/java/io/yakable/core/project/files/ProjectFilesTest.java` (planned extension)
@@ -52,14 +53,19 @@ V1 只解决“生成了什么”这个问题。
 ## Contract
 
 - Project Files Browse 只能读取当前用户有权限访问的 Project。
-- 用户文件查询必须先完成 Project ownership 校验，再进入文件读取能力；Project ID 或文件路径本身不能作为访问授权。
-- Browse 只能暴露已经完整发布的 Project Root；`.yakable-staging`、`.yakable`、临时文件和未完成的 Generation Result 都不能对用户可见。
-- Controller / Service 不直接扫描或读取工作目录；文件枚举、路径解析和内容读取统一通过 `ProjectFiles` 能力完成。
-- 文件列表只返回相对于 Project Root 的规范化路径，不暴露服务器绝对路径。
+- 文件列表查询和单文件内容查询是两个独立的授权边界；每一次请求都必须重新校验当前用户对 Project 的 ownership，不能依赖此前已经成功执行过的 Browse 请求。
+- Project ID 或文件路径本身不能作为访问授权。
+- Browse 只能暴露已经完整发布的 Project Files；Project Root 存在本身不代表已经发布，必须由 `ProjectFiles` 确认有效 publication metadata 后才能进入可浏览状态。
+- `.yakable-staging`、`.yakable`、publication metadata、临时文件和未完成的 Generation Result 都属于内部数据，不能对用户可见。
+- Controller / Service 不直接扫描或读取工作目录；文件枚举、publication 判断、路径解析和内容读取统一通过 `ProjectFiles` 能力完成。
+- 文件列表只返回相对于 Project Root 的规范化文件路径以及浏览所需的最小信息，不返回所有文件完整内容。
+- 文件内容只在用户选择具体文件后按需读取，不能因为打开 Project 就一次性加载完整项目内容。
 - 文件树由已发布文件的相对路径稳定构建；目录节点只是展示结构，不要求作为独立 Project File 保存。
 - 同一个规范化文件路径在一次浏览结果中只能出现一次。
-- 文件内容读取必须重新执行 Project Root 边界校验；绝对路径、`..`、符号链接逃逸或任何 Project Root 外访问都必须拒绝。
-- Project 尚未完成首次文件发布时，Browse 返回明确的空结果；不能通过扫描 staging 或其他目录推断“部分生成结果”。
+- 文件枚举和文件内容读取都不得跟随 Symbolic Link；Symbolic Link 不属于 V1 可浏览 Project File，也不能借此访问 Project Root 之外的内容。
+- 文件内容读取必须重新执行 Project Root 边界校验；绝对路径、`..` 或任何 Project Root 外访问都必须拒绝。
+- Project 尚未形成有效 publication 时，Browse 返回明确的空结果；不能通过扫描 Project Root、staging 或其他目录推断部分生成结果。
+- Browse 不推导、不返回 Generation / Turn 状态。未发布只表示当前没有可浏览的 Published Project Files；前端如需区分 RUNNING / FAILED / STOPPED，继续使用已有 Turn 状态。
 - Initial Code Generation 完整发布成功后，页面刷新、重新进入 Project 或切换 Session 都可以重新加载相同的已发布文件集合。
 - V1 支持查看文本文件完整内容和基础代码高亮，不承诺二进制文件预览。
 - 单个文件读取失败只影响当前文件展示，不能改变其他文件或 Project 状态。
@@ -68,18 +74,34 @@ V1 只解决“生成了什么”这个问题。
 
 ## Flow
 
+文件列表：
+
 ```text
 Open Project Detail
     ↓
-Load Project Files
+List Project Files Request
     ↓
 Validate Project Ownership
     ↓
+ProjectFiles Validate Publication
+    ↓
 ProjectFiles.listPublished(projectId)
     ↓
-Build File Tree
+Return Relative File Paths
     ↓
+Build File Tree
+```
+
+文件内容：
+
+```text
 Select File
+    ↓
+Read Project File Request
+    ↓
+Validate Project Ownership
+    ↓
+ProjectFiles Validate Publication
     ↓
 ProjectFiles.readPublished(projectId, relativePath)
     ↓
@@ -91,7 +113,7 @@ Render File Content
 ```text
 Open Project Detail
     ↓
-No Published Project Root
+No Valid Publication
     ↓
 Show Empty State
 ```
@@ -111,14 +133,17 @@ Project Work Directory
 Owns:
 - 当前 Project 已发布文件列表查询。
 - 已发布文件到前端文件树的稳定映射。
-- 单个文本文件完整内容读取。
+- 单个文本文件完整内容按需读取。
 - Project ownership 与文件读取边界的衔接。
+- Publication 可见性判断。
 - Project Root 内的安全路径解析。
+- Symbolic Link 与内部 metadata 隔离。
 - 页面刷新后的文件浏览恢复。
 - Project Files 的只读前端展示。
 
 Does Not Own:
 - Initial Code Generation。
+- Generation / Turn 状态解释。
 - 后续 Prompt 修改已有代码。
 - 文件创建、编辑、删除或重命名。
 - Diff / Patch / ChangeSet。

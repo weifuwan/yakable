@@ -104,7 +104,8 @@ Involves:
 - Project Files Browse
 
 Guarantees:
-- Browse 只能看到已经完整发布的 Project Files，不能看到 staging、内部 metadata 或部分生成结果。
-- 文件列表和内容读取继续遵守 Project ownership 与 Project Root 隔离。
-- 页面刷新或重新进入 Project 后，可以从已发布 Project Root 重新恢复文件浏览。
-- Browse 只读取 Project Files，不改变文件内容、发布状态或 Turn 状态。
+- Browse 只能看到由 Project Files 确认为有效 publication 的已发布文件；Project Root 存在本身不能作为发布成功依据。
+- Browse 不能看到 staging、内部 metadata、Symbolic Link 或部分生成结果。
+- 文件列表查询和内容读取各自独立校验 Project ownership，并继续遵守 Project Root 隔离。
+- 页面刷新或重新进入 Project 后，可以从有效 publication 重新恢复文件浏览。
+- Browse 只读取 Project Files，不改变文件内容、发布状态或 Turn 状态，也不推导 Generation / Turn 状态。
