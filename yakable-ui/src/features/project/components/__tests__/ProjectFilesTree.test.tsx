@@ -19,7 +19,7 @@ describe('ProjectFilesTree', () => {
 
     expect(screen.getByText('src')).toBeTruthy();
     expect(screen.getByText('components')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'App.tsx' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', { name: 'App.tsx' }).getAttribute('aria-current')).toBe('page');
 
     await user.click(screen.getByRole('button', { name: 'Button.tsx' }));
 
