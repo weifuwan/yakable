@@ -10,13 +10,11 @@ const projectState = vi.hoisted(() => ({
 }));
 
 vi.mock('@/features/project', () => ({
-  ProjectFilesBrowser: ({
-    projectId,
-    refreshKey,
-  }: {
-    projectId: string;
-    refreshKey?: number;
-  }) => <div>files:{projectId}:{refreshKey ?? 0}</div>,
+  ProjectFilesBrowser: ({ projectId, refreshKey }: { projectId: string; refreshKey?: number }) => (
+    <div>
+      files:{projectId}:{refreshKey ?? 0}
+    </div>
+  ),
   useProjects: () => ({
     markProjectActive: projectState.markProjectActive,
   }),
