@@ -2,8 +2,12 @@ package io.yakable.service.project.impl;
 
 import io.yakable.common.bean.PageData;
 import io.yakable.common.bean.dto.project.AddProjectDTO;
+import io.yakable.common.bean.dto.project.QueryProjectFileDTO;
+import io.yakable.common.bean.dto.project.QueryProjectFilesDTO;
 import io.yakable.common.bean.dto.project.QueryProjectPageDTO;
 import io.yakable.common.bean.dto.session.AddSessionDTO;
+import io.yakable.common.bean.vo.project.ProjectFileVO;
+import io.yakable.common.bean.vo.project.ProjectFilesVO;
 import io.yakable.common.bean.vo.project.ProjectListVO;
 import io.yakable.common.bean.vo.session.SessionInitVO;
 import io.yakable.common.bean.vo.session.SessionVO;
@@ -12,6 +16,8 @@ import io.yakable.common.enums.session.TurnTypeEnum;
 import io.yakable.common.exception.ProjectException;
 import io.yakable.common.utils.ConverUtils;
 import io.yakable.dao.entity.ProjectEntity;
+import io.yakable.core.project.files.ProjectFile;
+import io.yakable.core.project.files.ProjectFiles;
 import io.yakable.dao.repository.ProjectRepository;
 import io.yakable.service.observability.ConversationMetrics;
 import io.yakable.service.project.ProjectService;
@@ -37,6 +43,9 @@ public class ProjectServiceImpl implements ProjectService {
 
     @Resource
     private SessionService sessionService;
+
+    @Resource
+    private ProjectFiles projectFiles;
 
     @Resource
     private TransactionTemplate transactionTemplate;
@@ -104,6 +113,31 @@ public class ProjectServiceImpl implements ProjectService {
     @Override
     public PageData<ProjectListVO> queryProject(QueryProjectPageDTO dto) {
         return projectRepository.queryProject(dto).map(ProjectServiceImpl::toListVO);
+    }
+
+    @Override
+    public ProjectFilesVO queryProjectFiles(QueryProjectFilesDTO dto) {
+        requireProjectOwnership(dto.projectId(), dto.userId());
+        return new ProjectFilesVO(projectFiles.listPublished(dto.projectId()));
+    }
+
+    @Override
+    public ProjectFileVO queryProjectFile(QueryProjectFileDTO dto) {
+        requireProjectOwnership(dto.projectId(), dto.userId());
+        try {
+            ProjectFile file = projectFiles.readPublished(dto.projectId(), dto.path());
+            return new ProjectFileVO(file.path(), file.content());
+        } catch (ProjectFiles.ProjectFilesException exception) {
+            throw new ProjectException(CommonErrorCode.RESOURCE_NOT_EXISTS);
+        }
+    }
+
+    private void requireProjectOwnership(String projectId, String userId) {
+        ProjectEntity project = projectRepository.queryById(projectId)
+                .orElseThrow(() -> new ProjectException(CommonErrorCode.RESOURCE_NOT_EXISTS));
+        if (!userId.equals(project.getCreateBy())) {
+            throw new ProjectException(CommonErrorCode.RESOURCE_NOT_EXISTS);
+        }
     }
 
     private ProjectListVO existingProject(ProjectEntity project) {
