@@ -19,6 +19,12 @@ Public Import:
 
 - `@/shared/ui`
 
+Implementation Base:
+
+- `shared/ui` 是 Yakable 内部的 Yak UI 层，不是业务 Feature。
+- `@base-ui/react` 作为需要 Headless interaction 的默认底层能力，只允许由 `shared/ui` 封装。
+- Yak UI 自己拥有公开 Props、Design Token 和 Tailwind 视觉 Contract；Base UI 只负责底层交互、状态语义与 accessibility。
+
 ## Must
 
 - Primitive 必须 feature-agnostic。
@@ -27,7 +33,7 @@ Public Import:
 - `Button` / `IconButton` 默认 `type="button"`，避免意外提交表单。
 - Button 视觉意图通过 `variant / size / shape` Contract 表达。
 - `Button className` 只用于宽度、定位、外部间距等布局 escape hatch。
-- Link 等元素需要 Button 外观时使用 `asChild` 保持原生语义。
+- Link 必须保持原生 `<a>` 语义；需要 Button 外观时复用 `buttonVariants` 等视觉 Contract，不把链接伪装成 Button。
 - 每个 `IconButton` 必须有可访问的 `aria-label`。
 - `Icon` 默认装饰性；只有 Icon 自身承载语义时提供 label。
 - `PromptComposer` 拥有 autosize、IME、Enter / Shift+Enter、submit / stop 输入机制。
@@ -42,6 +48,8 @@ Public Import:
 ## Must Not
 
 - 让 Shared UI 知道 Project、Session、Workspace、Editor、Agent 等产品业务规则。
+- 在 Page / Feature / App 直接导入 `@base-ui/react`，绕过 Yak UI 边界。
+- 从 `@/shared/ui` 直接 re-export Base UI 原始 Primitive。
 - Feature 用 className 重定义 Button 的颜色、背景、border、radius、control height。
 - Feature 自己重建 PromptComposer chassis。
 - Feature 绕过 Shared Markdown 自己解析 / 渲染消息 Markdown。
