@@ -9,18 +9,20 @@ Product:
 Create Project
      ↓
 Project + initial Session / Turn
+     ├────────────────→ Recent Projects
      ↓
 Initial Code Generation
      ↓
-Project Files + Turn Terminal
+Published Project Files + Turn Terminal
      ↓
-Recent Projects
+Project Files Browse
 ```
 
 Capabilities:
 
 - [Create Project](./create.md)
 - [Project Code Generation](./code-generation.md)
+- [Project Files Browse](./files-browse.md)
 - [Recent Projects](./recent-projects.md)
 
 ## Shared Rules
@@ -94,3 +96,15 @@ Guarantees:
 - Project Files 完整发布成功后，Initial Turn 才能进入 SUCCEEDED。
 - Initial Turn Retry / Recovery 复用原 Turn；已成功发布的结果不能被重复生成覆盖。
 - Initial Turn 进入 STOPPED / FAILED 后，迟到结果不能继续发布项目文件。
+
+### PROJ-S04 — Initial Code Generation → Files Browse
+
+Involves:
+- Project Code Generation
+- Project Files Browse
+
+Guarantees:
+- Browse 只能看到已经完整发布的 Project Files，不能看到 staging、内部 metadata 或部分生成结果。
+- 文件列表和内容读取继续遵守 Project ownership 与 Project Root 隔离。
+- 页面刷新或重新进入 Project 后，可以从已发布 Project Root 重新恢复文件浏览。
+- Browse 只读取 Project Files，不改变文件内容、发布状态或 Turn 状态。
