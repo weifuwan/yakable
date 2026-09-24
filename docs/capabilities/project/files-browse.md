@@ -45,6 +45,7 @@ Tests:
 - `yakable-ui/src/features/project/components/__tests__/ProjectFilesTree.test.tsx`
 - `yakable-ui/src/features/project/components/__tests__/ProjectFileViewer.test.tsx`
 - `yakable-ui/src/pages/project/__tests__/ProjectPage.test.tsx`
+- `yakable-ui/src/features/session/components/__tests__/SessionWorkspace.test.tsx`
 - `yakable-ui/src/service/project/__tests__/ProjectService.test.ts`
 - `yakable-boot/src/test/java/io/yakable/boot/controller/project/ProjectControllerTest.java`
 - `yakable-service/src/test/java/io/yakable/service/project/impl/ProjectServiceImplTest.java`
@@ -54,6 +55,7 @@ Review Notes:
 - PR1 已完成 Project Files Read Core：publication 可见性、路径隔离、metadata / Symbolic Link 隔离和按需读取由 `ProjectFiles` 统一负责。
 - PR2 已完成 Project Files API：文件列表与文件内容查询分别执行 Project ownership 校验，Controller / Service 不直接访问工作目录。
 - PR3 已完成 Project Files Browse UI：页面只先加载文件路径，用户选择文件后才加载完整内容；Browse 不解释 Generation / Turn 状态。
+- PR4 使用 Session 已有的 Turn SUCCEEDED 事实作为外部刷新信号，由 ProjectPage 转换为 `refreshKey`，ProjectFilesBrowser 只根据该信号重新查询 Published Project Files；不新增轮询，也不让 Browse 读取 Turn 状态。
 - 2026-09-24 Acceptance Review 发现一个端到端 Blocker：Create Project 成功后会立即进入 Project 页面，而 Initial Code Generation 异步执行；如果 Browse 在 publication 前首次得到空列表，当前页面不会在 publication 后重新加载，用户必须手动刷新或重新进入 Project 才能看到文件。
 
 ## Purpose
