@@ -18,10 +18,17 @@ Frontend:
 
 Backend:
 - Project generation readiness assessment
+- Generation phase persistence
 - Clarification question generation
 - Clarification answer persistence
-- Generation context assembly
+- Frozen generation context assembly
 - Project generation resume
+
+Data:
+- Initial `PROJECT_GENERATION` Turn
+- Generation Phase
+- Clarification Rounds
+- Frozen Generation Context Snapshot
 
 ---
 
@@ -181,6 +188,46 @@ Generation must not start.
 
 Yakable returns clarification questions instead.
 
+Readiness is a decision owned by the existing Initial `PROJECT_GENERATION` Turn. It is not a new Turn status and does not create a second generation request.
+
+### 5.1 Initial Turn Ownership
+
+The Project, initial Session, Initial `PROJECT_GENERATION` Turn, and original USER Message are still created by Create Project.
+
+Project Generation Clarification extends that same Initial Turn.
+
+```text
+Create Project
+    ↓
+Project + Session + Initial PROJECT_GENERATION Turn + USER Message
+    ↓
+Readiness Assessment
+    ├── READY
+    │     ↓
+    │   Code Generation
+    │
+    └── NEEDS_CLARIFICATION
+          ↓
+       Clarification
+          ↓
+       Readiness Assessment
+          ↓
+       READY
+          ↓
+       Code Generation
+```
+
+The following rules apply:
+
+- The original Initial Turn remains the owner of readiness assessment, clarification, and final code generation.
+- Clarification must not create another Conversation Turn.
+- Clarification answers must not go through the normal Send Message path.
+- The original USER Message remains the original project request and is not rewritten.
+- Provider and model identity remain fixed on the Initial Turn.
+- While clarification is waiting for user input, the Initial Turn still occupies the active generation lifecycle for the Session; a second active Turn must not be created to continue the same initial generation.
+
+V2 does not introduce a separate generic Generation Request, Planning Turn, or Clarification Turn.
+
 ---
 
 ## 6. Clarification Question
@@ -308,18 +355,47 @@ However, every additional round must be justified by newly discovered missing in
 
 The model must not intentionally split known questions across many rounds merely to create conversation.
 
+### 8.1 Clarification Persistence
+
+Clarification is durable generation data bound to the Initial Turn.
+
+Conceptually:
+
+```text
+Initial PROJECT_GENERATION Turn
+│
+├── Original USER Message
+│
+└── Generation Clarification
+      ├── currentRevision
+      ├── rounds
+      │    ├── questions
+      │    └── answers
+      └── phase
+```
+
+The physical database schema is an implementation detail, but the persistence semantics are part of this contract:
+
+- Clarification data is keyed by the Initial Turn identity.
+- Questions and confirmed answers survive refresh, reconnect, and service restart.
+- A clarification answer updates the same Initial Turn generation lifecycle; it does not create a replacement Turn.
+- Previous confirmed answers remain available to every later readiness assessment.
+- Waiting clarification is recoverable from persisted data and must not depend on in-memory state.
+- Clarification data is separate from ordinary Conversation Message history even if the frontend renders it inside the conversation experience.
+- Once the generation context has been frozen, late clarification answers must not mutate that context.
+
 ---
 
-## 9. Generation Context
+## 9. Generation Context Snapshot
 
 Generation must not depend only on the latest user message.
 
-Before execution, Yakable assembles a generation context containing:
+Before code generation becomes executable, Yakable assembles a complete generation context containing:
 
 ```text
 Original Prompt
 +
-Clarification Answers
+Confirmed Clarification Answers
 +
 Existing Project Context
 +
@@ -329,7 +405,8 @@ Applicable Project Rules
 Conceptually:
 
 ```text
-GenerationContext
+GenerationContextSnapshot
+├── turnId
 ├── originalPrompt
 ├── clarificationAnswers
 ├── projectContext
@@ -342,53 +419,127 @@ The original prompt remains preserved.
 
 Answers do not overwrite or rewrite the original user request.
 
+### 9.1 Freeze Boundary
+
+`READY` is not only a model decision. It is a persistence boundary.
+
+Before the Initial Turn becomes generation-executable, Yakable must persist an immutable Generation Context Snapshot.
+
+```text
+Readiness Assessment
+      ↓
+READY
+      ↓
+Persist Frozen Generation Context Snapshot
+      ↓
+Generation Executable
+      ↓
+ProjectCodeGenerator
+```
+
+The following rules apply:
+
+- `READY` must not be observable without a complete persisted Generation Context Snapshot.
+- The snapshot becomes immutable once generation is executable.
+- Project Code Generation reads the frozen snapshot instead of rebuilding context from mutable live state.
+- Retry and Recovery reuse the same frozen snapshot.
+- Late clarification answers cannot modify an existing frozen snapshot.
+- Changes to project metadata or rules after the freeze do not silently change the input of the already-established Initial Turn.
+- The Initial Turn remains the source of provider and model identity; the snapshot does not create a second execution identity.
+
+The transition that makes generation executable and the persistence of its snapshot must behave as one durable boundary: recovery must never observe `READY` without the snapshot required to execute it.
+
 ---
 
 ## 10. Source of Truth
 
 For Project Generation V2:
 
-> Generation Context is the execution input.
+> The frozen Generation Context Snapshot is the code-generation input.
 
 The latest chat message alone is not the execution input.
 
-This prevents generation from losing previously confirmed requirements.
+The original USER Message remains the source of the original request, clarification persistence remains the source of confirmed answers, and the frozen snapshot is the immutable input used once readiness becomes `READY`.
 
-Future Project Spec capabilities may replace Generation Context as the stronger structured source of truth.
+Future Project Spec capabilities may replace the snapshot with a stronger structured source of truth.
 
 V2 does not require that migration yet.
 
 ---
 
-## 11. State
+## 11. Generation Phase
 
-A project generation request may move through the following conceptual states:
+Generation Phase is a Project Generation sub-state owned by the Initial `PROJECT_GENERATION` Turn.
+
+It does not replace the existing Conversation Turn status:
 
 ```text
-ASSESSING
-    ↓
-NEEDS_CLARIFICATION
-    ↓
-ASSESSING
-    ↓
-READY
-    ↓
-GENERATING
-    ↓
-COMPLETED
+TurnStatus
+PENDING / RUNNING / SUCCEEDED / FAILED / STOPPED
+
+GenerationPhase
+ASSESSING / WAITING_CLARIFICATION / READY / GENERATING / COMPLETED
 ```
 
-Existing generation failure and cancellation semantics remain unchanged.
+The normal lifecycle is:
 
-Clarification itself is not generation.
+```text
+TurnStatus=PENDING
+GenerationPhase=ASSESSING
+        ↓
+        ├── missing blocking information
+        │      ↓
+        │   TurnStatus=PENDING
+        │   GenerationPhase=WAITING_CLARIFICATION
+        │      ↓
+        │   User Answer
+        │      ↓
+        │   GenerationPhase=ASSESSING
+        │
+        └── sufficient information
+               ↓
+            Freeze Generation Context Snapshot
+               ↓
+            TurnStatus=PENDING
+            GenerationPhase=READY
+               ↓
+            Claim generation execution
+               ↓
+            TurnStatus=RUNNING
+            GenerationPhase=GENERATING
+               ↓
+            Publish complete Project Files
+               ↓
+            TurnStatus=SUCCEEDED
+            GenerationPhase=COMPLETED
+```
+
+Existing `FAILED` and `STOPPED` Turn terminal semantics remain authoritative. Generation Phase does not create duplicate terminal states.
+
+Clarification itself is not code generation.
 
 While waiting for clarification:
 
 ```text
+TurnStatus = PENDING
+GenerationPhase = WAITING_CLARIFICATION
 generationStarted = false
 ```
 
 No project files should be generated or modified.
+
+### 11.1 Scheduling and Recovery
+
+A `PENDING` Turn is not automatically generation-executable.
+
+Execution and Recovery must inspect Generation Phase.
+
+- `PENDING + WAITING_CLARIFICATION` is blocked on user input and must not be dispatched to Project Code Generation.
+- `PENDING + READY` is generation-executable and may be dispatched or recovered.
+- `RUNNING + GENERATING` follows the existing stale RUNNING recovery rules.
+- Recovery of a `READY` Turn must reuse the frozen Generation Context Snapshot.
+- Recovery must never convert waiting clarification into code generation merely because the Turn itself is `PENDING`.
+- `STOPPED` or `FAILED` terminates the Initial Turn regardless of its last Generation Phase.
 
 ---
 
@@ -485,27 +636,27 @@ Failing open would restore the exact behavior this capability exists to prevent.
 
 ## 16. Resume
 
-After the user submits clarification answers, Yakable resumes the same generation request.
+After the user submits clarification answers, Yakable resumes the same Initial `PROJECT_GENERATION` Turn.
 
-The user should not need to submit the original prompt again.
+The user should not need to submit the original prompt again, and Yakable must not create another Turn to resume.
 
 Conceptually:
 
 ```text
-Generation Request
+Initial PROJECT_GENERATION Turn
        ↓
-Clarification Pending
+WAITING_CLARIFICATION
        ↓
 User Answers
        ↓
-Resume
+ASSESSING
        ↓
-READY
+READY + Frozen Generation Context Snapshot
        ↓
-Generate
+GENERATING
 ```
 
-Clarification creates a pause in execution, not a new unrelated project generation request.
+Clarification creates a persisted pause in the Initial Turn generation lifecycle, not a new unrelated project generation request.
 
 ---
 
@@ -552,6 +703,26 @@ Known project context must be reused instead of asking the user again.
 ### Invariant 10
 
 Clarification must remain optional when the original request is already sufficient.
+
+### Invariant 11
+
+Readiness, clarification, and final initial code generation belong to the same Initial `PROJECT_GENERATION` Turn.
+
+### Invariant 12
+
+Clarification questions and answers must be durably persisted against that Initial Turn and must not require additional Conversation Turns.
+
+### Invariant 13
+
+`PENDING + WAITING_CLARIFICATION` must never be dispatched as executable Project Code Generation.
+
+### Invariant 14
+
+`READY` must always have a complete persisted frozen Generation Context Snapshot.
+
+### Invariant 15
+
+Project Code Generation Retry / Recovery must reuse the same frozen Generation Context Snapshot and must not rebuild it from later mutable state.
 
 ---
 
@@ -625,13 +796,19 @@ Project Generation Clarification V2 is complete when:
 - Sufficient prompts can continue directly without clarification.
 - Insufficient prompts return clarification questions instead of generating code.
 - A clarification round supports one or more questions.
-- Clarification answers are preserved.
+- Clarification answers are durably preserved against the original Initial `PROJECT_GENERATION` Turn.
+- Clarification does not create additional Conversation Turns.
 - Answers participate in the next readiness assessment.
 - Multiple clarification rounds are supported.
 - Previously answered questions are not repeated.
-- Generation resumes without requiring the original prompt again.
+- Generation resumes on the same Initial Turn without requiring the original prompt again.
+- Generation Phase is persisted separately from the existing Turn terminal status.
+- `PENDING + WAITING_CLARIFICATION` is not generation-executable and is ignored by code-generation Recovery.
 - Generation does not start until readiness becomes `READY`.
-- The final generation input contains the original prompt and confirmed clarification answers.
+- A complete Generation Context Snapshot is persisted before `READY` becomes executable.
+- The frozen generation input contains the original prompt and confirmed clarification answers.
+- Project Code Generation and its Retry / Recovery reuse the same frozen snapshot.
+- Late clarification answers cannot mutate the frozen snapshot.
 - Clarification does not write or modify project files.
 - Assessment failures do not fall back to direct generation.
 - Existing project context is reused when determining whether clarification is required.
