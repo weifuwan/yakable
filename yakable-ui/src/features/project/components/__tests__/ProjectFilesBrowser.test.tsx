@@ -39,6 +39,45 @@ describe('ProjectFilesBrowser', () => {
     expect(await screen.findByText('tsx')).toBeTruthy();
   });
 
+
+  it('reloads published files when an external refresh signal arrives', async () => {
+    vi.spyOn(ProjectService, 'queryProjectFiles')
+      .mockResolvedValueOnce({ files: [] })
+      .mockResolvedValueOnce({ files: ['src/App.tsx'] });
+
+    const { rerender } = render(<ProjectFilesBrowser projectId="project-1" refreshKey={0} />);
+
+    expect(await screen.findByText('No published files yet.')).toBeTruthy();
+
+    rerender(<ProjectFilesBrowser projectId="project-1" refreshKey={1} />);
+
+    expect(await screen.findByRole('button', { name: 'App.tsx' })).toBeTruthy();
+    expect(ProjectService.queryProjectFiles).toHaveBeenCalledTimes(2);
+  });
+
+  it('can open another file after one file read fails', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(ProjectService, 'queryProjectFiles').mockResolvedValue({
+      files: ['src/Broken.tsx', 'src/Working.tsx'],
+    });
+    vi.spyOn(ProjectService, 'queryProjectFile')
+      .mockRejectedValueOnce(new Error('Resource not found'))
+      .mockResolvedValueOnce({
+        path: 'src/Working.tsx',
+        content: 'export const working = true;',
+      });
+
+    render(<ProjectFilesBrowser projectId="project-1" />);
+
+    await user.click(await screen.findByRole('button', { name: 'Broken.tsx' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Resource not found');
+
+    await user.click(screen.getByRole('button', { name: 'Working.tsx' }));
+
+    expect(await screen.findByText('tsx')).toBeTruthy();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
   it('shows a neutral empty state without inferring generation status', async () => {
     vi.spyOn(ProjectService, 'queryProjectFiles').mockResolvedValue({ files: [] });
 
