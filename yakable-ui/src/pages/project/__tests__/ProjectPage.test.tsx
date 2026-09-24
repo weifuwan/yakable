@@ -27,18 +27,18 @@ vi.mock('@/features/session', () => ({
     projectId,
     sessionId,
     onActivity,
-    onTurnTerminal,
+    onTurnSucceeded,
   }: {
     projectId: string;
     sessionId: string;
     onActivity?: (sessionId: string, updatedAt: string) => void;
-    onTurnTerminal?: () => void;
+    onTurnSucceeded?: () => void;
   }) => (
     <button
       type="button"
       onClick={() => {
         onActivity?.('session-2', '2026-09-21T09:00:00Z');
-        onTurnTerminal?.();
+        onTurnSucceeded?.();
       }}
     >
       {projectId}:{sessionId}
