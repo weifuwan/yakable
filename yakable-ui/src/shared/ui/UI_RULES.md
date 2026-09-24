@@ -33,7 +33,7 @@ Implementation Base:
 - `Button` / `IconButton` 默认 `type="button"`，避免意外提交表单。
 - Button 视觉意图通过 `variant / size / shape` Contract 表达。
 - `Button className` 只用于宽度、定位、外部间距等布局 escape hatch。
-- Link 必须保持原生 `<a>` 语义；需要 Button 外观时复用 `buttonVariants` 等视觉 Contract，不把链接伪装成 Button。
+- Link 等元素需要 Button 外观时使用 `asChild` 保持原生语义；`asChild` 是 Yak UI 的兼容 Contract，不要求业务层接触 Base UI。
 - 每个 `IconButton` 必须有可访问的 `aria-label`。
 - `Icon` 默认装饰性；只有 Icon 自身承载语义时提供 label。
 - `PromptComposer` 拥有 autosize、IME、Enter / Shift+Enter、submit / stop 输入机制。
