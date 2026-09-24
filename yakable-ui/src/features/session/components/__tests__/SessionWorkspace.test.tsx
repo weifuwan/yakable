@@ -676,6 +676,26 @@ describe('SessionWorkspace', () => {
     });
   });
 
+  it('reports an active Turn terminal transition once', async () => {
+    const onTurnTerminal = vi.fn();
+
+    vi.spyOn(SessionService, 'querySession').mockResolvedValue(runningSnapshot);
+    vi.spyOn(SessionService, 'queryChanges').mockResolvedValue(completedChanges);
+    vi.spyOn(SessionService, 'watchTurn').mockResolvedValue();
+
+    render(
+      <SessionWorkspace
+        projectId="project-1"
+        sessionId="session-1"
+        onTurnTerminal={onTurnTerminal}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(onTurnTerminal).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('reconnects to the same active Turn after restoring a Session', async () => {
     let handlers: Parameters<typeof SessionService.watchTurn>[3] | undefined;
     let resolveWatch!: () => void;
@@ -898,8 +918,3 @@ describe('SessionWorkspace', () => {
       expect(
         screen.queryByRole('button', {
           name: 'Stop generating',
-        }),
-      ).toBeNull();
-    });
-  });
-});
