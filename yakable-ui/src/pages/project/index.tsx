@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 
 import { ProjectFilesBrowser, useProjects } from '@/features/project';
@@ -10,6 +10,7 @@ export function ProjectPage() {
     sessionId: string;
   }>();
   const { markProjectActive } = useProjects();
+  const [filesRefreshKey, setFilesRefreshKey] = useState(0);
 
   const handleSessionActivity = useCallback(
     (activeSessionId: string, updatedAt: string) => {
@@ -18,6 +19,10 @@ export function ProjectPage() {
     },
     [markProjectActive, projectId],
   );
+
+  const handleTurnTerminal = useCallback(() => {
+    setFilesRefreshKey((current) => current + 1);
+  }, []);
 
   if (!projectId || !sessionId) {
     return <Navigate to="/dashboard" replace />;
@@ -30,11 +35,12 @@ export function ProjectPage() {
           projectId={projectId}
           sessionId={sessionId}
           onActivity={handleSessionActivity}
+          onTurnTerminal={handleTurnTerminal}
         />
       </div>
 
       <div className="min-h-0 w-[46%] min-w-[420px] max-w-[760px] border-l border-border">
-        <ProjectFilesBrowser projectId={projectId} />
+        <ProjectFilesBrowser projectId={projectId} refreshKey={filesRefreshKey} />
       </div>
     </div>
   );
