@@ -39,7 +39,6 @@ describe('ProjectFilesBrowser', () => {
     expect(await screen.findByText('tsx')).toBeTruthy();
   });
 
-
   it('reloads published files when an external refresh signal arrives', async () => {
     vi.spyOn(ProjectService, 'queryProjectFiles')
       .mockResolvedValueOnce({ files: [] })
