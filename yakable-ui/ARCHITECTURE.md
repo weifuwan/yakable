@@ -176,7 +176,19 @@ Backend API
 
 ## UI boundary
 
-`shared/ui` owns small, reusable Yakable product primitives.
+`shared/ui` is the internal Yak UI layer and owns small, reusable Yakable product primitives.
+
+```text
+page / feature / app
+        ↓
+@/shared/ui (Yak UI)
+        ↓
+@base-ui/react (headless behavior when needed)
+        ↓
+DOM
+```
+
+Base UI is an implementation dependency, not a product-facing API. Yak UI owns the stable Props and visual contract through Yakable Design Tokens / Tailwind; product code does not import Base UI directly.
 
 Detailed primitive constraints: [UI_RULES.md](./src/shared/ui/UI_RULES.md).
 
