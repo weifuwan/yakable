@@ -39,6 +39,10 @@ function mergeTurn(turns: SessionTurn[], next: SessionTurn) {
     : [...turns, next];
 }
 
+function isSucceededTurn(turn: SessionTurn) {
+  return turn.status === 'SUCCEEDED';
+}
+
 function SessionLoadingIndicator() {
   return (
     <output className="flex h-full items-center justify-center" aria-label="Loading session">
@@ -67,13 +71,19 @@ interface SessionWorkspaceProps {
   projectId: string;
   sessionId: string;
   onActivity?: (sessionId: string, updatedAt: string) => void;
+  onTurnSucceeded?: () => void;
 }
 
 export function SessionWorkspace(props: SessionWorkspaceProps) {
   return <SessionWorkspaceContent key={props.projectId + ':' + props.sessionId} {...props} />;
 }
 
-function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWorkspaceProps) {
+function SessionWorkspaceContent({
+  projectId,
+  sessionId,
+  onActivity,
+  onTurnSucceeded,
+}: SessionWorkspaceProps) {
   const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
   const [turns, setTurns] = useState<SessionTurn[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -87,6 +97,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
     fingerprint: string;
     requestId: string;
   } | null>(null);
+  const succeededTurnIdsRef = useRef(new Set<string>());
   const {
     messages,
     hasNewer,
@@ -116,6 +127,16 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
     };
   }, [expanded]);
 
+  const notifySucceededTurn = useCallback(
+    (turn: SessionTurn | undefined) => {
+      if (!turn || !isSucceededTurn(turn) || succeededTurnIdsRef.current.has(turn.id)) return;
+
+      succeededTurnIdsRef.current.add(turn.id);
+      onTurnSucceeded?.();
+    },
+    [onTurnSucceeded],
+  );
+
   const {
     scrollRef,
     showScrollBottom,
@@ -143,6 +164,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
         initializeMessageWindow(result);
         setLatestSequence(result.messages.at(-1)?.sequence ?? 0);
         setSelectedModel(result.session.model);
+        notifySucceededTurn(result.turns.at(-1));
         setIsSessionLoading(false);
       })
       .catch((requestError: unknown) => {
@@ -156,7 +178,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
     return () => {
       controller.abort();
     };
-  }, [initializeMessageWindow, projectId, sessionId]);
+  }, [initializeMessageWindow, notifySucceededTurn, projectId, sessionId]);
 
   const activeTurn = hasActiveTurn(turns);
   const activeTurnId = latestActiveTurnId(turns);
@@ -166,6 +188,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
     (changes: SessionChanges) => {
       setTurns((current) => mergeTurn(current, changes.latestTurn));
       setLatestSequence((current) => Math.max(current, changes.latestSequence));
+      notifySucceededTurn(changes.latestTurn);
 
       const affectsRenderedTurn = changes.messages.some((message) =>
         renderedTurnIdsRef.current.has(message.turnId),
@@ -174,7 +197,7 @@ function SessionWorkspaceContent({ projectId, sessionId, onActivity }: SessionWo
         mergeMessages(changes.messages);
       }
     },
-    [isFollowingLatest, mergeMessages],
+    [isFollowingLatest, mergeMessages, notifySucceededTurn],
   );
 
   const {

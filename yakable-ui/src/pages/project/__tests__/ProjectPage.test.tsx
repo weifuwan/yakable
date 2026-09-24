@@ -10,7 +10,11 @@ const projectState = vi.hoisted(() => ({
 }));
 
 vi.mock('@/features/project', () => ({
-  ProjectFilesBrowser: ({ projectId }: { projectId: string }) => <div>files:{projectId}</div>,
+  ProjectFilesBrowser: ({ projectId, refreshKey }: { projectId: string; refreshKey?: number }) => (
+    <div>
+      files:{projectId}:{refreshKey ?? 0}
+    </div>
+  ),
   useProjects: () => ({
     markProjectActive: projectState.markProjectActive,
   }),
@@ -21,12 +25,20 @@ vi.mock('@/features/session', () => ({
     projectId,
     sessionId,
     onActivity,
+    onTurnSucceeded,
   }: {
     projectId: string;
     sessionId: string;
     onActivity?: (sessionId: string, updatedAt: string) => void;
+    onTurnSucceeded?: () => void;
   }) => (
-    <button type="button" onClick={() => onActivity?.('session-2', '2026-09-21T09:00:00Z')}>
+    <button
+      type="button"
+      onClick={() => {
+        onActivity?.('session-2', '2026-09-21T09:00:00Z');
+        onTurnSucceeded?.();
+      }}
+    >
       {projectId}:{sessionId}
     </button>
   ),
@@ -48,7 +60,7 @@ describe('ProjectPage', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText('files:project-1')).toBeTruthy();
+    expect(screen.getByText('files:project-1:0')).toBeTruthy();
 
     await user.click(
       screen.getByRole('button', {
@@ -61,5 +73,6 @@ describe('ProjectPage', () => {
       'session-2',
       '2026-09-21T09:00:00Z',
     );
+    expect(screen.getByText('files:project-1:1')).toBeTruthy();
   });
 });
