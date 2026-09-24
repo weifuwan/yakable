@@ -27,14 +27,13 @@ describe('ProjectService', () => {
     };
     const get = vi.spyOn(HttpUtils, 'get').mockResolvedValue(file);
 
-    await expect(
-      ProjectService.queryProjectFile('project 1', 'src/App.tsx'),
-    ).resolves.toEqual(file);
-
-    expect(get).toHaveBeenCalledWith(
-      '/api/projects/project%201/files/content?path=src%2FApp.tsx',
-      { signal: undefined },
+    await expect(ProjectService.queryProjectFile('project 1', 'src/App.tsx')).resolves.toEqual(
+      file,
     );
+
+    expect(get).toHaveBeenCalledWith('/api/projects/project%201/files/content?path=src%2FApp.tsx', {
+      signal: undefined,
+    });
   });
 
   it('rejects an invalid Project file list response as a parse error', async () => {
@@ -49,11 +48,11 @@ describe('ProjectService', () => {
   it('rejects invalid Project file content as a parse error', async () => {
     vi.spyOn(HttpUtils, 'get').mockResolvedValue({ path: 'src/App.tsx' });
 
-    await expect(
-      ProjectService.queryProjectFile('project-1', 'src/App.tsx'),
-    ).rejects.toMatchObject({
-      name: 'ApiError',
-      kind: 'parse',
-    });
+    await expect(ProjectService.queryProjectFile('project-1', 'src/App.tsx')).rejects.toMatchObject(
+      {
+        name: 'ApiError',
+        kind: 'parse',
+      },
+    );
   });
 });
