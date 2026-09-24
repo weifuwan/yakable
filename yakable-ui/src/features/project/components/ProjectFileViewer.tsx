@@ -32,7 +32,7 @@ const languageByExtension: Record<string, string> = {
 function languageForPath(path: string) {
   const fileName = path.split(/[\\/]/).at(-1) ?? path;
   const extension = fileName.includes('.') ? fileName.split('.').at(-1)?.toLowerCase() : undefined;
-  return extension ? languageByExtension[extension] ?? 'text' : 'text';
+  return extension ? (languageByExtension[extension] ?? 'text') : 'text';
 }
 
 function fencedCode(path: string, content: string) {
@@ -42,12 +42,7 @@ function fencedCode(path: string, content: string) {
   return fence + languageForPath(path) + '\n' + content + suffix + fence;
 }
 
-export function ProjectFileViewer({
-  selectedPath,
-  file,
-  loading,
-  error,
-}: ProjectFileViewerProps) {
+export function ProjectFileViewer({ selectedPath, file, loading, error }: ProjectFileViewerProps) {
   if (!selectedPath) {
     return (
       <div className="flex h-full items-center justify-center px-8 text-center text-sm text-foreground-subtle">
@@ -66,7 +61,10 @@ export function ProjectFileViewer({
 
   if (error) {
     return (
-      <div className="m-4 rounded-xl border border-danger-border-subtle bg-danger-surface px-4 py-3 text-sm text-danger-foreground" role="alert">
+      <div
+        className="m-4 rounded-xl border border-danger-border-subtle bg-danger-surface px-4 py-3 text-sm text-danger-foreground"
+        role="alert"
+      >
         {error}
       </div>
     );
