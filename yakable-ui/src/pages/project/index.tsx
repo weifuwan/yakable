@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 
-import { useProjects } from '@/features/project';
+import { ProjectFilesBrowser, useProjects } from '@/features/project';
 import { SessionWorkspace } from '@/features/session';
 
 export function ProjectPage() {
@@ -24,10 +24,18 @@ export function ProjectPage() {
   }
 
   return (
-    <SessionWorkspace
-      projectId={projectId}
-      sessionId={sessionId}
-      onActivity={handleSessionActivity}
-    />
+    <div className="flex h-full min-h-0 min-w-0 overflow-hidden">
+      <div className="min-h-0 min-w-0 flex-1">
+        <SessionWorkspace
+          projectId={projectId}
+          sessionId={sessionId}
+          onActivity={handleSessionActivity}
+        />
+      </div>
+
+      <div className="min-h-0 w-[46%] min-w-[420px] max-w-[760px] border-l border-border">
+        <ProjectFilesBrowser projectId={projectId} />
+      </div>
+    </div>
   );
 }
