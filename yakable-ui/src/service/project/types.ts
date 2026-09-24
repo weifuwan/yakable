@@ -15,3 +15,12 @@ export interface CreateProjectInput {
   model: ProjectModel;
   requestId: string;
 }
+
+export interface ProjectFiles {
+  files: string[];
+}
+
+export interface ProjectFile {
+  path: string;
+  content: string;
+}
