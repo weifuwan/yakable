@@ -1,7 +1,7 @@
-import type { Button as BaseButtonNS } from '@base-ui/react/button';
 import { Button as BaseButton } from '@base-ui/react/button';
+import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { forwardRef } from 'react';
+import * as React from 'react';
 
 import { cx } from '../cx';
 
@@ -40,28 +40,22 @@ export const buttonVariants = cva(
   },
 );
 
-type BaseButtonProps = Omit<
-  BaseButtonNS.Props,
-  'className' | 'nativeButton' | 'ref' | 'render'
->;
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
+  asChild?: boolean;
+}
 
-export type ButtonProps = BaseButtonProps &
-  VariantProps<typeof buttonVariants> & {
-    className?: string;
-  };
-
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { className, type = 'button', variant, size, shape, ...props },
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { asChild = false, className, type = 'button', variant, size, shape, ...props },
   ref,
 ) {
-  return (
-    <BaseButton
-      ref={ref}
-      type={type}
-      className={cx(buttonVariants({ variant, size, shape }), className)}
-      {...props}
-    />
-  );
+  const classes = cx(buttonVariants({ variant, size, shape }), className);
+
+  if (asChild) {
+    return <Slot ref={ref} className={classes} {...props} />;
+  }
+
+  return <BaseButton ref={ref} type={type} className={classes} {...props} />;
 });
 
 Button.displayName = 'Button';
