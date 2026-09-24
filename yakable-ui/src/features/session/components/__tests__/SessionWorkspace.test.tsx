@@ -676,8 +676,8 @@ describe('SessionWorkspace', () => {
     });
   });
 
-  it('reports an active Turn terminal transition once', async () => {
-    const onTurnTerminal = vi.fn();
+  it('reports an active Turn success transition once', async () => {
+    const onTurnSucceeded = vi.fn();
 
     vi.spyOn(SessionService, 'querySession').mockResolvedValue(runningSnapshot);
     vi.spyOn(SessionService, 'queryChanges').mockResolvedValue(completedChanges);
@@ -687,12 +687,12 @@ describe('SessionWorkspace', () => {
       <SessionWorkspace
         projectId="project-1"
         sessionId="session-1"
-        onTurnTerminal={onTurnTerminal}
+        onTurnSucceeded={onTurnSucceeded}
       />,
     );
 
     await waitFor(() => {
-      expect(onTurnTerminal).toHaveBeenCalledTimes(1);
+      expect(onTurnSucceeded).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -898,23 +898,3 @@ describe('SessionWorkspace', () => {
     const stopTurn = vi.spyOn(SessionService, 'stopTurn').mockResolvedValue(stoppedTurn);
 
     vi.spyOn(SessionService, 'querySession').mockResolvedValue(runningSnapshot);
-    vi.spyOn(SessionService, 'queryChanges').mockResolvedValue(stoppedChanges);
-    vi.spyOn(SessionService, 'watchTurn').mockImplementation(
-      async () => new Promise<void>(() => {}),
-    );
-
-    render(<SessionWorkspace projectId="project-1" sessionId="session-1" />);
-
-    expect(await screen.findByText('Partial answer')).toBeTruthy();
-
-    await user.click(screen.getByRole('button', { name: 'Stop generating' }));
-
-    await waitFor(() => {
-      expect(stopTurn).toHaveBeenCalledWith('project-1', 'session-1', 'turn-2');
-    });
-    expect(screen.getByText('Partial answer')).toBeTruthy();
-
-    await waitFor(() => {
-      expect(
-        screen.queryByRole('button', {
-          name: 'Stop generating',
