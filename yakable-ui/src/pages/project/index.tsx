@@ -20,7 +20,7 @@ export function ProjectPage() {
     [markProjectActive, projectId],
   );
 
-  const handleTurnTerminal = useCallback(() => {
+  const handleTurnSucceeded = useCallback(() => {
     setFilesRefreshKey((current) => current + 1);
   }, []);
 
@@ -35,7 +35,7 @@ export function ProjectPage() {
           projectId={projectId}
           sessionId={sessionId}
           onActivity={handleSessionActivity}
-          onTurnTerminal={handleTurnTerminal}
+          onTurnSucceeded={handleTurnSucceeded}
         />
       </div>
 
