@@ -70,7 +70,7 @@ describe('ProjectFilesBrowser', () => {
     render(<ProjectFilesBrowser projectId="project-1" />);
 
     await user.click(await screen.findByRole('button', { name: 'Broken.tsx' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Resource not found');
+    expect((await screen.findByRole('alert')).textContent).toContain('Resource not found');
 
     await user.click(screen.getByRole('button', { name: 'Working.tsx' }));
 
