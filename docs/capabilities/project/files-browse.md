@@ -1,6 +1,6 @@
 # Project Files Browse
 
-Status: Designing
+Status: Implementing
 Domain: Project
 
 Depends On:
@@ -40,7 +40,7 @@ Tests:
 - `yakable-ui/src/service/project/__tests__/ProjectService.test.ts` (planned)
 - `yakable-boot/src/test/java/io/yakable/boot/controller/project/ProjectControllerTest.java` (planned extension)
 - `yakable-service/src/test/java/io/yakable/service/project/impl/ProjectServiceImplTest.java` (planned extension)
-- `yakable-core/src/test/java/io/yakable/core/project/files/ProjectFilesTest.java` (planned extension)
+- `yakable-core/src/test/java/io/yakable/core/project/files/ProjectFilesTest.java`
 
 ## Purpose
 

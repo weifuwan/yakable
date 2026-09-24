@@ -1,6 +1,7 @@
 package io.yakable.core.project.files;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
@@ -17,9 +18,10 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 /**
- * Project 文件完整发布能力。
+ * Project 文件完整发布与只读访问能力。
  *
- * <p>负责 Project Root 隔离、资源边界、staging、完整发布和 publication 幂等，不负责 Turn 状态或业务持久化。</p>
+ * <p>负责 Project Root 隔离、资源边界、staging、完整发布、publication 幂等和已发布文件读取，
+ * 不负责 Project ownership、Turn 状态或业务持久化。</p>
  */
 public class ProjectFiles {
 
@@ -104,6 +106,70 @@ public class ProjectFiles {
         return publicationMatches(projectRoot(projectId), requirePublicationId(publicationId));
     }
 
+    /**
+     * 列出当前 Project 已完整发布的用户文件相对路径。
+     *
+     * <p>未形成有效 publication 时返回空列表；内部 metadata、staging 路径和 Symbolic Link 不对外暴露。</p>
+     */
+    public List<String> listPublished(String projectId) {
+        Path projectRoot = projectRoot(projectId);
+        if (!hasValidPublication(projectRoot)) {
+            return List.of();
+        }
+        try (Stream<Path> paths = Files.walk(projectRoot)) {
+            List<String> result = paths
+                    .filter(path -> !path.equals(projectRoot))
+                    .filter(path -> {
+                        Path relative = projectRoot.relativize(path);
+                        return !isInternalPath(relative)
+                                && !Files.isSymbolicLink(path)
+                                && Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS);
+                    })
+                    .map(path -> projectRoot.relativize(path).normalize().toString())
+                    .limit((long) maxFiles + 1)
+                    .sorted()
+                    .toList();
+            if (result.size() > maxFiles) {
+                throw new ProjectFilesException("Published project file count exceeds limit: " + maxFiles);
+            }
+            return result;
+        } catch (IOException | UncheckedIOException exception) {
+            throw new ProjectFilesException("Failed to list published project files: " + projectId, exception);
+        }
+    }
+
+    /**
+     * 读取当前 Project 已完整发布的单个文本文件。
+     */
+    public ProjectFile readPublished(String projectId, String path) {
+        Path projectRoot = projectRoot(projectId);
+        if (!hasValidPublication(projectRoot)) {
+            throw new ProjectFilesException("Project files are not published: " + projectId);
+        }
+
+        Path relative = relativePath(path);
+        if (isInternalPath(relative)) {
+            throw new ProjectFilesException("Project file path is reserved: " + path);
+        }
+        Path target = projectRoot.resolve(relative).normalize();
+        if (!target.startsWith(projectRoot)) {
+            throw new ProjectFilesException("Project file escapes Project Root: " + path);
+        }
+        rejectSymbolicLinks(projectRoot, relative);
+
+        try {
+            if (!Files.isRegularFile(target, LinkOption.NOFOLLOW_LINKS)) {
+                throw new ProjectFilesException("Published project file not found: " + path);
+            }
+            if (Files.size(target) > maxFileBytes) {
+                throw new ProjectFilesException("Published project file exceeds byte limit: " + path);
+            }
+            return new ProjectFile(relative.toString(), Files.readString(target, StandardCharsets.UTF_8));
+        } catch (IOException exception) {
+            throw new ProjectFilesException("Failed to read published project file: " + path, exception);
+        }
+    }
+
     private List<ValidatedFile> validateFiles(Path projectRoot, List<ProjectFile> files) {
         Objects.requireNonNull(files, "files");
         if (files.isEmpty()) {
@@ -119,7 +185,7 @@ public class ProjectFiles {
         for (ProjectFile file : files) {
             Objects.requireNonNull(file, "file");
             Path relative = relativePath(file.path());
-            if (relative.getName(0).toString().equals(METADATA_DIRECTORY)) {
+            if (isInternalPath(relative)) {
                 throw new ProjectFilesException("Project file path is reserved: " + file.path());
             }
             Path target = projectRoot.resolve(relative).normalize();
@@ -149,6 +215,9 @@ public class ProjectFiles {
     }
 
     private Path relativePath(String value) {
+        if (value == null || value.isBlank()) {
+            throw new ProjectFilesException("Project file path must not be blank");
+        }
         try {
             Path path = Path.of(value);
             if (path.isAbsolute()) {
@@ -166,6 +235,27 @@ public class ProjectFiles {
             return normalized;
         } catch (InvalidPathException exception) {
             throw new ProjectFilesException("Invalid project file path: " + value, exception);
+        }
+    }
+
+    private boolean isInternalPath(Path relative) {
+        if (relative.getNameCount() == 0) {
+            return false;
+        }
+        String first = relative.getName(0).toString();
+        return METADATA_DIRECTORY.equals(first) || STAGING_DIRECTORY.equals(first);
+    }
+
+    private void rejectSymbolicLinks(Path projectRoot, Path relative) {
+        if (Files.isSymbolicLink(projectRoot)) {
+            throw new ProjectFilesException("Project Root must not be a symbolic link");
+        }
+        Path current = projectRoot;
+        for (Path segment : relative) {
+            current = current.resolve(segment);
+            if (Files.isSymbolicLink(current)) {
+                throw new ProjectFilesException("Project file path must not contain symbolic links: " + relative);
+            }
         }
     }
 
@@ -211,14 +301,31 @@ public class ProjectFiles {
                 StandardOpenOption.WRITE);
     }
 
+    private boolean hasValidPublication(Path projectRoot) {
+        return readPublicationId(projectRoot) != null;
+    }
+
     private boolean publicationMatches(Path projectRoot, String publicationId) {
-        Path marker = projectRoot.resolve(METADATA_DIRECTORY).resolve(PUBLICATION_FILE);
+        return publicationId.equals(readPublicationId(projectRoot));
+    }
+
+    private String readPublicationId(Path projectRoot) {
+        Path metadata = projectRoot.resolve(METADATA_DIRECTORY);
+        Path marker = metadata.resolve(PUBLICATION_FILE);
         if (!Files.isDirectory(projectRoot, LinkOption.NOFOLLOW_LINKS)
+                || !Files.isDirectory(metadata, LinkOption.NOFOLLOW_LINKS)
                 || !Files.isRegularFile(marker, LinkOption.NOFOLLOW_LINKS)) {
-            return false;
+            return null;
         }
         try {
-            return publicationId.equals(Files.readString(marker, StandardCharsets.UTF_8));
+            if (Files.size(marker) > MAX_PUBLICATION_ID_LENGTH) {
+                return null;
+            }
+            String publicationId = Files.readString(marker, StandardCharsets.UTF_8);
+            if (publicationId.isBlank() || publicationId.length() > MAX_PUBLICATION_ID_LENGTH) {
+                return null;
+            }
+            return publicationId;
         } catch (IOException exception) {
             throw new ProjectFilesException("Failed to read Project publication marker: " + projectRoot.getFileName(), exception);
         }
