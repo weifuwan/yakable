@@ -10,6 +10,7 @@ const projectState = vi.hoisted(() => ({
 }));
 
 vi.mock('@/features/project', () => ({
+  ProjectFilesBrowser: ({ projectId }: { projectId: string }) => <div>files:{projectId}</div>,
   useProjects: () => ({
     markProjectActive: projectState.markProjectActive,
   }),
@@ -46,6 +47,8 @@ describe('ProjectPage', () => {
         </Routes>
       </MemoryRouter>,
     );
+
+    expect(screen.getByText('files:project-1')).toBeTruthy();
 
     await user.click(
       screen.getByRole('button', {
